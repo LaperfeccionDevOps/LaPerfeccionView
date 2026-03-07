@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Contrato Individual de Trabajo</title>
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10pt;           /* ✅ igual a Word */
+      margin: 40px;
+      color: #000;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    .logo {
+      font-weight: bold;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+    }
+
+    /* ✅ AJUSTE: Logo más pequeño y controlado */
+    .logo-img {
+      height: 55px;      /* 👈 cambia aquí: 45px / 55px / 65px */
+      width: auto;
+      display: block;
+      object-fit: contain;
+    }
+
+    .title {
+      text-align: center;
+      font-weight: bold;
+      text-transform: uppercase;
+      margin-top: 5px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    td, th {
+      border: 1px solid #000;
+      padding: 6px;
+      vertical-align: top;
+    }
+
+    .small {
+      font-size: 9pt;
+    }
+
+    /* =====================================================
+       ✅ ESTILOS DEL BLOQUE ÚNICO (para que quede igual)
+       ===================================================== */
+    .contrato-grid{
+      width:100%;
+      border-collapse:collapse;
+      table-layout:fixed;
+      margin-top: 10px;
+    }
+
+    .contrato-grid td, .contrato-grid th{
+      border:1px solid #000;
+      padding:6px;
+      vertical-align:top;
+      font-size:10pt;     /* ✅ igual a Word */
+    }
+
+    .cell-label{
+      font-weight:bold;
+    }
+
+    .cell-block .cell-label{
+      display:block;
+      margin-bottom:4px;
+    }
+
+    /* =====================================================
+       ✅ AJUSTE FECHA DE INICIACIÓN (con la línea separadora)
+       ===================================================== */
+    .fecha-labores-cell{
+      padding: 0 !important;
+    }
+
+    .fecha-labores-title{
+      padding: 6px;
+      font-weight: bold;
+      border-bottom: 1px solid #000;
+      margin: 0;
+    }
+
+    .mini-fecha{
+      width:100%;
+      border-collapse:collapse;
+      table-layout:fixed;
+      margin: 0;
+    }
+
+    .mini-fecha th, .mini-fecha td{
+      border:1px solid #000;
+      padding:4px;
+      text-align:center;
+      font-weight:bold;
+      font-size:10pt;
+    }
+
+    .mini-fecha td{
+      font-weight:normal;
+    }
+
+    .mini-fecha tr:first-child th{ border-top: 0; }
+    .mini-fecha tr:last-child td{ border-bottom: 0; }
+    .mini-fecha th:first-child,
+    .mini-fecha td:first-child{ border-left: 0; }
+    .mini-fecha th:last-child,
+    .mini-fecha td:last-child{ border-right: 0; }
+
+    /* =====================================================
+       ✅ PÁRRAFOS / CLÁUSULAS (igual al Word)
+       ===================================================== */
+    .espacio-post-tabla{
+      height: 12px; /* ✅ “uno o dos clics” */
+    }
+
+    .clausulas{
+      text-align: justify;
+      line-height: 1.35;
+    }
+
+    .p-contrato{
+      margin: 0 0 10px 0;
+      text-indent: 0;
+    }
+
+    /* ✅ Sangría colgante (como en Word) */
+    .hanging{
+      padding-left: 0.5in;
+      text-indent: -0.5in;
+    }
+
+    .negrita{
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ENCABEZADO -->
+  <div class="header">
+    <div class="logo">
+      <img src="/LOGO/ASEO.jpeg" alt="ASEOS LA PERFECCIÓN S.A.S" class="logo-img">
+    </div>
+
+    <div class="small">
+      26-OCT-2018
+    </div>
+  </div>
+
+  <div class="title">
+    CONTRATO INDIVIDUAL DE TRABAJO POR LA DURACIÓN DE UNA OBRA O LABOR DETERMINADA
+  </div>
+
+  <!-- ✅ BLOQUE ÚNICO -->
+  <table class="contrato-grid">
+    <colgroup>
+      <col style="width:18%;">
+      <col style="width:32%;">
+      <col style="width:18%;">
+      <col style="width:32%;">
+    </colgroup>
+
+    <tr>
+      <td colspan="2" class="cell-block">
+        <span class="cell-label">NOMBRE DEL EMPLEADOR:</span>
+        ASEOS LA PERFECCIÓN S.A.S<br>
+        NIT. 800.068.462-4
+      </td>
+      <td colspan="2" class="cell-block">
+        <span class="cell-label">DOMICILIO DEL EMPLEADOR:</span>
+        CALLE 4 BIS #53C-50 GALÁN
+      </td>
+    </tr>
+
+    <tr>
+      <td colspan="2" class="cell-block">
+        <span class="cell-label">NOMBRE DEL TRABAJADOR:</span>
+        @NOMBRES
+      </td>
+      <td colspan="2" class="cell-block">
+        <span class="cell-label">DIRECCIÓN DEL DOMICILIO DEL TRABAJADOR:</span>
+        XXXX
+      </td>
+    </tr>
+
+    <tr>
+      <td class="cell-label">Cédula No.:</td>
+      <td>1.003.000.280</td>
+      <td class="cell-label">Ciudad/Barrio</td>
+      <td>XXXXX</td>
+    </tr>
+
+    <tr>
+      <td class="cell-label">Expedida en:</td>
+      <td>MONTERÍA</td>
+      <td class="cell-label">Teléfono fijo</td>
+      <td>XXXXX</td>
+    </tr>
+
+    <tr>
+      <td colspan="2" rowspan="2">&nbsp;</td>
+      <td class="cell-label">Correo electrónico</td>
+      <td>XXXX</td>
+    </tr>
+    <tr>
+      <td class="cell-label">Celular</td>
+      <td>XXXX</td>
+    </tr>
+
+    <tr>
+      <td colspan="2" class="cell-block">
+        <span class="cell-label">FECHA DE NACIMIENTO Y NACIONALIDAD:</span>
+        XXXXX<br>XXXXX
+      </td>
+      <td colspan="2" class="cell-block">
+        <span class="cell-label">CARGO QUE DESEMPEÑARÁ EL TRABAJADOR:</span>
+        OPERATIVO
+      </td>
+    </tr>
+
+    <tr>
+      <td colspan="2" class="cell-block">
+        <span class="cell-label" style="display:inline; margin:0;">SALARIO:</span>
+        <span> $ XXXXX</span>
+      </td>
+
+      <td colspan="2" class="cell-block">
+        <span class="cell-label" style="display:inline; margin:0;">PERIODOS DE PAGO:</span>
+        <span> Mensual</span>
+      </td>
+    </tr>
+
+    <tr>
+      <td colspan="2" class="cell-block">
+        <span class="cell-label">DURACIÓN DEL CONTRATO:</span>
+        Por la duración de una obra o labor determinada.
+      </td>
+
+      <td colspan="2" class="cell-block fecha-labores-cell">
+        <div class="fecha-labores-title">FECHA DE INICIACIÓN DE LABORES:</div>
+
+        <table class="mini-fecha">
+          <tr>
+            <th>DIA</th>
+            <th>MES</th>
+            <th>AÑO</th>
+          </tr>
+          <tr>
+            <td>XXX</td>
+            <td>XXX</td>
+            <td>XXX</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr>
+      <td colspan="2" class="cell-block">
+        <span class="cell-label">LUGAR DONDE DESEMPEÑARÁ LAS LABORES</span>
+        Territorio Nacional Colombiano donde el EMPLEADOR desarrolle operaciones XXXXX
+      </td>
+      <td colspan="2">&nbsp;</td>
+    </tr>
+  </table>
+
+  <div class="espacio-post-tabla"></div>
+
+  <!-- ✅ CLÁUSULAS (idéntico al Word: negrillas + sangrías) -->
+  <div class="clausulas">
+    <p class="p-contrato">Entre el EMPLEADOR y el TRABAJADOR, de las condiciones ya dichas e identificado como se indica bajo nuestras firmas, se ha celebrado el presente <span class="negrita">CONTRATO INDIVIDUAL DE TRABAJO</span> que se regirá además de las normas legales vigentes y en especial por las cláusulas que a continuación se pactan:</p>
+
+    <p class="p-contrato hanging"><span class="negrita">PRIMERA.- Objeto: </span>El EMPLEADOR contrata los servicios personales del TRABAJADOR en desarrollo de lo cual éste último se obliga: <span class="negrita">a)</span> Poner al servicio del EMPLEADOR en forma personal y exclusiva toda su capacidad normal de trabajo, en el desempeño de las funciones y actividades propias del oficio o actividad para el cual ha sido contratado y en las labores anexas y complementarias a los mismos, de conformidad con las órdenes e instrucciones que en forma verbal o escrita le imparta el EMPLEADOR o sus representantes para el cumplimiento de la siguiente <span class="negrita">OBRA O LABOR DETERMINADA:</span></p>
+
+    <p class="p-contrato"><span class="negrita">________________________________________________________________________________________________________________________________________________________.</span></p>
+
+    <p class="p-contrato"><span class="negrita">b)</span> No prestar directa ni indirectamente servicios laborales ni de ninguna otra naturaleza a otros EMPLEADORES, ni trabajar por cuenta propia en el mismo oficio o actividad, durante la vigencia de este contrato; <span class="negrita">c)</span> Guardar reserva absoluta sobre la información, documentos físicos y/o electrónicos, hechos, y en general sobre todos los asuntos de que tenga conocimiento por causa o con ocasión del presente contrato de trabajo; <span class="negrita">d)</span> Cumplir con las obligaciones consagradas en el artículo 58 del C.S.T. y las demás normas que lo complementen, modifiquen o adicionen; <span class="negrita">e)</span> Utilizar de manera permanente en las jornadas laborales, los elementos de seguridad, dotación con los diseños, colores distintivos y demás especificaciones entregadas por el EMPLEADOR, debiéndolas conservar en buen estado y a usarlos durante toda la vigencia de la relación laboral; <span class="negrita">f)</span> Asistir y participar en los eventos de capacitación y entrenamiento que sean programados por el EMPLEADOR dentro o fuera de sus instalaciones, y los demás que a él le correspondan, con el fin de afianzar sus conocimientos y habilidades para aplicarlos en el desarrollo de sus funciones e igualmente; <span class="negrita">g)</span> Ejecutar por sí mismo las funciones asignadas y cumplir estrictamente las instrucciones que le sean dadas por la empresa, o por quienes la representen, respecto del desarrollo de sus actividades; <span class="negrita">h)</span> Cuidar permanentemente los intereses de la empresa; <span class="negrita">i)</span> Dedicar la totalidad de su jornada de trabajo a cumplir a cabalidad con sus funciones; <span class="negrita">j)</span> Programar diariamente su trabajo y asistir puntualmente a las reuniones que efectúe la empresa a las cuales hubiere sido citado; <span class="negrita">k)</span> Conservar completa armonía y comprensión con los clientes, con sus superiores y compañeros de trabajo, en sus relaciones personales y en la ejecución de su labor; <span class="negrita">l)</span> Cumplir permanentemente con espíritu de lealtad, colaboración y disciplina con la empresa; <span class="negrita">m)</span> Avisar oportunamente y por escrito, a la empresa todo cambio en su dirección, teléfono o ciudad de residencia; <span class="negrita">n)</span> Abstenerse de comunicar o divulgar con terceros, salvo autorización expresa y escrita DEL EMPLEADOR las informaciones que tenga sobre su trabajo, especialmente sobre el manejo de las cosas que son de naturaleza reservada y sobre las informaciones y las bases de datos de los diferentes programas de la empresa, así como registros contables, estudios de mercado, estudios de cualquier otra naturaleza, bases de clientes, demás documentos, minutas, procedimientos y tecnología utilizada por EL EMPLEADOR. Igualmente, EL TRABAJADOR se obliga a no acceder a las bases de datos de los diferentes programas de la empresa que no le hayan sido asignados. Únicamente podrá acceder a la base de datos que le ha sido asignada cuando se presenten problemas que requieran solución inmediata o cuando en razón de su cargo deba realizar modificaciones a los programas, pero en ambos eventos EL TRABAJADOR deberá obtener autorización previa y escrita del EMPLEADOR para el acceso a cualquiera de los programas, pero siempre custodiando el carácter reservado y confidencial de la información. Revelar información técnica, científica, comercial, contable o de cualquier otra naturaleza que tenga carácter reservado, o el uso indebido de tal información, o el acceso a la base de datos en circunstancias no contempladas en el presente documento, constituye una falta grave y las partes convienen que constituye una justa causa de despido. Por tal razón el trabajador se obliga a mantener la confidencialidad sobre todos los aspectos antes descritos aún después de terminado su contrato de trabajo, cualquiera sea la causa de terminación del contrato de trabajo, pues todo lo relacionado con estudios, registros contables, bases de clientes y demás documentos, procedimientos y tecnología utilizada por EL EMPLEADOR están protegidos por las normas sobre derechos de autor y la violación de tales derechos de autor de acuerdo con el Título VIII, Capítulo Único del Código Penal, artículos 270 a 272, están tipificadas como delitos que generan penas de prisión y multas, además de la responsabilidad pecuniaria de naturaleza civil. <span class="negrita">o)</span> Avisar oportunamente y por escrito a EL EMPLEADOR todo cambio de dirección de su residencia, teniéndose en todo caso como suya la última dirección registrada en su hoja de vida. <span class="negrita">p)</span> No atender durante las horas de trabajo asuntos u ocupaciones distintas a los que el empleador le asigne o encomiende. <span class="negrita">r)</span> Cuidar con esmero las máquinas, herramientas, utensilios, dotación, e instalaciones y demás bienes del empleador, y evitar todo daño o pérdida que cause perjuicios a su propiedad, por tal razón, el trabajador es responsable de los bienes que con ocasión del trabajo están sometidos a su cuidado, guarda y custodia. <span class="negrita">s)</span> Acatar los reglamentos del empleador. <span class="negrita">t)</span> Aceptar los traslados de lugar de trabajo o cambio de funciones que disponga el empleador, siempre que no exceda su capacidad normal de trabajo, cuadro de competencias o causen males a la Empresa <span class="negrita">u)</span> Acatar las normas de seguridad y salud en el trabajo; <span class="negrita">v)</span> A Cumplir con las obligaciones previstas en el manual de funciones; <span class="negrita">w)</span> Ser respetuoso en el manejo de sus relaciones interpersonales, manejándolas en forma correcta acorde a las normas de buen trato, comunicación asertiva, cooperación, trabajo en equipo y buena fe; <span class="negrita">y)</span> Informar por escrito al Empleador todas aquellas cosas que conozca bien por sus conocimientos específicos o bien porque tuvo acceso a ellos por el desarrollo normal de su labor o en cualquier otra circunstancia y que formen parte del interés legítimo del empleador amén de la prevención de daños y perjuicios; <span class="negrita">z)</span> Cumplir con las demás obligaciones legales, reglamentarias o que le señale el empleador mediante circulares o memorandos. <span class="negrita">a1)</span> Realizar por su cuenta todos los cursos o capacitaciones que requiera según la Ley para la habilitación profesional de sus servicios. <span class="negrita">b1)</span> Acatar estrictamente las órdenes que le impartan sus superiores; <span class="negrita">c1)</span> Cumplir la jornada de trabajo y atender las normas disciplinarías de horario y descansos; <span class="negrita">d1)</span> Asistir puntualmente al trabajo y a no dedicar parte alguna de su tiempo laborable a trabajos distintos a los asignados por EL EMPLEADOR; <span class="negrita">e1).</span> Resaltar con su comportamiento, la imagen de EL EMPLEADOR de tal manera que se constituya en ejemplo del personal que dirige y proyecta los propósitos y objetivos de la organización; <span class="negrita">f1)</span> Asistir puntualmente a la totalidad de capacitaciones, evaluación de conocimientos, conferencias y demás actividades programadas por EL EMPLEADOR; <span class="negrita">g1)</span> Guardar conducta intachable en sus relaciones sociales y comerciales, actuando con ética profesional en sus decisiones. <span class="negrita">h1)</span> Cumplir estrictamente de todas aquellas obligaciones que le impongan las disposiciones legales y éticas, relacionadas con su profesión y de carácter sanitario vigente en la actualidad o que se expidan en el futuro, como los deberes que impone la sana práctica profesional, el orden público, la moral y las buenas costumbres <span class="negrita">i1)</span> Llevar los registros diarios, y mantener informes estadísticos de atenciones y procedimientos practicados, cuando a ello haya lugar. <span class="negrita">j1)</span> Presentar y mantener vigentes los permisos, licencias y títulos especiales exigidos por parte de la ley o las autoridades administrativas, civiles o sanitarias, para el ejercicio de las actividades contratadas. <span class="negrita">k1)</span> Informar en forma oportuna al EL EMPLEADOR todos los casos en que se presenten suplantaciones o fraudes de usuarios. <span class="negrita">l1).</span> No incorporar, grabar, bajar de Internet, y en general utilizar de cualquier forma, software pirata o no autorizado y legalizado por EL EMPLEADOR, en los equipos de cómputo que tenga a su cargo. <span class="negrita">m)</span> Las demás obligaciones, que de la naturaleza del presente contrato se deriven o impongan las normas legales, así como las contempladas en el Reglamento Interno de Trabajo adoptado por EL EMPLEADOR. <span class="negrita">PARÁGRAFO PRIMERO:</span> La renuencia o negativa de EL TRABAJADOR a juicio de EL EMPLEADOR a cumplir cualquiera de estas obligaciones contractuales se considerará como FALTA GRAVE y por lo tanto se tendrá como justa causa POR PARTE DEL EMPLEADOR para dar por terminado UNILATERALMENTE el presente contrato sin previo aviso.</p>
+
+    <p class="p-contrato"><span class="negrita">SEGUNDA. - Duración: </span>El término de duración del contrato se celebra por el tiempo que dure la obra o la labor por la cual fue contratado EL TRABAJADOR de acuerdo a las condiciones que se señalan al inicio del presente contrato.</p>
+
+    <p class="p-contrato"><span class="negrita">TERCERA. - Periodo de Prueba: </span>El periodo de prueba será de dos (2) meses. Durante este periodo tanto el EMPLEADOR como el TRABAJADOR podrán terminar unilateralmente el contrato, por cualquier causa, sin necesidad de tener que expresar las razones de su decisión. Todo lo anterior de conformidad con el artículo 7º de la ley 50 de 1.990 que modifica el artículo 78 del C.S.T.</p>
+
+    <p class="p-contrato"><span class="negrita">CUARTA. - Salario: </span>EL EMPLEADOR pagará al TRABAJADOR como remuneración mensual, un salario ordinario al equivalente al señalado en la parte superior, pagadero en las oportunidades también señaladas. Las partes acuerdan que dentro de la suma anteriormente mencionada se encuentra incluido el valor de los descansos obligatorios de que trata el título VII, capítulos I y II del C.S.T, así como también se encuentra incluida la remuneración de todas las actividades en general desarrolladas por el TRABAJADOR. <span class="negrita">Parágrafo Primero:</span> Cláusula de exclusión salarial.- Las partes acuerdan que en todos los eventos en que se le reconozcan al trabajador beneficios o auxilios habituales u ocasionales, diferentes al salario, tales como, auxilio de alimentación, habitación o vivienda, transporte adicional al legal, vestuario distinto a la dotación, pago de quinquenios o decenios o en especie o a cualquier título y bajo cualquier otra denominación, tales reconocimientos o beneficios se considerarán como no constitutivos de salario y por tanto no se tendrán en cuenta como factor salarial para la liquidación de acreencias laborales, ni para el pago de aportes parafiscales, de conformidad con los artículos 15 y 16 de la ley 50/90, en concordancia con el artículo 17 de la ley 344/96, por tal razón las sumas que eventualmente reconozca EL EMPLEADOR al TRABAJADOR, durante la vigencia del contrato de trabajo, por concepto de auxilios extralegales de transporte, alimentación, refrigerios de trabajo etc., las partes expresamente convienen que no serán constitutivos de salario para efectos legales, prestaciones, vacaciones e indemnizaciones ya que no se otorgan como contraprestación directa del servicio, ni para beneficio personal del trabajador, ni para enriquecer su patrimonio, sino para desempeñar a cabalidad sus funciones de conformidad con la ley 789 del 2002, los Artículos 15 y 16 de la Ley 50 de 1990, en concordancia con el Artículo 17 de la Ley 344 de 1.996, por tal razón EL EMPLEADOR se reserva el derecho de variar de forma unilateral las condiciones señaladas en esta cláusula, sin que esto constituya desmejoramiento alguno en las condiciones de EL TRABAJADOR por tratarse de un beneficio otorgado de manera libre y voluntario por EL EMPLEADOR y en tal sentido podrá suprimirlos en cualquier momento durante la ejecución del presente contrato, sin menoscabo de sus condiciones laborales, para la cesación de este beneficio AL EMPLEADOR le bastará con el aviso a EL TRABAJADOR con una antelación no inferior a diez (10) días calendario a su efectividad. <span class="negrita">Parágrafo Segundo:</span> EL TRABAJADOR autoriza al EMPLEADOR Y/O PAGADOR para que le descuente de sus ingresos salariales, beneficios no salariales, vacaciones, prestaciones sociales y en general de toda acreencia laboral a que tenga derecho, aquellas sumas laborales, cualquiera, que por error le haya reconocido el EMPLEADOR al TRABAJADOR. Igualmente autoriza para que se le descuente en caso de terminación del contrato de trabajo, de su liquidación definitiva, el mayor valor pagado por concepto de salarios, prestaciones sociales o beneficios no salariales reconocidos hasta la fecha de terminación del contrato. Del mismo modo, el trabajador autoriza expresamente al Empleador y/o pagador para que descuente de su salario, beneficios no salariales, prestaciones y vacaciones el valor de los intereses generados por planilla cuando por su culpa haga incurrir al Empleador en errores de afiliación y pago de aportes, tales como traslados no informados por escrito de E.P.S o A.F.P. <span class="negrita">Parágrafo Tercero:</span> El TRABAJADOR autoriza de manera expresa e irrevocable al EMPLEADOR a pagar las acreencias laborales a que este tenga derecho durante la vigencia de la relación laboral o a su terminación, en efectivo o mediante depósito en la cuenta de nómina que para tal efecto registre el TRABAJADOR.</p>
+
+    <p class="p-contrato"><span class="negrita">QUINTA. - Jornada De Trabajo: </span>El TRABAJADOR se obliga a laborar la jornada máxima legal, salvo estipulación expresa y escrita en contrario, en los turnos y horarios y horas señaladas por el EMPLEADOR, pudiendo hacer éste ajustes o cambios de horario cuando lo considere conveniente o con el objetivo de ajustarlos cuando la necesidad del servicio lo estime conveniente. Por acuerdo expreso o tácito de las partes, podrán repartirse las horas de la jornada ordinaria en la forma prevista en el artículo 164 del C.S.T., modificado por el artículo 23 de la Ley 50/90, teniendo en cuenta que los tiempos de descanso entre las secciones de la jornada no se computan dentro de la misma, según el artículo 167 del C.S.T. De igual manera, las partes podrán acordar que se preste el servicio en los turnos de jornada flexible de trabajo, distribuidas en máximo seis (6) días a la semana con un (1) día de descanso obligatorio, que podrá o no coincidir con el domingo, lo cual está contemplado en el Artículo 51 de la ley 789 de 2002. En éste, el número de horas de trabajo diario podrá repartirse de manera variable durante la respectiva semana y podrá ser de mínimo cuatro (4) horas continuas y hasta diez (10) horas diarias sin lugar a ningún recargo por trabajo suplementario, cuando el número de horas de trabajo no exceda el promedio de cuarenta y seis (46) horas semanales dentro de la jornada ordinaria de 6 a.m. a 10 p.m. <span class="negrita">Parágrafo Único.-</span> Trabajo Nocturno, Suplementario Dominical y/o Festivo: Todo trabajo nocturno, suplementario o en horas extras y todo trabajo en día domingo o festivos en los que legalmente deba concederse un descanso, se remunerará conforme a la ley, salvo acuerdo en contrario contenido en convención, pacto colectivo o laudo arbitral. Para el reconocimiento y pago de trabajo suplementario, nocturno, dominical o festivo deberán haberlo autorizado previamente y por escrito por el EMPLEADOR o sus representantes. Cuando la necesidad de este trabajo se presente de manera imprevista o inaplazable deberá ejecutarse e informarse inmediatamente para la aprobación por parte del EMPLEADOR o a sus representantes. El EMPLEADOR en consecuencia no reconocerá ningún trabajo suplementario, nocturno, o en días de descanso legalmente obligatorio que no haya sido autorizado previamente o avisado inmediatamente y autorizado, como se estipula. Cuando el TRABAJADOR desempeñe labores que impliquen dirección, manejo o confianza, no habrá lugar al pago de horas extras.</p>
+
+    <p class="p-contrato"><span class="negrita">SEXTA.- PROHIBICIONES AL TRABAJADOR QUE AMERITAN LA TERMINACIÓN UNILATERAL DEL CONTRATO DE TRABAJO: </span>SON JUSTAS CAUSAS PARA DAR POR TERMINADO ESTE CONTRATO EN FORMA UNILATERAL las enumeradas en los artículos 62 y 63 del C.S.T., modificados por el artículo 7º del Decreto 2351/65, <span class="negrita">Y ADEMÁS,</span> por parte del EMPLEADOR las faltas disciplinarias leves que por segunda vez ocurran que se consideran reincidencia y se convierten en Graves, y las faltas que para el efecto se califican como Graves en este contrato, en el Reglamento Interno de Trabajo y demás documentos que contengan reglamentaciones, ordenes, instrucciones o prohibiciones de carácter general o particular, pactos, convenciones colectivas, laudos arbitrales, y las que expresamente se convengan como tales en cualquier otro documento.- <span class="negrita">DE MANERA EXPRESA SE CALIFICAN COMO GRAVES</span> además de la violación a las obligaciones y prohibiciones contenidas en la cláusula primera del presente contrato: a) La violación por parte del TRABAJADOR de cualquiera de sus obligaciones legales contenidas en el Código Sustantivo del Trabajo, contractuales contenidas en el presente documentos o reglamentarias contendidas en el Reglamento Interno de Trabajo, de Seguridad e higiene y demás que adopte la compañía; b) La no asistencia puntual al trabajo, sin excusa suficiente a juicio del EMPLEADOR, así sea por primera vez; c) La ejecución por parte del TRABAJADOR de labores remuneradas al servicio de terceros sin autorización previa y escrita del EMPLEADOR; d) La revelación de secretos, valor de ventas, y datos reservados de la empresa; e) Desavenencias con sus compañeros de trabajo, superiores o jefes inmediatos; f) El hecho de que el TRABAJADOR se presente al puesto de trabajo con tufo o llegue embriagado, aliento alcohólico o con muestras visibles de haber ingerido licor a juicio del EMPLEADOR o de uno de sus superiores o ingiera las bebidas embriagantes o sustancias o drogas que generen adicción o dependencia física o síquica en el sitio de trabajo, aun por la primera vez. En consecuencia el trabajador autoriza, para que, una vez suscrito el contrato con el empleador, este efectúe todo tipo de averiguaciones periódicas y aleatorias encaminadas a verificar el estado del trabajador; g) El hecho de que el TRABAJADOR abandone el sitio de trabajo sin permiso de sus superiores, así sea por primera vez; h) La no asistencia a una sesión completa de la jornada de trabajo, o más, sin excusa suficiente a juicio del EMPLEADOR, salvo los eventos de fuerza mayor o caso fortuito, sin dar aviso oportuno o sin justa causa por primera vez; i) La negligencia, descuido o impericia del TRABAJADOR; j) El hecho de que el trabajador sea sorprendido dormido en su puesto de trabajo; k) El hecho de que el trabajador presente previamente al ingreso a la compañía o durante el desarrollo del presente contrato, informaciones, recomendaciones, constancias, certificados y en general cualquier documento que sirva de prueba y/o documentos que no correspondan a los reales antecedentes personales y laborales del trabajador. En consecuencia el trabajador autoriza, para que, una vez suscrito el contrato con el empleador, este efectúe todo tipo de averiguaciones encaminadas a verificar la veracidad de la información suministrada por el trabajador; l) El hecho que el TRABAJADOR una vez recibido su puesto de trabajo, lo abandone sin justa causa o sin orden de su superior; m) El hecho de que el trabajador incumpla órdenes o normas u omita la realización de órdenes dadas por EL EMPLEADOR o presente falsas imputaciones o informes contra sus compañeros, superiores o clientes en general; n) El hecho que el trabajador encubra faltas o informaciones que a juicio del EMPLEADOR perjudique directa o indirectamente al EMPLEADOR; o) El hecho que el trabajador manipule o haga uso indebido de los elementos o equipos de propiedad del EMPLEADOR o que no siendo de este sea el responsable ante algún tercero de ellas; p) El hecho que el TRABAJADOR, sin justificación alguna incumpla o altere los horarios de programación asignados o realice auto traslados sin previa autorización y sin el cumplimiento del procedimiento; q) El hecho que el TRABAJADOR realice saboteos o en general haga mal uso de los elementos asignados. r) El hecho que el TRABAJADOR realice funciones ajenas a las asignadas por el empleador. s) El hecho que el TRABAJADOR se adjudique funciones que no le corresponden o se extralimite en las mismas. t) El hecho que el trabajador emita opiniones, realice autorizaciones o tome determinaciones en nombre y/o representación de la empresa sin estar expresamente autorizado para ello. u) Solicitar préstamos especiales o ayuda económica a los clientes y proveedores del EMPLEADOR aprovechándose de su cargo u oficio, o aceptarles donaciones o regalos de cualquier clase sin la previa autorización escrita del EMPLEADOR; v) Utilizar los activos, instalaciones, herramientas, materias primas y recursos colocados a su disposición para la ejecución de sus funciones en actividades personales o en actividades ajenas a las propias de su cargo. w) Autorizar o ejecutar sin ser de su competencia, operaciones que afecten los intereses del EMPLEADOR o negociar bienes y/o mercancías del EMPLEADOR en provecho propio; y) Retener dinero o hacer efectivos cheques recibidos para el EMPLEADOR; z) Presentar cuentas de gastos ficticias o reportar como cumplidas visitas o tareas no efectuadas; a1) Retirar de las instalaciones donde funcione la empresa elementos, máquinas y útiles de propiedad del EMPLEADOR sin su autorización escrita. b1) Ingerir licor o bebida de cualquier clase con cualquier grado de contenido de alcohol, en cualquier cantidad de consumo, dentro de las instalaciones de la empresa durante su jornada de trabajo, o fuera de tal jornada estando dentro de las instalaciones de la empresa. Esta prohibición se hace extensiva a fuera de las instalaciones de la empresa en caso de estar ejecutando su actividad laboral fuera de tales instalaciones. c1) Tener participación económica, directiva o administrativa en empresas, sociedades o con personas naturales a las cuales EL EMPLEADOR preste servicios o que a su vez presten servicios similares a los que presta EL EMPLEADOR. Esta prohibición se hace extensiva a los familiares de EL TRABAJADOR hasta el cuarto grado de consanguinidad, segundo civil, cónyuge y compañero (a) del TRABAJADOR. Si tal situación se produjo antes de la celebración del contrato de trabajo, deberá ponerla en conocimiento de EL EMPLEADOR antes de suscribir tal contrato, o al momento de firmar la presente cláusula adicional. d1) Tomar decisiones que impliquen beneficios para sí mismo, sus familiares hasta el cuarto grado de consanguinidad y/o segundo de afinidad, cónyuge, compañero (a) permanente, o para personas con quienes mantenga amistad íntima. En el evento en que EL EMPLEADOR vaya a celebrar negocios con empresas, sociedades en las que tengan participación económica, directiva o administrativa los familiares de EL TRABAJADOR hasta el cuarto grado de consanguinidad, segundo de afinidad, cónyuge o compañero (a), debe comunicarlo por escrito en forma inmediata a su superior jerárquico. Se entiende por conflicto de intereses toda acción o situación en que los intereses personales, familiares en los grados antes señalados, así como del cónyuge o compañero (a) de EL TRABAJADOR, sean opuestos a los de la empresa. En caso de presentarse tales conflictos de intereses, EL TRABAJADOR debe comunicárselo por escrito en forma inmediata a su superior jerárquico. e1) No informar en forma oportuna al EL EMPLEADOR todos los casos en que se presenten suplantaciones o fraudes de usuarios. f1) No cumplir y acatar las disposiciones contempladas en las Circulares Reglamentarias e instrucciones que expida la entidad. g1) Negarse a desempeñar una labor inherente, conexa o complementaria de sus funciones habituales. h1) Exigir o insinuar a los clientes, proveedores o compradores de EL EMPLEADOR la entrega de cualquier clase de dádivas, valores o especies para el Trabajador o para terceros; i1) Aprovecharse en beneficio propio o de terceros de dineros, valores, recursos o insumos de EL EMPLEADOR; j1) Incurrir en alguna conducta de las previstas en el artículo 7 de la Ley 1010 de 2006, catalogadas de acoso laboral k1) Incumplir cualquiera de las obligaciones mencionadas en la cláusula primera del presente contrato. q1) La usurpación de cuentas IP o usuarios ajenos, sin autorización escrita del Empleador, cualquiera que sea la finalidad. r1) Cualquier conducta contraria a los principios de lealtad, honradez, probidad o buena fe que impelen al trabajador a hacer lo debido y lo correcto en la ejecución de sus labores, o en las relaciones con sus compañeros, superiores, colaboradores, proveedores o beneficiarios de servicios que presta el Empleador. s1) El hecho de que EL TRABAJADOR si conduce vehículos de la compañía o al encomendado en cumplimiento de sus jornada de trabajo, incumpla la normas de tránsito en la conducción del vehículo a él asignado, para lo cual, bastara como prueba de su infracción el informe de tránsito, croquis del accidente de tránsito, comparendo o resolución de autoridad competente en la que se le señale como responsable, infractor o contraventor de alguna norma sobre tránsito y transporte. t1) La violación de la cláusula de exclusividad laboral pactada en el presente contrato. <span class="negrita">PARÁGRAFO PRIMERO:</span> Habrá lugar a la terminación de este contrato por las causales previstas en la Ley, y además por cualquier falta grave calificada como tal, en el presente contrato, en pacto o convención colectiva de trabajo, fallo arbitral, o reglamentos de trabajo e higiene y seguridad y código de conducta de LA EMPRESA, como también en las resoluciones y órdenes emanadas de la Presidencia y Gerencia Respectiva. En caso de terminación unilateral sin justa causa por parte de LA EMPRESA, ésta pagará al TRABAJADOR las indemnizaciones previstas por la Ley.</p>
+
+    <p class="p-contrato"><span class="negrita">SÉPTIMA. - Equipos y herramientas de trabajo. </span>El TRABAJADOR, se obliga especialmente a responder de manera personal y pecuniariamente por la negligencia, falta de impericia, o dolo que le cause a los vehículos asignados, y los demás equipos, herramientas y elementos de trabajo que reciba para el correcto desempeño exclusivo de sus labores, o que llegue a tener bajo su responsabilidad en la ejecución del contrato. Sobre todos ellos se obliga a reportar oportunamente a su empleador o su custodia cuando sea de su propiedad, cuando requieran mantenimiento correctivo o preventivo a efectos de evitar su deterioro o falla. Todos ellos deberán devolverlos en buen estado, salvo el deterioro natural por el uso cuidadoso de los mismos. Si por descuido o negligencia del TRABAJADOR los equipos y herramientas sufrieran pérdida, daño o destrucción, el TRABAJADOR se obliga a su reparación, remplazo o indemnización dentro de los 8 días a que ocurra el siniestro, término vencido sin que ello ocurra la EMPRESA podrá disponer de la reparación o del remplazo para lo cual las sumas pagadas, desde ya autoriza el empleador sean descontadas de su salario o liquidación final.</p>
+
+    <p class="p-contrato"><span class="negrita">OCTAVA.- Modificación de las Condiciones Laborales: </span>El TRABAJADOR acepta desde ahora expresamente todas las modificaciones de sus condiciones laborales determinadas por el EMPLEADOR en ejercicio de su poder subordinante, tales como la jornada de trabajo, el lugar de prestación de los servicios del inicialmente contratado, el cargo u oficio y/o funciones, y la forma de remuneración, siempre que tales modificaciones no afecten su honor, dignidad, o sus derechos, ni impliquen desmejoras sustanciales o graves perjuicios para él, de conformidad con el artículo 23 de C.S.T., modificado por el artículo 1º de la Ley 50/90. Los gastos que se originen con el traslado de lugar de prestación del servicio serán cubiertos por el EMPLEADOR de conformidad con el numeral 8º del artículo 57 del C.S.T. Sin perjuicio de lo anotado anteriormente toda variación en la remuneración del TRABAJADOR y demás modificaciones que acuerden las partes se harán por escrito. <span class="negrita">Parágrafo Primero:</span> En los términos del Art. 26 de la Ley 789 del 2002, modificada por el Art. 179 del C.S.T., subrogado por el Art. 29 de la ley 50 de 1990 y el Art. 51 de la ley 789 del 2002, se acuerda establecer un día de la semana (Lunes a viernes) como día de descanso obligatorio institucional a cambio del domingo, sin que esta determinación sea definitiva sino que puede ser temporal en razón a las mismas necesidades del servicio en el tiempo, por lo que el TRABAJADOR delega en el EMPLEADOR la facultad de establecer en forma sucesiva o alternativa, la fijación del mencionado día semanal como día de descanso obligatorio institucional, avisándole el cambio con un día de anticipación de acuerdo con la programación asignada. <span class="negrita">Parágrafo Segundo:</span> Con base en las mismas razones de las necesidades que presente el servicio por el cual fue contratado EL EMPLEADOR, con base en el artículo 51 de la ley 789 de 2002, las partes acuerdan que el TRABAJADOR delega en el EMPLEADOR la aplicación de jornadas flexibles pudiendo establecer esta jornada en forma sucesiva o alternativa y pudiendo cambiar el día de descanso dominical.</p>
+
+    <p class="p-contrato"><span class="negrita">NOVENA. - Propiedad Intelectual E Invenciones. </span>1). Teniendo en cuenta el objeto del contrato de trabajo suscrito entre las partes, el EMPLEADOR y el TRABAJADOR acuerdan que todas las invenciones y trabajos originales de autor (incluyendo descubrimientos, ideas, mejoras, software, hardware o diseños de sistemas, ya sean patentables/ registrables o no), concebidos o hechos por el TRABAJADOR durante la ejecución del presente contrato y que de alguna manera se relacionen con el objeto del mismo pertenecerán al EMPLEADOR. En consecuencia, de lo anterior, el TRABAJADOR se obliga a informar al EMPLEADOR inmediatamente sobre la existencia de dichas invenciones y/o trabajos originales. El trabajador accederá a facilitar el cumplimiento oportuno de las correspondientes formalidades y dará su firma o extenderá los poderes y documentos necesarios para transferir los derechos de autor al EMPLEADOR cuando así se lo solicite el EMPLEADOR, sin que éste quede obligado al pago de compensación alguna. 2). Igualmente convienen las partes que todo lo que cree, invente, descubra, desarrolle o mejore EL TRABAJADOR, con ocasión del presente contrato, pertenece al EMPLEADOR., sin necesidad de autorización alguna, de conformidad con lo dispuesto en el artículo 539 del Código de Comercio en concordancia con el primer inciso de los artículos 22, 88, 114 de la Decisión 486 de 2000 de la Comisión de la Comunidad Andina de Naciones. En consecuencia EL EMPLEADOR tendrá el derecho de hacer patentar a su nombre o a nombre de terceros esos inventos, mejoras, diseños o esquemas, respetándose el derecho del TRABAJADOR de ser mencionado como inventor o descubridor si así lo desea. El trabajador accederá a facilitar el cumplimiento oportuno de las correspondientes formalidades y dará su firma o extenderá los poderes y documentos necesarios para tal fin según y cuando se lo solicite el patrono, sin que éste quede obligado al pago de compensación alguna. <span class="negrita">Parágrafo Primero.</span> Teniendo en cuenta lo dispuesto en la Ley 23 de 1982 y en la Decisión 486 de 2000 de la Comunidad Andina de Naciones y así mismo lo dispuesto en el numeral 1° del artículo 132 del Código Sustantivo del Trabajo, las partes acuerdan que la remuneración salarial reconocida por el EMPLEADOR como contraprestación de los servicios prestados por el TRABAJADOR, incluye y contiene la remuneración por la transferencia de los derechos de autor y derechos de propiedad intelectual mencionadas en las cláusulas anteriores, toda vez que los objetos sobre los cuales recaen los derechos de propiedad industrial son desarrollados por el TRABAJADOR en virtud de su contrato de trabajo, razón por la cual en virtud de la transferencia de los derechos antes mencionados no se causa compensación adicional alguna a favor del TRABAJADOR.</p>
+
+    <p class="p-contrato"><span class="negrita">DECIMA. - Uso de Software. </span>El EMPLEADOR tiene licencia de todos los programas de software que utiliza. El TRABAJADOR no es propietario de ese software o de sus manuales, y a menos que sea autorizado por el productor del software, no tiene derecho a reproducirlos. En cuanto al uso de redes o a las licencias corporativas en los equipos, el Trabajador sólo utilizará el software de acuerdo con lo convenido en la licencia. El TRABAJADOR, en conocimiento de cualquier uso indebido del software, deberá notificar este hecho a su respectivo e inmediato superior jerárquico. El TRABAJADOR no podrá hacer, comprar o utilizar copias no autorizadas de software, constituyendo la violación a esta prohibición justa causa para dar por terminado unilateralmente el contrato por parte de El EMPLEADOR. Así mismo, se le prohíbe al TRABAJADOR el uso de equipos de computación y del respectivo software para elaboración de trabajos personales.</p>
+
+    <p class="p-contrato"><span class="negrita">DECIMA PRIMERA. - Entrega de Dotación y de Elementos de Seguridad Industrial: </span>Con la firma del presente contrato y en la misma fecha el EMPLEADOR entrega al TRABAJADOR el carné junto con los elementos de dotación que se encuentran detallados en el formato previsto, para los casos a que por razón de su salario tenga derecho. Los elementos de seguridad industrial y salud ocupacional se entregarán al trabajador de conformidad con el puesto al cual va a ser asignado y que aparecerán en los respectivos registros y como responsable de dichos elementos, el trabajador se obliga y compromete a dar el uso adecuado de los mismos, conservándoos en buen estado, y usarlos todos los días que labore para el EMPLEADOR. Constituye falta grave por parte del TRABAJADOR, el no uso de alguno de estos elementos entregados. Todos los anteriores elementos constituyen herramientas de trabajo, por lo que el TRABAJADOR se compromete a su cuidado y evitar su perdida, evento en el cual su ocurrencia constituye falta grave. A la finalización del contrato el TRABAJADOR se compromete a devolver los elementos citados. Constituye falta grave por parte del trabajador, la pérdida o destrucción de los elementos de dotación y seguridad industrial que en la fecha se le entreguen. En el evento de pérdida o destrucción de los elementos que se le entreguen, el trabajador autoriza al empleador para que se le descuente de su salario quincenal, mensual y/o liquidación el valor hasta la reposición de los elementos entregados.</p>
+
+    <p class="p-contrato"><span class="negrita">DECIMA SEGUNDA. - </span>El TRABAJADOR manifiesta que con la firma del presente contrato: <span class="negrita">a)</span> ha leído y conoce el reglamento interno de trabajo de la empresa EMPLEADORA que se encuentra publicado en la empresa y en consecuencia se obliga a cumplirlo y acatarlo. <span class="negrita">b)</span> ha leído y conoce el reglamento de higiene y seguridad industrial de la empresa y ha recibido y conoce las políticas de calidad, salud ocupacional, medio ambiente, uso de los elementos de protección personal, prevención y control del alcoholismo, tabaquismo, farmacodependencia y en general cualquier sustancias psicoactivas, así como la misión y visión de la empresa EMPLEADORA, las cuales se obliga a acatar y cumplir; <span class="negrita">c)</span> ha recibido copia del presente contrato de trabajo debidamente firmado por el EMPLEADOR. De igual forma el TRABAJADOR con la firma de este contrato, autoriza de manera expresa e irrevocable a que el EMPLEADORA pueda practicarle al TRABAJADOR ante las entidades legalmente autorizadas o institutos avalados la práctica de exámenes periódicos o aleatorios que procuren, controlen y prevengan el no uso de alcohol o drogas, así como las pruebas de polígrafo cuando se requieran durante su contrato.</p>
+
+    <p class="p-contrato"><span class="negrita">DECIMA TERCERA.- Confidencialidad y Competencia Desleal: </span>EL TRABAJADOR se abstendrá durante la vigencia del presente contrato y con posterioridad a su terminación por cualquier causa de revelar, suministrar, vender, arrendar, publicar, copiar, reproducir, remover, disponer, transferir y en general utilizar directa o indirectamente en favor propio o de otras personas en forma total o parcial, cualquiera que sea su finalidad, la información confidencial o propiedad intelectual del EMPLEADOR, de sus empresas subsidiarias, filiales, o a las empresas o personas naturales o jurídicas relacionadas con la misma y/o a los clientes o afiliados del EMPLEADOR, a la cual tenga acceso o de la cual tenga conocimiento en desarrollo de su cargo o con ocasión de este sin que medie autorización previa, expresa y escrita del EMPLEADOR para el efecto, particularmente en los relacionado con la información contenida en las bases de datos del EMPLEADOR. En forma adicional el TRABAJADOR se abstendrá durante la vigencia del contrato y con posterioridad a su terminación por cualquier eventualidad, de ejecutar conductas constituyentes de actos de competencia desleal de conformidad con lo dispuesto en la Ley 256 de 1996 y la Decisión 486 de 2001 de la Comisión de la Comunidad Andina cuando las referidas conductas estén vinculadas con el tema de propiedad industrial. <span class="negrita">Parágrafo Primero. - </span>El TRABAJADOR declara que conoce y entiende las normas legales sobre propiedad intelectual y competencia desleal comprometiéndose por tanto a cumplirlas durante la ejecución de su contrato de trabajo y con posterioridad a su terminación. <span class="negrita">Parágrafo Segundo.- </span>Las partes a título indicativo declaran que la siguiente información y documentos del EMPLEADOR son de carácter estrictamente confidencial: Estados Financieros de EL EMPLEADOR, Declaraciones de Renta, Balances, software creados o diseñados para EL EMPLEADOR, Informes estadísticos, Manuales de funciones y Procedimientos, Convenios, Contratos, información de productos, la información contenida en las bases de datos de la Compañía, información sobre clientes, accionistas, trabajadores del EMPLEADOR o de sus empresas subsidiarias, filiales, o de las empresas o personas naturales o jurídicas relacionadas con la misma, así como cualquier otro documento que resulte sensible y relevante para el adecuado giro de los negocios del EMPLEADOR. <span class="negrita">Parágrafo Tercero. - </span>El TRABAJADOR, a la terminación de su contrato de trabajo por cualquier causa devolverá inmediatamente al EMPLEADOR cualquier documento, información o elemento que le haya sido entregado para el cumplimiento de sus funciones. <span class="negrita">Parágrafo Cuarto. - </span>Las partes acuerdan expresamente que el incumplimiento de las disposiciones contenidas en la presente cláusula es considerado como una falta grave y en tal sentido constituye justa causa para la terminación del contrato de trabajo de acuerdo con lo dispuesto en el numeral 6º del literal a), del artículo 7 del Decreto Ley 2351 de 1965, subrogatorio del artículo 62 del Código Sustantivo el Trabajo. Lo anterior sin perjuicio de las acciones civiles o penales que puedan emprenderse contra el TRABAJADOR por parte del EMPLEADOR o de terceros como consecuencia de dicho incumplimiento.</p>
+
+    <p class="p-contrato"><span class="negrita">DECIMA CUARTA. - Dirección Del Trabajador: </span>Para todos los efectos legales y en especial los contractuales, se tendrán por tales las enunciadas al inicio de este contrato, y por tal razón El TRABAJADOR se compromete a informar por escrito al EMPLEADOR cualquier cambio de dirección, mientras no se informe ningún cambio, la dirección válida para todos los efectos será la registrada en este contrato.</p>
+
+    <p class="p-contrato"><span class="negrita">DECIMA QUINTA: AUTORIZACIÓN PARA EL TRATAMIENTO DE DATOS PERSONALES. </span>Teniendo en cuenta que en la celebración, ejecución e incluso después de la terminación del presente contrato se requiere la recopilación, uso o tratamiento de algunos datos personales de EL TRABAJADOR, de sus hijos, descendientes, custodios y/o de su cónyuge o compañero permanente, EL TRABAJADOR declara que ha leído, conoce y acepta el contenido de la Política de Privacidad general de TRATAMIENTO Y PROTECCIÓN DE DATOS PERSONALES de <span class="negrita">ASEOS LA PERFECCIÓN SAS.</span> y que autoriza expresamente a <span class="negrita">ASEOS LA PERFECCIÓN SAS</span> para incorporar en sus bases de datos los datos personales que sean suministrados, de conformidad con los términos de la mencionada Política de Privacidad y las finalidades allí señaladas.</p>
+
+    <p class="p-contrato"><span class="negrita">Parágrafo. DATOS PERSONALES DE MENORES DE EDAD. </span><span class="negrita">ASEOS LA PERFECCIÓN SAS.</span> Podrá solicitar los datos personales de los hijos o dependientes del TRABAJADOR. En los casos en que EL TRABAJADOR acepte suministrar a ASEOS LA PERFECCIÓN SAS dichos datos de dichos hijos o dependientes sean menores de edad, EL TRABAJADOR manifiesta que es el representante legal de dichos menores, que son datos de naturaleza pública, y que expresamente autoriza a ASEOS LA PERFECCIÓN SAS para su tratamiento con la finalidad de realizar actividades relacionadas con el bienestar personal y familiar de los empleados/ y de los menores. Para tales efectos, ASEOS LA PERFECCIÓN SAS tendrá en cuenta el respeto y prevalencia de los derechos de los menores, su interés superior y sus derechos fundamentales.</p>
+
+    <p class="p-contrato"><span class="negrita">DECIMA SEXTA. -</span> EL TRABAJADOR está obligado a dar aviso inmediatamente ocurra el hecho u oportuno a LA EMPRESA por teléfono o email, cuando por cualquier causa no pueda concurrir al trabajo. La enfermedad deberá ser comprobada solamente por el certificado médico de la E.P.S o A.R.L.</p>
+
+    <p class="p-contrato"><span class="negrita">DECIMA SÉPTIMA: Buena Fe. -</span> Este contrato ha sido redactado estrictamente de acuerdo con la ley y la jurisprudencia y será interpretado de buena fe y en consonancia con el Código Sustantivo del Trabajo cuyo objeto, definido en su artículo 1º, es lograr la justicia en las relaciones entre empleadores y trabajadores dentro de un espíritu de coordinación económica y equilibrio social.</p>
+
+    <p class="p-contrato"><span class="negrita">DECIMA OCTAVA: Efectos. -</span> El presente contrato reemplaza en su integridad y deja sin efecto cualquier otro contrato verbal o escrito celebrado entre las partes con anterioridad, pudiendo las partes convenir por escrito modificaciones al mismo que formaría parte integral de este contrato, las cuales siempre deben constar por escrito. Para constancia se firma en dos ejemplares del mismo tenor y valor, ante testigos en la ciudad y fecha que se indican como iniciación de contrato laboral.</p>
+  </div>
+
+  <br><br>
+
+  <table style="width:100%; margin-top:40px; border:none;">
+    <tr>
+      <td style="text-align:center; border:none;">
+        <strong>EL EMPLEADOR</strong><br><br><br><br><br><br>
+        _____________________________<br>
+        NIT. 800.068.462-4
+      </td>
+      <td style="text-align:center; border:none;">
+        <strong>EL TRABAJADOR</strong><br><br><br><br><br><br>
+        _____________________________<br>
+        C.C. #
+      </td>
+    </tr>
+    <tr>
+      <td style="text-align:center; border:none;">
+        Testigo:<br><br><br><br><br><br>
+        _____________________________<br>
+        C.C. #
+      </td>
+      <td style="text-align:center; border:none;">
+        Testigo:<br><br><br><br><br><br>
+        _____________________________<br>
+        C.C. #
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

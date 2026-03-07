@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Entrevista Personal</title>
+    <style>
+        body { 
+            font-family: 'Montserrat', Arial, sans-serif; 
+            font-size: 18px; 
+            margin: 30px; 
+            color: #000; 
+        }
+        h1 {
+            font-size: 28px;
+        }
+
+        .aspectos-generales {
+            font-size: 15px;
+        }
+        .aspectos-generales label.bold { <td>@BARRIO</td>
+
+            font-weight: bold; 
+        } 
+        .aspectos-generales .sub-label {
+            font-weight: bold;
+        }
+        .aspectos-generales p {
+            font-size: 15px;
+        }
+
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            margin: auto;
+            border: 0px solid #000;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header img {
+            height: 65px;
+        }
+
+        .title {
+            text-align: center;
+            font-weight: bold;
+            margin-top: 25px;
+            margin-bottom: 40px;
+            text-transform: uppercase;
+            font-size: 1.2em;
+            letter-spacing: 1px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+
+        td, th {
+            border: 1px solid #000;
+            padding: 6px;
+            vertical-align: middle;
+        }
+
+        .label {
+            font-weight: bold;
+            width: 18%;
+        }
+
+        .section-title {
+            background-color: #f0f0f0;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .textarea {
+            height: 140px;
+        }
+
+        .footer {
+            margin-top: 20px;
+        }
+
+        .concepto {
+            font-weight: bold;
+        }
+
+        @media print {
+            body {
+                margin: 0;
+            }
+            .page {
+                border: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="page">
+
+    <div class="title">
+        ENTREVISTA PERSONAL – F-CTH02 V.00
+    </div>
+
+    <!-- DATOS PERSONALES -->
+    <table>
+        <tr>
+            <td class="label">NOMBRES:</td>
+            <td>@NOMBRES</td>
+            <td class="label">DOCUMENTO:</td>
+            <td>@DOCUMENTO</td>
+        </tr>
+        <tr>
+            <td class="label">BARRIO:</td>
+            <td style="text-transform: uppercase;">\@BARRIO</td>
+            <td class="label">LOCALIDAD:</td>
+            <td>@LOCALIDAD</td>
+        </tr>
+        <tr>
+            <td class="label">CARGO:</td>
+            <td>@CARGO</td>
+            <td class="label">EDAD:</td>
+            <td>@EDAD</td>
+        </tr>
+        <tr>
+            <td class="label">EST. CIVIL:</td>
+            <td>@ESTADO_CIVIL</td>
+            <td class="label">ESTUDIA:</td>
+            <td>@ESTUDIA</td>
+        </tr>
+        <tr>
+            <td class="label">HIJOS:</td>
+            <td>@HIJOS</td>
+            <td class="label">CELULAR:</td>
+            <td>@CELULAR</td>
+        </tr>
+        <tr>
+            <td class="label">EVALUADOR (A):</td>
+            <td colspan="3">@EVALUADOR</td>
+        </tr>
+    </table>
+
+    <!-- ASPECTOS GENERALES -->
+    <table>
+        <tr>
+            <td colspan="4" class="section-title">
+                ASPECTOS GENERALES DE LA ENTREVISTA – OPERATIVO
+            </td>
+        </tr>
+        <tr>
+            <td colspan="4" class="textarea aspectos-generales">
+                <label class="bold">Aspecto Académico:</label><br>
+                <label>@ASPECTOS_ACADEMICOS</label><br>
+                <br>
+                <label class="bold">Aspecto Laboral:</label><br>
+                <label>@EXPERIENCIA</label><br>
+                <label class="bold">Ha trabajado en ALP?</label>: @HA_TRABAJADO_EN_ALP<br>
+                <label class="bold">Validación AM</label>: @VALIDACION_AM<br>
+                <label>EPS:</label> @EPS<br>
+                <br>
+                <label class="bold">Aspecto Personal:</label><br>
+                    <p style="margin-left:20px">- Fortalezas: @FORTALEZAS</p><br>
+                    <p style="margin-left:20px">- Areas de Mejora: @AREAS_DE_MEJORA</p><br>
+                <br>
+                <label class="bold">Concepto - Prueba Física:</label> @PRUEBA_FISICA<br>
+            </td>
+        </tr>
+    </table>
+
+    <!-- CONCEPTO FINAL -->
+    <table class="footer">
+        <tr>
+            <td class="label">CONCEPTO FINAL:</td>
+            <td class="concepto">@CONCEPTO_FINAL</td>
+        </tr>
+        <tr>
+            <td class="label">OBSERVACIONES:</td>
+            <td>@OBSERVACIONES</td>
+        </tr>
+    </table>
+</div>
+</body>
+</html>

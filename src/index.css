@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-gray-50 text-gray-900 antialiased;
+  font-family: 'Inter', 'DM Sans', sans-serif;
+}
+
+::selection {
+  @apply bg-emerald-100 text-emerald-900;
+}
+
+/* Custom Scrollbar for Sidebar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #34d399; /* A lighter emerald for visibility on dark background */
+  border-radius: 10px;
+}
+.custom-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: #10b981; /* A slightly darker emerald on hover */
+}
+
+/* ✅ MAYÚSCULA VISUAL EN TODO EL SISTEMA
+   - Inputs y Textareas (lo que escriben)
+   - Select nativo + Select de Shadcn/Radix (lo que eligen)
+   - NO toca BD, NO toca backend, NO rompe lógica
+*/
+
+/* ✅ MAYÚSCULA visual, pero NO mientras escriben (para que el spellcheck funcione) */
+input:not([type="email"]):not([type="password"]):not(:focus),
+textarea:not(:focus) {
+  text-transform: uppercase;
+}
+
+/* SweetAlert2: Título pequeño global */
+.swal2-title-sm {
+  font-size: 1.1rem !important;
+}
+
+/* ✅ Para SELECTS (nativos) */
+select,
+select option {
+  text-transform: uppercase;
+}
+
+/* ✅ Para Select de Shadcn/Radix (se renderiza como botón/div con roles) */
+[role="combobox"],
+[role="listbox"],
+[role="option"] {
+  text-transform: uppercase;
+}
+
+/* ✅ Escape: si algún campo NO debe ir en mayúscula, le pones class="no-uppercase" */
+.no-uppercase {
+  text-transform: none !important;
+}
+
+/* ✅ BACKUP (NO garantiza corrección):
+   ayuda a que el navegador trate el textarea como texto editable “normal” */
+textarea {
+  -webkit-user-modify: read-write-plaintext-only;
+}
