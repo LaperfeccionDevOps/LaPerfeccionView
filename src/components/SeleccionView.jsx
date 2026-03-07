@@ -125,24 +125,50 @@ const SeleccionView = () => {
   };
 
   // Exportar datos filtrados a Excel
-  const exportToExcel = () => {
-    if (!filteredAspirantes.length) {
-      toast({ title: 'No hay datos para exportar', description: 'No existen registros para exportar.' });
-      return;
-    }
-    const data = filteredAspirantes.map(({ nombres, apellidos, cedula, cargo, fechaRegistro, estado }) => ({
-      Nombres: nombres,
-      Apellidos: apellidos,
-      Cédula: cedula,
-      Cargo: cargo,
-      FechaRegistro: fechaRegistro,
-      Estado: getEstadoInfo(estado).label
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
-    XLSX.writeFile(wb, 'reporte_seleccion.xlsx');
-  };
+      const exportToExcel = () => {
+
+        console.log("filteredAspirantes completo:", filteredAspirantes);
+        console.log("primer aspirante:", filteredAspirantes?.[0]);
+            if (!filteredAspirantes.length) {
+              toast({ title: 'No hay datos para exportar', description: 'No existen registros para exportar.' });
+              return;
+            }
+          const data = filteredAspirantes.map(({ 
+          nombres, 
+          apellidos, 
+          cedula, 
+          celular, 
+          telefono, 
+          correo, 
+          nombreCargo, 
+          fechaRegistro, 
+          estado 
+        }) => ({
+          Nombres: nombres || '',
+          Apellidos: apellidos || '',
+          Cédula: cedula || '',
+          Teléfono: celular || telefono || '',
+          Correo: correo || '',
+          Cargo: nombreCargo || '',
+          FechaRegistro: fechaRegistro
+      ? new Date(fechaRegistro).toLocaleString('es-CO', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true,
+          timeZone: 'America/Bogota'
+        })
+  : '',
+      Estado: getEstadoInfo(estado)?.label || estado || ''
+      }));
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
+      XLSX.writeFile(wb, 'reporte_seleccion.xlsx');
+    };
 
   return (
     <>

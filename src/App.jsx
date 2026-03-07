@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
@@ -11,6 +10,7 @@ import AspiranteView from '@/components/AspiranteView';
 import ContratacionView from '@/components/ContratacionView';
 import SeleccionView from '@/components/SeleccionView';
 import SeguimientoView from '@/components/SeguimientoView'; // Import SeguimientoView
+import RelacionesLaboralesView from '@/components/RelacionesLaboralesView';
 import ArchivosView from '@/components/ArchivosView';
 import CreateUserForm from '@/components/admin/CreateUserForm';
 import UpdateUserView from '@/components/admin/UpdateUserView';
@@ -33,6 +33,8 @@ const RoleBasedRedirect = () => {
       return <Navigate to="/aspirantes" replace />;
     default:
       return <Navigate to="/aspirantes" replace />;
+    case 'Relaciones Laborales':
+      return <Navigate to="/relaciones-laborales" replace />;
   }
 };
 
@@ -54,6 +56,7 @@ function App() {
           <Route path="seguimiento" element={<SeguimientoView />} /> {/* Add SeguimientoView route */}
           <Route path="contratacion" element={<ContratacionView />} />
           <Route path="archivos" element={<ArchivosView />} />
+          <Route path="relaciones-laborales" element={<RelacionesLaboralesView />} />
           
           {/* Rutas de Administrador */}
           <Route path="admin/crear-usuario" element={<CreateUserForm />} />

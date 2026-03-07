@@ -799,24 +799,32 @@ nivelAcademico: fila?.DescripcionNivelEducativo || '',
   };
 
   // Función para descargar la referencia laboral en PDF
-  const handleDescargarReferencia = async (ref) => {
-    const campos = {
-      LOGO: await getLogoBase64('LOGO1'),
-      LOGO2: await getLogoBase64('LOGO2'),
-      EMPRESA_REFERENCIADA: ref?.Compania?.toUpperCase() || '',
-      CARGO: ref?.Cargo?.toUpperCase() || '',
-      TIEMPO_LABORADO: (tiempoDuracion || '').toUpperCase(),
-      MOTIVO_RETIRO: (motivoRetiro || '').toUpperCase(),
-      EVALUACION_DESEMPEÑO: (desempeñoReportado || '').toUpperCase(),
-      NOMBRE_REFERENCIA: (referenciadoPor || '').toUpperCase(),
-      TELEFONO_REFERENCIA: telefonoExperiencia || '',
-      CONCEPTO_FINAL: (concepto || '').toUpperCase(),
-      OBSERVACIONES: (comentariosReferenciador || '').toUpperCase(),
-      FECHA_REGISTRO: formData?.experienciaLaboralValidacion?.CreadoEn || '',
-      REFERENCIADOR_ALP: (formData?.entrevistas?.[0]?.EntrevistadorPor || '').toUpperCase(),
-      IDENTIFICACION: formData?.cedula || '',
-    };
+const handleDescargarReferencia = async (ref) => {
 
+   console.log("formData completo:", formData);
+console.log("ref completo:", ref);
+console.log("referenciadoPor:", referenciadoPor);
+console.log("telefonoExperiencia:", telefonoExperiencia);
+console.log("tiempoDuracion:", tiempoDuracion);
+console.log("motivoRetiro:", motivoRetiro);
+console.log("desempeñoReportado:", desempeñoReportado);
+console.log("comentariosReferenciador:", comentariosReferenciador);
+  const campos = {
+    LOGO: await getLogoBase64('LOGO1'),
+    LOGO2: await getLogoBase64('LOGO2'),
+    EMPRESA_REFERENCIADA: ref?.Compania?.toUpperCase() || '',
+    CARGO: ref?.Cargo?.toUpperCase() || '',
+    TIEMPO_LABORADO: (tiempoDuracion || '').toUpperCase(),
+    MOTIVO_RETIRO: (motivoRetiro || '').toUpperCase(),
+    EVALUACION_DESEMPEÑO: (desempeñoReportado || '').toUpperCase(),
+    NOMBRE_REFERENCIA: (formData?.experienciaLaboralValidacion?.PersonaQueReferencia || '').toUpperCase(),
+    TELEFONO_REFERENCIA: telefonoExperiencia || '',
+    CONCEPTO_FINAL: (concepto || '').toUpperCase(),
+    OBSERVACIONES: (comentariosReferenciador || '').toUpperCase(),
+    FECHA_REGISTRO: formData?.experienciaLaboralValidacion?.CreadoEn || '',
+    REFERENCIADOR_ALP: (referenciadoPor || '').toUpperCase(),
+    IDENTIFICACION: formData?.cedula || '',
+  };
     let pdf_base64 = '';
     const response = await DescargarDocumentoPdf(campos, 'referencias');
     if (response && typeof response.json === 'function') {
@@ -1013,7 +1021,7 @@ setreEps(epsTexto);
   // =========================
   // Datos de Proceso (Selección) - API /api/datos-proceso-aspirante/{id}
   // =========================
-  const API_BASE = import.meta?.env?.VITE_API_URL || 'https://api.laperfeccion.app/api';
+  const API_BASE = import.meta?.env?.VITE_API_URL || 'http://localhost:8000/api';
   const token = localStorage.getItem('access_token') || localStorage.getItem('token') || '';
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
@@ -2592,7 +2600,7 @@ setreEps(epsTexto);
                                        return;
                                     }
                                     const res = await fetch(
-                                       `https://api.laperfeccion.app/api/observaciones-nucleo-familiar/${idNucleoFamiliar}`,
+                                       `http://localhost:8000/api/observaciones-nucleo-familiar/${idNucleoFamiliar}`,
                                        {
                                           method: "PUT",
                                           headers: {
