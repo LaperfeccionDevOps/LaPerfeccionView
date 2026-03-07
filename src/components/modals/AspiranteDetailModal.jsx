@@ -798,33 +798,96 @@ nivelAcademico: fila?.DescripcionNivelEducativo || '',
     });
   };
 
-  // Función para descargar la referencia laboral en PDF
-const handleDescargarReferencia = async (ref) => {
 
-   console.log("formData completo:", formData);
-console.log("ref completo:", ref);
-console.log("referenciadoPor:", referenciadoPor);
-console.log("telefonoExperiencia:", telefonoExperiencia);
-console.log("tiempoDuracion:", tiempoDuracion);
-console.log("motivoRetiro:", motivoRetiro);
-console.log("desempeñoReportado:", desempeñoReportado);
-console.log("comentariosReferenciador:", comentariosReferenciador);
-  const campos = {
-    LOGO: await getLogoBase64('LOGO1'),
-    LOGO2: await getLogoBase64('LOGO2'),
-    EMPRESA_REFERENCIADA: ref?.Compania?.toUpperCase() || '',
-    CARGO: ref?.Cargo?.toUpperCase() || '',
-    TIEMPO_LABORADO: (tiempoDuracion || '').toUpperCase(),
-    MOTIVO_RETIRO: (motivoRetiro || '').toUpperCase(),
-    EVALUACION_DESEMPEÑO: (desempeñoReportado || '').toUpperCase(),
-    NOMBRE_REFERENCIA: (formData?.experienciaLaboralValidacion?.PersonaQueReferencia || '').toUpperCase(),
-    TELEFONO_REFERENCIA: telefonoExperiencia || '',
-    CONCEPTO_FINAL: (concepto || '').toUpperCase(),
-    OBSERVACIONES: (comentariosReferenciador || '').toUpperCase(),
-    FECHA_REGISTRO: formData?.experienciaLaboralValidacion?.CreadoEn || '',
-    REFERENCIADOR_ALP: (referenciadoPor || '').toUpperCase(),
-    IDENTIFICACION: formData?.cedula || '',
-  };
+const handleDescargarReferencia = async (ref) => {
+  try {
+    const validacion = Array.isArray(ref?.validaciones)
+      ? (ref.validaciones[0] || {})
+      : (ref?.validaciones || {});
+
+    const idExp =
+      ref?.IdExperienciaLaboral ||
+      ref?.id ||
+      null;
+
+    let observacionHojita = '';
+
+    if (idExp) {
+      try {
+        const resObs = await GetObservacionesExperienciaLaboral(idExp);
+        if (resObs?.ok) {
+          const dataObs = await resObs.json();
+          observacionHojita =
+            dataObs?.Observaciones ??
+            dataObs?.observaciones ??
+            dataObs?.observacionesInternas ??
+            dataObs?.observaciones_internas ??
+            '';
+        }
+      } catch (e) {
+        console.error('Error consultando observaciones de experiencia laboral:', e);
+      }
+    }
+
+    const campos = {
+      LOGO: await getLogoBase64('LOGO1'),
+      LOGO2: await getLogoBase64('LOGO2'),
+
+      EMPRESA_REFERENCIADA: (ref?.Compania || '').toUpperCase(),
+      CARGO: (ref?.Cargo || '').toUpperCase(),
+      TIEMPO_LABORADO: (validacion?.TiempoDuracion || ref?.TiempoDuracion || '').toUpperCase(),
+      MOTIVO_RETIRO: (validacion?.MotivoRetiroReal || '').toUpperCase(),
+      EVALUACION_DESEMPEÑO: (validacion?.DesempenoReportado || '').toUpperCase(),
+
+      NOMBRE_REFERENCIA: (
+        validacion?.PersonaQueReferencia ||
+        formData?.experienciaLaboralValidacion?.PersonaQueReferencia ||
+        ''
+      ).toUpperCase(),
+
+      TELEFONO_REFERENCIA: validacion?.Telefono || ref?.TelefonoJefe || '',
+      FUNCIONES: (ref?.Funciones || '').toUpperCase(),
+
+      OBSERVACIONES_EXP: (observacionHojita || obsRefLabText || '').toUpperCase(),
+
+      CONCEPTO_FINAL: (validacion?.Concepto || '').toUpperCase(),
+
+      OBSERVACIONES: (
+        validacion?.ComentariosDelReferenciado ||
+        validacion?.ComentariosDelReferenciador ||
+        validacion?.Observaciones ||
+        ''
+      ).toUpperCase(),
+
+      FECHA_REGISTRO: validacion?.CreadoEn || '',
+      REFERENCIADOR_ALP: (validacion?.ReferenciadoPor || '').toUpperCase(),
+      IDENTIFICACION: formData?.cedula || '',
+    };
+
+    let pdf_base64 = '';
+    const response = await DescargarDocumentoPdf(campos, 'referencias');
+
+    if (response && typeof response.json === 'function') {
+      const data = await response.json();
+      pdf_base64 = data.pdf_base64;
+    } else if (response && response.pdf_base64) {
+      pdf_base64 = response.pdf_base64;
+    }
+
+    if (!pdf_base64) {
+      console.error('No se recibió pdf_base64');
+      return;
+    }
+
+    const doc = {
+      DocumentoBase64: 'data:application/pdf;base64,' + pdf_base64,
+    };
+
+    descargarDocumento(doc);
+  } catch (error) {
+    console.error('Error al descargar referencia:', error);
+  }
+
     let pdf_base64 = '';
     const response = await DescargarDocumentoPdf(campos, 'referencias');
     if (response && typeof response.json === 'function') {
