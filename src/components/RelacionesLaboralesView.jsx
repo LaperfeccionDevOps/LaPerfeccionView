@@ -744,24 +744,22 @@ const getMotivoValueById = (idMotivo) => {
 
         "";
 
-      const clienteIdDb = retiroDb?.IdCliente ?? null;
-const motivoIdDb = retiroDb?.IdMotivoRetiro ?? null;
+        const fechaProcesoFromBackend =
+        toDateInput(retiroDb?.FechaProceso || data?.FechaProceso) || "";
+
+     const clienteIdDb = retiroDb?.IdCliente ?? null;
+const motivoIdDb = retiroDb?.IdMotivoRetiro ?? data?.IdMotivoRetiro ?? null;
 
 const clienteNombreDb = clienteIdDb ? getClienteNameById(clienteIdDb) : "";
 
-const motivoIdFinal =
-  retiroDb?.IdMotivoRetiro ??
-  data?.IdMotivoRetiro ??
-  null;
-
 const motivoVisualFinal =
   String(data?.MotivoRetiroNombre || "").trim() ||
-  getMotivoValueById(motivoIdFinal) ||
+  getMotivoValueById(motivoIdDb) ||
   "";
-     const motivoValueDb = motivoIdDb ? getMotivoValueById(motivoIdDb) : "";
-      console.log("ANTES DE SETFORM", data);
 
-  setForm((prev) => {
+console.log("ANTES DE SETFORM", data);
+
+setForm((prev) => {
   const clienteIdFinal = retiroDb?.IdCliente ?? data?.IdCliente ?? prev.idCliente ?? null;
 
   const clienteNombreFinal =
@@ -778,9 +776,11 @@ const motivoVisualFinal =
     idCliente: clienteIdFinal,
     cliente: clienteNombreFinal,
 
-idMotivoRetiro: motivoIdFinal ?? prev.idMotivoRetiro ?? null,
-motivoRetiro: motivoVisualFinal || prev.motivoRetiro || "",
+    idMotivoRetiro: motivoIdDb ?? prev.idMotivoRetiro ?? null,
+    motivoRetiro: motivoVisualFinal || prev.motivoRetiro || "",
+
     fechaFinal: fechaFinalFromBackend || "",
+    fechaProceso: fechaProcesoFromBackend || prev.fechaProceso || "",
 
     tipoId: tipo,
     numeroDocumento: data?.NumeroDocumento ?? numero,
@@ -1835,14 +1835,16 @@ motivoRetiro: motivoVisualFinal || prev.motivoRetiro || "",
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
             <div className="md:col-span-3">
               <Label className="text-xs text-gray-600">Fecha de Proceso</Label>
-              <Input
-                type="date"
-                value={form.fechaProceso}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, fechaProceso: e.target.value }))
-                }
-                className="bg-white"
-              />
+             <Input
+  type="date"
+  value={form.fechaProceso || ""}
+  onChange={(e) =>
+    setForm((prev) => ({
+      ...prev,
+      fechaProceso: e.target.value,
+    }))
+  }
+/>
             </div>
 
             <div className="md:col-span-3">
