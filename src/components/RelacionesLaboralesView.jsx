@@ -551,13 +551,34 @@ export default function RelacionesLaboralesView() {
     return found?.id ?? null;
   };
 
-  // ✅ NUEVO: helper inverso: obtener nombre del cliente desde IdCliente (para recargar)
   const getClienteNameById = (idCliente) => {
-    const nId = Number(idCliente);
-    const found = (clientesALP || []).find((x) => Number(x?.id) === nId);
-    return found?.name ?? "";
-  };
+  const nId = Number(idCliente);
 
+  const foundEnClientesALP = (clientesALP || []).find(
+    (x) => Number(x?.id) === nId
+  );
+  if (foundEnClientesALP?.name) return String(foundEnClientesALP.name).trim();
+
+  const foundEnClientes = (clientes || []).find((x) => {
+    if (typeof x === "object" && x !== null) {
+      return Number(x?.id ?? x?.IdCliente) === nId;
+    }
+    return false;
+  });
+
+  if (foundEnClientes) {
+    if (typeof foundEnClientes === "object") {
+      return String(
+        foundEnClientes?.name ??
+        foundEnClientes?.Nombre ??
+        foundEnClientes?.cliente ??
+        ""
+      ).trim();
+    }
+  }
+
+  return "";
+};
   // ✅ motivos donde NO va entrevista
   const EXCLUIR_ENTREVISTA_POR_MOTIVO = useMemo(
     () =>
@@ -725,43 +746,45 @@ export default function RelacionesLaboralesView() {
 
       console.log("ANTES DE SETFORM", data);
 
-      // ✅ NOTA: Antes tenías 2 setForm seguidos que se pisaban.
-      // Los dejo reemplazados por uno solo (para que NO se borre motivo/fecha/cliente al recargar).
-      setForm((prev) => ({
-        ...prev,
+  setForm((prev) => {
+  const clienteIdFinal = retiroDb?.IdCliente ?? data?.IdCliente ?? prev.idCliente ?? null;
 
-        idRegistroPersonal: data?.IdRegistroPersonal ?? null,
+  const clienteNombreFinal =
+    (clienteIdFinal ? getClienteNameById(clienteIdFinal) : "") ||
+    String(data?.ClienteNombre || "").replace(/\s+/g, " ").trim() ||
+    prev.cliente ||
+    "";
 
-        // ✅ Si hay retiro activo, mandan los datos de BD (lo último actualizado)
-        idRetiroLaboral:
-          retiroDb?.IdRetiroLaboral ?? prev.idRetiroLaboral ?? null,
+  return {
+    ...prev,
+    idRegistroPersonal: data?.IdRegistroPersonal ?? null,
+    idRetiroLaboral: retiroDb?.IdRetiroLaboral ?? prev.idRetiroLaboral ?? null,
 
-        idCliente: (clienteIdDb ?? data?.IdCliente ?? prev.idCliente ?? null),
-        cliente: (clienteNombreDb || data?.ClienteNombre || prev.cliente || ""),
+    idCliente: clienteIdFinal,
+    cliente: clienteNombreFinal,
 
-        idMotivoRetiro: (motivoIdDb ?? prev.idMotivoRetiro ?? null),
-        motivoRetiro: (motivoNombreDb || prev.motivoRetiro || ""),
+    idMotivoRetiro: retiroDb?.IdMotivoRetiro ?? prev.idMotivoRetiro ?? null,
+    motivoRetiro: motivoNombreDb || prev.motivoRetiro || "",
 
-        fechaFinal: fechaFinalFromBackend || "",
+    fechaFinal: fechaFinalFromBackend || "",
 
-        // resto igual
-        tipoId: tipo,
-        numeroDocumento: data?.NumeroDocumento ?? numero,
+    tipoId: tipo,
+    numeroDocumento: data?.NumeroDocumento ?? numero,
 
-        nombre:
-          data?.NombreCompleto ||
-          `${data?.Nombres ?? ""} ${data?.Apellidos ?? ""}`.trim() ||
-          "—",
+    nombre:
+      data?.NombreCompleto ||
+      `${data?.Nombres ?? ""} ${data?.Apellidos ?? ""}`.trim() ||
+      "—",
 
-        cargo: data?.Cargo ?? "—",
-        direccionResidencia: data?.Direccion ?? "—",
-        barrio: data?.Barrio ?? "—",
-        telefono: data?.Telefono ?? "—",
-        correo: data?.Correo ?? "—",
+    cargo: data?.Cargo ?? "—",
+    direccionResidencia: data?.Direccion ?? "—",
+    barrio: data?.Barrio ?? "—",
+    telefono: data?.Telefono ?? "—",
+    correo: data?.Correo ?? "—",
 
-        fechaInicio: toDateInput(data?.FechaInicio),
-      }));
-
+    fechaInicio: toDateInput(data?.FechaInicio),
+  };
+});
           console.log("DESPUÉS DE SETFORM");
         } catch (e) {
           console.error("💥 ERROR handleBuscar =>", e);
