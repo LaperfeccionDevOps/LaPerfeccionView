@@ -559,6 +559,8 @@ export default function RelacionesLaboralesView() {
   );
   if (foundEnClientesALP?.name) return String(foundEnClientesALP.name).trim();
 
+  
+
   const foundEnClientes = (clientes || []).find((x) => {
     if (typeof x === "object" && x !== null) {
       return Number(x?.id ?? x?.IdCliente) === nId;
@@ -578,6 +580,12 @@ export default function RelacionesLaboralesView() {
   }
 
   return "";
+};
+
+const getMotivoValueById = (idMotivo) => {
+  const nId = Number(idMotivo);
+  const found = (motivos || []).find((m) => Number(MOTIVO_ID_MAP[m]) === nId);
+  return found || "";
 };
   // ✅ motivos donde NO va entrevista
   const EXCLUIR_ENTREVISTA_POR_MOTIVO = useMemo(
@@ -737,13 +745,20 @@ export default function RelacionesLaboralesView() {
         "";
 
       const clienteIdDb = retiroDb?.IdCliente ?? null;
-      const motivoIdDb = retiroDb?.IdMotivoRetiro ?? null;
+const motivoIdDb = retiroDb?.IdMotivoRetiro ?? null;
 
-      const clienteNombreDb = clienteIdDb ? getClienteNameById(clienteIdDb) : "";
-      const motivoNombreDb = motivoIdDb
-        ? (MOTIVO_NAME_BY_ID[Number(motivoIdDb)] || "")
-        : "";
+const clienteNombreDb = clienteIdDb ? getClienteNameById(clienteIdDb) : "";
 
+const motivoIdFinal =
+  retiroDb?.IdMotivoRetiro ??
+  data?.IdMotivoRetiro ??
+  null;
+
+const motivoVisualFinal =
+  String(data?.MotivoRetiroNombre || "").trim() ||
+  getMotivoValueById(motivoIdFinal) ||
+  "";
+     const motivoValueDb = motivoIdDb ? getMotivoValueById(motivoIdDb) : "";
       console.log("ANTES DE SETFORM", data);
 
   setForm((prev) => {
@@ -763,9 +778,8 @@ export default function RelacionesLaboralesView() {
     idCliente: clienteIdFinal,
     cliente: clienteNombreFinal,
 
-    idMotivoRetiro: retiroDb?.IdMotivoRetiro ?? prev.idMotivoRetiro ?? null,
-    motivoRetiro: motivoNombreDb || prev.motivoRetiro || "",
-
+idMotivoRetiro: motivoIdFinal ?? prev.idMotivoRetiro ?? null,
+motivoRetiro: motivoVisualFinal || prev.motivoRetiro || "",
     fechaFinal: fechaFinalFromBackend || "",
 
     tipoId: tipo,
@@ -1947,7 +1961,14 @@ export default function RelacionesLaboralesView() {
         <div className="md:col-span-3">
           <Label className="text-xs text-gray-600">Motivo de retiro</Label>
 
-          <Select value={form.motivoRetiro || ""} onValueChange={handleSelectMotivo}>
+      <Select
+          value={
+            form.idMotivoRetiro
+              ? getMotivoValueById(form.idMotivoRetiro)
+              : (form.motivoRetiro || "")
+          }
+          onValueChange={handleSelectMotivo}
+        >
             <SelectTrigger className="bg-white min-h-[64px] flex items-center">
               <SelectValue
                 placeholder="Seleccionar (lista)"
