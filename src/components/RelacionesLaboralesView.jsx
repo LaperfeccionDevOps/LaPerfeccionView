@@ -830,7 +830,7 @@ const getMotivoValueById = (idMotivo) => {
         const fechaProcesoFromBackend =
         toDateInput(retiroDb?.FechaProceso || data?.FechaProceso) || "";
 
-     const clienteIdDb = retiroDb?.IdCliente ?? null;
+        const clienteIdDb = retiroDb?.IdCliente ?? null;
         const motivoIdDb = retiroDb?.IdMotivoRetiro ?? data?.IdMotivoRetiro ?? null;
 
         const clienteNombreDb = clienteIdDb ? getClienteNameById(clienteIdDb) : "";
@@ -841,47 +841,68 @@ const getMotivoValueById = (idMotivo) => {
           "";
 
         console.log("ANTES DE SETFORM", data);
+         setForm((prev) => {
+  const clienteIdFinal = retiroDb?.IdCliente ?? data?.IdCliente ?? prev.idCliente ?? null;
 
-        setForm((prev) => {
-          const clienteIdFinal = retiroDb?.IdCliente ?? data?.IdCliente ?? prev.idCliente ?? null;
+  const clienteNombreFinal =
+    (clienteIdFinal ? getClienteNameById(clienteIdFinal) : "") ||
+    String(data?.ClienteNombre || "").replace(/\s+/g, " ").trim() ||
+    prev.cliente ||
+    "";
 
-          const clienteNombreFinal =
-            (clienteIdFinal ? getClienteNameById(clienteIdFinal) : "") ||
-            String(data?.ClienteNombre || "").replace(/\s+/g, " ").trim() ||
-            prev.cliente ||
-            "";
+  return {
+    ...prev,
+    idRegistroPersonal: data?.IdRegistroPersonal ?? null,
+    idRetiroLaboral: retiroDb?.IdRetiroLaboral ?? prev.idRetiroLaboral ?? null,
 
-          return {
+    idCliente: clienteIdFinal,
+    cliente: clienteNombreFinal,
+
+    idMotivoRetiro: motivoIdDb ?? prev.idMotivoRetiro ?? null,
+    motivoRetiro: motivoVisualFinal || prev.motivoRetiro || "",
+
+    fechaFinal: fechaFinalFromBackend || "",
+    fechaProceso: fechaProcesoFromBackend || prev.fechaProceso || "",
+
+    tipoId: tipo,
+    numeroDocumento: data?.NumeroDocumento ?? numero,
+
+    nombre:
+      data?.NombreCompleto ||
+      `${data?.Nombres ?? ""} ${data?.Apellidos ?? ""}`.trim() ||
+      "—",
+
+    cargo: data?.Cargo ?? "—",
+    direccionResidencia: data?.Direccion ?? "—",
+    barrio: data?.Barrio ?? "—",
+    telefono: data?.Telefono ?? "—",
+    correo: data?.Correo ?? "—",
+
+    fechaInicio: toDateInput(data?.FechaInicio),
+  };
+});
+
+setTipificacionRetiro(
+  data?.IdTipificacionRetiro != null
+    ? String(data.IdTipificacionRetiro)
+    : ""
+          );
+
+          setObservaciones((prev) => ({
             ...prev,
-            idRegistroPersonal: data?.IdRegistroPersonal ?? null,
-            idRetiroLaboral: retiroDb?.IdRetiroLaboral ?? prev.idRetiroLaboral ?? null,
+            [keyFromLabel(`${motivoVisualFinal || ""}_OBSERVACIONES`)]: retiroDb?.ObservacionRetiro || "",
+          }));
 
-            idCliente: clienteIdFinal,
-            cliente: clienteNombreFinal,
+          setChecks((prev) => ({
+            ...prev,
+            [keyFromLabel(`${motivoVisualFinal || ""}_DEVOLUCIÓN CARNET`)]:
+              retiroDb?.DevolucionCarnet === true
+                ? "SI"
+                : retiroDb?.DevolucionCarnet === false
+                ? "NO"
+                : "",
+          }));
 
-            idMotivoRetiro: motivoIdDb ?? prev.idMotivoRetiro ?? null,
-            motivoRetiro: motivoVisualFinal || prev.motivoRetiro || "",
-
-            fechaFinal: fechaFinalFromBackend || "",
-            fechaProceso: fechaProcesoFromBackend || prev.fechaProceso || "",
-
-            tipoId: tipo,
-            numeroDocumento: data?.NumeroDocumento ?? numero,
-
-            nombre:
-              data?.NombreCompleto ||
-              `${data?.Nombres ?? ""} ${data?.Apellidos ?? ""}`.trim() ||
-              "—",
-
-            cargo: data?.Cargo ?? "—",
-            direccionResidencia: data?.Direccion ?? "—",
-            barrio: data?.Barrio ?? "—",
-            telefono: data?.Telefono ?? "—",
-            correo: data?.Correo ?? "—",
-
-            fechaInicio: toDateInput(data?.FechaInicio),
-          };
-        });
           console.log("DESPUÉS DE SETFORM");
         } catch (e) {
           console.error("💥 ERROR handleBuscar =>", e);
@@ -1300,6 +1321,45 @@ useEffect(() => {
   }
 }, [step, form.idRetiroLaboral, requisitosActuales]);
 
+useEffect(() => {
+  const hidratarDetalleRetiro = async () => {
+    try {
+      if (!form.idRetiroLaboral) return;
+
+      const resp = await consultarDetalleRetiroBackend(form.idRetiroLaboral);
+      const retiro = resp?.data || null;
+      if (!retiro) return;
+
+      setTipificacionRetiro(
+        retiro?.IdTipificacionRetiro != null
+          ? String(retiro.IdTipificacionRetiro)
+          : ""
+      );
+
+      setObservaciones((prev) => ({
+        ...prev,
+        [keyFromLabel(`${form.motivoRetiro || ""}_OBSERVACIONES`)]: retiro?.ObservacionRetiro || "",
+      }));
+
+      setChecks((prev) => ({
+        ...prev,
+        [keyFromLabel(`${form.motivoRetiro || ""}_DEVOLUCIÓN CARNET`)]:
+          retiro?.DevolucionCarnet === true
+            ? "SI"
+            : retiro?.DevolucionCarnet === false
+            ? "NO"
+            : "",
+      }));
+    } catch (error) {
+      console.error("Error hidratando detalle del retiro:", error);
+    }
+  };
+
+  if (step === "retiros_docs" && form.idRetiroLaboral) {
+    hidratarDetalleRetiro();
+  }
+}, [step, form.idRetiroLaboral, form.motivoRetiro]);
+
 const subirAdjuntoRetiroBackend = async ({
   idRetiroLaboral,
   idTipoDocumentoRetiro,
@@ -1376,6 +1436,54 @@ const descargarAdjuntoRetiroBackend = async (
   setTimeout(() => {
     window.URL.revokeObjectURL(url);
   }, 60000);
+};
+
+const actualizarDetalleRetiroBackend = async ({
+  idRetiroLaboral,
+  idTipificacionRetiro,
+  observacionRetiro,
+  devolucionCarnet,
+  usuarioActualizacion = "RRLL",
+}) => {
+  const res = await fetch(
+    `${API_BASE}/retiros-laborales/${idRetiroLaboral}/detalle`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        IdTipificacionRetiro: idTipificacionRetiro ?? null,
+        ObservacionRetiro: observacionRetiro ?? "",
+        DevolucionCarnet: devolucionCarnet,
+        UsuarioActualizacion: usuarioActualizacion,
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || "No se pudo actualizar el detalle del retiro.");
+  }
+
+  return await res.json();
+};
+
+const consultarDetalleRetiroBackend = async (idRetiroLaboral) => {
+  const res = await fetch(`${API_BASE}/retiros-laborales/${idRetiroLaboral}`, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || "No se pudo consultar el detalle del retiro.");
+  }
+
+  return await res.json();
 };
 
   // --------------------------
@@ -1961,7 +2069,34 @@ const descargarAdjuntoRetiroBackend = async (
                       <div className="mt-4 max-w-md">
                         <Select
                           value={tipificacionRetiro || ""}
-                          onValueChange={setTipificacionRetiro}
+                          onValueChange={async (value) => {
+                          try {
+                            setTipificacionRetiro(value);
+
+                            if (!form.idRetiroLaboral) return;
+
+                            const devolucionCarnetActual =
+                              checks[keyFromLabel(`${form.motivoRetiro || ""}_DEVOLUCIÓN CARNET`)] === "SI"
+                                ? true
+                                : checks[keyFromLabel(`${form.motivoRetiro || ""}_DEVOLUCIÓN CARNET`)] === "NO"
+                                ? false
+                                : null;
+
+                            const observacionActual =
+                              observaciones[keyFromLabel(`${form.motivoRetiro || ""}_OBSERVACIONES`)] || "";
+
+                            await actualizarDetalleRetiroBackend({
+                              idRetiroLaboral: form.idRetiroLaboral,
+                              idTipificacionRetiro: value ? Number(value) : null,
+                              observacionRetiro: observacionActual,
+                              devolucionCarnet: devolucionCarnetActual,
+                              usuarioActualizacion: "RRLL",
+                            });
+                          } catch (error) {
+                            console.error("Error guardando tipificación:", error);
+                            alert(error.message || "No se pudo guardar la tipificación.");
+                          }
+                        }}
                         >
                           <SelectTrigger className="bg-white h-12">
                             <SelectValue placeholder="Seleccionar tipificación..." />
@@ -1974,7 +2109,7 @@ const descargarAdjuntoRetiroBackend = async (
                               </SelectItem>
                             ) : (
                               TIPIFICACIONES_RETIRO.map((t) => (
-                                <SelectItem key={t.id} value={t.label}>
+                                <SelectItem key={t.id} value={String(t.id)}>
                                   {t.label}
                                 </SelectItem>
                               ))
