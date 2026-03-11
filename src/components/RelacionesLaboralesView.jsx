@@ -2134,8 +2134,8 @@ const consultarDetalleRetiroBackend = async (idRetiroLaboral) => {
                         Tipo: <span className="font-semibold">Observaciones</span>
                       </p>
 
-                      <textarea
-                        className="mt-4 w-full min-h-[130px] rounded-xl border border-slate-200 bg-white p-3 text-sm outline-none focus:border-emerald-400"
+                     <textarea
+                        className="mt-4 w-full min-h-[130px] rounded-xl border border-slate-200 bg-white p-3 text-sm outline-none"
                         placeholder="Escriba aquí..."
                         value={observaciones[req.key] || ""}
                         onChange={(e) =>
@@ -2144,6 +2144,29 @@ const consultarDetalleRetiroBackend = async (idRetiroLaboral) => {
                             [req.key]: e.target.value,
                           }))
                         }
+                        onBlur={async (e) => {
+                          try {
+                            if (!form.idRetiroLaboral) return;
+
+                            const devolucionCarnetActual =
+                              checks[keyFromLabel(`${form.motivoRetiro || ""}_DEVOLUCIÓN CARNET`)] === "SI"
+                                ? true
+                                : checks[keyFromLabel(`${form.motivoRetiro || ""}_DEVOLUCIÓN CARNET`)] === "NO"
+                                ? false
+                                : null;
+
+                            await actualizarDetalleRetiroBackend({
+                              idRetiroLaboral: form.idRetiroLaboral,
+                              idTipificacionRetiro: tipificacionRetiro ? Number(tipificacionRetiro) : null,
+                              observacionRetiro: e.target.value || "",
+                              devolucionCarnet: devolucionCarnetActual,
+                              usuarioActualizacion: "RRLL",
+                            });
+                          } catch (error) {
+                            console.error("Error guardando observación:", error);
+                            alert(error.message || "No se pudo guardar la observación.");
+                          }
+                        }}
                       />
                     </div>
                   );
