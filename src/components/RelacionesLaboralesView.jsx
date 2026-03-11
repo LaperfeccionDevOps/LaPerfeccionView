@@ -1325,6 +1325,28 @@ const subirAdjuntoRetiroBackend = async ({
   return await res.json();
 };
 
+const verAdjuntoRetiroBackend = async (idAdjunto) => {
+  const res = await fetch(
+    `${API_BASE}/rrll/adjuntos/${idAdjunto}/descargar`,
+    {
+      method: "GET",
+    }
+  );
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || "No se pudo abrir el adjunto.");
+  }
+
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  window.open(url, "_blank", "noopener,noreferrer");
+
+  setTimeout(() => {
+    window.URL.revokeObjectURL(url);
+  }, 60000);
+};
+
   // --------------------------
   // VISTA INICIAL
   // --------------------------
@@ -1501,14 +1523,31 @@ const subirAdjuntoRetiroBackend = async ({
                       actions={
                         <div className="flex flex-wrap gap-2 justify-end">
                           <Button
-                            type="button"
-                            variant="outline"
-                            className="border-gray-200"
-                            disabled={!file}
-                            onClick={() => viewLocalFile(file)}
-                          >
-                            Ver
-                          </Button>
+                          type="button"
+                          variant="outline"
+                          className="border-gray-200"
+                          disabled={!file}
+                          onClick={async () => {
+                            try {
+                              const fileBackend = adjuntosBackend[req.key] || null;
+                              const fileLocal = adjuntos[req.key] || null;
+
+                              if (fileBackend?.IdRetiroLaboralAdjunto) {
+                                await verAdjuntoRetiroBackend(fileBackend.IdRetiroLaboralAdjunto);
+                                return;
+                              }
+
+                              if (fileLocal) {
+                                viewLocalFile(fileLocal);
+                              }
+                            } catch (error) {
+                              console.error("Error abriendo adjunto:", error);
+                              alert(error.message || "No se pudo abrir el adjunto.");
+                            }
+                          }}
+                        >
+                          Ver
+                        </Button>
 
                           <Button
                             type="button"
