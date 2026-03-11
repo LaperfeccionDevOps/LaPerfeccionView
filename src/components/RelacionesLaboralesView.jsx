@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -281,138 +281,218 @@ const TIPIFICACIONES_RETIRO = [
   { id: 19, label: "TRATO DE LA SUPERVISIÓN" },
 ];
 
+
+const TIPO_DOCUMENTO_RETIRO = [
+  { id: 1, nombre: "CARTA DE RENUNCIA", tipo: "ADJUNTABLE" },
+  { id: 2, nombre: "PAZ Y SALVO", tipo: "VIEW_ONLY" },
+  { id: 3, nombre: "ACTA DE ENTREGA DE CARNET", tipo: "ADJUNTABLE" },
+  { id: 4, nombre: "CARTA DE FINALIZACIÓN DEL CONTRATO", tipo: "GENERADO" },
+  { id: 5, nombre: "EDICTO", tipo: "GENERADO" },
+  { id: 6, nombre: "DOCUMENTOS BENEFICIARIOS", tipo: "ADJUNTABLE" },
+  { id: 7, nombre: "ACTA DE MUTUO ACUERDO", tipo: "GENERADO" },
+  { id: 8, nombre: "ACTA O EVIDENCIA DE NO INGRESO", tipo: "ADJUNTABLE" },
+  { id: 9, nombre: "OTROS SOPORTES", tipo: "ADJUNTABLE" },
+  { id: 10, nombre: "PAQUETE DE RETIRO", tipo: "PAQUETE" },
+  { id: 11, nombre: "EVIDENCIA PRIMER LLAMADO", tipo: "ADJUNTABLE" },
+  { id: 12, nombre: "EVIDENCIA SEGUNDO LLAMADO", tipo: "ADJUNTABLE" },
+  { id: 13, nombre: "PRIMER LLAMADO ABANDONO INASISTENCIA AL CARGO", tipo: "GENERADO" },
+  { id: 14, nombre: "SEGUNDO LLAMADO ABANDONO INASISTENCIA AL CARGO", tipo: "GENERADO" },
+];
 /* =========================================================
    ✅ REQUISITOS POR MOTIVO (ESTRUCTURA UNIFICADA)
 ========================================================= */
 const REQUISITOS_POR_MOTIVO = {
   "RETIRO VOLUNTARIO": [
-    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY" },
-    { label: "CARTA DE RENUNCIA", tipo: "ADJUNTABLE" },
+    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
+    { label: "CARTA DE RENUNCIA", tipo: "ADJUNTABLE", idTipoDocumentoRetiro: 1 },
     { label: "DEVOLUCIÓN CARNET", tipo: "SI/NO" },
     {
       label: "ACTA CARNET",
       tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 3,
       showIf: { label: "DEVOLUCIÓN CARNET", equals: "NO" },
     },
-    { label: "PAQUETE DE RETIRO", tipo: "PAQUETE" },
+    { label: "PAQUETE DE RETIRO", tipo: "PAQUETE", idTipoDocumentoRetiro: 10 },
     { label: "OBSERVACIONES", tipo: "ESCRIBIR" },
   ],
 
   "TERMINACIÓN DE CONTRATO CON JUSTA CAUSA/ABANDONO DE CARGO": [
-    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY" },
-    { label: "PRIMER LLAMADO ABANDONO INASISTENCIA AL CARGO", tipo: "GENERADO" },
-    { label: "SEGUNDO LLAMADO ABANDONO INASISTENCIA AL CARGO", tipo: "GENERADO" },
-    { label: "CARTA DE FINALIZACIÓN DEL CONTRATO", tipo: "GENERADO" },
-    { label: "EVIDENCIA PRIMER LLAMADO", tipo: "ADJUNTABLE" },
-    { label: "EVIDENCIA SEGUNDO LLAMADO", tipo: "ADJUNTABLE" },
-    { label: "PAQUETE DE RETIRO", tipo: "PAQUETE" },
+    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
+    {
+      label: "PRIMER LLAMADO ABANDONO INASISTENCIA AL CARGO",
+      tipo: "GENERADO",
+      idTipoDocumentoRetiro: 13,
+    },
+    {
+      label: "SEGUNDO LLAMADO ABANDONO INASISTENCIA AL CARGO",
+      tipo: "GENERADO",
+      idTipoDocumentoRetiro: 14,
+    },
+    {
+      label: "CARTA DE FINALIZACIÓN DEL CONTRATO",
+      tipo: "GENERADO",
+      idTipoDocumentoRetiro: 4,
+    },
+    {
+      label: "EVIDENCIA PRIMER LLAMADO",
+      tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 11,
+    },
+    {
+      label: "EVIDENCIA SEGUNDO LLAMADO",
+      tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 12,
+    },
+    { label: "PAQUETE DE RETIRO", tipo: "PAQUETE", idTipoDocumentoRetiro: 10 },
     { label: "OBSERVACIONES", tipo: "ESCRIBIR" },
   ],
 
   "TERMINACIÓN DE CONTRATO CON JUSTA CAUSA": [
-    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY" },
-    { label: "DOCUMENTO CANCELACIÓN DE CONTRATO", tipo: "ADJUNTABLE" },
+    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
+    {
+      label: "CARTA DE FINALIZACIÓN DEL CONTRATO",
+      tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 4,
+    },
     { label: "DEVOLUCIÓN CARNET", tipo: "SI/NO" },
     {
       label: "ACTA CARNET",
       tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 3,
       showIf: { label: "DEVOLUCIÓN CARNET", equals: "NO" },
     },
-    { label: "PAQUETE DE RETIRO", tipo: "PAQUETE" },
+    { label: "PAQUETE DE RETIRO", tipo: "PAQUETE", idTipoDocumentoRetiro: 10 },
     { label: "OBSERVACIONES", tipo: "ESCRIBIR" },
   ],
 
   "TERMINACIÓN DE CONTRATO SIN JUSTA CAUSA": [
-    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY" },
-    { label: "DOCUMENTO CANCELACIÓN DE CONTRATO", tipo: "ADJUNTABLE" },
+    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
+    {
+      label: "CARTA DE FINALIZACIÓN DEL CONTRATO",
+      tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 4,
+    },
     { label: "DEVOLUCIÓN CARNET", tipo: "SI/NO" },
     {
       label: "ACTA CARNET",
       tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 3,
       showIf: { label: "DEVOLUCIÓN CARNET", equals: "NO" },
     },
-    { label: "PAQUETE DE RETIRO", tipo: "PAQUETE" },
+    { label: "PAQUETE DE RETIRO", tipo: "PAQUETE", idTipoDocumentoRetiro: 10 },
     { label: "OBSERVACIONES", tipo: "ESCRIBIR" },
   ],
 
   "TERMINACIÓN DE CONTRATO PERIODO DE PRUEBA": [
-    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY" },
-    { label: "DOCUMENTO CANCELACIÓN DE CONTRATO", tipo: "ADJUNTABLE" },
+    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
+    {
+      label: "CARTA DE FINALIZACIÓN DEL CONTRATO",
+      tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 4,
+    },
     { label: "DEVOLUCIÓN CARNET", tipo: "SI/NO" },
     {
       label: "ACTA CARNET",
       tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 3,
       showIf: { label: "DEVOLUCIÓN CARNET", equals: "NO" },
     },
-    { label: "PAQUETE DE RETIRO", tipo: "PAQUETE" },
+    { label: "PAQUETE DE RETIRO", tipo: "PAQUETE", idTipoDocumentoRetiro: 10 },
     { label: "OBSERVACIONES", tipo: "ESCRIBIR" },
   ],
 
   "TERMINACIÓN DE CONTRATO OBRA LABOR": [
-    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY" },
-    { label: "DOCUMENTO CANCELACIÓN DE CONTRATO", tipo: "ADJUNTABLE" },
+    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
+    {
+      label: "CARTA DE FINALIZACIÓN DEL CONTRATO",
+      tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 4,
+    },
     { label: "DEVOLUCIÓN CARNET", tipo: "SI/NO" },
     {
       label: "ACTA CARNET",
       tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 3,
       showIf: { label: "DEVOLUCIÓN CARNET", equals: "NO" },
     },
-    { label: "PAQUETE DE RETIRO", tipo: "PAQUETE" },
+    { label: "PAQUETE DE RETIRO", tipo: "PAQUETE", idTipoDocumentoRetiro: 10 },
     { label: "OBSERVACIONES", tipo: "ESCRIBIR" },
   ],
 
   "TERMINACIÓN DE CONTRATO DE APRENDIZAJE": [
-    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY" },
-    { label: "DOCUMENTO CANCELACIÓN DE CONTRATO", tipo: "ADJUNTABLE" },
+    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
+    {
+      label: "CARTA DE FINALIZACIÓN DEL CONTRATO",
+      tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 4,
+    },
     { label: "DEVOLUCIÓN CARNET", tipo: "SI/NO" },
     {
       label: "ACTA CARNET",
       tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 3,
       showIf: { label: "DEVOLUCIÓN CARNET", equals: "NO" },
     },
-    { label: "PAQUETE DE RETIRO", tipo: "PAQUETE" },
+    { label: "PAQUETE DE RETIRO", tipo: "PAQUETE", idTipoDocumentoRetiro: 10 },
     { label: "OBSERVACIONES", tipo: "ESCRIBIR" },
   ],
 
   "MUERTE DEL COLABORADOR": [
-    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY" },
-    { label: "EDICTOS", tipo: "ADJUNTABLE" },
-    { label: "DOCUMENTOS BENEFICIARIOS", tipo: "ADJUNTABLE" },
-    { label: "PAQUETE DE RETIRO", tipo: "PAQUETE" },
+    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
+    { label: "EDICTO", tipo: "ADJUNTABLE", idTipoDocumentoRetiro: 5 },
+    {
+      label: "DOCUMENTOS BENEFICIARIOS",
+      tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 6,
+    },
+    { label: "PAQUETE DE RETIRO", tipo: "PAQUETE", idTipoDocumentoRetiro: 10 },
   ],
 
   "MUTUO ACUERDO": [
-    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY" },
-    { label: "ACTA MUTUO ACUERDO", tipo: "ADJUNTABLE" },
+    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
+    {
+      label: "ACTA DE MUTUO ACUERDO",
+      tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 7,
+    },
     { label: "DEVOLUCIÓN CARNET", tipo: "SI/NO" },
     {
       label: "ACTA CARNET",
       tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 3,
       showIf: { label: "DEVOLUCIÓN CARNET", equals: "NO" },
     },
-    { label: "PAQUETE DE RETIRO", tipo: "PAQUETE" },
+    { label: "PAQUETE DE RETIRO", tipo: "PAQUETE", idTipoDocumentoRetiro: 10 },
     { label: "OBSERVACIONES", tipo: "ESCRIBIR" },
   ],
 
   "NUNCA INGRESÓ": [
-    { label: "ACTA O EVIDENCIA", tipo: "ADJUNTABLE" },
+    {
+      label: "ACTA O EVIDENCIA DE NO INGRESO",
+      tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 8,
+    },
     { label: "OBSERVACIONES", tipo: "ESCRIBIR" },
   ],
 
   "ACUERDO TRANSACCIONAL": [
-    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY" },
-    { label: "ACTA MUTUO ACUERDO", tipo: "ADJUNTABLE" },
+    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
+    {
+      label: "ACTA DE MUTUO ACUERDO",
+      tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 7,
+    },
     { label: "DEVOLUCIÓN CARNET", tipo: "SI/NO" },
     {
       label: "ACTA CARNET",
       tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 3,
       showIf: { label: "DEVOLUCIÓN CARNET", equals: "NO" },
     },
-    { label: "PAQUETE DE RETIRO", tipo: "PAQUETE" },
+    { label: "PAQUETE DE RETIRO", tipo: "PAQUETE", idTipoDocumentoRetiro: 10 },
     { label: "OBSERVACIONES", tipo: "ESCRIBIR" },
   ],
 };
-
 function pretty(text) {
   return String(text || "")
     .toLowerCase()
@@ -517,6 +597,9 @@ export default function RelacionesLaboralesView() {
   const [adjuntos, setAdjuntos] = useState({});
   const [observaciones, setObservaciones] = useState({});
   const [checks, setChecks] = useState({});
+
+  const [adjuntosBackend, setAdjuntosBackend] = useState({});
+  const [loadingAdjuntosBackend, setLoadingAdjuntosBackend] = useState(false);
 
   const motivos = useMemo(() => Object.keys(REQUISITOS_POR_MOTIVO), []);
   const tiposId = useMemo(() => ["CC", "CE", "TI", "PPT"], []);
@@ -748,57 +831,57 @@ const getMotivoValueById = (idMotivo) => {
         toDateInput(retiroDb?.FechaProceso || data?.FechaProceso) || "";
 
      const clienteIdDb = retiroDb?.IdCliente ?? null;
-const motivoIdDb = retiroDb?.IdMotivoRetiro ?? data?.IdMotivoRetiro ?? null;
+        const motivoIdDb = retiroDb?.IdMotivoRetiro ?? data?.IdMotivoRetiro ?? null;
 
-const clienteNombreDb = clienteIdDb ? getClienteNameById(clienteIdDb) : "";
+        const clienteNombreDb = clienteIdDb ? getClienteNameById(clienteIdDb) : "";
 
-const motivoVisualFinal =
-  String(data?.MotivoRetiroNombre || "").trim() ||
-  getMotivoValueById(motivoIdDb) ||
-  "";
+        const motivoVisualFinal =
+          String(data?.MotivoRetiroNombre || "").trim() ||
+          getMotivoValueById(motivoIdDb) ||
+          "";
 
-console.log("ANTES DE SETFORM", data);
+        console.log("ANTES DE SETFORM", data);
 
-setForm((prev) => {
-  const clienteIdFinal = retiroDb?.IdCliente ?? data?.IdCliente ?? prev.idCliente ?? null;
+        setForm((prev) => {
+          const clienteIdFinal = retiroDb?.IdCliente ?? data?.IdCliente ?? prev.idCliente ?? null;
 
-  const clienteNombreFinal =
-    (clienteIdFinal ? getClienteNameById(clienteIdFinal) : "") ||
-    String(data?.ClienteNombre || "").replace(/\s+/g, " ").trim() ||
-    prev.cliente ||
-    "";
+          const clienteNombreFinal =
+            (clienteIdFinal ? getClienteNameById(clienteIdFinal) : "") ||
+            String(data?.ClienteNombre || "").replace(/\s+/g, " ").trim() ||
+            prev.cliente ||
+            "";
 
-  return {
-    ...prev,
-    idRegistroPersonal: data?.IdRegistroPersonal ?? null,
-    idRetiroLaboral: retiroDb?.IdRetiroLaboral ?? prev.idRetiroLaboral ?? null,
+          return {
+            ...prev,
+            idRegistroPersonal: data?.IdRegistroPersonal ?? null,
+            idRetiroLaboral: retiroDb?.IdRetiroLaboral ?? prev.idRetiroLaboral ?? null,
 
-    idCliente: clienteIdFinal,
-    cliente: clienteNombreFinal,
+            idCliente: clienteIdFinal,
+            cliente: clienteNombreFinal,
 
-    idMotivoRetiro: motivoIdDb ?? prev.idMotivoRetiro ?? null,
-    motivoRetiro: motivoVisualFinal || prev.motivoRetiro || "",
+            idMotivoRetiro: motivoIdDb ?? prev.idMotivoRetiro ?? null,
+            motivoRetiro: motivoVisualFinal || prev.motivoRetiro || "",
 
-    fechaFinal: fechaFinalFromBackend || "",
-    fechaProceso: fechaProcesoFromBackend || prev.fechaProceso || "",
+            fechaFinal: fechaFinalFromBackend || "",
+            fechaProceso: fechaProcesoFromBackend || prev.fechaProceso || "",
 
-    tipoId: tipo,
-    numeroDocumento: data?.NumeroDocumento ?? numero,
+            tipoId: tipo,
+            numeroDocumento: data?.NumeroDocumento ?? numero,
 
-    nombre:
-      data?.NombreCompleto ||
-      `${data?.Nombres ?? ""} ${data?.Apellidos ?? ""}`.trim() ||
-      "—",
+            nombre:
+              data?.NombreCompleto ||
+              `${data?.Nombres ?? ""} ${data?.Apellidos ?? ""}`.trim() ||
+              "—",
 
-    cargo: data?.Cargo ?? "—",
-    direccionResidencia: data?.Direccion ?? "—",
-    barrio: data?.Barrio ?? "—",
-    telefono: data?.Telefono ?? "—",
-    correo: data?.Correo ?? "—",
+            cargo: data?.Cargo ?? "—",
+            direccionResidencia: data?.Direccion ?? "—",
+            barrio: data?.Barrio ?? "—",
+            telefono: data?.Telefono ?? "—",
+            correo: data?.Correo ?? "—",
 
-    fechaInicio: toDateInput(data?.FechaInicio),
-  };
-});
+            fechaInicio: toDateInput(data?.FechaInicio),
+          };
+        });
           console.log("DESPUÉS DE SETFORM");
         } catch (e) {
           console.error("💥 ERROR handleBuscar =>", e);
@@ -1155,6 +1238,93 @@ setForm((prev) => {
       });
     };
 
+    const listarAdjuntosRetiroBackend = async (idRetiroLaboral) => {
+  const res = await fetch(
+    `${API_BASE}/rrll/retiro/${idRetiroLaboral}/adjuntos`,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+    }
+  );
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || "No se pudieron consultar los adjuntos del retiro.");
+  }
+
+  return await res.json();
+};
+
+const cargarAdjuntosDesdeBackend = async (idRetiroLaboral) => {
+  if (!idRetiroLaboral) return;
+
+  try {
+    setLoadingAdjuntosBackend(true);
+
+    
+
+    const data = await listarAdjuntosRetiroBackend(idRetiroLaboral);
+    const agrupados = {};
+
+    for (const item of data || []) {
+      const reqMatch = requisitosActuales.find(
+        (req) =>
+          Number(req.idTipoDocumentoRetiro || 0) ===
+          Number(item.IdTipoDocumentoRetiro || 0)
+      );
+
+      if (reqMatch) {
+        agrupados[reqMatch.key] = item;
+      }
+    }
+
+    setAdjuntosBackend(agrupados);
+  } catch (error) {
+    console.error("Error cargando adjuntos desde backend:", error);
+    setAdjuntosBackend({});
+  } finally {
+    setLoadingAdjuntosBackend(false);
+  }
+};
+
+useEffect(() => {
+  if (
+    step === "retiros_docs" &&
+    form.idRetiroLaboral &&
+    Array.isArray(requisitosActuales) &&
+    requisitosActuales.length > 0
+  ) {
+    cargarAdjuntosDesdeBackend(form.idRetiroLaboral);
+  }
+}, [step, form.idRetiroLaboral, requisitosActuales]);
+
+const subirAdjuntoRetiroBackend = async ({
+  idRetiroLaboral,
+  idTipoDocumentoRetiro,
+  file,
+}) => {
+  const formData = new FormData();
+  formData.append("IdTipoDocumentoRetiro", String(idTipoDocumentoRetiro));
+  formData.append("file", file);
+
+  const res = await fetch(
+    `${API_BASE}/rrll/retiro/${idRetiroLaboral}/adjuntos`,
+    {
+      method: "POST",
+      body: formData,
+    }
+  );
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || "No se pudo guardar el adjunto.");
+  }
+
+  return await res.json();
+};
+
   // --------------------------
   // VISTA INICIAL
   // --------------------------
@@ -1222,14 +1392,14 @@ setForm((prev) => {
         </div>
 
         <div className="mt-3">
-          {file ? (
-            <div className="text-xs text-emerald-700">
-              Archivo: <b className="break-words">{file.name}</b>
-            </div>
-          ) : (
-            <div className="text-xs text-slate-500">Sin archivo</div>
-          )}
-        </div>
+        {file ? (
+          <div className="text-xs text-emerald-700">
+            Archivo: <b className="break-words">{file?.NombreArchivoOriginal || file?.name || "archivo"}</b>
+          </div>
+        ) : (
+          <div className="text-xs text-slate-500">Sin archivo</div>
+        )}
+      </div>
 
         {fileNode ? <div className="mt-4">{fileNode}</div> : null}
         {children ? <div className="mt-3">{children}</div> : null}
@@ -1291,7 +1461,9 @@ setForm((prev) => {
                 }
 
                 const tipo = String(req.tipo || "ADJUNTABLE").toUpperCase();
-                const file = adjuntos[req.key];
+                const fileLocal = adjuntos[req.key];
+                const fileBackend = adjuntosBackend[req.key] || null;
+                const file = fileBackend || fileLocal || null;
 
                 if (tipo === "VIEW_ONLY") {
                   return (
@@ -1362,11 +1534,41 @@ setForm((prev) => {
                             <input
                               type="file"
                               className="hidden"
-                              onChange={(e) => {
-                                const f = e.target.files?.[0];
-                                if (!f) return;
-                                setAdjuntos((p) => ({ ...p, [req.key]: f }));
-                              }}
+                            onChange={async (e) => {
+                              const f = e.target.files?.[0];
+                              if (!f) return;
+
+                              try {
+                                if (!form.idRetiroLaboral) {
+                                  alert("No existe IdRetiroLaboral para guardar el adjunto.");
+                                  return;
+                                }
+
+                                if (!req.idTipoDocumentoRetiro) {
+                                  alert(`El requisito ${req.label} no tiene idTipoDocumentoRetiro configurado.`);
+                                  return;
+                                }
+
+                                await subirAdjuntoRetiroBackend({
+                                  idRetiroLaboral: form.idRetiroLaboral,
+                                  idTipoDocumentoRetiro: req.idTipoDocumentoRetiro,
+                                  file: f,
+                                });
+
+                                await cargarAdjuntosDesdeBackend(form.idRetiroLaboral);
+
+                                setAdjuntos((p) => {
+                                  const copy = { ...p };
+                                  delete copy[req.key];
+                                  return copy;
+                                });
+                              } catch (error) {
+                                console.error("Error subiendo adjunto:", error);
+                                alert(error.message || "No se pudo guardar el adjunto.");
+                              } finally {
+                                e.target.value = "";
+                              }
+                            }}
                             />
                             <span className="h-10 px-4 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800 cursor-pointer flex items-center">
                               Adjuntar
@@ -1518,7 +1720,7 @@ setForm((prev) => {
                           <div className="md:col-span-4">
                             {file ? (
                               <div className="text-xs text-emerald-700">
-                                Archivo: <b className="break-words">{file.name}</b>
+                                Archivo: <b className="break-words">{file?.NombreArchivoOriginal || file?.name || "archivo"}</b>
                               </div>
                             ) : (
                               <div className="text-xs text-slate-500">
@@ -1836,15 +2038,15 @@ setForm((prev) => {
             <div className="md:col-span-3">
               <Label className="text-xs text-gray-600">Fecha de Proceso</Label>
              <Input
-  type="date"
-  value={form.fechaProceso || ""}
-  onChange={(e) =>
-    setForm((prev) => ({
-      ...prev,
-      fechaProceso: e.target.value,
-    }))
-  }
-/>
+              type="date"
+              value={form.fechaProceso || ""}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  fechaProceso: e.target.value,
+                }))
+              }
+            />
             </div>
 
             <div className="md:col-span-3">
