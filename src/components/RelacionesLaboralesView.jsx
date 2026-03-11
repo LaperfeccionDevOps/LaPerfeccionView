@@ -1518,7 +1518,7 @@ const descargarAdjuntoRetiroBackend = async (
                 const fileBackend = adjuntosBackend[req.key] || null;
                 const file = fileBackend || fileLocal || null;
 
-                if (tipo === "VIEW_ONLY") {
+               if (tipo === "VIEW_ONLY") {
                   return (
                     <DocCard
                       key={req.key}
@@ -1533,7 +1533,24 @@ const descargarAdjuntoRetiroBackend = async (
                             variant="outline"
                             className="border-gray-200"
                             disabled={!file}
-                            onClick={() => viewLocalFile(file)}
+                            onClick={async () => {
+                              try {
+                                const fileBackend = adjuntosBackend[req.key] || null;
+                                const fileLocal = adjuntos[req.key] || null;
+
+                                if (fileBackend?.IdRetiroLaboralAdjunto) {
+                                  await verAdjuntoRetiroBackend(fileBackend.IdRetiroLaboralAdjunto);
+                                  return;
+                                }
+
+                                if (fileLocal) {
+                                  viewLocalFile(fileLocal);
+                                }
+                              } catch (error) {
+                                console.error("Error abriendo adjunto VIEW_ONLY:", error);
+                                alert(error.message || "No se pudo abrir el adjunto.");
+                              }
+                            }}
                           >
                             Ver
                           </Button>
