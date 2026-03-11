@@ -1520,15 +1520,55 @@ const subirAdjuntoRetiroBackend = async ({
                             Descargar
                           </Button>
 
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="border-gray-200"
-                            disabled={!file}
-                            onClick={() => removeAdjuntoByKey(req.key)}
-                          >
-                            Eliminar
-                          </Button>
+                         <Button
+                          type="button"
+                          variant="outline"
+                          className="border-gray-200"
+                          disabled={!file}
+                          onClick={async () => {
+                            try {
+                              const fileBackend = adjuntosBackend[req.key] || null;
+                              const fileLocal = adjuntos[req.key] || null;
+
+                              if (fileBackend?.IdRetiroLaboralAdjunto) {
+                                const res = await fetch(
+                                  `${API_BASE}/rrll/adjuntos/${fileBackend.IdRetiroLaboralAdjunto}`,
+                                  {
+                                    method: "DELETE",
+                                  }
+                                );
+
+                                if (!res.ok) {
+                                  const msg = await res.text().catch(() => "");
+                                  throw new Error(msg || "No se pudo eliminar el adjunto.");
+                                }
+
+                                await cargarAdjuntosDesdeBackend(form.idRetiroLaboral);
+
+                                setAdjuntos((p) => {
+                                  const copy = { ...p };
+                                  delete copy[req.key];
+                                  return copy;
+                                });
+
+                                return;
+                              }
+
+                              if (fileLocal) {
+                                setAdjuntos((p) => {
+                                  const copy = { ...p };
+                                  delete copy[req.key];
+                                  return copy;
+                                });
+                              }
+                            } catch (error) {
+                              console.error("Error eliminando adjunto:", error);
+                              alert(error.message || "No se pudo eliminar el adjunto.");
+                            }
+                          }}
+                        >
+                          Eliminar
+                        </Button>
 
                           <label className="inline-flex items-center">
                             <input
