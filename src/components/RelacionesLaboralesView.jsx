@@ -2188,11 +2188,40 @@ const consultarDetalleRetiroBackend = async (idRetiroLaboral) => {
                       <div className="mt-4 max-w-sm">
                         <Select
                           value={checks[req.key] || ""}
-                          onValueChange={(v) =>
-                            setChecks((p) => ({ ...p, [req.key]: v }))
-                          }
+                          onValueChange={async (v) => {
+                            try {
+                              setChecks((p) => ({ ...p, [req.key]: v }));
+
+                              if (!form.idRetiroLaboral) return;
+
+                              const devolucionCarnetActual =
+                                v === "SI" ? true : v === "NO" ? false : null;
+
+                              const observacionActual =
+                                observaciones[keyFromLabel(`${form.motivoRetiro || ""}_OBSERVACIONES`)] || "";
+
+                              await actualizarDetalleRetiroBackend({
+                                idRetiroLaboral: form.idRetiroLaboral,
+                                idTipificacionRetiro: tipificacionRetiro ? Number(tipificacionRetiro) : null,
+                                observacionRetiro: observacionActual,
+                                devolucionCarnet: devolucionCarnetActual,
+                                usuarioActualizacion: "RRLL",
+                              });
+                            } catch (error) {
+                              console.error("Error guardando devolución carnet:", error);
+                              alert(error.message || "No se pudo guardar devolución carnet.");
+                            }
+                          }}
                         >
-                          <SelectTrigger className="bg-white h-12">
+                          <SelectTrigger
+                            className={`bg-white h-12 ${
+                              checks[req.key] === "SI"
+                                ? "text-emerald-600 font-semibold"
+                                : checks[req.key] === "NO"
+                                ? "text-rose-600 font-semibold"
+                                : ""
+                            }`}
+                          >
                             <SelectValue placeholder="Seleccionar..." />
                           </SelectTrigger>
                           <SelectContent className="max-h-60 overflow-y-auto">
