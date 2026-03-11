@@ -1347,6 +1347,37 @@ const verAdjuntoRetiroBackend = async (idAdjunto) => {
   }, 60000);
 };
 
+const descargarAdjuntoRetiroBackend = async (
+  idAdjunto,
+  nombreArchivo = "adjunto.pdf"
+) => {
+  const res = await fetch(
+    `${API_BASE}/rrll/adjuntos/${idAdjunto}/descargar`,
+    {
+      method: "GET",
+    }
+  );
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || "No se pudo descargar el adjunto.");
+  }
+
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nombreArchivo;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  setTimeout(() => {
+    window.URL.revokeObjectURL(url);
+  }, 60000);
+};
+
   // --------------------------
   // VISTA INICIAL
   // --------------------------
@@ -1549,15 +1580,35 @@ const verAdjuntoRetiroBackend = async (idAdjunto) => {
                           Ver
                         </Button>
 
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="border-gray-200"
-                            disabled={!file}
-                            onClick={() => downloadLocalFile(file)}
-                          >
-                            Descargar
-                          </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="border-gray-200"
+                          disabled={!file}
+                          onClick={async () => {
+                            try {
+                              const fileBackend = adjuntosBackend[req.key] || null;
+                              const fileLocal = adjuntos[req.key] || null;
+
+                              if (fileBackend?.IdRetiroLaboralAdjunto) {
+                                await descargarAdjuntoRetiroBackend(
+                                  fileBackend.IdRetiroLaboralAdjunto,
+                                  fileBackend.NombreArchivoOriginal || "adjunto.pdf"
+                                );
+                                return;
+                              }
+
+                              if (fileLocal) {
+                                downloadLocalFile(fileLocal);
+                              }
+                            } catch (error) {
+                              console.error("Error descargando adjunto:", error);
+                              alert(error.message || "No se pudo descargar el adjunto.");
+                            }
+                          }}
+                        >
+                          Descargar
+                        </Button>
 
                          <Button
                           type="button"
