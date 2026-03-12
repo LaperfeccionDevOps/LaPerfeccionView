@@ -842,51 +842,51 @@ const getMotivoValueById = (idMotivo) => {
 
         console.log("ANTES DE SETFORM", data);
          setForm((prev) => {
-  const clienteIdFinal = retiroDb?.IdCliente ?? data?.IdCliente ?? prev.idCliente ?? null;
+      const clienteIdFinal = retiroDb?.IdCliente ?? data?.IdCliente ?? prev.idCliente ?? null;
 
-  const clienteNombreFinal =
-    (clienteIdFinal ? getClienteNameById(clienteIdFinal) : "") ||
-    String(data?.ClienteNombre || "").replace(/\s+/g, " ").trim() ||
-    prev.cliente ||
-    "";
+      const clienteNombreFinal =
+        (clienteIdFinal ? getClienteNameById(clienteIdFinal) : "") ||
+        String(data?.ClienteNombre || "").replace(/\s+/g, " ").trim() ||
+        prev.cliente ||
+        "";
 
-  return {
-    ...prev,
-    idRegistroPersonal: data?.IdRegistroPersonal ?? null,
-    idRetiroLaboral: retiroDb?.IdRetiroLaboral ?? prev.idRetiroLaboral ?? null,
+      return {
+        ...prev,
+        idRegistroPersonal: data?.IdRegistroPersonal ?? null,
+        idRetiroLaboral: retiroDb?.IdRetiroLaboral ?? prev.idRetiroLaboral ?? null,
 
-    idCliente: clienteIdFinal,
-    cliente: clienteNombreFinal,
+        idCliente: clienteIdFinal,
+        cliente: clienteNombreFinal,
 
-    idMotivoRetiro: motivoIdDb ?? prev.idMotivoRetiro ?? null,
-    motivoRetiro: motivoVisualFinal || prev.motivoRetiro || "",
+        idMotivoRetiro: motivoIdDb ?? prev.idMotivoRetiro ?? null,
+        motivoRetiro: motivoVisualFinal || prev.motivoRetiro || "",
 
-    fechaFinal: fechaFinalFromBackend || "",
-    fechaProceso: fechaProcesoFromBackend || prev.fechaProceso || "",
+        fechaFinal: fechaFinalFromBackend || "",
+        fechaProceso: fechaProcesoFromBackend || prev.fechaProceso || "",
 
-    tipoId: tipo,
-    numeroDocumento: data?.NumeroDocumento ?? numero,
+        tipoId: tipo,
+        numeroDocumento: data?.NumeroDocumento ?? numero,
 
-    nombre:
-      data?.NombreCompleto ||
-      `${data?.Nombres ?? ""} ${data?.Apellidos ?? ""}`.trim() ||
-      "—",
+        nombre:
+          data?.NombreCompleto ||
+          `${data?.Nombres ?? ""} ${data?.Apellidos ?? ""}`.trim() ||
+          "—",
 
-    cargo: data?.Cargo ?? "—",
-    direccionResidencia: data?.Direccion ?? "—",
-    barrio: data?.Barrio ?? "—",
-    telefono: data?.Telefono ?? "—",
-    correo: data?.Correo ?? "—",
+        cargo: data?.Cargo ?? "—",
+        direccionResidencia: data?.Direccion ?? "—",
+        barrio: data?.Barrio ?? "—",
+        telefono: data?.Telefono ?? "—",
+        correo: data?.Correo ?? "—",
 
-    fechaInicio: toDateInput(data?.FechaInicio),
-  };
-});
+        fechaInicio: toDateInput(data?.FechaInicio),
+      };
+    });
 
-setTipificacionRetiro(
-  data?.IdTipificacionRetiro != null
-    ? String(data.IdTipificacionRetiro)
-    : ""
-          );
+      setTipificacionRetiro(
+        data?.IdTipificacionRetiro != null
+          ? String(data.IdTipificacionRetiro)
+          : ""
+                );
 
           setObservaciones((prev) => ({
             ...prev,
@@ -1486,6 +1486,70 @@ const consultarDetalleRetiroBackend = async (idRetiroLaboral) => {
   return await res.json();
 };
 
+const handleActualizarEstadoProceso = async () => {
+  try {
+    setMsgActualizar("");
+    setErrorBuscar("");
+
+    if (!API_BASE) {
+      setMsgActualizar("No se encontró VITE_API_BASE_URL en el .env");
+      return;
+    }
+
+    if (!form?.idRetiroLaboral) {
+      setMsgActualizar("No se encontró el IdRetiroLaboral para actualizar el estado.");
+      return;
+    }
+
+    setLoadingActualizar(true);
+
+    const estadoCasoRRLL = estadoSeleccionado;
+    const idEstadoProceso = estadoSeleccionado === "CERRADO" ? 31 : 30;
+
+    const payload = {
+      EstadoCasoRRLL: estadoCasoRRLL,
+      IdEstadoProceso: idEstadoProceso,
+      FechaCierre:
+        estadoSeleccionado === "CERRADO"
+          ? new Date().toISOString()
+          : null,
+      FechaEnvioNomina: null,
+      UsuarioActualizacion: "RRLL",
+    };
+
+    const res = await fetch(
+      `${API_BASE}/retiros-laborales/${form.idRetiroLaboral}/estado`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+
+    if (!res.ok) {
+      const msg = await res.text().catch(() => "");
+      throw new Error(msg || "No se pudo actualizar el estado del proceso.");
+    }
+
+    const data = await res.json();
+
+    if (data?.success) {
+      setEstadoProceso(estadoCasoRRLL);
+      setOwnerProceso(estadoCasoRRLL === "CERRADO" ? "NOMINA" : "RRLL");
+      setMsgActualizar("✅ Estado del proceso actualizado correctamente.");
+    } else {
+      setMsgActualizar("No fue posible actualizar el estado del proceso.");
+    }
+  } catch (error) {
+    console.error("Error al actualizar estado del proceso:", error);
+    setMsgActualizar(error?.message || "Ocurrió un error al actualizar el estado del proceso.");
+  } finally {
+    setLoadingActualizar(false);
+  }
+};
   // --------------------------
   // VISTA INICIAL
   // --------------------------
@@ -2242,6 +2306,7 @@ const consultarDetalleRetiroBackend = async (idRetiroLaboral) => {
               * Por ahora esto es interfaz. Luego conectamos BD/API para guardar y descargar desde servidor.
             </div>
           </div>
+          
 
           {/* ✅ Estado del Proceso General (UI) — AL FINAL */}
           <div className="mt-6 bg-white p-5 rounded-xl border border-gray-100">
@@ -2272,14 +2337,10 @@ const consultarDetalleRetiroBackend = async (idRetiroLaboral) => {
                 <Button
                   type="button"
                   className="w-full bg-emerald-600 hover:bg-emerald-700 h-12"
-                  onClick={() => {
-                    setEstadoProceso(estadoSeleccionado);
-                    setOwnerProceso(
-                      estadoSeleccionado === "CERRADO" ? "NOMINA" : "RRLL"
-                    );
-                  }}
+                  onClick={handleActualizarEstadoProceso}
+                  disabled={loadingActualizar}
                 >
-                  Actualizar Estado Proceso
+                  {loadingActualizar ? "Actualizando..." : "Actualizar Estado Proceso"}
                 </Button>
               </div>
             </div>
