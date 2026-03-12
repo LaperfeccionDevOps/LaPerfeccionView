@@ -1810,65 +1810,70 @@ const retiroBloqueado = estadoProceso === "CERRADO";
                           Descargar
                         </Button>
 
-                         <Button
-                          type="button"
-                          variant="outline"
-                          className="border-gray-200"
-                          disabled={!file}
-                          onClick={async () => {
-                            try {
-                              const fileBackend = adjuntosBackend[req.key] || null;
-                              const fileLocal = adjuntos[req.key] || null;
+                        <Button
+                        type="button"
+                        variant="outline"
+                        className="border-gray-200"
+                        disabled={!file || retiroBloqueado}
+                        onClick={async () => {
+                          try {
+                            if (retiroBloqueado) return;
 
-                              if (fileBackend?.IdRetiroLaboralAdjunto) {
-                                const res = await fetch(
-                                  `${API_BASE}/rrll/adjuntos/${fileBackend.IdRetiroLaboralAdjunto}`,
-                                  {
-                                    method: "DELETE",
-                                  }
-                                );
+                            const fileBackend = adjuntosBackend[req.key] || null;
+                            const fileLocal = adjuntos[req.key] || null;
 
-                                if (!res.ok) {
-                                  const msg = await res.text().catch(() => "");
-                                  throw new Error(msg || "No se pudo eliminar el adjunto.");
+                            if (fileBackend?.IdRetiroLaboralAdjunto) {
+                              const res = await fetch(
+                                `${API_BASE}/rrll/adjuntos/${fileBackend.IdRetiroLaboralAdjunto}`,
+                                {
+                                  method: "DELETE",
                                 }
+                              );
 
-                                await cargarAdjuntosDesdeBackend(form.idRetiroLaboral);
-
-                                setAdjuntos((p) => {
-                                  const copy = { ...p };
-                                  delete copy[req.key];
-                                  return copy;
-                                });
-
-                                return;
+                              if (!res.ok) {
+                                const msg = await res.text().catch(() => "");
+                                throw new Error(msg || "No se pudo eliminar el adjunto.");
                               }
 
-                              if (fileLocal) {
-                                setAdjuntos((p) => {
-                                  const copy = { ...p };
-                                  delete copy[req.key];
-                                  return copy;
-                                });
-                              }
-                            } catch (error) {
-                              console.error("Error eliminando adjunto:", error);
-                              alert(error.message || "No se pudo eliminar el adjunto.");
+                              await cargarAdjuntosDesdeBackend(form.idRetiroLaboral);
+
+                              setAdjuntos((p) => {
+                                const copy = { ...p };
+                                delete copy[req.key];
+                                return copy;
+                              });
+
+                              return;
                             }
-                          }}
-                        >
-                          Eliminar
-                        </Button>
 
-                          <label className="inline-flex items-center">
-                            <input
-                              type="file"
-                              className="hidden"
+                            if (fileLocal) {
+                              setAdjuntos((p) => {
+                                const copy = { ...p };
+                                delete copy[req.key];
+                                return copy;
+                              });
+                            }
+                          } catch (error) {
+                            console.error("Error eliminando adjunto:", error);
+                            alert(error.message || "No se pudo eliminar el adjunto.");
+                          }
+                        }}
+                      >
+                        Eliminar
+                      </Button>
+
+                         <label className="inline-flex items-center">
+                          <input
+                            type="file"
+                            className="hidden"
+                            disabled={retiroBloqueado}
                             onChange={async (e) => {
                               const f = e.target.files?.[0];
                               if (!f) return;
 
                               try {
+                                if (retiroBloqueado) return;
+
                                 if (!form.idRetiroLaboral) {
                                   alert("No existe IdRetiroLaboral para guardar el adjunto.");
                                   return;
@@ -1899,11 +1904,17 @@ const retiroBloqueado = estadoProceso === "CERRADO";
                                 e.target.value = "";
                               }
                             }}
-                            />
-                            <span className="h-10 px-4 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800 cursor-pointer flex items-center">
-                              Adjuntar
-                            </span>
-                          </label>
+                          />
+                          <span
+                            className={`h-10 px-4 rounded-xl font-semibold flex items-center ${
+                              retiroBloqueado
+                                ? "bg-slate-300 text-slate-500 cursor-not-allowed"
+                                : "bg-slate-900 text-white hover:bg-slate-800 cursor-pointer"
+                            }`}
+                          >
+                            Adjuntar
+                          </span>
+                        </label>
                         </div>
                       }
                     />
@@ -2259,66 +2270,71 @@ const retiroBloqueado = estadoProceso === "CERRADO";
                 }
 
                 if (tipo === "SI/NO") {
-                  return (
-                    <div
-                      key={req.key}
-                      className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5"
-                    >
-                      <p className="text-base font-bold text-slate-900">
-                        {idx + 1}. {req.labelPretty}
-                      </p>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Tipo: <span className="font-semibold">Selección (SI / NO)</span>
-                      </p>
+                return (
+                  <div
+                    key={req.key}
+                    className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5"
+                  >
+                    <p className="text-base font-bold text-slate-900">
+                      {idx + 1}. {req.labelPretty}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Tipo: <span className="font-semibold">Selección (SI / NO)</span>
+                    </p>
 
-                      <div className="mt-4 max-w-sm">
-                        <Select
-                          value={checks[req.key] || ""}
-                          onValueChange={async (v) => {
-                            try {
-                              setChecks((p) => ({ ...p, [req.key]: v }));
+                    <div className="mt-4 max-w-sm">
+                      <Select
+                        value={checks[req.key] || ""}
+                        disabled={retiroBloqueado}
+                        onValueChange={async (v) => {
+                          try {
+                            if (retiroBloqueado) return;
 
-                              if (!form.idRetiroLaboral) return;
+                            setChecks((p) => ({ ...p, [req.key]: v }));
 
-                              const devolucionCarnetActual =
-                                v === "SI" ? true : v === "NO" ? false : null;
+                            if (!form.idRetiroLaboral) return;
 
-                              const observacionActual =
-                                observaciones[keyFromLabel(`${form.motivoRetiro || ""}_OBSERVACIONES`)] || "";
+                            const devolucionCarnetActual =
+                              v === "SI" ? true : v === "NO" ? false : null;
 
-                              await actualizarDetalleRetiroBackend({
-                                idRetiroLaboral: form.idRetiroLaboral,
-                                idTipificacionRetiro: tipificacionRetiro ? Number(tipificacionRetiro) : null,
-                                observacionRetiro: observacionActual,
-                                devolucionCarnet: devolucionCarnetActual,
-                                usuarioActualizacion: "RRLL",
-                              });
-                            } catch (error) {
-                              console.error("Error guardando devolución carnet:", error);
-                              alert(error.message || "No se pudo guardar devolución carnet.");
-                            }
-                          }}
+                            const observacionActual =
+                              observaciones[keyFromLabel(`${form.motivoRetiro || ""}_OBSERVACIONES`)] || "";
+
+                            await actualizarDetalleRetiroBackend({
+                              idRetiroLaboral: form.idRetiroLaboral,
+                              idTipificacionRetiro: tipificacionRetiro ? Number(tipificacionRetiro) : null,
+                              observacionRetiro: observacionActual,
+                              devolucionCarnet: devolucionCarnetActual,
+                              usuarioActualizacion: "RRLL",
+                            });
+                          } catch (error) {
+                            console.error("Error guardando devolución carnet:", error);
+                            alert(error.message || "No se pudo guardar devolución carnet.");
+                          }
+                        }}
+                      >
+                        <SelectTrigger
+                          className={`h-12 ${
+                            retiroBloqueado
+                              ? "bg-slate-100 text-slate-500 cursor-not-allowed"
+                              : checks[req.key] === "SI"
+                              ? "bg-white text-emerald-600 font-semibold"
+                              : checks[req.key] === "NO"
+                              ? "bg-white text-rose-600 font-semibold"
+                              : "bg-white"
+                          }`}
                         >
-                          <SelectTrigger
-                            className={`bg-white h-12 ${
-                              checks[req.key] === "SI"
-                                ? "text-emerald-600 font-semibold"
-                                : checks[req.key] === "NO"
-                                ? "text-rose-600 font-semibold"
-                                : ""
-                            }`}
-                          >
-                            <SelectValue placeholder="Seleccionar..." />
-                          </SelectTrigger>
-                          <SelectContent className="max-h-60 overflow-y-auto">
-                            <SelectItem value="SI">SI</SelectItem>
-                            <SelectItem value="NO">NO</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                          <SelectValue placeholder="Seleccionar..." />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60 overflow-y-auto">
+                          <SelectItem value="SI">SI</SelectItem>
+                          <SelectItem value="NO">NO</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                  );
-                }
+                  </div>
+                );
+              }
 
                 return null;
               })}
