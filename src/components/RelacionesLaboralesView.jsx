@@ -1326,30 +1326,38 @@ useEffect(() => {
     try {
       if (!form.idRetiroLaboral) return;
 
-      const resp = await consultarDetalleRetiroBackend(form.idRetiroLaboral);
-      const retiro = resp?.data || null;
-      if (!retiro) return;
+   const resp = await consultarDetalleRetiroBackend(form.idRetiroLaboral);
+const retiro = resp?.data || null;
+if (!retiro) return;
 
-      setTipificacionRetiro(
-        retiro?.IdTipificacionRetiro != null
-          ? String(retiro.IdTipificacionRetiro)
-          : ""
-      );
+// Reconstruir estado del proceso desde BD
+const estadoRecuperado = (retiro?.EstadoCasoRRLL || "").toUpperCase();
+if (estadoRecuperado === "CERRADO" || estadoRecuperado === "ABIERTO") {
+  setEstadoProceso(estadoRecuperado);
+  setEstadoSeleccionado(estadoRecuperado);
+  setOwnerProceso(estadoRecuperado === "CERRADO" ? "NOMINA" : "RRLL");
+}
 
-      setObservaciones((prev) => ({
-        ...prev,
-        [keyFromLabel(`${form.motivoRetiro || ""}_OBSERVACIONES`)]: retiro?.ObservacionRetiro || "",
-      }));
+setTipificacionRetiro(
+  retiro?.IdTipificacionRetiro != null
+    ? String(retiro.IdTipificacionRetiro)
+    : ""
+);
 
-      setChecks((prev) => ({
-        ...prev,
-        [keyFromLabel(`${form.motivoRetiro || ""}_DEVOLUCIÓN CARNET`)]:
-          retiro?.DevolucionCarnet === true
-            ? "SI"
-            : retiro?.DevolucionCarnet === false
-            ? "NO"
-            : "",
-      }));
+setObservaciones((prev) => ({
+  ...prev,
+  [keyFromLabel(`${form.motivoRetiro || ""}_OBSERVACIONES`)]: retiro?.ObservacionRetiro || "",
+}));
+
+setChecks((prev) => ({
+  ...prev,
+  [keyFromLabel(`${form.motivoRetiro || ""}_DEVOLUCIÓN CARNET`)]:
+    retiro?.DevolucionCarnet === true
+      ? "SI"
+      : retiro?.DevolucionCarnet === false
+      ? "NO"
+      : "",
+}));
     } catch (error) {
       console.error("Error hidratando detalle del retiro:", error);
     }
@@ -1550,6 +1558,9 @@ const handleActualizarEstadoProceso = async () => {
     setLoadingActualizar(false);
   }
 };
+
+const retiroBloqueado = estadoProceso === "CERRADO";
+
   // --------------------------
   // VISTA INICIAL
   // --------------------------
@@ -2115,75 +2126,82 @@ const handleActualizarEstadoProceso = async () => {
                       </div>
                     </DocCard>
                   );
-                }
+                  }
 
-                if (tipo === "TIPIFICACION") {
-                  return (
-                    <div
-                      key={req.key}
-                      className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5"
+            if (tipo === "TIPIFICACION") {
+              return (
+                <div
+                  key={req.key}
+                  className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5"
+                >
+                  <p className="text-base font-bold text-slate-900">
+                    {idx + 1}. {req.labelPretty}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Tipo: <span className="font-semibold">Tipificación</span> (lista pendiente)
+                  </p>
+
+                  <div className="mt-4 max-w-md">
+                    <Select
+                      value={tipificacionRetiro || ""}
+                      disabled={retiroBloqueado}
+                      onValueChange={async (value) => {
+                        try {
+                          if (retiroBloqueado) return;
+
+                          setTipificacionRetiro(value);
+
+                          if (!form.idRetiroLaboral) return;
+
+                          const devolucionCarnetActual =
+                            checks[keyFromLabel(`${form.motivoRetiro || ""}_DEVOLUCIÓN CARNET`)] === "SI"
+                              ? true
+                              : checks[keyFromLabel(`${form.motivoRetiro || ""}_DEVOLUCIÓN CARNET`)] === "NO"
+                              ? false
+                              : null;
+
+                          const observacionActual =
+                            observaciones[keyFromLabel(`${form.motivoRetiro || ""}_OBSERVACIONES`)] || "";
+
+                          await actualizarDetalleRetiroBackend({
+                            idRetiroLaboral: form.idRetiroLaboral,
+                            idTipificacionRetiro: value ? Number(value) : null,
+                            observacionRetiro: observacionActual,
+                            devolucionCarnet: devolucionCarnetActual,
+                            usuarioActualizacion: "RRLL",
+                          });
+                        } catch (error) {
+                          console.error("Error guardando tipificación:", error);
+                          alert(error.message || "No se pudo guardar la tipificación.");
+                        }
+                      }}
                     >
-                      <p className="text-base font-bold text-slate-900">
-                        {idx + 1}. {req.labelPretty}
-                      </p>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Tipo: <span className="font-semibold">Tipificación</span> (lista pendiente)
-                      </p>
+                      <SelectTrigger
+                        className={`h-12 ${
+                          retiroBloqueado ? "bg-slate-100 text-slate-500 cursor-not-allowed" : "bg-white"
+                        }`}
+                      >
+                        <SelectValue placeholder="Seleccionar tipificación..." />
+                      </SelectTrigger>
 
-                      <div className="mt-4 max-w-md">
-                        <Select
-                          value={tipificacionRetiro || ""}
-                          onValueChange={async (value) => {
-                          try {
-                            setTipificacionRetiro(value);
-
-                            if (!form.idRetiroLaboral) return;
-
-                            const devolucionCarnetActual =
-                              checks[keyFromLabel(`${form.motivoRetiro || ""}_DEVOLUCIÓN CARNET`)] === "SI"
-                                ? true
-                                : checks[keyFromLabel(`${form.motivoRetiro || ""}_DEVOLUCIÓN CARNET`)] === "NO"
-                                ? false
-                                : null;
-
-                            const observacionActual =
-                              observaciones[keyFromLabel(`${form.motivoRetiro || ""}_OBSERVACIONES`)] || "";
-
-                            await actualizarDetalleRetiroBackend({
-                              idRetiroLaboral: form.idRetiroLaboral,
-                              idTipificacionRetiro: value ? Number(value) : null,
-                              observacionRetiro: observacionActual,
-                              devolucionCarnet: devolucionCarnetActual,
-                              usuarioActualizacion: "RRLL",
-                            });
-                          } catch (error) {
-                            console.error("Error guardando tipificación:", error);
-                            alert(error.message || "No se pudo guardar la tipificación.");
-                          }
-                        }}
-                        >
-                          <SelectTrigger className="bg-white h-12">
-                            <SelectValue placeholder="Seleccionar tipificación..." />
-                          </SelectTrigger>
-
-                          <SelectContent className="max-h-60 overflow-y-auto">
-                            {(TIPIFICACIONES_RETIRO || []).length === 0 ? (
-                              <SelectItem value="PENDIENTE" disabled>
-                                (Pendiente: faltan las tipificaciones)
-                              </SelectItem>
-                            ) : (
-                              TIPIFICACIONES_RETIRO.map((t) => (
-                                <SelectItem key={t.id} value={String(t.id)}>
-                                  {t.label}
-                                </SelectItem>
-                              ))
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  );
-                }
+                      <SelectContent className="max-h-60 overflow-y-auto">
+                        {(TIPIFICACIONES_RETIRO || []).length === 0 ? (
+                          <SelectItem value="PENDIENTE" disabled>
+                            (Pendiente: faltan las tipificaciones)
+                          </SelectItem>
+                        ) : (
+                          TIPIFICACIONES_RETIRO.map((t) => (
+                            <SelectItem key={t.id} value={String(t.id)}>
+                              {t.label}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              );
+            }
 
                 if (tipo === "ESCRIBIR") {
                   return (
@@ -2199,39 +2217,43 @@ const handleActualizarEstadoProceso = async () => {
                       </p>
 
                      <textarea
-                        className="mt-4 w-full min-h-[130px] rounded-xl border border-slate-200 bg-white p-3 text-sm outline-none"
-                        placeholder="Escriba aquí..."
-                        value={observaciones[req.key] || ""}
-                        onChange={(e) =>
-                          setObservaciones((p) => ({
-                            ...p,
-                            [req.key]: e.target.value,
-                          }))
+                      className={`mt-4 w-full min-h-[130px] rounded-xl border border-slate-200 p-3 text-sm outline-none ${
+                        retiroBloqueado ? "bg-slate-100 text-slate-500 cursor-not-allowed" : "bg-white"
+                      }`}
+                      placeholder="Escriba aquí..."
+                      value={observaciones[req.key] || ""}
+                      disabled={retiroBloqueado}
+                      onChange={(e) =>
+                        setObservaciones((p) => ({
+                          ...p,
+                          [req.key]: e.target.value,
+                        }))
+                      }
+                      onBlur={async (e) => {
+                        try {
+                          if (retiroBloqueado) return;
+                          if (!form.idRetiroLaboral) return;
+
+                          const devolucionCarnetActual =
+                            checks[keyFromLabel(`${form.motivoRetiro || ""}_DEVOLUCIÓN CARNET`)] === "SI"
+                              ? true
+                              : checks[keyFromLabel(`${form.motivoRetiro || ""}_DEVOLUCIÓN CARNET`)] === "NO"
+                              ? false
+                              : null;
+
+                          await actualizarDetalleRetiroBackend({
+                            idRetiroLaboral: form.idRetiroLaboral,
+                            idTipificacionRetiro: tipificacionRetiro ? Number(tipificacionRetiro) : null,
+                            observacionRetiro: e.target.value || "",
+                            devolucionCarnet: devolucionCarnetActual,
+                            usuarioActualizacion: "RRLL",
+                          });
+                        } catch (error) {
+                          console.error("Error guardando observación:", error);
+                          alert(error.message || "No se pudo guardar la observación.");
                         }
-                        onBlur={async (e) => {
-                          try {
-                            if (!form.idRetiroLaboral) return;
-
-                            const devolucionCarnetActual =
-                              checks[keyFromLabel(`${form.motivoRetiro || ""}_DEVOLUCIÓN CARNET`)] === "SI"
-                                ? true
-                                : checks[keyFromLabel(`${form.motivoRetiro || ""}_DEVOLUCIÓN CARNET`)] === "NO"
-                                ? false
-                                : null;
-
-                            await actualizarDetalleRetiroBackend({
-                              idRetiroLaboral: form.idRetiroLaboral,
-                              idTipificacionRetiro: tipificacionRetiro ? Number(tipificacionRetiro) : null,
-                              observacionRetiro: e.target.value || "",
-                              devolucionCarnet: devolucionCarnetActual,
-                              usuarioActualizacion: "RRLL",
-                            });
-                          } catch (error) {
-                            console.error("Error guardando observación:", error);
-                            alert(error.message || "No se pudo guardar la observación.");
-                          }
-                        }}
-                      />
+                      }}
+                    />
                     </div>
                   );
                 }
@@ -2349,6 +2371,12 @@ const handleActualizarEstadoProceso = async () => {
           <div className="mt-3 text-xs text-gray-500">
             Estado actual: <b>{estadoProceso}</b> | Owner: <b>{ownerProceso}</b>
           </div>
+
+          {retiroBloqueado && (
+            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Este retiro se encuentra <b>CERRADO</b>. Para modificarlo nuevamente, Nómina debe devolverlo a estado <b>ABIERTO</b>.
+            </div>
+          )}
         </div>
       </div>
     );
