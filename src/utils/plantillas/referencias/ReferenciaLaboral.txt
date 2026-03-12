@@ -127,9 +127,9 @@
 
                 <p><strong>EVALUACIÓN GENERAL DEL DESEMPEÑO:</strong><br> @EVALUACION_DESEMPEÑO<br></p>
 
-                <p><strong>Persona que da la referencia:</strong> @NOMBRE_REFERENCIA<br></p>
+              <p><strong>Persona que da la referencia:</strong> @NOMBRE_REFERENCIA<br></p>
                 <p><strong>Teléfono de la referencia:</strong> @TELEFONO_REFERENCIA<br></p>
-            </td>
+                </td>
         </tr>
     </table>
 
