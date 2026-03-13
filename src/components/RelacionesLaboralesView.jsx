@@ -466,14 +466,14 @@ const REQUISITOS_POR_MOTIVO = {
     { label: "OBSERVACIONES", tipo: "ESCRIBIR" },
   ],
 
-  "NUNCA INGRESÓ": [
-    {
-      label: "ACTA O EVIDENCIA DE NO INGRESO",
-      tipo: "ADJUNTABLE",
-      idTipoDocumentoRetiro: 8,
-    },
-    { label: "OBSERVACIONES", tipo: "ESCRIBIR" },
-  ],
+      "NUNCA INGRESÓ": [
+      {
+        label: "ACTA O EVIDENCIA DE NO INGRESO",
+        tipo: "VIEW_DOWNLOAD",
+        idTipoDocumentoRetiro: 8,
+      },
+      { label: "OBSERVACIONES", tipo: "ESCRIBIR" },
+    ],
 
   "ACUERDO TRANSACCIONAL": [
     { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
@@ -1494,6 +1494,26 @@ const consultarDetalleRetiroBackend = async (idRetiroLaboral) => {
   return await res.json();
 };
 
+
+const generarPrimerLlamadoBackend = async (idRetiroLaboral) => {
+  const res = await fetch(
+    `${API_BASE}/retiros-laborales/${idRetiroLaboral}/documentos/primer-llamado/generar`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+      },
+    }
+  );
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || "No se pudo generar el primer llamado.");
+  }
+
+  return await res.json();
+};
+
 const handleActualizarEstadoProceso = async () => {
   try {
     setMsgActualizar("");
@@ -1615,7 +1635,7 @@ const retiroBloqueado = estadoProceso === "CERRADO";
   if (step === "retiros_docs") {
     const motivo = form.motivoRetiro;
 
-    const DocCard = ({ idx, title, subtitle, file, actions, fileNode, children }) => (
+    const DocCard = ({ idx, title, subtitle, file, displayFileName, actions, fileNode, children }) => (
       <div className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
@@ -1630,10 +1650,12 @@ const retiroBloqueado = estadoProceso === "CERRADO";
         <div className="mt-3">
         {file ? (
           <div className="text-xs text-emerald-700">
-            Archivo: <b className="break-words">{file?.NombreArchivoOriginal || file?.name || "archivo"}</b>
-          </div>
-        ) : (
-          <div className="text-xs text-slate-500">Sin archivo</div>
+          <b className="break-words">
+            {displayFileName || `Archivo: ${file?.NombreArchivoOriginal || file?.name || "archivo"}`}
+          </b>
+        </div>
+      ) : (
+        <div className="text-xs text-slate-500">Sin archivo</div>
         )}
       </div>
 
@@ -1696,10 +1718,15 @@ const retiroBloqueado = estadoProceso === "CERRADO";
                   if (String(val) !== String(req.showIf.equals)) return null;
                 }
 
-                const tipo = String(req.tipo || "ADJUNTABLE").toUpperCase();
-                const fileLocal = adjuntos[req.key];
-                const fileBackend = adjuntosBackend[req.key] || null;
-                const file = fileBackend || fileLocal || null;
+             const tipo = String(req.tipo || "ADJUNTABLE").toUpperCase();
+              const fileLocal = adjuntos[req.key];
+              const fileBackend = adjuntosBackend[req.key] || null;
+              const file = fileBackend || fileLocal || null;
+
+              const displayFileName =
+                tipo === "GENERADO"
+                  ? `Archivo generado: ${req.labelPretty}`
+                  : `Archivo: ${file?.NombreArchivoOriginal || file?.name || "archivo"}`;
 
                if (tipo === "VIEW_ONLY") {
                   return (
@@ -1999,78 +2026,162 @@ const retiroBloqueado = estadoProceso === "CERRADO";
                 if (tipo === "GENERADO") {
                   return (
                     <DocCard
-                      key={req.key}
-                      idx={idx + 1}
-                      title={req.labelPretty}
-                      subtitle="Tipo: Generado automáticamente (pendiente backend)"
-                      file={file}
-                      actions={
+                        key={req.key}
+                        idx={idx + 1}
+                        title={req.labelPretty}
+                        subtitle="Tipo: Generado automáticamente"
+                        file={file}
+                        displayFileName={displayFileName}
+                        actions={
                         <div className="flex flex-wrap gap-2 justify-end">
                           <Button
-                            type="button"
-                            className="bg-emerald-600 hover:bg-emerald-700"
-                            onClick={() => alert("Pendiente backend: Generar documento.")}
-                          >
-                            Generar
-                          </Button>
+                          type="button"
+                          className="bg-emerald-600 hover:bg-emerald-700"
+                          disabled={retiroBloqueado}
+                          onClick={async () => {
+                            try {
+                              if (retiroBloqueado) return;
+
+                              if (!form.idRetiroLaboral) {
+                                alert("No existe IdRetiroLaboral para generar el documento.");
+                                return;
+                              }
+
+                              if (Number(req.idTipoDocumentoRetiro) !== 13) {
+                                alert("Por ahora solo está conectado el Primer Llamado.");
+                                return;
+                              }
+
+                              await generarPrimerLlamadoBackend(form.idRetiroLaboral);
+                              await cargarAdjuntosDesdeBackend(form.idRetiroLaboral);
+
+                              setAdjuntos((p) => {
+                                const copy = { ...p };
+                                delete copy[req.key];
+                                return copy;
+                              });
+
+                              alert("Primer llamado generado correctamente.");
+                            } catch (error) {
+                              console.error("Error generando primer llamado:", error);
+                              alert(error.message || "No se pudo generar el documento.");
+                            }
+                          }}
+                        >
+                          Generar
+                        </Button>
 
                           <Button
                             type="button"
                             variant="outline"
                             className="border-gray-200"
                             disabled={!file}
-                            onClick={() => viewLocalFile(file)}
+                            onClick={async () => {
+                              try {
+                                const fileBackend = adjuntosBackend[req.key] || null;
+                                const fileLocal = adjuntos[req.key] || null;
+
+                                if (fileBackend?.IdRetiroLaboralAdjunto) {
+                                  await verAdjuntoRetiroBackend(fileBackend.IdRetiroLaboralAdjunto);
+                                  return;
+                                }
+
+                                if (fileLocal) {
+                                  viewLocalFile(fileLocal);
+                                }
+                              } catch (error) {
+                                console.error("Error abriendo documento generado:", error);
+                                alert(error.message || "No se pudo abrir el documento.");
+                              }
+                            }}
                           >
                             Ver
                           </Button>
 
-                          <Button
+                                                  <Button
                             type="button"
                             variant="outline"
                             className="border-gray-200"
                             disabled={!file}
-                            onClick={() => downloadLocalFile(file)}
+                            onClick={async () => {
+                              try {
+                                const fileBackend = adjuntosBackend[req.key] || null;
+                                const fileLocal = adjuntos[req.key] || null;
+
+                                if (fileBackend?.IdRetiroLaboralAdjunto) {
+                                  await descargarAdjuntoRetiroBackend(
+                                    fileBackend.IdRetiroLaboralAdjunto,
+                                    fileBackend.NombreArchivoOriginal || "documento_generado.docx"
+                                  );
+                                  return;
+                                }
+
+                                if (fileLocal) {
+                                  downloadLocalFile(fileLocal);
+                                }
+                              } catch (error) {
+                                console.error("Error descargando documento generado:", error);
+                                alert(error.message || "No se pudo descargar el documento.");
+                              }
+                            }}
                           >
                             Descargar
                           </Button>
 
-                          <Button
+                                                    <Button
                             type="button"
                             variant="outline"
                             className="border-gray-200"
-                            disabled={!file}
-                            onClick={() => removeAdjuntoByKey(req.key)}
+                            disabled={!file || retiroBloqueado}
+                            onClick={async () => {
+                              try {
+                                if (retiroBloqueado) return;
+
+                                const fileBackend = adjuntosBackend[req.key] || null;
+                                const fileLocal = adjuntos[req.key] || null;
+
+                                if (fileBackend?.IdRetiroLaboralAdjunto) {
+                                  const res = await fetch(
+                                    `${API_BASE}/rrll/adjuntos/${fileBackend.IdRetiroLaboralAdjunto}`,
+                                    {
+                                      method: "DELETE",
+                                    }
+                                  );
+
+                                  if (!res.ok) {
+                                    const msg = await res.text().catch(() => "");
+                                    throw new Error(msg || "No se pudo eliminar el documento.");
+                                  }
+
+                                  await cargarAdjuntosDesdeBackend(form.idRetiroLaboral);
+
+                                  setAdjuntos((p) => {
+                                    const copy = { ...p };
+                                    delete copy[req.key];
+                                    return copy;
+                                  });
+
+                                  return;
+                                }
+
+                                if (fileLocal) {
+                                  setAdjuntos((p) => {
+                                    const copy = { ...p };
+                                    delete copy[req.key];
+                                    return copy;
+                                  });
+                                }
+                              } catch (error) {
+                                console.error("Error eliminando documento generado:", error);
+                                alert(error.message || "No se pudo eliminar el documento.");
+                              }
+                            }}
                           >
                             Eliminar
                           </Button>
                         </div>
                       }
-                      fileNode={
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-                          <div className="md:col-span-8">
-                            <Input
-                              type="file"
-                              className="bg-white h-11"
-                              onChange={(e) => {
-                                const f = e.target.files?.[0];
-                                if (!f) return;
-                                setAdjuntos((p) => ({ ...p, [req.key]: f }));
-                              }}
-                            />
-                          </div>
-                          <div className="md:col-span-4">
-                            {file ? (
-                              <div className="text-xs text-emerald-700">
-                                Archivo: <b className="break-words">{file?.NombreArchivoOriginal || file?.name || "archivo"}</b>
-                              </div>
-                            ) : (
-                              <div className="text-xs text-slate-500">
-                                Sin archivo seleccionado
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      }
+                     fileNode={null}
                     />
                   );
                 }
@@ -2336,6 +2447,78 @@ const retiroBloqueado = estadoProceso === "CERRADO";
                 );
               }
 
+              if (tipo === "VIEW_DOWNLOAD") {
+                return (
+                  <DocCard
+                    key={req.key}
+                    idx={idx + 1}
+                    title={req.labelPretty}
+                    subtitle="Tipo: Solo consulta (Operaciones adjunta)"
+                    file={file}
+                    actions={
+                      <div className="flex flex-wrap gap-2 justify-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="border-gray-200"
+                          disabled={!file}
+                          onClick={async () => {
+                            try {
+                              const fileBackend = adjuntosBackend[req.key] || null;
+                              const fileLocal = adjuntos[req.key] || null;
+
+                              if (fileBackend?.IdRetiroLaboralAdjunto) {
+                                await verAdjuntoRetiroBackend(fileBackend.IdRetiroLaboralAdjunto);
+                                return;
+                              }
+
+                              if (fileLocal) {
+                                viewLocalFile(fileLocal);
+                              }
+                            } catch (error) {
+                              console.error("Error abriendo adjunto VIEW_DOWNLOAD:", error);
+                              alert(error.message || "No se pudo abrir el adjunto.");
+                            }
+                          }}
+                        >
+                          Ver
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="border-gray-200"
+                          disabled={!file}
+                          onClick={async () => {
+                            try {
+                              const fileBackend = adjuntosBackend[req.key] || null;
+                              const fileLocal = adjuntos[req.key] || null;
+
+                              if (fileBackend?.IdRetiroLaboralAdjunto) {
+                                await descargarAdjuntoRetiroBackend(
+                                  fileBackend.IdRetiroLaboralAdjunto,
+                                  fileBackend.NombreArchivoOriginal || "adjunto.pdf"
+                                );
+                                return;
+                              }
+
+                              if (fileLocal) {
+                                downloadLocalFile(fileLocal);
+                              }
+                            } catch (error) {
+                              console.error("Error descargando adjunto VIEW_DOWNLOAD:", error);
+                              alert(error.message || "No se pudo descargar el adjunto.");
+                            }
+                          }}
+                        >
+                          Descargar
+                        </Button>
+                      </div>
+                    }
+                  />
+                );
+              }
+
                 return null;
               })}
             </div>
@@ -2344,7 +2527,8 @@ const retiroBloqueado = estadoProceso === "CERRADO";
               * Por ahora esto es interfaz. Luego conectamos BD/API para guardar y descargar desde servidor.
             </div>
           </div>
-          
+
+                   
 
           {/* ✅ Estado del Proceso General (UI) — AL FINAL */}
           <div className="mt-6 bg-white p-5 rounded-xl border border-gray-100">
