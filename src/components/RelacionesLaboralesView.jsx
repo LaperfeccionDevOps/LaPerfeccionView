@@ -2830,14 +2830,21 @@ const retiroBloqueado = estadoProceso === "CERRADO";
           <Label className="text-xs text-gray-600">Motivo de retiro</Label>
 
       <Select
-          value={
-            form.idMotivoRetiro
-              ? getMotivoValueById(form.idMotivoRetiro)
-              : (form.motivoRetiro || "")
-          }
-          onValueChange={handleSelectMotivo}
-        >
-            <SelectTrigger className="bg-white min-h-[64px] flex items-center">
+            value={
+              form.idMotivoRetiro
+                ? getMotivoValueById(form.idMotivoRetiro)
+                : (form.motivoRetiro || "")
+            }
+            onValueChange={handleSelectMotivo}
+            disabled={retiroBloqueado}
+          >
+            <SelectTrigger
+              className={`min-h-[64px] flex items-center ${
+                retiroBloqueado
+                  ? "bg-slate-100 text-slate-500 cursor-not-allowed"
+                  : "bg-white"
+              }`}
+            >
               <SelectValue
                 placeholder="Seleccionar (lista)"
                 className="whitespace-normal text-center leading-5 w-full"
@@ -2856,6 +2863,12 @@ const retiroBloqueado = estadoProceso === "CERRADO";
           <p className="mt-2 text-xs text-gray-500">
             * Al seleccionar un motivo se abre la vista de documentos automáticamente.
           </p>
+
+          {retiroBloqueado && (
+            <p className="mt-2 text-xs text-amber-700">
+              ⚠️ El motivo de retiro no se puede cambiar porque el proceso ya está en estado <b>CERRADO</b>.
+            </p>
+          )}
 
           {/* ✅ BOTONES */}
           <div className="mt-3 flex flex-wrap items-center justify-start gap-3">
