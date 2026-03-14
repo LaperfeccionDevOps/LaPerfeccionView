@@ -612,6 +612,8 @@ export default function RelacionesLaboralesView() {
   // ✅ Tipificación retiro (pendiente lista)
   const [tipificacionRetiro, setTipificacionRetiro] = useState("");
 
+  const [motivoPersistidoId, setMotivoPersistidoId] = useState(null);
+
   // ✅ Clientes reales (alfabético + sin duplicados)
   const clientes = useMemo(() => {
     const nombres = (clientesALP || [])
@@ -870,6 +872,8 @@ const getMotivoValueById = (idMotivo) => {
         data?.IdMotivoRetiro ??
         null;
 
+        setMotivoPersistidoId(motivoIdDb ?? null);
+
       const clienteNombreDb = clienteIdDb ? getClienteNameById(clienteIdDb) : "";
 
       const motivoVisualFinal =
@@ -971,30 +975,45 @@ const getMotivoValueById = (idMotivo) => {
       // ✅ Mantengo tu comportamiento: seleccionar motivo abre docs,
       // pero ahora también guardamos idMotivoRetiro para el PUT.
         const handleSelectMotivo = async (value) => {
-        const id = MOTIVO_ID_MAP[value] ?? null;
+  try {
+    if (retiroBloqueado) return;
 
-        // 1) setear en estado
-        setForm((p) => ({
-          ...p,
-          motivoRetiro: value,
-          idMotivoRetiro: id,
-        }));
+    const id = MOTIVO_ID_MAP[value] ?? null;
+    const cambioDeMotivo = String(form.motivoRetiro || "") !== String(value || "");
 
-        // 2) asegurar retiro activo en BD (crear si no existe)
-        // OJO: como setForm es async, usamos los valores directos:
-        const prev = {
-          ...form,
-          motivoRetiro: value,
-          idMotivoRetiro: id,
-        };
-        // truco: setear temporalmente para que asegurarRetiroActivo lea lo correcto
-        setForm((p) => ({ ...p, motivoRetiro: value, idMotivoRetiro: id }));
+    // ✅ Si cambió de motivo, limpiar TODO lo visible del motivo anterior
+    if (cambioDeMotivo) {
+      setAdjuntos({});
+      setAdjuntosBackend({});
+      setObservaciones({});
+      setChecks({});
+      setTipificacionRetiro("");
+      setMsgActualizar("");
+    }
 
-        const idRetiro = await asegurarRetiroActivo();
+    // ✅ Actualizar motivo en pantalla
+    setForm((p) => ({
+      ...p,
+      motivoRetiro: value,
+      idMotivoRetiro: id,
+    }));
 
-        // 3) si ya hay idRetiro -> ir a docs
-        if (idRetiro) setStep("retiros_docs");
-      };
+    // ✅ Si no existe retiro todavía, lo aseguramos
+    let idRetiro = form.idRetiroLaboral;
+
+    if (!idRetiro) {
+      idRetiro = await asegurarRetiroActivo();
+    }
+
+    // ✅ Ir a documentos con el nuevo motivo
+    if (idRetiro || form.idRetiroLaboral) {
+      setStep("retiros_docs");
+    }
+  } catch (error) {
+    console.error("Error cambiando motivo de retiro:", error);
+    setMsgActualizar(error?.message || "No se pudo cambiar el motivo de retiro.");
+  }
+};
 
     // ✅ NUEVO: volver/ir a la vista de documentos del retiro actual
         const abrirVistaDocumentos = async (idRetiro) => {
@@ -1277,11 +1296,13 @@ const getMotivoValueById = (idMotivo) => {
         });
 
         if (!res.ok) {
-          const msg = await res.text().catch(() => "");
-          throw new Error(msg || `Error actualizando (${res.status})`);
-        }
+        const msg = await res.text().catch(() => "");
+        throw new Error(msg || `Error actualizando (${res.status})`);
+      }
 
+      setMotivoPersistidoId(Number(form.idMotivoRetiro) || null);
       setMsgActualizar("✅ Actualizado correctamente.");
+
     } catch (e) {
       setMsgActualizar(
         String(e?.message || "No se pudo actualizar. Verifica backend.")
@@ -1334,21 +1355,28 @@ const cargarAdjuntosDesdeBackend = async (idRetiroLaboral) => {
   try {
     setLoadingAdjuntosBackend(true);
 
-    
-
     const data = await listarAdjuntosRetiroBackend(idRetiroLaboral);
     const agrupados = {};
 
     for (const item of data || []) {
+      const tipoDoc = Number(item.IdTipoDocumentoRetiro || 0);
+
       const reqMatch = requisitosActuales.find(
         (req) =>
-          Number(req.idTipoDocumentoRetiro || 0) ===
-          Number(item.IdTipoDocumentoRetiro || 0)
+          Number(req.idTipoDocumentoRetiro || 0) === tipoDoc
       );
 
-      if (reqMatch) {
-        agrupados[reqMatch.key] = item;
+      if (!reqMatch) continue;
+
+      // ✅ Si el motivo actual NO es el persistido,
+      // solo permitir documentos compartidos/externos:
+      // 2 = Paz y Salvo
+      // 8 = Acta o evidencia de no ingreso
+      if (!motivoActualEsPersistido && ![2, 8].includes(tipoDoc)) {
+        continue;
       }
+
+      agrupados[reqMatch.key] = item;
     }
 
     setAdjuntosBackend(agrupados);
@@ -1360,6 +1388,13 @@ const cargarAdjuntosDesdeBackend = async (idRetiroLaboral) => {
   }
 };
 
+const retiroBloqueado = estadoProceso === "CERRADO";
+
+const motivoActualEsPersistido =
+  !form.idRetiroLaboral ||
+  !motivoPersistidoId ||
+  Number(form.idMotivoRetiro) === Number(motivoPersistidoId);
+
 useEffect(() => {
   if (
     step === "retiros_docs" &&
@@ -1369,45 +1404,68 @@ useEffect(() => {
   ) {
     cargarAdjuntosDesdeBackend(form.idRetiroLaboral);
   }
-}, [step, form.idRetiroLaboral, requisitosActuales]);
+}, [step, form.idRetiroLaboral, requisitosActuales, motivoActualEsPersistido]);
+
+
+
+useEffect(() => {
+  if (
+    step === "retiros_docs" &&
+    form.idRetiroLaboral &&
+    Array.isArray(requisitosActuales) &&
+    requisitosActuales.length > 0
+  ) {
+    if (motivoActualEsPersistido) {
+      cargarAdjuntosDesdeBackend(form.idRetiroLaboral);
+    } else {
+      setAdjuntosBackend({});
+    }
+  }
+}, [step, form.idRetiroLaboral, requisitosActuales, motivoActualEsPersistido]);
 
 useEffect(() => {
   const hidratarDetalleRetiro = async () => {
     try {
       if (!form.idRetiroLaboral) return;
 
-   const resp = await consultarDetalleRetiroBackend(form.idRetiroLaboral);
-const retiro = resp?.data || null;
-if (!retiro) return;
+      // ✅ Si el usuario cambió el motivo y aún no corresponde al persistido,
+      // no traer detalle del backend para que la vista quede limpia.
+      if (!motivoActualEsPersistido) {
+        setTipificacionRetiro("");
+        return;
+      }
 
-// Reconstruir estado del proceso desde BD
-const estadoRecuperado = (retiro?.EstadoCasoRRLL || "").toUpperCase();
-if (estadoRecuperado === "CERRADO" || estadoRecuperado === "ABIERTO") {
-  setEstadoProceso(estadoRecuperado);
-  setEstadoSeleccionado(estadoRecuperado);
-  setOwnerProceso(estadoRecuperado === "CERRADO" ? "NOMINA" : "RRLL");
-}
+      const resp = await consultarDetalleRetiroBackend(form.idRetiroLaboral);
+      const retiro = resp?.data || null;
+      if (!retiro) return;
 
-setTipificacionRetiro(
-  retiro?.IdTipificacionRetiro != null
-    ? String(retiro.IdTipificacionRetiro)
-    : ""
-);
+      const estadoRecuperado = (retiro?.EstadoCasoRRLL || "").toUpperCase();
+      if (estadoRecuperado === "CERRADO" || estadoRecuperado === "ABIERTO") {
+        setEstadoProceso(estadoRecuperado);
+        setEstadoSeleccionado(estadoRecuperado);
+        setOwnerProceso(estadoRecuperado === "CERRADO" ? "NOMINA" : "RRLL");
+      }
 
-setObservaciones((prev) => ({
-  ...prev,
-  [keyFromLabel(`${form.motivoRetiro || ""}_OBSERVACIONES`)]: retiro?.ObservacionRetiro || "",
-}));
+      setTipificacionRetiro(
+        retiro?.IdTipificacionRetiro != null
+          ? String(retiro.IdTipificacionRetiro)
+          : ""
+      );
 
-setChecks((prev) => ({
-  ...prev,
-  [keyFromLabel(`${form.motivoRetiro || ""}_DEVOLUCIÓN CARNET`)]:
-    retiro?.DevolucionCarnet === true
-      ? "SI"
-      : retiro?.DevolucionCarnet === false
-      ? "NO"
-      : "",
-}));
+      setObservaciones((prev) => ({
+        ...prev,
+        [keyFromLabel(`${form.motivoRetiro || ""}_OBSERVACIONES`)]: retiro?.ObservacionRetiro || "",
+      }));
+
+      setChecks((prev) => ({
+        ...prev,
+        [keyFromLabel(`${form.motivoRetiro || ""}_DEVOLUCIÓN CARNET`)]:
+          retiro?.DevolucionCarnet === true
+            ? "SI"
+            : retiro?.DevolucionCarnet === false
+            ? "NO"
+            : "",
+      }));
     } catch (error) {
       console.error("Error hidratando detalle del retiro:", error);
     }
@@ -1416,7 +1474,7 @@ setChecks((prev) => ({
   if (step === "retiros_docs" && form.idRetiroLaboral) {
     hidratarDetalleRetiro();
   }
-}, [step, form.idRetiroLaboral, form.motivoRetiro]);
+}, [step, form.idRetiroLaboral, form.motivoRetiro, motivoActualEsPersistido]);
 
 const subirAdjuntoRetiroBackend = async ({
   idRetiroLaboral,
@@ -1665,8 +1723,6 @@ const handleActualizarEstadoProceso = async () => {
     setLoadingActualizar(false);
   }
 };
-
-const retiroBloqueado = estadoProceso === "CERRADO";
 
   // --------------------------
   // VISTA INICIAL
