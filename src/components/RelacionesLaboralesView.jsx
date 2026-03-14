@@ -1514,6 +1514,43 @@ const generarPrimerLlamadoBackend = async (idRetiroLaboral) => {
   return await res.json();
 };
 
+const generarSegundoLlamadoBackend = async (idRetiroLaboral) => {
+  const res = await fetch(
+    `${API_BASE}/retiros-laborales/${idRetiroLaboral}/documentos/segundo-llamado/generar`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+      },
+    }
+  );
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || "No se pudo generar el segundo llamado.");
+  }
+
+  return await res.json();
+};
+
+const generarCartaFinalizacionBackend = async (idRetiroLaboral) => {
+  const res = await fetch(
+    `${API_BASE}/retiros-laborales/${idRetiroLaboral}/documentos/carta-finalizacion/generar`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+      },
+    }
+  );
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || "No se pudo generar la carta de finalización.");
+  }
+
+  return await res.json();
+};
 const handleActualizarEstadoProceso = async () => {
   try {
     setMsgActualizar("");
@@ -2047,23 +2084,27 @@ const retiroBloqueado = estadoProceso === "CERRADO";
                                 return;
                               }
 
-                              if (Number(req.idTipoDocumentoRetiro) !== 13) {
-                                alert("Por ahora solo está conectado el Primer Llamado.");
-                                return;
-                              }
+                          if (Number(req.idTipoDocumentoRetiro) === 13) {
+                            await generarPrimerLlamadoBackend(form.idRetiroLaboral);
+                          } else if (Number(req.idTipoDocumentoRetiro) === 14) {
+                            await generarSegundoLlamadoBackend(form.idRetiroLaboral);
+                          } else if (Number(req.idTipoDocumentoRetiro) === 4) {
+                            await generarCartaFinalizacionBackend(form.idRetiroLaboral);
+                          } else {
+                            alert("Por ahora este documento generado aún no está conectado.");
+                            return;
+                          }
 
-                              await generarPrimerLlamadoBackend(form.idRetiroLaboral);
                               await cargarAdjuntosDesdeBackend(form.idRetiroLaboral);
-
                               setAdjuntos((p) => {
                                 const copy = { ...p };
                                 delete copy[req.key];
                                 return copy;
                               });
 
-                              alert("Primer llamado generado correctamente.");
+                              alert(`${req.labelPretty} generado correctamente.`);
                             } catch (error) {
-                              console.error("Error generando primer llamado:", error);
+                              console.error("Error generando documento:", error);
                               alert(error.message || "No se pudo generar el documento.");
                             }
                           }}
