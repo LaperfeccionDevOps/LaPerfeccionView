@@ -778,6 +778,18 @@ const getMotivoValueById = (idMotivo) => {
       const data = raw ? JSON.parse(raw) : {};
       console.log("DATA PARSEADA =>", data);
 
+      let detalleRetiroBusqueda = null;
+
+      if (data?.IdRetiroLaboral) {
+        try {
+          const respDetalle = await consultarDetalleRetiroBackend(data.IdRetiroLaboral);
+          detalleRetiroBusqueda = respDetalle?.data ?? null;
+          console.log("DETALLE RETIRO BUSQUEDA =>", detalleRetiroBusqueda);
+        } catch (err) {
+          console.error("No se pudo consultar detalle del retiro en búsqueda:", err);
+        }
+      }
+
       // ✅ consultar retiro activo para traer IdRetiroLaboral, IdMotivoRetiro y FechaRetiro
       let retiroActivo = null;
       try {
@@ -791,6 +803,9 @@ const getMotivoValueById = (idMotivo) => {
             retiroActivo = await r2.json();
           }
         }
+
+        console.log("RETIRO ACTIVO =>", retiroActivo);
+        console.log("ESTADO RRLL DESDE ACTIVO =>", retiroActivo?.retiro?.EstadoCasoRRLL || retiroActivo?.EstadoCasoRRLL);
 
         const data = raw ? JSON.parse(raw) : null;
         console.log("DATA PARSEADA =>", data);
@@ -811,35 +826,56 @@ const getMotivoValueById = (idMotivo) => {
       // ✅ tu backend envía { tieneRetiroActivo, retiro: {...} }
       const retiroObj = retiroActivo?.retiro ?? retiroActivo;
 
-      // ✅ fecha final: prioridad 1 = FechaRetiro (RRLL), prioridad 2 = Paz y Salvo (Operaciones)
-     // ✅ Fecha final: prioridad 1 = RRLL (FechaRetiro), prioridad 2 = PazYSalvo (FechaUltimoDiaLaborado)
-     const fechaFinalFromBackend =
+      const estadoRecuperadoBusqueda = String(
+        detalleRetiroBusqueda?.EstadoCasoRRLL ||
+        retiroDb?.EstadoCasoRRLL ||
+        retiroObj?.EstadoCasoRRLL ||
+        ""
+      ).toUpperCase();
+
+      if (
+        estadoRecuperadoBusqueda === "CERRADO" ||
+        estadoRecuperadoBusqueda === "ABIERTO"
+      ) {
+        setEstadoProceso(estadoRecuperadoBusqueda);
+        setEstadoSeleccionado(estadoRecuperadoBusqueda);
+        setOwnerProceso(
+          estadoRecuperadoBusqueda === "CERRADO" ? "NOMINA" : "RRLL"
+        );
+      } else {
+        setEstadoProceso("ABIERTO");
+        setEstadoSeleccionado("ABIERTO");
+        setOwnerProceso("RRLL");
+      }
+
+      // ✅ Fecha final: prioridad 1 = RRLL (FechaRetiro), prioridad 2 = Paz y Salvo (Operaciones)
+      const fechaFinalFromBackend =
         toDateInput(retiroObj?.FechaRetiro) ||
         toDateInput(data?.FechaUltimoDiaLaborado) ||
         toDateInput(data?.fechaUltimoDiaLaborado) ||
         toDateInput(data?.PazYSalvo?.FechaUltimoDiaLaborado) ||
         toDateInput(data?.pazYSalvo?.FechaUltimoDiaLaborado) ||
-        "";
-        // ✅ (por si alguien lo manda con otro alias)
         toDateInput(retiroObj?.FechaUltimoDiaLaborado) ||
         toDateInput(retiroObj?.fechaUltimoDiaLaborado) ||
         toDateInput(retiroObj?.fecha_ultimo_dia_laborado) ||
-
         "";
 
-        const fechaProcesoFromBackend =
+      const fechaProcesoFromBackend =
         toDateInput(retiroDb?.FechaProceso || data?.FechaProceso) || "";
 
-        const clienteIdDb = retiroDb?.IdCliente ?? null;
-        const motivoIdDb = retiroDb?.IdMotivoRetiro ?? data?.IdMotivoRetiro ?? null;
+      const clienteIdDb = retiroDb?.IdCliente ?? null;
+      const motivoIdDb =
+        detalleRetiroBusqueda?.IdMotivoRetiro ??
+        retiroDb?.IdMotivoRetiro ??
+        data?.IdMotivoRetiro ??
+        null;
 
-        const clienteNombreDb = clienteIdDb ? getClienteNameById(clienteIdDb) : "";
+      const clienteNombreDb = clienteIdDb ? getClienteNameById(clienteIdDb) : "";
 
-        const motivoVisualFinal =
-          String(data?.MotivoRetiroNombre || "").trim() ||
-          getMotivoValueById(motivoIdDb) ||
-          "";
-
+      const motivoVisualFinal =
+        String(data?.MotivoRetiroNombre || "").trim() ||
+        getMotivoValueById(motivoIdDb) ||
+        "";
         console.log("ANTES DE SETFORM", data);
          setForm((prev) => {
       const clienteIdFinal = retiroDb?.IdCliente ?? data?.IdCliente ?? prev.idCliente ?? null;
@@ -853,7 +889,12 @@ const getMotivoValueById = (idMotivo) => {
       return {
         ...prev,
         idRegistroPersonal: data?.IdRegistroPersonal ?? null,
-        idRetiroLaboral: retiroDb?.IdRetiroLaboral ?? prev.idRetiroLaboral ?? null,
+        idRetiroLaboral:
+        detalleRetiroBusqueda?.IdRetiroLaboral ??
+        retiroDb?.IdRetiroLaboral ??
+        data?.IdRetiroLaboral ??
+        prev.idRetiroLaboral ??
+        null,
 
         idCliente: clienteIdFinal,
         cliente: clienteNombreFinal,
@@ -882,26 +923,35 @@ const getMotivoValueById = (idMotivo) => {
       };
     });
 
-      setTipificacionRetiro(
-        data?.IdTipificacionRetiro != null
+     setTipificacionRetiro(
+        detalleRetiroBusqueda?.IdTipificacionRetiro != null
+          ? String(detalleRetiroBusqueda.IdTipificacionRetiro)
+          : data?.IdTipificacionRetiro != null
           ? String(data.IdTipificacionRetiro)
           : ""
-                );
+      );
 
-          setObservaciones((prev) => ({
-            ...prev,
-            [keyFromLabel(`${motivoVisualFinal || ""}_OBSERVACIONES`)]: retiroDb?.ObservacionRetiro || "",
-          }));
+                setObservaciones((prev) => ({
+        ...prev,
+        [keyFromLabel(`${motivoVisualFinal || ""}_OBSERVACIONES`)]:
+          detalleRetiroBusqueda?.ObservacionRetiro ||
+          retiroDb?.ObservacionRetiro ||
+          "",
+      }));
 
           setChecks((prev) => ({
-            ...prev,
-            [keyFromLabel(`${motivoVisualFinal || ""}_DEVOLUCIÓN CARNET`)]:
-              retiroDb?.DevolucionCarnet === true
-                ? "SI"
-                : retiroDb?.DevolucionCarnet === false
-                ? "NO"
-                : "",
-          }));
+          ...prev,
+          [keyFromLabel(`${motivoVisualFinal || ""}_DEVOLUCIÓN CARNET`)]:
+            detalleRetiroBusqueda?.DevolucionCarnet === true
+              ? "SI"
+              : detalleRetiroBusqueda?.DevolucionCarnet === false
+              ? "NO"
+              : retiroDb?.DevolucionCarnet === true
+              ? "SI"
+              : retiroDb?.DevolucionCarnet === false
+              ? "NO"
+              : "",
+        }));
 
           console.log("DESPUÉS DE SETFORM");
         } catch (e) {
@@ -2865,10 +2915,10 @@ const retiroBloqueado = estadoProceso === "CERRADO";
           </p>
 
           {retiroBloqueado && (
-            <p className="mt-2 text-xs text-amber-700">
-              ⚠️ El motivo de retiro no se puede cambiar porque el proceso ya está en estado <b>CERRADO</b>.
-            </p>
-          )}
+          <p className="mt-2 text-xs text-amber-700">
+            ⚠️ El motivo de retiro no se puede cambiar porque el proceso ya está en estado <b>CERRADO</b>.
+          </p>
+        )}
 
           {/* ✅ BOTONES */}
           <div className="mt-3 flex flex-wrap items-center justify-start gap-3">
