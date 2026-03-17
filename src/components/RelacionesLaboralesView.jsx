@@ -555,6 +555,7 @@ function viewLocalFile(file) {
 export default function RelacionesLaboralesView() {
   // ✅ lee tu .env (debe ser: http://localhost:8000/api)
   const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+  const API_BASE_ENTREVISTA = API_BASE.replace(/\/api$/, "");
 
   const [step, setStep] = useState("inicio");
 
@@ -600,6 +601,9 @@ export default function RelacionesLaboralesView() {
 
   const [adjuntosBackend, setAdjuntosBackend] = useState({});
   const [loadingAdjuntosBackend, setLoadingAdjuntosBackend] = useState(false);
+
+  const [entrevistaRetiroData, setEntrevistaRetiroData] = useState(null);
+  const [loadingEntrevistaRetiro, setLoadingEntrevistaRetiro] = useState(false);
 
   const motivos = useMemo(() => Object.keys(REQUISITOS_POR_MOTIVO), []);
   const tiposId = useMemo(() => ["CC", "CE", "TI", "PPT"], []);
@@ -1476,6 +1480,14 @@ useEffect(() => {
   }
 }, [step, form.idRetiroLaboral, form.motivoRetiro, motivoActualEsPersistido]);
 
+useEffect(() => {
+  if (step === "retiros_docs" && form.idRetiroLaboral) {
+    cargarEntrevistaRetiroDesdeBackend(form.idRetiroLaboral);
+  } else {
+    setEntrevistaRetiroData(null);
+  }
+}, [step, form.idRetiroLaboral]);
+
 const subirAdjuntoRetiroBackend = async ({
   idRetiroLaboral,
   idTipoDocumentoRetiro,
@@ -1545,6 +1557,81 @@ const descargarAdjuntoRetiroBackend = async (
   const a = document.createElement("a");
   a.href = url;
   a.download = nombreArchivo;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  setTimeout(() => {
+    window.URL.revokeObjectURL(url);
+  }, 60000);
+};
+
+const consultarEntrevistaRetiroBackend = async (idRetiroLaboral) => {
+  const res = await fetch(`${API_BASE_ENTREVISTA}/entrevista-retiro/${idRetiroLaboral}`, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (res.status === 404) return null;
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || "No se pudo consultar la entrevista de retiro.");
+  }
+
+  return await res.json();
+};
+
+const cargarEntrevistaRetiroDesdeBackend = async (idRetiroLaboral) => {
+  if (!idRetiroLaboral) {
+    setEntrevistaRetiroData(null);
+    return;
+  }
+
+  try {
+    setLoadingEntrevistaRetiro(true);
+    const resp = await consultarEntrevistaRetiroBackend(idRetiroLaboral);
+    setEntrevistaRetiroData(resp?.data ?? null);
+  } catch (error) {
+    console.error("Error cargando entrevista de retiro:", error);
+    setEntrevistaRetiroData(null);
+  } finally {
+    setLoadingEntrevistaRetiro(false);
+  }
+};
+
+const verPdfEntrevistaRetiro = (idRetiroLaboral) => {
+  if (!idRetiroLaboral) return;
+  const url = `${API_BASE_ENTREVISTA}/entrevista-retiro/${idRetiroLaboral}/pdf`;
+  window.open(url, "_blank", "noopener,noreferrer");
+};
+
+const descargarPdfEntrevistaRetiro = async (idRetiroLaboral) => {
+  if (!idRetiroLaboral) return;
+
+  const res = await fetch(
+    `${API_BASE_ENTREVISTA}/entrevista-retiro/${idRetiroLaboral}/pdf`,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/pdf",
+      },
+    }
+  );
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || "No se pudo descargar el PDF de la entrevista.");
+  }
+
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `entrevista_retiro_${idRetiroLaboral}.pdf`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -1775,8 +1862,19 @@ const handleActualizarEstadoProceso = async () => {
   // --------------------------
   // VISTA DOCUMENTOS (REQUISITOS)
   // --------------------------
-  if (step === "retiros_docs") {
-    const motivo = form.motivoRetiro;
+if (step === "retiros_docs") {
+  const motivo = form.motivoRetiro;
+
+  const entrevistaCabecera = entrevistaRetiroData?.cabecera || null;
+  const entrevistaRespuestas = entrevistaRetiroData?.respuestas || [];
+  const tieneEntrevistaRetiro =
+    !!entrevistaCabecera?.IdEntrevistaRetiro && entrevistaRespuestas.length > 0;
+
+    console.log("entrevistaRetiroData =>", entrevistaRetiroData);
+  console.log("entrevistaCabecera =>", entrevistaCabecera);
+  console.log("entrevistaRespuestas =>", entrevistaRespuestas);
+  console.log("tieneEntrevistaRetiro =>", tieneEntrevistaRetiro);
+  console.log("form.idRetiroLaboral =>", form.idRetiroLaboral);
 
     const DocCard = ({ idx, title, subtitle, file, displayFileName, actions, fileNode, children }) => (
       <div className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5">
@@ -1861,15 +1959,20 @@ const handleActualizarEstadoProceso = async () => {
                   if (String(val) !== String(req.showIf.equals)) return null;
                 }
 
-             const tipo = String(req.tipo || "ADJUNTABLE").toUpperCase();
-              const fileLocal = adjuntos[req.key];
-              const fileBackend = adjuntosBackend[req.key] || null;
-              const file = fileBackend || fileLocal || null;
+            const tipo = String(req.tipo || "ADJUNTABLE").toUpperCase();
+            const fileLocal = adjuntos[req.key];
+            const fileBackend = adjuntosBackend[req.key] || null;
+            const file = fileBackend || fileLocal || null;
 
-              const displayFileName =
-                tipo === "GENERADO"
-                  ? `Archivo generado: ${req.labelPretty}`
-                  : `Archivo: ${file?.NombreArchivoOriginal || file?.name || "archivo"}`;
+            const displayFileName =
+              tipo === "GENERADO"
+                ? `Archivo generado: ${req.labelPretty}`
+                : `Archivo: ${file?.NombreArchivoOriginal || file?.name || "archivo"}`;
+
+            const esTarjetaEntrevista = tipo === "ENTREVISTA";
+            const archivoEntrevistaVisible = tieneEntrevistaRetiro
+              ? { NombreArchivoOriginal: `entrevista_retiro_${form.idRetiroLaboral}.pdf` }
+              : file;
 
                if (tipo === "VIEW_ONLY") {
                   return (
@@ -2333,69 +2436,67 @@ const handleActualizarEstadoProceso = async () => {
                   );
                 }
 
-                if (tipo === "ENTREVISTA") {
-                  return (
-                    <DocCard
-                      key={req.key}
-                      idx={idx + 1}
-                      title={req.labelPretty}
-                      subtitle="Tipo: Entrevista (QR / cargue automático pendiente)"
-                      file={file}
-                      actions={
-                        <div className="flex flex-wrap gap-2 justify-end">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="border-gray-200"
-                            disabled={!file}
-                            onClick={() => viewLocalFile(file)}
-                          >
-                            Ver
-                          </Button>
+               if (tipo === "ENTREVISTA") {
+  return (
+    <DocCard
+      key={req.key}
+      idx={idx + 1}
+      title={req.labelPretty}
+      subtitle="Tipo: Entrevista (QR / cargue automático pendiente)"
+      file={
+        tieneEntrevistaRetiro
+          ? { NombreArchivoOriginal: `entrevista_retiro_${form.idRetiroLaboral}.pdf` }
+          : null
+      }
+      actions={
+        <div className="flex flex-wrap gap-2 justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            className="border-gray-200"
+            disabled={!tieneEntrevistaRetiro}
+            onClick={() => verPdfEntrevistaRetiro(form.idRetiroLaboral)}
+          >
+            Ver
+          </Button>
 
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="border-gray-200"
-                            disabled={!file}
-                            onClick={() => downloadLocalFile(file)}
-                          >
-                            Descargar
-                          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="border-gray-200"
+            disabled={!tieneEntrevistaRetiro}
+            onClick={() => descargarPdfEntrevistaRetiro(form.idRetiroLaboral)}
+          >
+            Descargar
+          </Button>
 
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="border-gray-200"
-                            disabled={!file}
-                            onClick={() => removeAdjuntoByKey(req.key)}
-                          >
-                            Eliminar
-                          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="border-gray-200"
+            disabled
+          >
+            Eliminar
+          </Button>
 
-                          <label className="inline-flex items-center">
-                            <input
-                              type="file"
-                              className="hidden"
-                              onChange={(e) => {
-                                const f = e.target.files?.[0];
-                                if (!f) return;
-                                setAdjuntos((p) => ({ ...p, [req.key]: f }));
-                              }}
-                            />
-                            <span className="h-10 px-4 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800 cursor-pointer flex items-center">
-                              Adjuntar
-                            </span>
-                          </label>
-                        </div>
-                      }
-                    >
-                      <div className="text-xs text-slate-500">
-                        Luego esto se llenará automático cuando el trabajador envíe la entrevista por QR.
-                      </div>
-                    </DocCard>
-                  );
-                  }
+          <Button
+            type="button"
+            className="bg-slate-300 text-slate-500 cursor-not-allowed"
+            disabled
+          >
+            Adjuntar
+          </Button>
+        </div>
+      }
+    >
+      <div className="text-xs text-slate-500">
+        {tieneEntrevistaRetiro
+          ? "La entrevista fue diligenciada por el trabajador y ya se encuentra disponible en PDF."
+          : "Luego esto se llenará automático cuando el trabajador envíe la entrevista por QR."}
+      </div>
+    </DocCard>
+  );
+}
 
             if (tipo === "TIPIFICACION") {
               return (
