@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -604,6 +605,17 @@ export default function RelacionesLaboralesView() {
 
   const [entrevistaRetiroData, setEntrevistaRetiroData] = useState(null);
   const [loadingEntrevistaRetiro, setLoadingEntrevistaRetiro] = useState(false);
+
+  const [qrEntrevistaInfo, setQrEntrevistaInfo] = useState({
+  open: false,
+  link: "",
+  mensaje: "",
+});
+
+const [mensajeEntrevista, setMensajeEntrevista] = useState({
+  tipo: "",
+  texto: "",
+});
 
   const motivos = useMemo(() => Object.keys(REQUISITOS_POR_MOTIVO), []);
   const tiposId = useMemo(() => ["CC", "CE", "TI", "PPT"], []);
@@ -1641,6 +1653,56 @@ const descargarPdfEntrevistaRetiro = async (idRetiroLaboral) => {
   }, 60000);
 };
 
+const generarQrEntrevistaRetiro = async (idRetiroLaboral) => {
+  try {
+    if (!idRetiroLaboral) {
+      setQrEntrevistaInfo({
+        open: true,
+        link: "",
+        mensaje: "No existe IdRetiroLaboral para generar el enlace de la entrevista.",
+      });
+      return;
+    }
+
+    const res = await fetch(
+      `${API_BASE_ENTREVISTA}/entrevista-retiro/generar-token/${idRetiroLaboral}`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+        },
+      }
+    );
+
+    if (!res.ok) {
+      const msg = await res.text().catch(() => "");
+      throw new Error(msg || "No se pudo generar el token de entrevista.");
+    }
+
+    const data = await res.json();
+
+    const linkFormulario =
+      data?.data?.LinkFormulario ||
+      data?.data?.linkFormulario ||
+      data?.linkFormulario ||
+      "";
+
+    setQrEntrevistaInfo({
+      open: true,
+      link: linkFormulario,
+     mensaje: linkFormulario
+  ? "Escanee este código QR con el celular del trabajador para diligenciar la entrevista."
+  : "Código QR generado correctamente.",
+    });
+  } catch (error) {
+    console.error("Error generando QR de entrevista:", error);
+    setQrEntrevistaInfo({
+      open: true,
+      link: "",
+      mensaje: error.message || "No se pudo generar el QR de la entrevista.",
+    });
+  }
+};
 const actualizarDetalleRetiroBackend = async ({
   idRetiroLaboral,
   idTipificacionRetiro,
@@ -1865,6 +1927,26 @@ const handleActualizarEstadoProceso = async () => {
 if (step === "retiros_docs") {
   const motivo = form.motivoRetiro;
 
+ const copiarLinkEntrevista = async () => {
+  try {
+    if (!qrEntrevistaInfo.link) return;
+
+    await navigator.clipboard.writeText(qrEntrevistaInfo.link);
+
+    setQrEntrevistaInfo((prev) => ({
+      ...prev,
+      mensaje: "Enlace copiado correctamente.",
+    }));
+  } catch (error) {
+    console.error("Error copiando enlace:", error);
+
+    setQrEntrevistaInfo((prev) => ({
+      ...prev,
+      mensaje: "No se pudo copiar el enlace.",
+    }));
+  }
+};
+
   const entrevistaCabecera = entrevistaRetiroData?.cabecera || null;
   const entrevistaRespuestas = entrevistaRetiroData?.respuestas || [];
   const tieneEntrevistaRetiro =
@@ -1905,10 +1987,57 @@ if (step === "retiros_docs") {
       </div>
     );
 
-    return (
-      <div className="p-6">
-        <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
+        return (
+          <div className="p-6">
+          <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
+            {qrEntrevistaInfo.open && (
+      <div className="fixed top-4 right-4 z-50 w-[420px] max-w-[95vw] rounded-xl border border-emerald-200 bg-white shadow-2xl px-4 py-4 text-sm text-slate-800">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1">
+            <div className="font-semibold text-emerald-700">
+              {qrEntrevistaInfo.mensaje}
+            </div>
+    {qrEntrevistaInfo.link ? (
+      <div className="mt-4 flex flex-col items-center">
+        <div className="rounded-lg border border-slate-200 bg-white p-3">
+          <QRCodeSVG value={qrEntrevistaInfo.link} size={180} />
+        </div>
+      </div>
+    ) : null}
+
+            <div className="mt-4 flex gap-2 flex-wrap">
+              {qrEntrevistaInfo.link ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-gray-200"
+                  onClick={copiarLinkEntrevista}
+                >
+                  Copiar enlace
+                </Button>
+              ) : null}
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="border-gray-200"
+            onClick={() =>
+              setQrEntrevistaInfo({
+                open: false,
+                link: "",
+                mensaje: "",
+              })
+            }
+          >
+            Cerrar
+          </Button>
+        </div>
+      </div>
+    )}
+
+      <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <h2 className="text-2xl font-bold text-gray-800">Retiros</h2>
               <p className="text-sm text-gray-500">Documentos y requisitos</p>
@@ -2436,7 +2565,7 @@ if (step === "retiros_docs") {
                   );
                 }
 
-               if (tipo === "ENTREVISTA") {
+   if (tipo === "ENTREVISTA") {
   return (
     <DocCard
       key={req.key}
@@ -2472,19 +2601,11 @@ if (step === "retiros_docs") {
 
           <Button
             type="button"
-            variant="outline"
-            className="border-gray-200"
-            disabled
+            className="bg-slate-900 text-white hover:bg-slate-800"
+            disabled={!form.idRetiroLaboral}
+            onClick={() => generarQrEntrevistaRetiro(form.idRetiroLaboral)}
           >
-            Eliminar
-          </Button>
-
-          <Button
-            type="button"
-            className="bg-slate-300 text-slate-500 cursor-not-allowed"
-            disabled
-          >
-            Adjuntar
+            Generar QR
           </Button>
         </div>
       }
@@ -2492,7 +2613,7 @@ if (step === "retiros_docs") {
       <div className="text-xs text-slate-500">
         {tieneEntrevistaRetiro
           ? "La entrevista fue diligenciada por el trabajador y ya se encuentra disponible en PDF."
-          : "Luego esto se llenará automático cuando el trabajador envíe la entrevista por QR."}
+          : "La entrevista aún no ha sido diligenciada por el trabajador. Genere el QR para que pueda responderla."}
       </div>
     </DocCard>
   );

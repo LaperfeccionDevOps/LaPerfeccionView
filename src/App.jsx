@@ -14,6 +14,7 @@ import RelacionesLaboralesView from '@/components/RelacionesLaboralesView';
 import ArchivosView from '@/components/ArchivosView';
 import CreateUserForm from '@/components/admin/CreateUserForm';
 import UpdateUserView from '@/components/admin/UpdateUserView';
+import EntrevistaRetiroPage from '@/pages/EntrevistaRetiroPage';
 
 // Helper component to redirect based on role
 const RoleBasedRedirect = () => {
@@ -48,6 +49,7 @@ function App() {
       
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/entrevista-retiro" element={<EntrevistaRetiroPage />} />
         
         <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>}>
           <Route index element={<RoleBasedRedirect />} />
