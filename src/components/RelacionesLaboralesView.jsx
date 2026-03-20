@@ -560,6 +560,9 @@ export default function RelacionesLaboralesView() {
 
   const [step, setStep] = useState("inicio");
 
+  const [fechaInicioExcel, setFechaInicioExcel] = useState("");
+  const [fechaFinExcel, setFechaFinExcel] = useState("");
+
   // ✅ filtros
   const [filtroTipoDocumento, setFiltroTipoDocumento] = useState("CC");
   const [filtroDocumento, setFiltroDocumento] = useState("");
@@ -619,6 +622,46 @@ const [mensajeEntrevista, setMensajeEntrevista] = useState({
 
   const motivos = useMemo(() => Object.keys(REQUISITOS_POR_MOTIVO), []);
   const tiposId = useMemo(() => ["CC", "CE", "TI", "PPT"], []);
+
+  const handleDescargarExcel = async () => {
+  try {
+    if (!fechaInicioExcel || !fechaFinExcel) {
+      alert("Debes seleccionar la fecha de inicio y la fecha final.");
+      return;
+    }
+
+    if (fechaInicioExcel > fechaFinExcel) {
+      alert("La fecha de inicio no puede ser mayor que la fecha final.");
+      return;
+    }
+
+    const url = `http://127.0.0.1:8000/api/rrll-excel/exportar-retiros?fecha_inicio=${fechaInicioExcel}&fecha_fin=${fechaFinExcel}`;
+
+    const response = await fetch(url, {
+      method: "GET",
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || "No se pudo descargar el archivo Excel.");
+    }
+
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = `reporte_retiros_rrll_${fechaInicioExcel}_a_${fechaFinExcel}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    window.URL.revokeObjectURL(downloadUrl);
+  } catch (error) {
+    console.error("Error al descargar Excel:", error);
+    alert("Ocurrió un error al descargar el Excel.");
+  }
+};
 
   // ✅ Estado general del caso (solo visual por ahora)
   const [estadoProceso, setEstadoProceso] = useState("ABIERTO"); // ABIERTO | CERRADO
@@ -1876,45 +1919,84 @@ const handleActualizarEstadoProceso = async () => {
   // --------------------------
   // VISTA INICIAL
   // --------------------------
-  if (step === "inicio") {
-    return (
-      <div className="p-6">
-        <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
-          <div className="mb-1">
-            <h2 className="text-2xl font-bold text-gray-800">
-              Relaciones Laborales
-            </h2>
-            <p className="text-sm text-gray-500">Vista inicial</p>
+ if (step === "inicio") {
+  return (
+    <div className="p-6">
+      <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
+        <div className="mb-1">
+          <h2 className="text-2xl font-bold text-gray-800">
+            Relaciones Laborales
+          </h2>
+          <p className="text-sm text-gray-500">Vista inicial</p>
+        </div>
+
+        <div className="mt-6 bg-gray-50 p-6 rounded-xl border border-gray-100">
+          <p className="text-sm font-semibold text-gray-700 mb-3">
+            Seleccione un flujo:
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button
+              onClick={() => setStep("retiros")}
+              className="text-left bg-white rounded-xl border border-emerald-100 p-4 hover:border-emerald-300 hover:shadow-sm transition"
+            >
+              <p className="font-bold text-emerald-700">Retiros</p>
+              <p className="text-xs text-gray-500">
+                Gestión de retiros y documentación…
+              </p>
+            </button>
+
+            <button
+              onClick={() =>
+                alert("Pendiente: Procesos disciplinarios (lo hacemos después)")
+              }
+              className="text-left bg-white rounded-xl border border-gray-200 p-4 hover:border-gray-300 hover:shadow-sm transition"
+            >
+              <p className="font-bold text-gray-800">Procesos disciplinarios</p>
+              <p className="text-xs text-gray-500">
+                Citación, descargos, actas y compromisos…
+              </p>
+            </button>
           </div>
 
-          <div className="mt-6 bg-gray-50 p-6 rounded-xl border border-gray-100">
-            <p className="text-sm font-semibold text-gray-700 mb-3">
-              Seleccione un flujo:
-            </p>
+          <div className="mt-6 rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-end gap-4">
+              <div className="w-full md:w-auto">
+                <Label className="text-sm font-medium text-gray-700">
+                  Fecha inicio:
+                </Label>
+                <Input
+                  type="date"
+                  value={fechaInicioExcel}
+                  onChange={(e) => setFechaInicioExcel(e.target.value)}
+                  className="bg-white h-12 mt-2 w-full md:w-[190px]"
+                />
+              </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <button
-                onClick={() => setStep("retiros")}
-                className="text-left bg-white rounded-xl border border-emerald-100 p-4 hover:border-emerald-300 hover:shadow-sm transition"
-              >
-                <p className="font-bold text-emerald-700">Retiros</p>
-                <p className="text-xs text-gray-500">
-                  Gestión de retiros y documentación…
-                </p>
-              </button>
+              <div className="w-full md:w-auto">
+                <Label className="text-sm font-medium text-gray-700">
+                  Fecha fin:
+                </Label>
+                <Input
+                  type="date"
+                  value={fechaFinExcel}
+                  onChange={(e) => setFechaFinExcel(e.target.value)}
+                  className="bg-white h-12 mt-2 w-full md:w-[190px]"
+                />
+              </div>
 
-              <button
-                onClick={() =>
-                  alert("Pendiente: Procesos disciplinarios (lo hacemos después)")
-                }
-                className="text-left bg-white rounded-xl border border-gray-200 p-4 hover:border-gray-300 hover:shadow-sm transition"
-              >
-                <p className="font-bold text-gray-800">Procesos disciplinarios</p>
-                <p className="text-xs text-gray-500">
-                  Citación, descargos, actas y compromisos…
-                </p>
-              </button>
+              <div className="w-full md:w-auto">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleDescargarExcel}
+                  className="w-full md:w-[220px] h-12 border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+                >
+                  Descargar Excel
+                </Button>
+              </div>
             </div>
+          </div>
           </div>
         </div>
       </div>
