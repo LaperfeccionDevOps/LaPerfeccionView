@@ -670,6 +670,7 @@ const [mensajeEntrevista, setMensajeEntrevista] = useState({
 
   // ✅ Tipificación retiro (pendiente lista)
   const [tipificacionRetiro, setTipificacionRetiro] = useState("");
+  const [retiroLegalizado, setRetiroLegalizado] = useState("");
 
   const [motivoPersistidoId, setMotivoPersistidoId] = useState(null);
 
@@ -759,6 +760,11 @@ const getMotivoValueById = (idMotivo) => {
         tipo: "TIPIFICACION",
       };
 
+      const retiroLegalizadoReq = {
+        label: "RETIRO LEGALIZADO",
+        tipo: "RETIRO_LEGALIZADO",
+      };
+
       const idxObs = base.findIndex(
         (x) =>
           String(x?.tipo).toUpperCase() === "ESCRIBIR" &&
@@ -766,13 +772,14 @@ const getMotivoValueById = (idMotivo) => {
       );
 
       if (idxObs >= 0) {
-        return [
-          ...base.slice(0, idxObs),
-          entrevistaReq,
-          tipificacionReq,
-          ...base.slice(idxObs),
-        ];
-      }
+  return [
+    ...base.slice(0, idxObs),
+    entrevistaReq,
+    tipificacionReq,
+    retiroLegalizadoReq,
+    ...base.slice(idxObs),
+  ];
+}
 
       return [...base, entrevistaReq, tipificacionReq];
     })();
@@ -986,36 +993,43 @@ const getMotivoValueById = (idMotivo) => {
       };
     });
 
-     setTipificacionRetiro(
-        detalleRetiroBusqueda?.IdTipificacionRetiro != null
-          ? String(detalleRetiroBusqueda.IdTipificacionRetiro)
-          : data?.IdTipificacionRetiro != null
-          ? String(data.IdTipificacionRetiro)
-          : ""
-      );
+      setTipificacionRetiro(
+      detalleRetiroBusqueda?.IdTipificacionRetiro != null
+        ? String(detalleRetiroBusqueda.IdTipificacionRetiro)
+        : data?.IdTipificacionRetiro != null
+        ? String(data.IdTipificacionRetiro)
+        : ""
+    );
 
-                setObservaciones((prev) => ({
-        ...prev,
-        [keyFromLabel(`${motivoVisualFinal || ""}_OBSERVACIONES`)]:
-          detalleRetiroBusqueda?.ObservacionRetiro ||
-          retiroDb?.ObservacionRetiro ||
-          "",
-      }));
+    const valorRetiroLegalizado =
+      detalleRetiroBusqueda?.RetiroLegalizado ??
+      retiroDb?.RetiroLegalizado ??
+      data?.RetiroLegalizado ??
+      "";
 
-          setChecks((prev) => ({
-          ...prev,
-          [keyFromLabel(`${motivoVisualFinal || ""}_DEVOLUCIÓN CARNET`)]:
-            detalleRetiroBusqueda?.DevolucionCarnet === true
-              ? "SI"
-              : detalleRetiroBusqueda?.DevolucionCarnet === false
-              ? "NO"
-              : retiroDb?.DevolucionCarnet === true
-              ? "SI"
-              : retiroDb?.DevolucionCarnet === false
-              ? "NO"
-              : "",
-        }));
+    setRetiroLegalizado(valorRetiroLegalizado);
 
+    setObservaciones((prev) => ({
+      ...prev,
+      [keyFromLabel(`${motivoVisualFinal || ""}_OBSERVACIONES`)]:
+        detalleRetiroBusqueda?.ObservacionRetiro ||
+        retiroDb?.ObservacionRetiro ||
+        "",
+    }));
+
+    setChecks((prev) => ({
+      ...prev,
+      [keyFromLabel(`${motivoVisualFinal || ""}_DEVOLUCIÓN CARNET`)]:
+        detalleRetiroBusqueda?.DevolucionCarnet === true
+          ? "SI"
+          : detalleRetiroBusqueda?.DevolucionCarnet === false
+          ? "NO"
+          : retiroDb?.DevolucionCarnet === true
+          ? "SI"
+          : retiroDb?.DevolucionCarnet === false
+          ? "NO"
+          : "",
+    }));
           console.log("DESPUÉS DE SETFORM");
         } catch (e) {
           console.error("💥 ERROR handleBuscar =>", e);
@@ -1378,6 +1392,7 @@ const getMotivoValueById = (idMotivo) => {
       setObservaciones({});
       setChecks({});
       setTipificacionRetiro("");
+      setRetiroLegalizado("");
     };
 
     // ✅ util: quitar adjunto sin romper nada
@@ -1751,6 +1766,7 @@ const actualizarDetalleRetiroBackend = async ({
   idTipificacionRetiro,
   observacionRetiro,
   devolucionCarnet,
+  retiroLegalizado,
   usuarioActualizacion = "RRLL",
 }) => {
   const res = await fetch(
@@ -1762,20 +1778,22 @@ const actualizarDetalleRetiroBackend = async ({
         Accept: "application/json",
       },
       body: JSON.stringify({
-        IdTipificacionRetiro: idTipificacionRetiro ?? null,
-        ObservacionRetiro: observacionRetiro ?? "",
+        IdTipificacionRetiro: idTipificacionRetiro,
+        ObservacionRetiro: observacionRetiro,
         DevolucionCarnet: devolucionCarnet,
+        RetiroLegalizado: retiroLegalizado,
         UsuarioActualizacion: usuarioActualizacion,
       }),
     }
   );
 
+  const data = await res.json().catch(() => ({}));
+
   if (!res.ok) {
-    const msg = await res.text().catch(() => "");
-    throw new Error(msg || "No se pudo actualizar el detalle del retiro.");
+    throw new Error(data?.detail || "No se pudo actualizar el detalle del retiro.");
   }
 
-  return await res.json();
+  return data;
 };
 
 const consultarDetalleRetiroBackend = async (idRetiroLaboral) => {
@@ -2775,6 +2793,60 @@ if (step === "retiros_docs") {
                 </div>
               );
             }
+
+      if (tipo === "RETIRO_LEGALIZADO") {
+                  return (
+                    <div
+                      key={req.key}
+                      className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5"
+                    >
+                      <p className="text-base font-bold text-slate-900">
+                        {idx + 1}. {req.labelPretty}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Tipo: <span className="font-semibold">Retiro legalizado</span>
+                      </p>
+
+                      <div className="mt-4 max-w-md">
+                        <Select
+                          value={retiroLegalizado || ""}
+                          disabled={retiroBloqueado}
+                          onValueChange={async (value) => {
+                            try {
+                              if (retiroBloqueado) return;
+
+                              setRetiroLegalizado(value);
+
+                              if (!form.idRetiroLaboral) return;
+
+                              await actualizarDetalleRetiroBackend({
+                                idRetiroLaboral: form.idRetiroLaboral,
+                                retiroLegalizado: value,
+                                usuarioActualizacion: "RRLL",
+                              });
+                            } catch (error) {
+                              console.error("Error guardando retiro legalizado:", error);
+                              alert(error.message || "No se pudo guardar el retiro legalizado.");
+                            }
+                          }}
+                        >
+                          <SelectTrigger
+                            className={`h-12 ${
+                              retiroBloqueado ? "bg-slate-100 text-slate-500 cursor-not-allowed" : "bg-white"
+                            }`}
+                          >
+                            <SelectValue placeholder="Seleccionar..." />
+                          </SelectTrigger>
+
+                          <SelectContent>
+                            <SelectItem value="SI">SI</SelectItem>
+                            <SelectItem value="NO">NO</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  );
+                }
 
                 if (tipo === "ESCRIBIR") {
                   return (
