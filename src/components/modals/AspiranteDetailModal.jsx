@@ -48,7 +48,7 @@ import { saveAs } from 'file-saver';
 import EntrevistaModal from '@/components/modals/EntrevistaModal';
 import entrevistaCandidatoService from "../../services/entrevistaCandidatoService";
 import { RegistrarDocumentosSeguridad } from '../../services/documentosSeguridad';
-import { ValidarExperienciaLaboral, ObservacionesExperienciaLaboral } from '../../services/experiencia_laboral';
+import { ValidarExperienciaLaboral, ObservacionesExperienciaLaboral, EliminarExperienciaLaboral } from '../../services/experiencia_laboral';
 import { ValidarReferenciaPersonal } from '../../services/referenciaPersonal'
 import { upsertMotivoCierre } from "../../services/motivoCierreService";
 import { ActualizarEstadoProcesoService } from '../../services/aspirante';
@@ -1010,6 +1010,49 @@ setreEps(epsTexto);
     setIsAddingRefLab(true);
     setRefLabEstadosCargados(prev => ({ ...prev, [idx]: true }));
   };
+
+  const handleEliminarExperienciaLaboral = async (idx, ref) => {
+  try {
+    const idExp =
+      ref?.IdExperienciaLaboral ||
+      ref?.id ||
+      formData?.experienciaLaboral?.[idx]?.IdExperienciaLaboral;
+
+    if (!idExp) {
+      alert("No se encontró el IdExperienciaLaboral del registro.");
+      return;
+    }
+
+    const confirmar = window.confirm("¿Seguro que deseas eliminar esta experiencia laboral?");
+    if (!confirmar) return;
+
+    const response = await EliminarExperienciaLaboral(idExp);
+
+    if (response.ok) {
+      setFormData((prev) => {
+        const listaActual = Array.isArray(prev?.experienciaLaboral)
+          ? [...prev.experienciaLaboral]
+          : [];
+
+        const nuevaLista = listaActual.filter((_, i) => i !== idx);
+
+        return {
+          ...prev,
+          experienciaLaboral: nuevaLista,
+        };
+      });
+
+      alert("Experiencia laboral eliminada correctamente.");
+    } else {
+      const txt = await response.text();
+      console.error("Error eliminando experiencia laboral:", response.status, txt);
+      alert("No fue posible eliminar la experiencia laboral.");
+    }
+  } catch (error) {
+    console.error("Error inesperado eliminando experiencia laboral:", error);
+    alert("Ocurrió un error inesperado al eliminar la experiencia laboral.");
+  }
+};
 
   // Devuelve el primer DocumentoBase64 de tipo 42 como string
   const getDocumentoBase64Tipo42 = () => {
@@ -3432,6 +3475,14 @@ const [newExperiencia, setNewExperiencia] = useState(EMPTY_EXPERIENCIA_LABORAL);
                                           >
                                              <FileText className="w-5 h-5" />
                                           </Button>
+                                          <Button
+  size="icon"
+  variant="outline"
+  className="h-9 w-9 flex items-center justify-center border-red-200 text-red-600 hover:bg-red-50"
+  onClick={() => handleEliminarExperienciaLaboral(idx, ref)}
+>
+  <Trash2 className="w-5 h-5" />
+</Button>
                                        </div>
                                     </td>
                                   </tr>
