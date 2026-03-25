@@ -553,6 +553,25 @@ function viewLocalFile(file) {
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
+function viewBackendAdjunto(apiBase, file) {
+  if (!file?.IdRetiroLaboralAdjunto) return;
+  const url = `${apiBase}/rrll/adjuntos/${file.IdRetiroLaboralAdjunto}/descargar`;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function downloadBackendAdjunto(apiBase, file) {
+  if (!file?.IdRetiroLaboralAdjunto) return;
+  const url = `${apiBase}/rrll/adjuntos/${file.IdRetiroLaboralAdjunto}/descargar`;
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 export default function RelacionesLaboralesView() {
   // ✅ lee tu .env (debe ser: http://localhost:8000/api)
   const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
@@ -665,6 +684,7 @@ const [mensajeEntrevista, setMensajeEntrevista] = useState({
 
   // ✅ Estado general del caso (solo visual por ahora)
   const [estadoProceso, setEstadoProceso] = useState("ABIERTO"); // ABIERTO | CERRADO
+  
   const [ownerProceso, setOwnerProceso] = useState("RRLL"); // RRLL | NOMINA
   const [estadoSeleccionado, setEstadoSeleccionado] = useState("ABIERTO");
 
@@ -1116,7 +1136,13 @@ const getMotivoValueById = (idMotivo) => {
 
       // ✅ NUEVO: botón actualizar cabecera (Fecha final + Cliente + Motivo)
       const handleActualizarCabecera = async () => {
-        try {
+
+        if (retiroBloqueado) {
+            setMsgActualizar("El retiro está cerrado. No se puede modificar.");
+            return;
+          }
+
+          try {
           setMsgActualizar("");
           setErrorBuscar("");
 
@@ -1436,21 +1462,43 @@ const cargarAdjuntosDesdeBackend = async (idRetiroLaboral) => {
       const tipoDoc = Number(item.IdTipoDocumentoRetiro || 0);
 
       const reqMatch = requisitosActuales.find(
-        (req) =>
-          Number(req.idTipoDocumentoRetiro || 0) === tipoDoc
+        (req) => Number(req.idTipoDocumentoRetiro || 0) === tipoDoc
       );
 
       if (!reqMatch) continue;
 
       // ✅ Si el motivo actual NO es el persistido,
-      // solo permitir documentos compartidos/externos:
-      // 2 = Paz y Salvo
-      // 8 = Acta o evidencia de no ingreso
-      if (!motivoActualEsPersistido && ![2, 8].includes(tipoDoc)) {
+      // permitir también Paquete de Retiro (10)
+      if (!motivoActualEsPersistido && ![2, 8, 10].includes(tipoDoc)) {
         continue;
       }
 
-      agrupados[reqMatch.key] = item;
+      const actual = agrupados[reqMatch.key];
+
+      if (!actual) {
+        agrupados[reqMatch.key] = item;
+        continue;
+      }
+
+      const actualEsGenerado =
+        String(actual.OrigenArchivo || "").toUpperCase() === "GENERADO";
+
+      const nuevoEsGenerado =
+        String(item.OrigenArchivo || "").toUpperCase() === "GENERADO";
+
+      // ✅ Si el actual es generado y el nuevo no, mostrar el nuevo
+      if (actualEsGenerado && !nuevoEsGenerado) {
+        agrupados[reqMatch.key] = item;
+        continue;
+      }
+
+      // ✅ Si ambos son del mismo tipo, dejar el más reciente
+      const idActual = Number(actual.IdRetiroLaboralAdjunto || 0);
+      const idNuevo = Number(item.IdRetiroLaboralAdjunto || 0);
+
+      if (idNuevo > idActual) {
+        agrupados[reqMatch.key] = item;
+      }
     }
 
     setAdjuntosBackend(agrupados);
@@ -1869,6 +1917,26 @@ const generarCartaFinalizacionBackend = async (idRetiroLaboral) => {
 
   return await res.json();
 };
+
+const generarPaqueteRetiroBackend = async (idRetiroLaboral) => {
+  const res = await fetch(
+    `${API_BASE}/retiros-laborales/${idRetiroLaboral}/documentos/paquete-retiro/generar`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+      },
+    }
+  );
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || "No se pudo generar el paquete de retiro.");
+  }
+
+  return await res.json();
+};
+
 const handleActualizarEstadoProceso = async () => {
   try {
     setMsgActualizar("");
@@ -2423,81 +2491,157 @@ if (step === "retiros_docs") {
                   );
                 }
 
-                if (tipo === "PAQUETE") {
-                  return (
-                    <DocCard
-                      key={req.key}
-                      idx={idx + 1}
-                      title={req.labelPretty}
-                      subtitle="Tipo: Paquete de retiro (Generar + cargar firmado)"
-                      file={file}
-                      actions={
-                        <div className="flex flex-wrap gap-2 justify-end">
-                          <Button
-                            type="button"
-                            className="bg-emerald-600 hover:bg-emerald-700"
-                            onClick={() =>
-                              alert("Pendiente backend: Generar paquete de retiro.")
+             if (tipo === "PAQUETE") {
+              return (
+                <DocCard
+                  key={req.key}
+                  idx={idx + 1}
+                  title={req.labelPretty}
+                  subtitle="Tipo: Paquete de retiro (Generar + cargar firmado)"
+                  file={file}
+                  actions={
+                    <div className="flex flex-wrap gap-2 justify-end">
+                      <Button
+                        type="button"
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                        disabled={retiroBloqueado}
+                        onClick={async () => {
+                          try {
+                            if (retiroBloqueado) {
+                              alert("El retiro está cerrado. No se puede modificar.");
+                              return;
                             }
-                          >
-                            Generar
-                          </Button>
 
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="border-gray-200"
-                            disabled={!file}
-                            onClick={() => viewLocalFile(file)}
-                          >
-                            Ver
-                          </Button>
+                            if (!form.idRetiroLaboral) {
+                              alert("Primero debes guardar/crear el retiro laboral para poder generar el paquete.");
+                              return;
+                            }
 
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="border-gray-200"
-                            disabled={!file}
-                            onClick={() => downloadLocalFile(file)}
-                          >
-                            Descargar
-                          </Button>
+                            await generarPaqueteRetiroBackend(form.idRetiroLaboral);
+                            await cargarAdjuntosDesdeBackend(form.idRetiroLaboral);
 
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="border-gray-200"
-                            disabled={!file}
-                            onClick={() => removeAdjuntoByKey(req.key)}
-                          >
-                            Eliminar
-                          </Button>
+                            setAdjuntos((prev) => ({
+                              ...prev,
+                              [req.key]: null,
+                            }));
 
-                          <label className="inline-flex items-center">
-                            <input
-                              type="file"
-                              className="hidden"
-                              onChange={(e) => {
-                                const f = e.target.files?.[0];
-                                if (!f) return;
-                                setAdjuntos((p) => ({ ...p, [req.key]: f }));
-                              }}
-                            />
-                            <span className="h-10 px-4 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800 cursor-pointer flex items-center">
-                              Adjuntar firmado
-                            </span>
-                          </label>
-                        </div>
-                      }
-                    >
-                      <div className="text-xs text-slate-500 leading-5">
-                        1) Generar paquete → 2) Descargar y enviar → 3) Firma → 4)
-                        Adjuntar firmado.
-                      </div>
-                    </DocCard>
-                  );
-                }
+                            alert("Paquete de retiro generado correctamente.");
+                          } catch (e) {
+                            console.error(e);
+                            alert(e.message || "No se pudo generar el paquete de retiro.");
+                          }
+                        }}
+                      >
+                        Generar
+                      </Button>
 
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-gray-200"
+                        disabled={!file}
+                        onClick={() => {
+                          if (file?.IdRetiroLaboralAdjunto) {
+                            viewBackendAdjunto(API_BASE, file);
+                          } else {
+                            viewLocalFile(file);
+                          }
+                        }}
+                      >
+                        Ver
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-gray-200"
+                        disabled={!file}
+                        onClick={() => {
+                          if (file?.IdRetiroLaboralAdjunto) {
+                            downloadBackendAdjunto(API_BASE, file);
+                          } else {
+                            downloadLocalFile(file);
+                          }
+                        }}
+                      >
+                        Descargar
+                      </Button>
+
+                      <Button
+  type="button"
+  variant="outline"
+  className="border-gray-200"
+  disabled={!file || retiroBloqueado}
+  onClick={() => removeAdjuntoByKey(req.key)}
+>
+  Eliminar
+</Button>
+
+                      <label className="inline-flex items-center">
+                        <input
+                          type="file"
+                          className="hidden"
+                          disabled={retiroBloqueado}
+                          onChange={async (e) => {
+                            const f = e.target.files?.[0];
+                            if (!f) return;
+
+                            try {
+                              if (retiroBloqueado) return;
+
+                              if (!form.idRetiroLaboral) {
+                                alert("No existe IdRetiroLaboral para guardar el paquete firmado.");
+                                return;
+                              }
+
+                              if (!req.idTipoDocumentoRetiro) {
+                                alert(`El requisito ${req.label} no tiene idTipoDocumentoRetiro configurado.`);
+                                return;
+                              }
+
+                              await subirAdjuntoRetiroBackend({
+                                idRetiroLaboral: form.idRetiroLaboral,
+                                idTipoDocumentoRetiro: req.idTipoDocumentoRetiro,
+                                file: f,
+                              });
+
+                              await cargarAdjuntosDesdeBackend(form.idRetiroLaboral);
+
+                              setAdjuntos((p) => {
+                                const copy = { ...p };
+                                delete copy[req.key];
+                                return copy;
+                              });
+
+                              alert("Paquete firmado adjuntado correctamente.");
+                            } catch (error) {
+                              console.error("Error subiendo paquete firmado:", error);
+                              alert(error.message || "No se pudo guardar el paquete firmado.");
+                            } finally {
+                              e.target.value = "";
+                            }
+                          }}
+                        />
+                        <span
+                          className={`h-10 px-4 rounded-xl font-semibold flex items-center ${
+                            retiroBloqueado
+                              ? "bg-slate-300 text-slate-500 cursor-not-allowed"
+                              : "bg-slate-900 text-white hover:bg-slate-800 cursor-pointer"
+                          }`}
+                        >
+                          Adjuntar firmado
+                        </span>
+                      </label>
+                    </div>
+                  }
+                >
+                  <div className="text-xs text-slate-500 leading-5">
+                    1) Generar paquete → 2) Descargar y enviar → 3) Firma → 4)
+                    Adjuntar firmado.
+                  </div>
+                </DocCard>
+              );
+            }
                 if (tipo === "GENERADO") {
                   return (
                     <DocCard
@@ -2577,7 +2721,7 @@ if (step === "retiros_docs") {
                             Ver
                           </Button>
 
-                                                  <Button
+                          <Button
                             type="button"
                             variant="outline"
                             className="border-gray-200"
@@ -2607,7 +2751,7 @@ if (step === "retiros_docs") {
                             Descargar
                           </Button>
 
-                                                    <Button
+                          <Button
                             type="button"
                             variant="outline"
                             className="border-gray-200"
