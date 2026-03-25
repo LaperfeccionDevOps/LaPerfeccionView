@@ -1384,6 +1384,10 @@ setreEps(epsTexto);
 const [isAddingExperiencia, setIsAddingExperiencia] = useState(false);
 const [newExperiencia, setNewExperiencia] = useState(EMPTY_EXPERIENCIA_LABORAL);
 
+const soloLetras = (valor) => valor.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '');
+const soloLetrasYNumeros = (valor) => valor.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g, '');
+const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
+
   const [selectedRefLabIdx, setSelectedRefLabIdx] = useState(null);
   const [selectedRefPersIdx, setSelectedRefPersIdx] = useState(null);
 
@@ -3231,155 +3235,172 @@ const [newExperiencia, setNewExperiencia] = useState(EMPTY_EXPERIENCIA_LABORAL);
                                     <Button size="sm" onClick={addRefLaboral}>Guardar</Button>
                                  </div>
                            </div>
-)}
+                              )}
 
-<div className="flex justify-end mb-3">
-  <Button
-    type="button"
-    variant="outline"
-    onClick={() => {
-      setIsAddingExperiencia(true);
-      setNewExperiencia(EMPTY_EXPERIENCIA_LABORAL);
-    }}
-  >
-    Añadir experiencia
-  </Button>
-</div>
+                              <div className="flex justify-end mb-3">
+                              <Button
+                                 type="button"
+                                 variant="outline"
+                                 onClick={() => {
+                                    setIsAddingExperiencia(true);
+                                    setNewExperiencia(EMPTY_EXPERIENCIA_LABORAL);
+                                 }}
+                              >
+                                 Añadir experiencia
+                              </Button>
+                              </div>
 
-{isAddingExperiencia && (
-  <div className="border rounded-xl p-4 mb-4 bg-gray-50">
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div>
-        <Label>Empresa</Label>
-        <Input
-          value={newExperiencia.Compania}
-          onChange={(e) =>
-            setNewExperiencia((prev) => ({ ...prev, Compania: e.target.value }))
-          }
-        />
-      </div>
+                              {isAddingExperiencia && (
+                              <div className="border rounded-xl p-4 mb-4 bg-gray-50">
+                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                    <Label>Empresa</Label>
+                                       <Input
+                                          value={newExperiencia.Compania}
+                                          onChange={(e) =>
+                                             setNewExperiencia((prev) => ({
+                                             ...prev,
+                                             Compania: soloLetrasYNumeros(e.target.value),
+                                             }))
+                                          }
+                                       />
+                                    </div>
 
-      <div>
-        <Label>Cargo</Label>
-        <Input
-          value={newExperiencia.Cargo}
-          onChange={(e) =>
-            setNewExperiencia((prev) => ({ ...prev, Cargo: e.target.value }))
-          }
-        />
-      </div>
+                                 <div>
+                                    <Label>Cargo</Label>
+                                    <Input
+                                       value={newExperiencia.Cargo}
+                                       onChange={(e) =>
+                                          setNewExperiencia((prev) => ({
+                                          ...prev,
+                                          Cargo: soloLetras(e.target.value),
+                                          }))
+                                       }
+                                    />
+                                    </div>
 
-      <div className="md:col-span-2">
-        <Label>Funciones</Label>
-        <Textarea
-          value={newExperiencia.Funciones}
-          onChange={(e) =>
-            setNewExperiencia((prev) => ({ ...prev, Funciones: e.target.value }))
-          }
-        />
-      </div>
+                                    <div>
+                                       <Label>Funciones</Label>
+                                       <Textarea
+                                          value={newExperiencia.Funciones}
+                                          onChange={(e) =>
+                                             setNewExperiencia((prev) => ({
+                                             ...prev,
+                                             Funciones: soloLetrasYNumeros(e.target.value),
+                                             }))
+                                          }
+                                       />
+                                    </div>
+                                 <div>
+                                    <Label>Tiempo de duración</Label>
+                                    <Input
+                                       value={newExperiencia.TiempoDuracion}
+                                       onChange={(e) =>
+                                          setNewExperiencia((prev) => ({
+                                          ...prev,
+                                          TiempoDuracion: soloLetrasYNumeros(e.target.value),
+                                          }))
+                                       }
+                                    />
+                                    </div>
 
-      <div>
-        <Label>Tiempo duración</Label>
-        <Input
-          value={newExperiencia.TiempoDuracion}
-          onChange={(e) =>
-            setNewExperiencia((prev) => ({ ...prev, TiempoDuracion: e.target.value }))
-          }
-        />
-      </div>
+                                 <div>
+                                    <Label>Jefe inmediato</Label>
+                                    <Input
+                                       value={newExperiencia.JefeInmediato}
+                                       onChange={(e) =>
+                                          setNewExperiencia((prev) => ({
+                                          ...prev,
+                                          JefeInmediato: soloLetras(e.target.value),
+                                          }))
+                                       }
+                                    />
+                                    </div>
 
-      <div>
-        <Label>Jefe inmediato</Label>
-        <Input
-          value={newExperiencia.JefeInmediato}
-          onChange={(e) =>
-            setNewExperiencia((prev) => ({ ...prev, JefeInmediato: e.target.value }))
-          }
-        />
-      </div>
+                                 <div>
+                                    <Label>Teléfono jefe</Label>
+                                    <Input
+                                       value={newExperiencia.TelefonoJefe}
+                                       onChange={(e) =>
+                                          setNewExperiencia((prev) => ({
+                                          ...prev,
+                                          TelefonoJefe: soloNumeros(e.target.value),
+                                          }))
+                                       }
+                                    />
+                                    </div>
+                                 </div>
 
-      <div>
-        <Label>Teléfono jefe</Label>
-        <Input
-          value={newExperiencia.TelefonoJefe}
-          onChange={(e) =>
-            setNewExperiencia((prev) => ({ ...prev, TelefonoJefe: e.target.value }))
-          }
-        />
-      </div>
-    </div>
+                                 <div className="flex justify-end gap-2 mt-4">
+                                    <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => {
+                                       setIsAddingExperiencia(false);
+                                       setNewExperiencia(EMPTY_EXPERIENCIA_LABORAL);
+                                    }}
+                                    >
+                                    Cancelar
+                                    </Button>
+                              <Button
+                              type="button"
+                              onClick={async () => {
+                                 try {
+                                    if (!newExperiencia.Compania?.trim() || !newExperiencia.Cargo?.trim()) {
+                                    return;
+                                    }
 
-    <div className="flex justify-end gap-2 mt-4">
-      <Button
-        type="button"
-        variant="outline"
-        onClick={() => {
-          setIsAddingExperiencia(false);
-          setNewExperiencia(EMPTY_EXPERIENCIA_LABORAL);
-        }}
-      >
-        Cancelar
-      </Button>
-<Button
-  type="button"
-  onClick={async () => {
-    try {
-      if (!newExperiencia.Compania?.trim() || !newExperiencia.Cargo?.trim()) {
-        return;
-      }
+                                    const payloadExperiencia = {
+                                    IdRegistroPersonal: aspirante?.id,
+                                    Cargo: newExperiencia.Cargo || '',
+                                    Compania: newExperiencia.Compania || '',
+                                    TiempoDuracion: newExperiencia.TiempoDuracion || '',
+                                    Funciones: newExperiencia.Funciones || '',
+                                    JefeInmediato: newExperiencia.JefeInmediato || '',
+                                    TelefonoJefe: newExperiencia.TelefonoJefe || '',
+                                    TieneExperienciaPrevia: true,
+                                    };
 
-      const payloadExperiencia = {
-        IdRegistroPersonal: aspirante?.id,
-        Cargo: newExperiencia.Cargo || '',
-        Compania: newExperiencia.Compania || '',
-        TiempoDuracion: newExperiencia.TiempoDuracion || '',
-        Funciones: newExperiencia.Funciones || '',
-        JefeInmediato: newExperiencia.JefeInmediato || '',
-        TelefonoJefe: newExperiencia.TelefonoJefe || '',
-        TieneExperienciaPrevia: true,
-      };
+                                    const response = await axios.post(
+                                    `${API_BASE}/experiencia-laboral`,
+                                    payloadExperiencia,
+                                    { headers: { ...authHeaders } }
+                                    );
 
-      const response = await axios.post(
-        `${API_BASE}/experiencia-laboral`,
-        payloadExperiencia,
-        { headers: { ...authHeaders } }
-      );
+                                    const experienciaCreada = response?.data;
 
-      const experienciaCreada = response?.data;
+                                    setFormData((prev) => ({
+                                    ...prev,
+                                    experienciaLaboral: [
+                                       ...(Array.isArray(prev?.experienciaLaboral) ? prev.experienciaLaboral : []),
+                                       { ...experienciaCreada },
+                                    ],
+                                    }));
 
-      setFormData((prev) => ({
-        ...prev,
-        experienciaLaboral: [
-          ...(Array.isArray(prev?.experienciaLaboral) ? prev.experienciaLaboral : []),
-          { ...experienciaCreada },
-        ],
-      }));
+                                    setIsAddingExperiencia(false);
+                                    setNewExperiencia(EMPTY_EXPERIENCIA_LABORAL);
 
-      setIsAddingExperiencia(false);
-      setNewExperiencia(EMPTY_EXPERIENCIA_LABORAL);
+                                    toast({
+                                    title: 'Experiencia laboral',
+                                    description: 'Experiencia agregada correctamente.',
+                                    });
+                                 } catch (error) {
+                                    console.error('Error creando experiencia laboral:', error);
+                                    toast({
+                                    title: 'Error',
+                                    description: 'No se pudo guardar la experiencia laboral.',
+                                    variant: 'destructive',
+                                    });
+                                 }
+                              }}
+                              >
+                              Agregar
+                              </Button>
+                                 </div>
+                              </div>
+                              )}
 
-      toast({
-        title: 'Experiencia laboral',
-        description: 'Experiencia agregada correctamente.',
-      });
-    } catch (error) {
-      console.error('Error creando experiencia laboral:', error);
-      toast({
-        title: 'Error',
-        description: 'No se pudo guardar la experiencia laboral.',
-        variant: 'destructive',
-      });
-    }
-  }}
->
-  Agregar
-</Button>
-    </div>
-  </div>
-)}
-
-<div className="overflow-x-auto">
+                              <div className="overflow-x-auto">
                             <table className="min-w-full border border-gray-200 rounded-lg">
                               <thead className="bg-gray-100">
                                 <tr>
@@ -3476,14 +3497,14 @@ const [newExperiencia, setNewExperiencia] = useState(EMPTY_EXPERIENCIA_LABORAL);
                                              <FileText className="w-5 h-5" />
                                           </Button>
                                           <Button
-  size="icon"
-  variant="outline"
-  className="h-9 w-9 flex items-center justify-center border-red-200 text-red-600 hover:bg-red-50"
-  onClick={() => handleEliminarExperienciaLaboral(idx, ref)}
->
-  <Trash2 className="w-5 h-5" />
-</Button>
-                                       </div>
+                                          size="icon"
+                                          variant="outline"
+                                          className="h-9 w-9 flex items-center justify-center border-red-200 text-red-600 hover:bg-red-50"
+                                          onClick={() => handleEliminarExperienciaLaboral(idx, ref)}
+                                          >
+                                          <Trash2 className="w-5 h-5" />
+                                          </Button>
+                                          </div>
                                     </td>
                                   </tr>
                                 ))}
