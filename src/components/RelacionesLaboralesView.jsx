@@ -465,16 +465,16 @@ const REQUISITOS_POR_MOTIVO = {
     },
     { label: "PAQUETE DE RETIRO", tipo: "PAQUETE", idTipoDocumentoRetiro: 10 },
     { label: "OBSERVACIONES", tipo: "ESCRIBIR" },
-  ],
-
-      "NUNCA INGRESÓ": [
+    ],
+    "NUNCA INGRESÓ": [
       {
         label: "ACTA O EVIDENCIA DE NO INGRESO",
-        tipo: "VIEW_DOWNLOAD",
+        tipo: "ADJUNTABLE",
         idTipoDocumentoRetiro: 8,
       },
       { label: "OBSERVACIONES", tipo: "ESCRIBIR" },
     ],
+
 
   "ACUERDO TRANSACCIONAL": [
     { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
@@ -595,28 +595,30 @@ export default function RelacionesLaboralesView() {
   const [msgActualizar, setMsgActualizar] = useState("");
 
   const [form, setForm] = useState({
-    // ids para luego POST/PUT retiro
-    idRegistroPersonal: null,
-    idCliente: null,
+  // ids para luego POST/PUT retiro
+  idRegistroPersonal: null,
+  idCliente: null,
 
-    // ✅ NUEVO: para poder hacer PUT
-    idRetiroLaboral: null,
-    idMotivoRetiro: null,
+  // ✅ NUEVO: para poder hacer PUT
+  idRetiroLaboral: null,
+  idMotivoRetiro: null,
 
-    fechaProceso: "",
-    tipoId: "",
-    numeroDocumento: "",
-    nombre: "",
-    cargo: "",
-    direccionResidencia: "",
-    barrio: "",
-    telefono: "",
-    correo: "",
-    fechaInicio: "",
-    fechaFinal: "",
-    motivoRetiro: "",
-    cliente: "",
-  });
+  fechaProceso: "",
+  tipoId: "",
+  numeroDocumento: "",
+  nombre: "",
+  cargo: "",
+  direccionResidencia: "",
+  barrio: "",
+  telefono: "",
+  correo: "",
+  fechaInicio: "",
+  fechaFinal: "",
+  fechaEnvioOperaciones: "",
+  fechaCierreProceso: "",
+  motivoRetiro: "",
+  cliente: "",
+});
 
   const [adjuntos, setAdjuntos] = useState({});
   const [observaciones, setObservaciones] = useState({});
@@ -994,6 +996,7 @@ const getMotivoValueById = (idMotivo) => {
 
         fechaFinal: fechaFinalFromBackend || "",
         fechaProceso: fechaProcesoFromBackend || prev.fechaProceso || "",
+        fechaCierreProceso: toDateInput(retiroDb?.FechaCierre || data?.FechaCierre) || "",
 
         tipoId: tipo,
         numeroDocumento: data?.NumeroDocumento ?? numero,
@@ -2952,20 +2955,33 @@ if (step === "retiros_docs") {
                       </p>
 
                       <div className="mt-4 max-w-md">
-                        <Select
-                          value={retiroLegalizado || ""}
+                       <Select
+                          value={
+                            retiroLegalizado === "SI"
+                              ? "PRESENCIAL"
+                              : retiroLegalizado === "NO"
+                              ? "VIRTUAL"
+                              : ""
+                          }
                           disabled={retiroBloqueado}
                           onValueChange={async (value) => {
                             try {
                               if (retiroBloqueado) return;
 
-                              setRetiroLegalizado(value);
+                              const valorBackend =
+                                value === "PRESENCIAL"
+                                  ? "SI"
+                                  : value === "VIRTUAL"
+                                  ? "NO"
+                                  : "";
+
+                              setRetiroLegalizado(valorBackend);
 
                               if (!form.idRetiroLaboral) return;
 
                               await actualizarDetalleRetiroBackend({
                                 idRetiroLaboral: form.idRetiroLaboral,
-                                retiroLegalizado: value,
+                                retiroLegalizado: valorBackend,
                                 usuarioActualizacion: "RRLL",
                               });
                             } catch (error) {
@@ -2979,12 +2995,12 @@ if (step === "retiros_docs") {
                               retiroBloqueado ? "bg-slate-100 text-slate-500 cursor-not-allowed" : "bg-white"
                             }`}
                           >
-                            <SelectValue placeholder="Seleccionar..." />
+                            <SelectValue placeholder="Seleccionar." />
                           </SelectTrigger>
 
                           <SelectContent>
-                            <SelectItem value="SI">SI</SelectItem>
-                            <SelectItem value="NO">NO</SelectItem>
+                            <SelectItem value="PRESENCIAL">PRESENCIAL</SelectItem>
+                            <SelectItem value="VIRTUAL">VIRTUAL</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -3394,28 +3410,51 @@ if (step === "retiros_docs") {
             </div>
 
             <div className="md:col-span-3">
-              <Label className="text-xs text-gray-600">Fecha inicio</Label>
+              <Label className="text-xs text-gray-600">Fecha de ingreso</Label>
               <Input type="date" value={form.fechaInicio || ""} readOnly className="bg-gray-50" />
             </div>
 
-            <div className="md:col-span-3">
-              <Label className="text-xs text-gray-600">Fecha final</Label>
 
-              <Input
-                type="text"
-                value={form.fechaFinal || ""}
-                readOnly
-                className="bg-white font-bold text-gray-700 cursor-default"
-                title="Esta fecha la define Operaciones en el Paz y Salvo"
-              />
 
-              {faltaPazYSalvo && (
-                <p className="mt-2 text-xs text-gray-500">
-                  ⚠️ Aún no hay Paz y Salvo de Operaciones. La <b>Fecha final</b> se cargará
-                  automáticamente cuando Operaciones lo registre. (Presiona <b>Buscar</b> para refrescar)
-                </p>
-              )}
-            </div>
+<div className="md:col-span-3">
+  <Label className="text-xs text-gray-600">Fecha envío operaciones</Label>
+  <Input
+    type="text"
+    value={form.fechaEnvioOperaciones || ""}
+    readOnly
+    className="bg-white font-bold text-gray-700 cursor-default"
+  />
+</div>
+
+<div className="md:col-span-3">
+  <Label className="text-xs text-gray-600">Último día laborado</Label>
+  <Input
+    type="text"
+    value={form.fechaFinal || ""}
+    readOnly
+    className="bg-white font-bold text-gray-700 cursor-default"
+    title="Esta fecha la define Operaciones en el Paz y Salvo"
+  />
+</div>
+
+<div className="md:col-span-3">
+  <Label className="text-xs text-gray-600">Fecha cierre proceso</Label>
+  <Input
+    type="text"
+    value={form.fechaCierreProceso || ""}
+    readOnly
+    className="bg-white font-bold text-gray-700 cursor-default"
+  />
+</div>
+
+{faltaPazYSalvo && (
+  <div className="md:col-span-12">
+    <p className="mt-2 text-xs text-gray-500">
+      ⚠️ Aún no hay Paz y Salvo de Operaciones. El <b>último día laborado</b> se cargará
+      automáticamente cuando Operaciones lo registre. (Presiona <b>Buscar</b> para refrescar)
+    </p>
+  </div>
+)}
 
             {/* Cliente */}
             <div className="md:col-span-3">
