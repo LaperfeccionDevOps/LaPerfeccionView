@@ -54,3 +54,13 @@ export async function GetObservacionesExperienciaLaboral(idExperienciaLaboral) {
 
   return response;
 }
+
+export async function EliminarExperienciaLaboral(idExperienciaLaboral) {
+  const url = getApiUrl(`/experiencia-laboral/${idExperienciaLaboral}`);
+
+  const response = await fetch(url, {
+    method: 'DELETE',
+  });
+
+  return response;
+}
