@@ -997,6 +997,7 @@ const getMotivoValueById = (idMotivo) => {
         fechaFinal: fechaFinalFromBackend || "",
         fechaProceso: fechaProcesoFromBackend || prev.fechaProceso || "",
         fechaCierreProceso: toDateInput(retiroDb?.FechaCierre || data?.FechaCierre) || "",
+        fechaEnvioOperaciones: toDateInput(retiroDb?.FechaEnvioOperaciones || data?.FechaEnvioOperaciones) || "",
 
         tipoId: tipo,
         numeroDocumento: data?.NumeroDocumento ?? numero,
@@ -1413,6 +1414,63 @@ const getMotivoValueById = (idMotivo) => {
         );
       } finally {
         setLoadingActualizar(false);
+      }
+    };
+
+        const handleEnviarOperaciones = async () => {
+      try {
+        setMsgActualizar("");
+
+        if (!API_BASE) {
+          setMsgActualizar("No se encontró VITE_API_BASE_URL en el .env");
+          return;
+        }
+
+        if (!form?.idRetiroLaboral) {
+          setMsgActualizar("⚠️ No existe IdRetiroLaboral. Primero busque el trabajador o actualice la cabecera.");
+          return;
+        }
+
+        if (retiroBloqueado) {
+          setMsgActualizar("⚠️ El retiro está cerrado. No se puede enviar a operaciones.");
+          return;
+        }
+
+        const ahora = new Date();
+        const fechaHoraLocal = new Date(
+          ahora.getTime() - ahora.getTimezoneOffset() * 60000
+        )
+          .toISOString()
+          .slice(0, 19);
+
+        const res = await fetch(`${API_BASE}/rrll/retiro/${Number(form.idRetiroLaboral)}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            FechaEnvioOperaciones: fechaHoraLocal,
+            UsuarioActualizacion: "RRLL",
+          }),
+        });
+
+        if (!res.ok) {
+          const msg = await res.text().catch(() => "");
+          throw new Error(msg || "No se pudo registrar la fecha de envío a operaciones.");
+        }
+
+        setForm((prev) => ({
+          ...prev,
+          fechaEnvioOperaciones: fechaHoraLocal.slice(0, 10),
+        }));
+
+        setMsgActualizar("✅ Fecha de envío a operaciones registrada correctamente.");
+      } catch (error) {
+        console.error("Error enviando a operaciones:", error);
+        setMsgActualizar(
+          error?.message || "No se pudo registrar el envío a operaciones."
+        );
       }
     };
 
@@ -3573,10 +3631,6 @@ if (step === "retiros_docs") {
 
                     </div>
                   </div>
-                </div>
-
-                <div className="mt-4 text-xs text-gray-500">
-                  * El botón Buscar ya recarga desde backend usando tu VITE_API_BASE_URL.
                 </div>
               </div>
             </div>
