@@ -464,8 +464,8 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
     lugarExpedicion: '',
     fechaExpedicion: '',
     descripcionNivelEducativo: '',
-    contactoEmergencia: [],
-    telefonoContactoEmergencia: [],
+    contactoEmergencia: '',
+    telefonoContactoEmergencia: '',
     documentos: [],
     seleccion: {},
     formacion: {},
@@ -1095,6 +1095,37 @@ setreEps(epsTexto);
   const API_BASE = import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:8000/api';
   const token = localStorage.getItem('access_token') || localStorage.getItem('token') || '';
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
+  const handleGuardarContactoEmergencia = async () => {
+  try {
+    if (!formData?.IdRegistroPersonal) {
+      alert('No se encontró el IdRegistroPersonal.');
+      return;
+    }
+
+    const payload = {
+      ContactoEmergencia: formData?.contactoEmergencia || '',
+      TelefonoContactoEmergencia: formData?.telefonoContactoEmergencia || '',
+      UsuarioActualizacion: localStorage.getItem('usuario') || 'sistema',
+    };
+
+    const response = await axios.put(
+      `${API_BASE}/registro-personal/${formData.IdRegistroPersonal}`,
+      payload,
+      { headers: { ...authHeaders } }
+    );
+
+    if (response?.status === 200) {
+      alert('Contacto de emergencia guardado correctamente.');
+      return;
+    }
+
+    alert('No fue posible guardar el contacto de emergencia.');
+  } catch (error) {
+    console.error('Error guardando contacto de emergencia:', error);
+    alert('Error al guardar el contacto de emergencia.');
+  }
+};
 
   const toDateOnly = (value) => {
     if (!value) return null;
@@ -3688,17 +3719,55 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
                         )}
                     </TabsContent>
 
-                    {/* 6. Contacto Emergencia */}
-                    <TabsContent value="contacto" className="mt-0 space-y-6">
-                       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                          <h3 className="text-lg font-bold text-gray-800 mb-6 border-b pb-2">CONTACTO DE EMERGENCIA</h3>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                             <div className="space-y-2"><Label>NOMBRE COMPLETO</Label><Input value={formData.contactoEmergencia} onChange={(e) => handleInputChange('contactoEmergencia', 'nombre', e.target.value)} /></div>
-                             <div className="space-y-2"><Label>Telefono</Label><Input value={formData.telefonoContactoEmergencia} onChange={(e) => handleInputChange('contactoEmergencia', 'telefonoContactoEmergencia', e.target.value)} /></div>
-                             <div className="space-y-2"m style={{ display: 'none' }}><Label>PARENTESCO</Label><Input value={formData.parentesco} disabled onChange={(e) => handleInputChange('contactoEmergencia', 'parentesco', e.target.value)} /></div>
-                          </div>
-                       </div>
-                    </TabsContent>
+                   {/* 6. Contacto Emergencia */}
+                     <TabsContent value="contacto" className="mt-0 space-y-6">
+                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 className="text-lg font-bold text-gray-800 mb-6 border-b pb-2">
+                           CONTACTO DE EMERGENCIA
+                        </h3>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                           <div className="space-y-2">
+                           <Label>NOMBRE COMPLETO</Label>
+                           <Input
+                              value={formData.contactoEmergencia || ""}
+                              onChange={(e) =>
+                                 setFormData((prev) => ({
+                                 ...prev,
+                                 contactoEmergencia: e.target.value,
+                                 }))
+                              }
+                           />
+                           </div>
+
+                           <div className="space-y-2">
+                           <Label>Teléfono</Label>
+                          <Input
+                           value={formData.telefonoContactoEmergencia || ""}
+                           inputMode="numeric"
+                           maxLength={10}
+                           onChange={(e) => {
+                              const soloNumeros = e.target.value.replace(/\D/g, '').slice(0, 10);
+                              setFormData((prev) => ({
+                                 ...prev,
+                                 telefonoContactoEmergencia: soloNumeros,
+                              }));
+                           }}
+                           />
+                           </div>
+                        </div>
+
+                        <div className="flex justify-end mt-6">
+                           <Button
+                           type="button"
+                           className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                           onClick={handleGuardarContactoEmergencia}
+                           >
+                           Guardar contacto de emergencia
+                           </Button>
+                        </div>
+                     </div>
+                     </TabsContent>
 
                     {/* 7. Documentos */}
                     <TabsContent value="documentos" className="mt-0 space-y-6">
