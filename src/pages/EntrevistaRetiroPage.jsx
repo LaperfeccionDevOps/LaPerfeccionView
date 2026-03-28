@@ -12,13 +12,22 @@ export default function EntrevistaRetiroPage() {
 
   const token = useMemo(() => searchParams.get("token") || "", [searchParams]);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!!token);
   const [error, setError] = useState("");
   const [info, setInfo] = useState(null);
 
   const [respuestas, setRespuestas] = useState({});
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState("");
+
+  // ✅ flujo QR general
+  const [numeroIdentificacionQr, setNumeroIdentificacionQr] = useState("");
+  const [nombreTrabajadorQr, setNombreTrabajadorQr] = useState("");
+  const [idRegistroPersonalQr, setIdRegistroPersonalQr] = useState(null);
+  const [idRetiroLaboralQr, setIdRetiroLaboralQr] = useState(null);
+  const [mensajeValidacionQr, setMensajeValidacionQr] = useState("");
+  const [validadoQr, setValidadoQr] = useState(false);
+  const [loadingValidacionQr, setLoadingValidacionQr] = useState(false);
 
   const preguntas = info?.Preguntas || [];
 
@@ -29,9 +38,7 @@ export default function EntrevistaRetiroPage() {
     (p) => Number(p.Orden) >= 2 && Number(p.Orden) <= 9
   );
 
-  const preguntasDotacion = preguntas.filter(
-    (p) => Number(p.Orden) >= 10
-  );
+  const preguntasDotacion = preguntas.filter((p) => Number(p.Orden) >= 10);
 
   const setRespuestaPregunta = (codigo, valor) => {
     setRespuestas((prev) => ({
@@ -40,44 +47,164 @@ export default function EntrevistaRetiroPage() {
     }));
   };
 
-  useEffect(() => {
-    const cargarFormulario = async () => {
-      try {
-        setLoading(true);
-        setError("");
+  const cargarFormularioPorToken = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      setMensaje("");
 
-        if (!token) {
-          setError("No se encontró el token de la entrevista.");
-          return;
+      const res = await fetch(
+        `${API_BASE_ENTREVISTA}/entrevista-retiro/formulario-por-token?token=${encodeURIComponent(
+          token
+        )}`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
         }
+      );
 
-        const res = await fetch(
-          `${API_BASE_ENTREVISTA}/entrevista-retiro/formulario-por-token?token=${encodeURIComponent(token)}`,
-          {
-            method: "GET",
-            headers: {
-              Accept: "application/json",
-            },
-          }
-        );
-
-        if (!res.ok) {
-          const msg = await res.text().catch(() => "");
-          throw new Error(msg || "No se pudo cargar la entrevista.");
-        }
-
-        const data = await res.json();
-        setInfo(data?.data || data || null);
-      } catch (err) {
-        console.error("Error cargando formulario de entrevista:", err);
-        setError(err?.message || "No se pudo cargar la entrevista.");
-      } finally {
-        setLoading(false);
+      if (!res.ok) {
+        const msg = await res.text().catch(() => "");
+        throw new Error(msg || "No se pudo cargar la entrevista.");
       }
-    };
 
-    cargarFormulario();
+      const data = await res.json();
+      const payload = data?.data || data || null;
+
+      setInfo(payload);
+      setNumeroIdentificacionQr(
+        String(payload?.NumeroIdentificacion || "").trim()
+      );
+      setNombreTrabajadorQr(payload?.NombreCompleto || "");
+      setIdRegistroPersonalQr(payload?.IdRegistroPersonal || null);
+      setIdRetiroLaboralQr(payload?.IdRetiroLaboral || null);
+      setValidadoQr(true);
+    } catch (err) {
+      console.error("Error cargando formulario de entrevista:", err);
+      setError(err?.message || "No se pudo cargar la entrevista.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cargarPreguntasQrGeneral = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const res = await fetch(
+        `${API_BASE_ENTREVISTA}/entrevista-retiro/preguntas`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (!res.ok) {
+        const msg = await res.text().catch(() => "");
+        throw new Error(msg || "No se pudieron cargar las preguntas.");
+      }
+
+      const data = await res.json();
+      const preguntasBackend = data?.data || [];
+
+      setInfo((prev) => ({
+        ...(prev || {}),
+        IdRegistroPersonal: idRegistroPersonalQr,
+        IdRetiroLaboral: idRetiroLaboralQr,
+        NumeroIdentificacion: numeroIdentificacionQr,
+        NombreCompleto: nombreTrabajadorQr,
+        Preguntas: preguntasBackend,
+      }));
+    } catch (err) {
+      console.error("Error cargando preguntas QR general:", err);
+      setError(err?.message || "No se pudieron cargar las preguntas.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      cargarFormularioPorToken();
+    } else {
+      setLoading(false);
+      setError("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [API_BASE_ENTREVISTA, token]);
+
+  const validarIdentificacionEntrevistaQr = async () => {
+    try {
+      setLoadingValidacionQr(true);
+      setMensajeValidacionQr("");
+      setMensaje("");
+      setError("");
+      setValidadoQr(false);
+      setNombreTrabajadorQr("");
+      setIdRegistroPersonalQr(null);
+      setIdRetiroLaboralQr(null);
+      setInfo(null);
+      setRespuestas({});
+
+      const numero = (numeroIdentificacionQr || "").trim();
+
+      if (!numero) {
+        setMensajeValidacionQr("Debe ingresar el número de identificación.");
+        return;
+      }
+
+      const res = await fetch(
+        `${API_BASE_ENTREVISTA}/entrevista-retiro/validar-identificacion`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            numero_identificacion: numero,
+          }),
+        }
+      );
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            "No se pudo validar la identificación."
+        );
+      }
+
+      const infoBackend = data?.data || {};
+
+      setNombreTrabajadorQr(infoBackend?.NombreCompleto || "");
+      setIdRegistroPersonalQr(infoBackend?.IdRegistroPersonal || null);
+      setIdRetiroLaboralQr(infoBackend?.IdRetiroLaboral || null);
+      setValidadoQr(true);
+      setMensajeValidacionQr(
+        "Identificación validada correctamente. Verifique que el nombre corresponda a sus datos antes de continuar."
+      );
+
+      await cargarPreguntasQrGeneral();
+    } catch (errorValidacion) {
+      setValidadoQr(false);
+      setNombreTrabajadorQr("");
+      setIdRegistroPersonalQr(null);
+      setIdRetiroLaboralQr(null);
+      setMensajeValidacionQr(
+        errorValidacion?.message || "Error al validar la identificación."
+      );
+    } finally {
+      setLoadingValidacionQr(false);
+    }
+  };
 
   const handleEnviarEntrevista = async () => {
     try {
@@ -85,6 +212,15 @@ export default function EntrevistaRetiroPage() {
 
       if (!info) {
         setMensaje("No se encontró información de la entrevista.");
+        return;
+      }
+
+      const numeroIdentificacionEnviar = token
+        ? String(info?.NumeroIdentificacion || "").trim()
+        : String(numeroIdentificacionQr || "").trim();
+
+      if (!numeroIdentificacionEnviar) {
+        setMensaje("No se encontró el número de identificación.");
         return;
       }
 
@@ -101,28 +237,37 @@ export default function EntrevistaRetiroPage() {
       }
 
       const payload = {
-        token,
-        numero_identificacion: String(info?.NumeroIdentificacion || "").trim(),
+        numero_identificacion: numeroIdentificacionEnviar,
         respuestas: preguntas.map((p) => ({
           id_pregunta: Number(p.IdPreguntaEntrevistaRetiro),
           respuesta: (respuestas[p.CodigoPregunta] || "").toString().trim(),
         })),
       };
 
+      if (token) {
+        payload.token = token;
+      }
+
       setGuardando(true);
 
-      const res = await fetch(`${API_BASE_ENTREVISTA}/entrevista-retiro/guardar`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch(
+        `${API_BASE_ENTREVISTA}/entrevista-retiro/guardar`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        const msg = await res.text().catch(() => "");
-        throw new Error(msg || "No se pudo guardar la entrevista.");
+        throw new Error(
+          data?.detail || data?.message || "No se pudo guardar la entrevista."
+        );
       }
 
       setMensaje("Entrevista enviada correctamente.");
@@ -166,6 +311,8 @@ export default function EntrevistaRetiroPage() {
     );
   }
 
+  const mostrarFormulario = token || validadoQr;
+
   return (
     <div className="min-h-screen bg-slate-50 py-10 px-4">
       <div className="mx-auto w-full max-w-4xl rounded-2xl bg-white shadow-xl border-t-4 border-emerald-600 p-8">
@@ -175,311 +322,485 @@ export default function EntrevistaRetiroPage() {
           </h1>
         </div>
 
-        {/* Datos generales */}
-        <div className="rounded-2xl border border-slate-200 overflow-hidden mb-6">
-          <div className="bg-emerald-600 px-5 py-3">
-            <h2 className="text-white font-semibold text-lg">Datos Generales</h2>
-          </div>
-
-          <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label className="text-xs text-slate-600">Nombre</Label>
-              <Input
-                value={info?.NombreCompleto || ""}
-                readOnly
-                className="bg-slate-50"
-              />
-            </div>
-
-            <div>
-              <Label className="text-xs text-slate-600">Documento de Identidad</Label>
-              <Input
-                value={info?.NumeroIdentificacion || ""}
-                readOnly
-                className="bg-slate-50"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Descripción del retiro */}
-        {preguntaDescripcionRetiro && (
+        {/* ✅ bloque inicial QR general */}
+        {!token && (
           <div className="rounded-2xl border border-slate-200 overflow-hidden mb-6">
             <div className="bg-emerald-600 px-5 py-3">
-              <h2 className="text-white font-semibold text-lg">Descripción del Retiro</h2>
+              <h2 className="text-white font-semibold text-lg">
+                Validación de Identidad
+              </h2>
             </div>
 
-            <div className="p-5">
-              <Label className="text-base font-semibold text-slate-800">
-                {preguntaDescripcionRetiro.TextoPregunta}
-                {preguntaDescripcionRetiro.EsObligatoria ? " *" : ""}
-              </Label>
+            <div className="p-5 space-y-4">
+              <div>
+                <Label className="text-xs text-slate-600">
+                  Número de identificación
+                </Label>
+                <Input
+                  value={numeroIdentificacionQr}
+                  onChange={(e) => setNumeroIdentificacionQr(e.target.value)}
+                  placeholder="Ingrese su número de identificación"
+                  className="mt-2"
+                  disabled={loadingValidacionQr || guardando}
+                />
+              </div>
 
-              <p className="mt-2 text-sm text-slate-500">
-                Escriba detalladamente todos los comentarios que tenga sobre el punto anterior.
-              </p>
+              <div className="flex gap-3 flex-wrap">
+                <Button
+                  type="button"
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                  onClick={validarIdentificacionEntrevistaQr}
+                  disabled={loadingValidacionQr || guardando}
+                >
+                  {loadingValidacionQr ? "Validando..." : "Validar identidad"}
+                </Button>
 
-              <textarea
-                className="mt-4 w-full min-h-[140px] rounded-xl border border-slate-200 p-3 text-sm outline-none bg-white"
-                placeholder="Escriba aquí..."
-                value={respuestas[preguntaDescripcionRetiro.CodigoPregunta] || ""}
-                onChange={(e) =>
-                  setRespuestaPregunta(
-                    preguntaDescripcionRetiro.CodigoPregunta,
-                    e.target.value
-                  )
-                }
-              />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-gray-200"
+                  onClick={() => {
+                    setNumeroIdentificacionQr("");
+                    setNombreTrabajadorQr("");
+                    setIdRegistroPersonalQr(null);
+                    setIdRetiroLaboralQr(null);
+                    setMensajeValidacionQr("");
+                    setValidadoQr(false);
+                    setInfo(null);
+                    setRespuestas({});
+                  }}
+                  disabled={loadingValidacionQr || guardando}
+                >
+                  Limpiar
+                </Button>
+              </div>
+
+              {mensajeValidacionQr ? (
+                <div
+                  className={`rounded-lg px-4 py-3 text-sm border ${
+                    validadoQr
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-red-200 bg-red-50 text-red-700"
+                  }`}
+                >
+                  {mensajeValidacionQr}
+                </div>
+              ) : null}
+
+              {validadoQr ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs text-slate-500 mb-1">
+                    Trabajador validado
+                  </p>
+                  <p className="text-base font-semibold text-slate-800">
+                    {nombreTrabajadorQr || "Sin nombre"}
+                  </p>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Documento: {numeroIdentificacionQr || ""}
+                  </p>
+                </div>
+              ) : null}
             </div>
           </div>
         )}
 
-        {/* Observaciones finales */}
-        {preguntasObservacionesFinales.length > 0 && (
-          <div className="rounded-2xl border border-slate-200 overflow-hidden mb-6">
-            <div className="bg-emerald-600 px-5 py-3">
-              <h2 className="text-white font-semibold text-lg">Observaciones Finales</h2>
+        {mostrarFormulario ? (
+          <>
+            {/* Datos generales */}
+            <div className="rounded-2xl border border-slate-200 overflow-hidden mb-6">
+              <div className="bg-emerald-600 px-5 py-3">
+                <h2 className="text-white font-semibold text-lg">
+                  Datos Generales
+                </h2>
+              </div>
+
+              <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs text-slate-600">Nombre</Label>
+                  <Input
+                    value={
+                      token
+                        ? info?.NombreCompleto || ""
+                        : nombreTrabajadorQr || info?.NombreCompleto || ""
+                    }
+                    readOnly
+                    className="bg-slate-50"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs text-slate-600">
+                    Documento de Identidad
+                  </Label>
+                  <Input
+                    value={
+                      token
+                        ? info?.NumeroIdentificacion || ""
+                        : numeroIdentificacionQr || info?.NumeroIdentificacion || ""
+                    }
+                    readOnly
+                    className="bg-slate-50"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="p-5 space-y-6">
-              {preguntasObservacionesFinales.map((pregunta) => (
-                <div
-                  key={pregunta.IdPreguntaEntrevistaRetiro}
-                  className="rounded-xl border border-slate-100 bg-white p-4"
-                >
-                  <p className="text-base font-medium text-slate-800">
-                    {pregunta.TextoPregunta}
-                    {pregunta.EsObligatoria ? " *" : ""}
+            {/* Descripción del retiro */}
+            {preguntaDescripcionRetiro && (
+              <div className="rounded-2xl border border-slate-200 overflow-hidden mb-6">
+                <div className="bg-emerald-600 px-5 py-3">
+                  <h2 className="text-white font-semibold text-lg">
+                    Descripción del Retiro
+                  </h2>
+                </div>
+
+                <div className="p-5">
+                  <Label className="text-base font-semibold text-slate-800">
+                    {preguntaDescripcionRetiro.TextoPregunta}
+                    {preguntaDescripcionRetiro.EsObligatoria ? " *" : ""}
+                  </Label>
+
+                  <p className="mt-2 text-sm text-slate-500">
+                    Escriba detalladamente todos los comentarios que tenga sobre
+                    el punto anterior.
                   </p>
 
-                  {pregunta.TipoRespuesta === "SI_NO" && (
-                    <div className="mt-4 space-y-3">
-                      <label className="flex items-center gap-3 text-sm text-slate-700">
-                        <input
-                          type="radio"
-                          name={pregunta.CodigoPregunta}
-                          value="SI"
-                          checked={respuestas[pregunta.CodigoPregunta] === "SI"}
-                          onChange={(e) =>
-                            setRespuestaPregunta(pregunta.CodigoPregunta, e.target.value)
-                          }
-                        />
-                        SI
-                      </label>
-
-                      <label className="flex items-center gap-3 text-sm text-slate-700">
-                        <input
-                          type="radio"
-                          name={pregunta.CodigoPregunta}
-                          value="NO"
-                          checked={respuestas[pregunta.CodigoPregunta] === "NO"}
-                          onChange={(e) =>
-                            setRespuestaPregunta(pregunta.CodigoPregunta, e.target.value)
-                          }
-                        />
-                        NO
-                      </label>
-                    </div>
-                  )}
-
-                  {pregunta.TipoRespuesta === "OPCION" && (
-                    <div className="mt-4 space-y-3">
-                      {pregunta.CodigoPregunta === "P04" && (
-                        <>
-                          <label className="flex items-center gap-3 text-sm text-slate-700">
-                            <input
-                              type="radio"
-                              name={pregunta.CodigoPregunta}
-                              value="BUENO"
-                              checked={respuestas[pregunta.CodigoPregunta] === "BUENO"}
-                              onChange={(e) =>
-                                setRespuestaPregunta(pregunta.CodigoPregunta, e.target.value)
-                              }
-                            />
-                            Bueno
-                          </label>
-
-                          <label className="flex items-center gap-3 text-sm text-slate-700">
-                            <input
-                              type="radio"
-                              name={pregunta.CodigoPregunta}
-                              value="REGULAR"
-                              checked={respuestas[pregunta.CodigoPregunta] === "REGULAR"}
-                              onChange={(e) =>
-                                setRespuestaPregunta(pregunta.CodigoPregunta, e.target.value)
-                              }
-                            />
-                            Regular
-                          </label>
-
-                          <label className="flex items-center gap-3 text-sm text-slate-700">
-                            <input
-                              type="radio"
-                              name={pregunta.CodigoPregunta}
-                              value="MALO"
-                              checked={respuestas[pregunta.CodigoPregunta] === "MALO"}
-                              onChange={(e) =>
-                                setRespuestaPregunta(pregunta.CodigoPregunta, e.target.value)
-                              }
-                            />
-                            Malo
-                          </label>
-                        </>
-                      )}
-
-                      {pregunta.CodigoPregunta === "P07" && (
-                        <>
-                          <label className="flex items-center gap-3 text-sm text-slate-700">
-                            <input
-                              type="radio"
-                              name={pregunta.CodigoPregunta}
-                              value="BUENAS"
-                              checked={respuestas[pregunta.CodigoPregunta] === "BUENAS"}
-                              onChange={(e) =>
-                                setRespuestaPregunta(pregunta.CodigoPregunta, e.target.value)
-                              }
-                            />
-                            Buenas
-                          </label>
-
-                          <label className="flex items-center gap-3 text-sm text-slate-700">
-                            <input
-                              type="radio"
-                              name={pregunta.CodigoPregunta}
-                              value="REGULARES"
-                              checked={respuestas[pregunta.CodigoPregunta] === "REGULARES"}
-                              onChange={(e) =>
-                                setRespuestaPregunta(pregunta.CodigoPregunta, e.target.value)
-                              }
-                            />
-                            Regulares
-                          </label>
-
-                          <label className="flex items-center gap-3 text-sm text-slate-700">
-                            <input
-                              type="radio"
-                              name={pregunta.CodigoPregunta}
-                              value="MALAS"
-                              checked={respuestas[pregunta.CodigoPregunta] === "MALAS"}
-                              onChange={(e) =>
-                                setRespuestaPregunta(pregunta.CodigoPregunta, e.target.value)
-                              }
-                            />
-                            Malas
-                          </label>
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  {pregunta.TipoRespuesta === "TEXTO" && (
-                    <textarea
-                      className="mt-4 w-full min-h-[120px] rounded-xl border border-slate-200 p-3 text-sm outline-none bg-white"
-                      placeholder="Escriba aquí..."
-                      value={respuestas[pregunta.CodigoPregunta] || ""}
-                      onChange={(e) =>
-                        setRespuestaPregunta(pregunta.CodigoPregunta, e.target.value)
-                      }
-                    />
-                  )}
+                  <textarea
+                    className="mt-4 w-full min-h-[140px] rounded-xl border border-slate-200 p-3 text-sm outline-none bg-white"
+                    placeholder="Escriba aquí..."
+                    value={
+                      respuestas[preguntaDescripcionRetiro.CodigoPregunta] || ""
+                    }
+                    onChange={(e) =>
+                      setRespuestaPregunta(
+                        preguntaDescripcionRetiro.CodigoPregunta,
+                        e.target.value
+                      )
+                    }
+                  />
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+              </div>
+            )}
 
-        {/* Dotación */}
-        {preguntasDotacion.length > 0 && (
-          <div className="rounded-2xl border border-slate-200 overflow-hidden mb-6">
-            <div className="bg-emerald-600 px-5 py-3">
-              <h2 className="text-white font-semibold text-lg">Entrega de Dotación</h2>
-            </div>
+            {/* Observaciones finales */}
+            {preguntasObservacionesFinales.length > 0 && (
+              <div className="rounded-2xl border border-slate-200 overflow-hidden mb-6">
+                <div className="bg-emerald-600 px-5 py-3">
+                  <h2 className="text-white font-semibold text-lg">
+                    Observaciones Finales
+                  </h2>
+                </div>
 
-            <div className="p-5 space-y-6">
-              {preguntasDotacion.map((pregunta) => (
-                <div
-                  key={pregunta.IdPreguntaEntrevistaRetiro}
-                  className="rounded-xl border border-slate-100 bg-white p-4"
+                <div className="p-5 space-y-6">
+                  {preguntasObservacionesFinales.map((pregunta) => (
+                    <div
+                      key={pregunta.IdPreguntaEntrevistaRetiro}
+                      className="rounded-xl border border-slate-100 bg-white p-4"
+                    >
+                      <p className="text-base font-medium text-slate-800">
+                        {pregunta.TextoPregunta}
+                        {pregunta.EsObligatoria ? " *" : ""}
+                      </p>
+
+                      {pregunta.TipoRespuesta === "SI_NO" && (
+                        <div className="mt-4 space-y-3">
+                          <label className="flex items-center gap-3 text-sm text-slate-700">
+                            <input
+                              type="radio"
+                              name={pregunta.CodigoPregunta}
+                              value="SI"
+                              checked={
+                                respuestas[pregunta.CodigoPregunta] === "SI"
+                              }
+                              onChange={(e) =>
+                                setRespuestaPregunta(
+                                  pregunta.CodigoPregunta,
+                                  e.target.value
+                                )
+                              }
+                            />
+                            SI
+                          </label>
+
+                          <label className="flex items-center gap-3 text-sm text-slate-700">
+                            <input
+                              type="radio"
+                              name={pregunta.CodigoPregunta}
+                              value="NO"
+                              checked={
+                                respuestas[pregunta.CodigoPregunta] === "NO"
+                              }
+                              onChange={(e) =>
+                                setRespuestaPregunta(
+                                  pregunta.CodigoPregunta,
+                                  e.target.value
+                                )
+                              }
+                            />
+                            NO
+                          </label>
+                        </div>
+                      )}
+
+                      {pregunta.TipoRespuesta === "OPCION" && (
+                        <div className="mt-4 space-y-3">
+                          {pregunta.CodigoPregunta === "P04" && (
+                            <>
+                              <label className="flex items-center gap-3 text-sm text-slate-700">
+                                <input
+                                  type="radio"
+                                  name={pregunta.CodigoPregunta}
+                                  value="BUENO"
+                                  checked={
+                                    respuestas[pregunta.CodigoPregunta] ===
+                                    "BUENO"
+                                  }
+                                  onChange={(e) =>
+                                    setRespuestaPregunta(
+                                      pregunta.CodigoPregunta,
+                                      e.target.value
+                                    )
+                                  }
+                                />
+                                Bueno
+                              </label>
+
+                              <label className="flex items-center gap-3 text-sm text-slate-700">
+                                <input
+                                  type="radio"
+                                  name={pregunta.CodigoPregunta}
+                                  value="REGULAR"
+                                  checked={
+                                    respuestas[pregunta.CodigoPregunta] ===
+                                    "REGULAR"
+                                  }
+                                  onChange={(e) =>
+                                    setRespuestaPregunta(
+                                      pregunta.CodigoPregunta,
+                                      e.target.value
+                                    )
+                                  }
+                                />
+                                Regular
+                              </label>
+
+                              <label className="flex items-center gap-3 text-sm text-slate-700">
+                                <input
+                                  type="radio"
+                                  name={pregunta.CodigoPregunta}
+                                  value="MALO"
+                                  checked={
+                                    respuestas[pregunta.CodigoPregunta] === "MALO"
+                                  }
+                                  onChange={(e) =>
+                                    setRespuestaPregunta(
+                                      pregunta.CodigoPregunta,
+                                      e.target.value
+                                    )
+                                  }
+                                />
+                                Malo
+                              </label>
+                            </>
+                          )}
+
+                          {pregunta.CodigoPregunta === "P07" && (
+                            <>
+                              <label className="flex items-center gap-3 text-sm text-slate-700">
+                                <input
+                                  type="radio"
+                                  name={pregunta.CodigoPregunta}
+                                  value="BUENAS"
+                                  checked={
+                                    respuestas[pregunta.CodigoPregunta] ===
+                                    "BUENAS"
+                                  }
+                                  onChange={(e) =>
+                                    setRespuestaPregunta(
+                                      pregunta.CodigoPregunta,
+                                      e.target.value
+                                    )
+                                  }
+                                />
+                                Buenas
+                              </label>
+
+                              <label className="flex items-center gap-3 text-sm text-slate-700">
+                                <input
+                                  type="radio"
+                                  name={pregunta.CodigoPregunta}
+                                  value="REGULARES"
+                                  checked={
+                                    respuestas[pregunta.CodigoPregunta] ===
+                                    "REGULARES"
+                                  }
+                                  onChange={(e) =>
+                                    setRespuestaPregunta(
+                                      pregunta.CodigoPregunta,
+                                      e.target.value
+                                    )
+                                  }
+                                />
+                                Regulares
+                              </label>
+
+                              <label className="flex items-center gap-3 text-sm text-slate-700">
+                                <input
+                                  type="radio"
+                                  name={pregunta.CodigoPregunta}
+                                  value="MALAS"
+                                  checked={
+                                    respuestas[pregunta.CodigoPregunta] ===
+                                    "MALAS"
+                                  }
+                                  onChange={(e) =>
+                                    setRespuestaPregunta(
+                                      pregunta.CodigoPregunta,
+                                      e.target.value
+                                    )
+                                  }
+                                />
+                                Malas
+                              </label>
+                            </>
+                          )}
+                        </div>
+                      )}
+
+                      {pregunta.TipoRespuesta === "TEXTO" && (
+                        <textarea
+                          className="mt-4 w-full min-h-[120px] rounded-xl border border-slate-200 p-3 text-sm outline-none bg-white"
+                          placeholder="Escriba aquí..."
+                          value={respuestas[pregunta.CodigoPregunta] || ""}
+                          onChange={(e) =>
+                            setRespuestaPregunta(
+                              pregunta.CodigoPregunta,
+                              e.target.value
+                            )
+                          }
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Dotación */}
+            {preguntasDotacion.length > 0 && (
+              <div className="rounded-2xl border border-slate-200 overflow-hidden mb-6">
+                <div className="bg-emerald-600 px-5 py-3">
+                  <h2 className="text-white font-semibold text-lg">
+                    Entrega de Dotación
+                  </h2>
+                </div>
+
+                <div className="p-5 space-y-6">
+                  {preguntasDotacion.map((pregunta) => (
+                    <div
+                      key={pregunta.IdPreguntaEntrevistaRetiro}
+                      className="rounded-xl border border-slate-100 bg-white p-4"
+                    >
+                      <p className="text-base font-medium text-slate-800">
+                        {pregunta.TextoPregunta}
+                        {pregunta.EsObligatoria ? " *" : ""}
+                      </p>
+
+                      {pregunta.TipoRespuesta === "SI_NO" && (
+                        <div className="mt-4 space-y-3">
+                          <label className="flex items-center gap-3 text-sm text-slate-700">
+                            <input
+                              type="radio"
+                              name={pregunta.CodigoPregunta}
+                              value="SI"
+                              checked={
+                                respuestas[pregunta.CodigoPregunta] === "SI"
+                              }
+                              onChange={(e) =>
+                                setRespuestaPregunta(
+                                  pregunta.CodigoPregunta,
+                                  e.target.value
+                                )
+                              }
+                            />
+                            SI
+                          </label>
+
+                          <label className="flex items-center gap-3 text-sm text-slate-700">
+                            <input
+                              type="radio"
+                              name={pregunta.CodigoPregunta}
+                              value="NO"
+                              checked={
+                                respuestas[pregunta.CodigoPregunta] === "NO"
+                              }
+                              onChange={(e) =>
+                                setRespuestaPregunta(
+                                  pregunta.CodigoPregunta,
+                                  e.target.value
+                                )
+                              }
+                            />
+                            NO
+                          </label>
+                        </div>
+                      )}
+
+                      {pregunta.TipoRespuesta === "TEXTO" && (
+                        <Input
+                          className="mt-4 bg-white"
+                          placeholder="Escriba aquí..."
+                          value={respuestas[pregunta.CodigoPregunta] || ""}
+                          onChange={(e) =>
+                            setRespuestaPregunta(
+                              pregunta.CodigoPregunta,
+                              e.target.value
+                            )
+                          }
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-6 flex flex-col gap-3">
+              {mensaje ? (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {mensaje}
+                </div>
+              ) : null}
+
+              <div className="flex gap-3 flex-wrap">
+                <Button
+                  type="button"
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                  onClick={handleEnviarEntrevista}
+                  disabled={guardando}
                 >
-                  <p className="text-base font-medium text-slate-800">
-                    {pregunta.TextoPregunta}
-                    {pregunta.EsObligatoria ? " *" : ""}
-                  </p>
+                  {guardando ? "Enviando..." : "Enviar entrevista"}
+                </Button>
 
-                  {pregunta.TipoRespuesta === "SI_NO" && (
-                    <div className="mt-4 space-y-3">
-                      <label className="flex items-center gap-3 text-sm text-slate-700">
-                        <input
-                          type="radio"
-                          name={pregunta.CodigoPregunta}
-                          value="SI"
-                          checked={respuestas[pregunta.CodigoPregunta] === "SI"}
-                          onChange={(e) =>
-                            setRespuestaPregunta(pregunta.CodigoPregunta, e.target.value)
-                          }
-                        />
-                        SI
-                      </label>
-
-                      <label className="flex items-center gap-3 text-sm text-slate-700">
-                        <input
-                          type="radio"
-                          name={pregunta.CodigoPregunta}
-                          value="NO"
-                          checked={respuestas[pregunta.CodigoPregunta] === "NO"}
-                          onChange={(e) =>
-                            setRespuestaPregunta(pregunta.CodigoPregunta, e.target.value)
-                          }
-                        />
-                        NO
-                      </label>
-                    </div>
-                  )}
-
-                  {pregunta.TipoRespuesta === "TEXTO" && (
-                    <Input
-                      className="mt-4 bg-white"
-                      placeholder="Escriba aquí..."
-                      value={respuestas[pregunta.CodigoPregunta] || ""}
-                      onChange={(e) =>
-                        setRespuestaPregunta(pregunta.CodigoPregunta, e.target.value)
-                      }
-                    />
-                  )}
-                </div>
-              ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-gray-200"
+                  onClick={() => window.location.reload()}
+                  disabled={guardando}
+                >
+                  Recargar
+                </Button>
+              </div>
             </div>
+          </>
+        ) : !token ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-6">
+            <p className="text-sm text-slate-600">
+              Valide su identidad para continuar con la entrevista de retiro.
+            </p>
           </div>
-        )}
-
-        <div className="mt-6 flex flex-col gap-3">
-          {mensaje ? (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-              {mensaje}
-            </div>
-          ) : null}
-
-          <div className="flex gap-3 flex-wrap">
-            <Button
-              type="button"
-              className="bg-emerald-600 hover:bg-emerald-700"
-              onClick={handleEnviarEntrevista}
-              disabled={guardando}
-            >
-              {guardando ? "Enviando..." : "Enviar entrevista"}
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              className="border-gray-200"
-              onClick={() => window.location.reload()}
-              disabled={guardando}
-            >
-              Recargar
-            </Button>
-          </div>
-        </div>
+        ) : null}
       </div>
     </div>
   );

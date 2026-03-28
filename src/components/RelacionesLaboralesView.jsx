@@ -590,9 +590,80 @@ export default function RelacionesLaboralesView() {
   const [loadingBuscar, setLoadingBuscar] = useState(false);
   const [errorBuscar, setErrorBuscar] = useState("");
 
+    // ✅ QR GENERAL - entrevista retiro
+  const [numeroIdentificacionQr, setNumeroIdentificacionQr] = useState("");
+  const [nombreTrabajadorQr, setNombreTrabajadorQr] = useState("");
+  const [idRegistroPersonalQr, setIdRegistroPersonalQr] = useState(null);
+  const [idRetiroLaboralQr, setIdRetiroLaboralQr] = useState(null);
+  const [mensajeValidacionQr, setMensajeValidacionQr] = useState("");
+  const [validadoQr, setValidadoQr] = useState(false);
+  const [loadingValidacionQr, setLoadingValidacionQr] = useState(false);
+  const [loadingGuardarQr, setLoadingGuardarQr] = useState(false);
   // ✅ NUEVO (solo UX del botón actualizar)
   const [loadingActualizar, setLoadingActualizar] = useState(false);
   const [msgActualizar, setMsgActualizar] = useState("");
+
+  const validarIdentificacionEntrevistaQr = async () => {
+    try {
+      setLoadingValidacionQr(true);
+      setMensajeValidacionQr("");
+      setValidadoQr(false);
+      setNombreTrabajadorQr("");
+      setIdRegistroPersonalQr(null);
+      setIdRetiroLaboralQr(null);
+
+      const numero = (numeroIdentificacionQr || "").trim();
+
+      if (!numero) {
+        setMensajeValidacionQr("Debe ingresar el número de identificación.");
+        return;
+      }
+
+      const res = await fetch(
+        `${API_BASE_ENTREVISTA}/entrevista-retiro/validar-identificacion`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            numero_identificacion: numero,
+          }),
+        }
+      );
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            "No se pudo validar la identificación."
+        );
+      }
+
+      const info = data?.data || {};
+
+      setNombreTrabajadorQr(info?.NombreCompleto || "");
+      setIdRegistroPersonalQr(info?.IdRegistroPersonal || null);
+      setIdRetiroLaboralQr(info?.IdRetiroLaboral || null);
+      setValidadoQr(true);
+      setMensajeValidacionQr(
+        "Identificación validada correctamente. Verifique que el nombre corresponda a sus datos antes de continuar."
+      );
+    } catch (error) {
+      setValidadoQr(false);
+      setNombreTrabajadorQr("");
+      setIdRegistroPersonalQr(null);
+      setIdRetiroLaboralQr(null);
+      setMensajeValidacionQr(
+        error?.message || "Error al validar la identificación."
+      );
+    } finally {
+      setLoadingValidacionQr(false);
+    }
+  };
 
   const [form, setForm] = useState({
   // ids para luego POST/PUT retiro
