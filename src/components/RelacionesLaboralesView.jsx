@@ -715,6 +715,42 @@ const [mensajeEntrevista, setMensajeEntrevista] = useState({
   const motivos = useMemo(() => Object.keys(REQUISITOS_POR_MOTIVO), []);
   const tiposId = useMemo(() => ["CC", "CE", "TI", "PPT"], []);
 
+    const getTipoDocumentoById = (idTipo) => {
+    const map = {
+      1: "CC",
+      2: "CE",
+      3: "PPT",
+      4: "TI",
+    };
+    return map[Number(idTipo)] || "CC";
+  };
+
+  const detectarTipoDocumentoPorNumero = async (numeroDocumento) => {
+    const numero = String(numeroDocumento || "").trim();
+
+    if (!numero) {
+      throw new Error("Debe ingresar el número de documento.");
+    }
+
+    const res = await fetch(
+      `${API_BASE}/rrll/trabajador/por-numero?numero_documento=${encodeURIComponent(numero)}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      }
+    );
+
+    const raw = await res.text().catch(() => "");
+
+    if (!res.ok) {
+      throw new Error(raw || "No se pudo detectar el tipo de documento.");
+    }
+
+    const data = raw ? JSON.parse(raw) : {};
+    return data;
+  };
+  
+
   const handleDescargarExcel = async () => {
   try {
     if (!fechaInicioExcel || !fechaFinExcel) {
@@ -894,158 +930,174 @@ const getMotivoValueById = (idMotivo) => {
 
   // ✅ BOTÓN BUSCAR: pega al backend y recarga cabecera
   const handleBuscar = async () => {
-    try {
-      setErrorBuscar("");
-      setMsgActualizar("");
+  try {
+    setErrorBuscar("");
+    setMsgActualizar("");
 
-      const tipo = (filtroTipoDocumento || "").trim().toUpperCase();
-      const numero = (filtroDocumento || "").trim();
+    const numero = (filtroDocumento || "").trim();
 
-      if (!tipo || !numero) {
-        setErrorBuscar("Debe seleccionar tipo_documento y escribir numero_documento.");
-        return;
-      }
+    if (!numero) {
+      setErrorBuscar("Debe escribir el número de documento.");
+      return;
+    }
 
-      if (!API_BASE) {
-        setErrorBuscar("No se encontró VITE_API_BASE_URL en el .env");
-        return;
-      }
+    if (!API_BASE) {
+      setErrorBuscar("No se encontró VITE_API_BASE_URL en el .env");
+      return;
+    }
 
-      setLoadingBuscar(true);
+    setLoadingBuscar(true);
 
-      const url =
-        `${API_BASE}/rrll/trabajador/detalle` +
-        `?tipo_documento=${encodeURIComponent(tipo)}` +
-        `&numero_documento=${encodeURIComponent(numero)}`;
+    // 1) detectar automáticamente el tipo real del trabajador
+    const trabajadorDetectado = await detectarTipoDocumentoPorNumero(numero);
+    const tipoDetectado = getTipoDocumentoById(
+      trabajadorDetectado?.IdTipoIdentificacion
+    );
 
-      console.log("URL BUSCAR TRABAJADOR =>", url);
-      console.log("TIPO =>", tipo, "NUMERO =>", numero);
+    // 2) reflejarlo visualmente en el select
+    setFiltroTipoDocumento(tipoDetectado);
 
-      const res = await fetch(url, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-      });
+    const tipo = tipoDetectado;
 
-      console.log("STATUS =>", res.status);
-      const raw = await res.text().catch(() => "");
-      console.log("RESPUESTA RAW =>", raw);
+    const url =
+      `${API_BASE}/rrll/trabajador/detalle` +
+      `?tipo_documento=${encodeURIComponent(tipo)}` +
+      `&numero_documento=${encodeURIComponent(numero)}`;
 
-            if (!res.ok) {
-        throw new Error(raw || `Error consultando trabajador (${res.status})`);
-      }
+    console.log("URL BUSCAR TRABAJADOR =>", url);
+    console.log("TIPO DETECTADO =>", tipo, "NUMERO =>", numero);
 
-      
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
 
-      const data = raw ? JSON.parse(raw) : {};
-      console.log("DATA PARSEADA =>", data);
+    console.log("STATUS =>", res.status);
+    const raw = await res.text().catch(() => "");
+    console.log("RESPUESTA RAW =>", raw);
 
-      let detalleRetiroBusqueda = null;
+    if (!res.ok) {
+      throw new Error(raw || `Error consultando trabajador (${res.status})`);
+    }
 
-      if (data?.IdRetiroLaboral) {
-        try {
-          const respDetalle = await consultarDetalleRetiroBackend(data.IdRetiroLaboral);
-          detalleRetiroBusqueda = respDetalle?.data ?? null;
-          console.log("DETALLE RETIRO BUSQUEDA =>", detalleRetiroBusqueda);
-        } catch (err) {
-          console.error("No se pudo consultar detalle del retiro en búsqueda:", err);
-        }
-      }
+    const data = raw ? JSON.parse(raw) : {};
+    console.log("DATA PARSEADA =>", data);
 
-      // ✅ consultar retiro activo para traer IdRetiroLaboral, IdMotivoRetiro y FechaRetiro
-      let retiroActivo = null;
+    let detalleRetiroBusqueda = null;
+
+    if (data?.IdRetiroLaboral) {
       try {
-        const rpId = data?.IdRegistroPersonal ?? null;
-        if (rpId) {
-          const r2 = await fetch(`${API_BASE}/rrll/retiro/activo/${rpId}`, {
-            method: "GET",
-            headers: { Accept: "application/json" },
-          });
-          if (r2.ok) {
-            retiroActivo = await r2.json();
-          }
-        }
-
-        console.log("RETIRO ACTIVO =>", retiroActivo);
-        console.log("ESTADO RRLL DESDE ACTIVO =>", retiroActivo?.retiro?.EstadoCasoRRLL || retiroActivo?.EstadoCasoRRLL);
-
-        const data = raw ? JSON.parse(raw) : null;
-        console.log("DATA PARSEADA =>", data);
-        console.log("PAZ Y SALVO =>", data?.PazYSalvo ?? data?.pazYSalvo ?? data?.paz_y_salvo);
-        console.log("FechaUltimoDiaLaborado =>",
-          data?.FechaUltimoDiaLaborado,
-          data?.fechaUltimoDiaLaborado,
-          data?.PazYSalvo?.FechaUltimoDiaLaborado,
-          data?.pazYSalvo?.FechaUltimoDiaLaborado
+        const respDetalle = await consultarDetalleRetiroBackend(
+          data.IdRetiroLaboral
         );
-      } catch (e) {
-        // silencioso para no romper nada
+        detalleRetiroBusqueda = respDetalle?.data ?? null;
+        console.log("DETALLE RETIRO BUSQUEDA =>", detalleRetiroBusqueda);
+      } catch (err) {
+        console.error(
+          "No se pudo consultar detalle del retiro en búsqueda:",
+          err
+        );
+      }
+    }
+
+    // consultar retiro activo para traer IdRetiroLaboral, IdMotivoRetiro y FechaRetiro
+    let retiroActivo = null;
+    try {
+      const rpId = data?.IdRegistroPersonal ?? null;
+      if (rpId) {
+        const r2 = await fetch(`${API_BASE}/rrll/retiro/activo/${rpId}`, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
+        if (r2.ok) {
+          retiroActivo = await r2.json();
+        }
       }
 
-      // ✅ IMPORTANTE: tu backend devuelve { tieneRetiroActivo, retiro: {...} }
-      const retiroDb = retiroActivo?.retiro ?? null;
+      console.log("RETIRO ACTIVO =>", retiroActivo);
+      console.log(
+        "ESTADO RRLL DESDE ACTIVO =>",
+        retiroActivo?.retiro?.EstadoCasoRRLL || retiroActivo?.EstadoCasoRRLL
+      );
 
-      // ✅ tu backend envía { tieneRetiroActivo, retiro: {...} }
-      const retiroObj = retiroActivo?.retiro ?? retiroActivo;
+      console.log(
+        "PAZ Y SALVO =>",
+        data?.PazYSalvo ?? data?.pazYSalvo ?? data?.paz_y_salvo
+      );
+      console.log(
+        "FechaUltimoDiaLaborado =>",
+        data?.FechaUltimoDiaLaborado,
+        data?.fechaUltimoDiaLaborado,
+        data?.PazYSalvo?.FechaUltimoDiaLaborado,
+        data?.pazYSalvo?.FechaUltimoDiaLaborado
+      );
+    } catch (e) {
+      // silencioso para no romper nada
+    }
 
-      const estadoRecuperadoBusqueda = String(
-        detalleRetiroBusqueda?.EstadoCasoRRLL ||
+    const retiroDb = retiroActivo?.retiro ?? null;
+    const retiroObj = retiroActivo?.retiro ?? retiroActivo;
+
+    const estadoRecuperadoBusqueda = String(
+      detalleRetiroBusqueda?.EstadoCasoRRLL ||
         retiroDb?.EstadoCasoRRLL ||
         retiroObj?.EstadoCasoRRLL ||
         ""
-      ).toUpperCase();
+    ).toUpperCase();
 
-      if (
-        estadoRecuperadoBusqueda === "CERRADO" ||
-        estadoRecuperadoBusqueda === "ABIERTO"
-      ) {
-        setEstadoProceso(estadoRecuperadoBusqueda);
-        setEstadoSeleccionado(estadoRecuperadoBusqueda);
-        setOwnerProceso(
-          estadoRecuperadoBusqueda === "CERRADO" ? "NOMINA" : "RRLL"
-        );
-      } else {
-        setEstadoProceso("ABIERTO");
-        setEstadoSeleccionado("ABIERTO");
-        setOwnerProceso("RRLL");
-      }
+    if (
+      estadoRecuperadoBusqueda === "CERRADO" ||
+      estadoRecuperadoBusqueda === "ABIERTO"
+    ) {
+      setEstadoProceso(estadoRecuperadoBusqueda);
+      setEstadoSeleccionado(estadoRecuperadoBusqueda);
+      setOwnerProceso(
+        estadoRecuperadoBusqueda === "CERRADO" ? "NOMINA" : "RRLL"
+      );
+    } else {
+      setEstadoProceso("ABIERTO");
+      setEstadoSeleccionado("ABIERTO");
+      setOwnerProceso("RRLL");
+    }
 
-      // ✅ Fecha final: prioridad 1 = RRLL (FechaRetiro), prioridad 2 = Paz y Salvo (Operaciones)
-      const fechaFinalFromBackend =
-        toDateInput(retiroObj?.FechaRetiro) ||
-        toDateInput(data?.FechaUltimoDiaLaborado) ||
-        toDateInput(data?.fechaUltimoDiaLaborado) ||
-        toDateInput(data?.PazYSalvo?.FechaUltimoDiaLaborado) ||
-        toDateInput(data?.pazYSalvo?.FechaUltimoDiaLaborado) ||
-        toDateInput(retiroObj?.FechaUltimoDiaLaborado) ||
-        toDateInput(retiroObj?.fechaUltimoDiaLaborado) ||
-        toDateInput(retiroObj?.fecha_ultimo_dia_laborado) ||
-        "";
+    const fechaFinalFromBackend =
+      toDateInput(retiroObj?.FechaRetiro) ||
+      toDateInput(data?.FechaUltimoDiaLaborado) ||
+      toDateInput(data?.fechaUltimoDiaLaborado) ||
+      toDateInput(data?.PazYSalvo?.FechaUltimoDiaLaborado) ||
+      toDateInput(data?.pazYSalvo?.FechaUltimoDiaLaborado) ||
+      toDateInput(retiroObj?.FechaUltimoDiaLaborado) ||
+      toDateInput(retiroObj?.fechaUltimoDiaLaborado) ||
+      toDateInput(retiroObj?.fecha_ultimo_dia_laborado) ||
+      "";
 
-      const fechaProcesoFromBackend =
-        toDateInput(retiroDb?.FechaProceso || data?.FechaProceso) || "";
+    const fechaProcesoFromBackend =
+      toDateInput(retiroDb?.FechaProceso || data?.FechaProceso) || "";
 
-      const clienteIdDb = retiroDb?.IdCliente ?? null;
-      const motivoIdDb =
-        detalleRetiroBusqueda?.IdMotivoRetiro ??
-        retiroDb?.IdMotivoRetiro ??
-        data?.IdMotivoRetiro ??
-        null;
+    const motivoIdDb =
+      detalleRetiroBusqueda?.IdMotivoRetiro ??
+      retiroDb?.IdMotivoRetiro ??
+      data?.IdMotivoRetiro ??
+      null;
 
-        setMotivoPersistidoId(motivoIdDb ?? null);
+    setMotivoPersistidoId(motivoIdDb ?? null);
 
-      const clienteNombreDb = clienteIdDb ? getClienteNameById(clienteIdDb) : "";
+    const motivoVisualFinal =
+      String(data?.MotivoRetiroNombre || "").trim() ||
+      getMotivoValueById(motivoIdDb) ||
+      "";
 
-      const motivoVisualFinal =
-        String(data?.MotivoRetiroNombre || "").trim() ||
-        getMotivoValueById(motivoIdDb) ||
-        "";
-        console.log("ANTES DE SETFORM", data);
-         setForm((prev) => {
-      const clienteIdFinal = retiroDb?.IdCliente ?? data?.IdCliente ?? prev.idCliente ?? null;
+    console.log("ANTES DE SETFORM", data);
+
+    setForm((prev) => {
+      const clienteIdFinal =
+        retiroDb?.IdCliente ?? data?.IdCliente ?? prev.idCliente ?? null;
 
       const clienteNombreFinal =
         (clienteIdFinal ? getClienteNameById(clienteIdFinal) : "") ||
-        String(data?.ClienteNombre || "").replace(/\s+/g, " ").trim() ||
+        String(data?.ClienteNombre || "")
+          .replace(/\s+/g, " ")
+          .trim() ||
         prev.cliente ||
         "";
 
@@ -1053,11 +1105,11 @@ const getMotivoValueById = (idMotivo) => {
         ...prev,
         idRegistroPersonal: data?.IdRegistroPersonal ?? null,
         idRetiroLaboral:
-        detalleRetiroBusqueda?.IdRetiroLaboral ??
-        retiroDb?.IdRetiroLaboral ??
-        data?.IdRetiroLaboral ??
-        prev.idRetiroLaboral ??
-        null,
+          detalleRetiroBusqueda?.IdRetiroLaboral ??
+          retiroDb?.IdRetiroLaboral ??
+          data?.IdRetiroLaboral ??
+          prev.idRetiroLaboral ??
+          null,
 
         idCliente: clienteIdFinal,
         cliente: clienteNombreFinal,
@@ -1067,8 +1119,12 @@ const getMotivoValueById = (idMotivo) => {
 
         fechaFinal: fechaFinalFromBackend || "",
         fechaProceso: fechaProcesoFromBackend || prev.fechaProceso || "",
-        fechaCierreProceso: toDateInput(retiroDb?.FechaCierre || data?.FechaCierre) || "",
-        fechaEnvioOperaciones: toDateInput(retiroDb?.FechaEnvioOperaciones || data?.FechaEnvioOperaciones) || "",
+        fechaCierreProceso:
+          toDateInput(retiroDb?.FechaCierre || data?.FechaCierre) || "",
+        fechaEnvioOperaciones:
+          toDateInput(
+            retiroDb?.FechaEnvioOperaciones || data?.FechaEnvioOperaciones
+          ) || "",
 
         tipoId: tipo,
         numeroDocumento: data?.NumeroDocumento ?? numero,
@@ -1088,7 +1144,7 @@ const getMotivoValueById = (idMotivo) => {
       };
     });
 
-      setTipificacionRetiro(
+    setTipificacionRetiro(
       detalleRetiroBusqueda?.IdTipificacionRetiro != null
         ? String(detalleRetiroBusqueda.IdTipificacionRetiro)
         : data?.IdTipificacionRetiro != null
@@ -1125,21 +1181,21 @@ const getMotivoValueById = (idMotivo) => {
           ? "NO"
           : "",
     }));
-          console.log("DESPUÉS DE SETFORM");
-        } catch (e) {
-          console.error("💥 ERROR handleBuscar =>", e);
 
-          // ✅ MUY IMPORTANTE: muestra el error real para no quedar “a ciegas”
-          setErrorBuscar(
-            e?.message?.includes("No se encontró")
-              ? e.message
-              : (e?.message || "No se pudo cargar el trabajador. Verifica documento o el backend.")
-          );
-        } finally {
-          setLoadingBuscar(false);
-        }
-      };
+    console.log("DESPUÉS DE SETFORM");
+  } catch (e) {
+    console.error("💥 ERROR handleBuscar =>", e);
 
+    setErrorBuscar(
+      e?.message?.includes("No se encontró")
+        ? e.message
+        : e?.message ||
+            "No se pudo cargar el trabajador. Verifica documento o el backend."
+    );
+  } finally {
+    setLoadingBuscar(false);
+  }
+};
       // ✅ Mantengo tu comportamiento: seleccionar motivo abre docs,
       // pero ahora también guardamos idMotivoRetiro para el PUT.
         const handleSelectMotivo = async (value) => {
