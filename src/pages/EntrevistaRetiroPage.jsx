@@ -40,12 +40,22 @@ export default function EntrevistaRetiroPage() {
 
   const preguntasDotacion = preguntas.filter((p) => Number(p.Orden) >= 10);
 
+
   const setRespuestaPregunta = (codigo, valor) => {
-    setRespuestas((prev) => ({
-      ...prev,
-      [codigo]: valor,
-    }));
-  };
+  setRespuestas((prev) => ({
+    ...prev,
+    [codigo]: valor,
+  }));
+};
+
+const formatearNombreBonito = (texto) => {
+  return (texto || "")
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((palabra) => palabra.charAt(0).toUpperCase() + palabra.slice(1))
+    .join(" ");
+};
 
   const cargarFormularioPorToken = async () => {
     try {
@@ -375,31 +385,72 @@ export default function EntrevistaRetiroPage() {
                 </Button>
               </div>
 
-              {mensajeValidacionQr ? (
-                <div
-                  className={`rounded-lg px-4 py-3 text-sm border ${
-                    validadoQr
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : "border-red-200 bg-red-50 text-red-700"
-                  }`}
-                >
-                  {mensajeValidacionQr}
-                </div>
-              ) : null}
+             {mensajeValidacionQr ? (
+  <div
+    className={`rounded-2xl border px-5 py-4 shadow-sm ${
+      validadoQr
+        ? "border-emerald-300 bg-gradient-to-r from-emerald-50 to-green-50 text-emerald-800"
+        : "border-red-300 bg-gradient-to-r from-red-50 to-rose-50 text-red-700"
+    }`}
+  >
+    <div className="flex items-start gap-3">
+      <div
+        className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-full font-bold text-sm ${
+          validadoQr
+            ? "bg-emerald-600 text-white"
+            : "bg-red-600 text-white"
+        }`}
+      >
+        {validadoQr ? "✓" : "!"}
+      </div>
 
-              {validadoQr ? (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs text-slate-500 mb-1">
-                    Trabajador validado
-                  </p>
-                  <p className="text-base font-semibold text-slate-800">
-                    {nombreTrabajadorQr || "Sin nombre"}
-                  </p>
-                  <p className="text-sm text-slate-500 mt-1">
-                    Documento: {numeroIdentificacionQr || ""}
-                  </p>
-                </div>
-              ) : null}
+      <div className="flex-1">
+        <p className="text-sm font-bold uppercase tracking-wide">
+          {validadoQr ? "Identidad validada" : "Validación no exitosa"}
+        </p>
+        <p className="mt-1 text-sm leading-6">
+          {validadoQr
+            ? "Antes de continuar con la entrevista, confirme cuidadosamente que el nombre mostrado corresponde exactamente a sus datos personales."
+            : mensajeValidacionQr}
+        </p>
+      </div>
+    </div>
+  </div>
+) : null}
+
+{validadoQr ? (
+  <div className="rounded-2xl border border-emerald-200 bg-white shadow-sm overflow-hidden">
+    <div className="bg-emerald-600 px-5 py-3">
+      <p className="text-white text-sm font-semibold tracking-wide uppercase">
+        Confirmación del trabajador
+      </p>
+    </div>
+
+    <div className="p-5 bg-gradient-to-br from-white to-emerald-50">
+      <p className="text-xs uppercase tracking-[0.18em] text-slate-500 font-semibold">
+        Nombre validado
+      </p>
+
+     <p className="mt-2 text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
+      {formatearNombreBonito(nombreTrabajadorQr || "Sin nombre")}
+    </p>
+      <div className="mt-4 inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+          Documento:
+        </span>
+        <span className="ml-2 text-base font-bold text-emerald-900">
+          {numeroIdentificacionQr || ""}
+        </span>
+      </div>
+
+      <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+        <p className="text-sm font-medium text-amber-800 leading-6">
+          Si el nombre mostrado no corresponde a sus datos, no continúe con el diligenciamiento y repórtelo de inmediato al personal encargado.
+        </p>
+      </div>
+    </div>
+  </div>
+) : null}
             </div>
           </div>
         )}

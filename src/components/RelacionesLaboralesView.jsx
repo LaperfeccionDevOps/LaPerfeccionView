@@ -2975,14 +2975,16 @@ if (step === "retiros_docs") {
             Descargar
           </Button>
 
-          <Button
-            type="button"
-            className="bg-slate-900 text-white hover:bg-slate-800"
-            disabled={!form.idRetiroLaboral}
-            onClick={() => generarQrEntrevistaRetiro(form.idRetiroLaboral)}
-          >
-            Generar QR
-          </Button>
+         {false && (
+            <Button
+              type="button"
+              className="bg-slate-900 text-white hover:bg-slate-800"
+              disabled={!form.idRetiroLaboral}
+              onClick={() => generarQrEntrevistaRetiro(form.idRetiroLaboral)}
+            >
+              Generar QR
+            </Button>
+          )}
         </div>
       }
     >
