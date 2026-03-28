@@ -927,63 +927,27 @@ const handleDescargarReferencia = async (ref) => {
   };
 
   // Function to handle viewing reference laboral
-  const [refLabEstadosCargados, setRefLabEstadosCargados] = useState({});
+    const [refLabEstadosCargados, setRefLabEstadosCargados] = useState({});
 
-  const handleViewRefLaboral = (idx, ref) => {
-    const payload_1 = localStorage.getItem('estadoValidacionExperienciaLaboral_payload_1');
-    const payload_2 = localStorage.getItem('estadoValidacionExperienciaLaboral_payload_2');
-    localStorage.setItem('IndexValidacionExperienciaLaboral', idx + 1);
-
+    const handleViewRefLaboral = (idx, ref) => {
+  
     const aspiranteDetalle = formData;
     const validacionSeleccionada = formData?.experienciaLaboral?.[idx]?.validaciones?.[0] || null;
 
-    if (!payload_1 || !payload_2) {
-      setNombreContacto(aspiranteDetalle?.experienciaLaboral?.[idx]?.JefeInmediato || '');
-      setIndexValidacionExperiencia(idx + 1);
-      setconcepto(validacionSeleccionada?.Concepto || '');
-      setDesempeñoReportado(validacionSeleccionada?.DesempenoReportado || '');
-      setMotivoRetiro(validacionSeleccionada?.MotivoRetiroReal || '');
-      setpersonaQReferencia(validacionSeleccionada?.PersonaQueReferencia || '');
-      settelefonoExperiencia(validacionSeleccionada?.Telefono || '');
-      setreferenciadoPor(validacionSeleccionada?.ReferenciadoPor || '');
-      setreEps(validacionSeleccionada?.Eps || '');
-      setTiempoDuracion(validacionSeleccionada?.TiempoDuracion || '');
-      setFechaExpedicion(validacionSeleccionada?.FechaExpedicionDocumentoIdentidad || '');
-      setComentariosReferenciador(validacionSeleccionada?.ComentariosDelReferenciado || '');
-    }
+   setNombreContacto(aspiranteDetalle?.experienciaLaboral?.[idx]?.JefeInmediato || '');
+   setIndexValidacionExperiencia(idx + 1);
+   setconcepto(validacionSeleccionada?.Concepto || '');
+   setDesempeñoReportado(validacionSeleccionada?.DesempenoReportado || '');
+   setMotivoRetiro(validacionSeleccionada?.MotivoRetiroReal || '');
+   setpersonaQReferencia(validacionSeleccionada?.PersonaQueReferencia || '');
+   settelefonoExperiencia(validacionSeleccionada?.Telefono || '');
+   setreferenciadoPor(validacionSeleccionada?.ReferenciadoPor || '');
+   setreEps(validacionSeleccionada?.Eps || '');
+   setTiempoDuracion(validacionSeleccionada?.TiempoDuracion || '');
+   setFechaExpedicion(validacionSeleccionada?.FechaExpedicionDocumentoIdentidad || '');
+   setComentariosReferenciador(validacionSeleccionada?.ComentariosDelReferenciado || '');
 
-    if (payload_1 && idx + 1 == 1) {
-      let payload = JSON.parse(payload_1);
-      setNombreContacto(aspiranteDetalle?.experienciaLaboral?.[idx]?.JefeInmediato || '');
-      setIndexValidacionExperiencia(idx + 1);
-      setconcepto(payload.Concepto || '');
-      setDesempeñoReportado(payload.DesempenoReportado || '');
-      setMotivoRetiro(payload.MotivoRetiroReal || '');
-      setpersonaQReferencia(payload.PersonaQueReferencia || '');
-      settelefonoExperiencia(payload.Telefono || '');
-      setreferenciadoPor(payload.ReferenciadoPor || '');
-      setreEps(payload.Eps || '');
-      setTiempoDuracion(payload.TiempoDuracion || '');
-      setFechaExpedicion(payload.FechaExpedicionDocumentoIdentidad || '');
-      setComentariosReferenciador(payload.ComentariosDelReferenciado || '');
-    }
-
-    if (payload_2 && idx + 1 == 2) {
-      let payload = JSON.parse(payload_2);
-      setNombreContacto(aspiranteDetalle?.experienciaLaboral?.[idx]?.JefeInmediato || '');
-      setIndexValidacionExperiencia(idx + 1);
-      setconcepto(payload.Concepto || '');
-      setDesempeñoReportado(payload.DesempenoReportado || '');
-      setMotivoRetiro(payload.MotivoRetiroReal || '');
-      setpersonaQReferencia(payload.PersonaQueReferencia || '');
-      settelefonoExperiencia(payload.Telefono || '');
-      setreferenciadoPor(payload.ReferenciadoPor || '');
-      setreEps(payload.Eps || '');
-      setTiempoDuracion(payload.TiempoDuracion || '');
-      setFechaExpedicion(payload.FechaExpedicionDocumentoIdentidad || '');
-      setComentariosReferenciador(payload.ComentariosDelReferenciado || '');
-    }
-
+   
     if (isAddingRefLab && selectedRefLabIdx === idx) {
       setIsAddingRefLab(false);
       setSelectedRefLabIdx(null);
@@ -1884,28 +1848,21 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
    };
 
    const ActualizarEstadoValidacionExperienciaLaboral = async (payload) => {
-      const index = localStorage.getItem('IndexValidacionExperienciaLaboral');
-      if(index === "1"){
-         localStorage.setItem('estadoValidacionExperienciaLaboral_payload_1', JSON.stringify(payload));   
-      } else {
-         localStorage.setItem('estadoValidacionExperienciaLaboral_payload_2', JSON.stringify(payload));   
-      }
-      setconcepto(payload.Concepto);
-      setDesempeñoReportado(payload.DesempenoReportado);
-      setMotivoRetiro(payload.MotivoRetiroReal);
-      setpersonaQReferencia(payload.PersonaQueReferencia);
-      settelefonoExperiencia(payload.Telefono);
-      setreferenciadoPor(payload.ReferenciadoPor);
-      setreEps(payload.Eps);
-      setTiempoDuracion(payload.TiempoDuracion);
-      setFechaExpedicion(payload.FechaExpedicionDocumentoIdentidad);
-      setComentariosReferenciador(payload.ComentariosDelReferenciado);
-   }
-
+   setconcepto(payload.Concepto || '');
+   setDesempeñoReportado(payload.DesempenoReportado || '');
+   setMotivoRetiro(payload.MotivoRetiroReal || '');
+   setpersonaQReferencia(payload.PersonaQueReferencia || '');
+   settelefonoExperiencia(payload.Telefono || '');
+   setreferenciadoPor(payload.ReferenciadoPor || '');
+   setreEps(payload.Eps || '');
+   setTiempoDuracion(payload.TiempoDuracion || '');
+   setFechaExpedicion(payload.FechaExpedicionDocumentoIdentidad || '');
+   setComentariosReferenciador(payload.ComentariosDelReferenciado || '');
+}
    const addDatosSeleccion = async () => {
       // if (!validarAntesDeGuardar()) return;
 
-      const payload = {
+   const payload = {
          IdRegistroPersonal: formData.IdRegistroPersonal || '',
          FechaProceso: formData.datosSeleccion?.FechaProceso || '',
          TipoCargo: formData.datosSeleccion?.TipoCargo || '',
@@ -2725,7 +2682,7 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
             className="bg-emerald-600 hover:bg-emerald-700 text-white"
             onClick={async () => {
             try {
-               
+
           const token =
             localStorage.getItem("access_token") ||
             localStorage.getItem("token") ||
