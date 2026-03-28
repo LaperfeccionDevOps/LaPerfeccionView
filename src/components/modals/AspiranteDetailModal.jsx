@@ -1128,7 +1128,7 @@ setreEps(epsTexto);
   // =========================
   // Datos de Proceso (Selección) - API /api/datos-proceso-aspirante/{id}
   // =========================
-  const API_BASE = import.meta?.env?.VITE_API_BASE_URL || 'https://api.laperfeccion.app/api';
+  const API_BASE = import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:8000/api';
   const token = localStorage.getItem('access_token') || localStorage.getItem('token') || '';
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
@@ -2728,7 +2728,7 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
                                        return;
                                     }
                                     const res = await fetch(
-                                        `https://api.laperfeccion.app/api/observaciones-nucleo-familiar/${idNucleoFamiliar}`,
+                                        `http://localhost:8000/api/observaciones-nucleo-familiar/${idNucleoFamiliar}`,
                                        {
                                           method: "PUT",
                                           headers: {
