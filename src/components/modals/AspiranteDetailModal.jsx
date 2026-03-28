@@ -2653,7 +2653,7 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
                                          <SelectItem value="NO">NO</SelectItem>
                                       </SelectContent>
                                    </Select>
-                                   <Input placeholder="Observaciones" value={newFamiliar.observaciones} onChange={(e) => setNewFamiliar({...newFamiliar, observaciones: e.target.value})} />
+                                  
                                 </div>
                                 <div className="flex justify-end gap-2">
                                    <Button size="sm" variant="ghost" onClick={() => setIsAddingFamiliar(false)}>Cancelar</Button>
@@ -2673,14 +2673,13 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
                                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Ocupación</th>
                                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Teléfono</th>
                                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Depende económicamente</th>
-                                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Observaciones</th>
                                   {/* <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Acciones</th> */}
                                 </tr>
                               </thead>
                               <tbody>
                                 {formData.nucleoFamiliar.length === 0 && (
                                   <tr>
-                                    <td colSpan={8} className="text-center text-sm text-gray-500 italic py-4">No hay familiares registrados.</td>
+                                   <td colSpan={6} className="text-center text-sm text-gray-500 italic py-4">No hay familiares registrados.</td>
                                   </tr>
                                 )}
                                 {formData.nucleoFamiliar.map((fam, idx) => (
@@ -2691,73 +2690,7 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
                                     <td className="px-3 py-2 text-sm">{fam.Ocupacion}</td>
                                     <td className="px-3 py-2 text-sm">{fam.Telefono}</td>
                                     <td className="px-3 py-2 text-sm">{fam.DependeEconomicamente == null ? 'No' : fam.DependeEconomicamente}</td>
-                                    <td className="px-3 py-2 text-sm align-top">
-                                    <div className="min-w-[120px] flex flex-col gap-1">
-                                       <textarea
-                                          className="w-full min-h-[28px] resize-y rounded border border-gray-200 bg-white px-1 py-1 text-xs text-gray-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-100"
-                                          placeholder="Observaciones..."
-                                          value={fam.Observaciones ?? fam.observaciones?.Observaciones ?? ""}
-                                          onChange={(e) => {
-                                             const value = e.target.value;
-                                             setFormData((prev) => {
-                                                const list = Array.isArray(prev?.nucleoFamiliar) ? [...prev.nucleoFamiliar] : [];
-                                                if (!list[idx]) return prev;
-                                                // Preserve other fields, update Observaciones
-                                                list[idx] = {
-                                                   ...list[idx],
-                                                   Observaciones: value,
-                                                   observaciones: {
-                                                      ...list[idx].observaciones,
-                                                      Observaciones: value,
-                                                   },
-                                                };
-                                                return { ...prev, nucleoFamiliar: list };
-                                             });
-                                          }}
-                                       />
-                                       <button
-                                          type="button"
-                                          className="inline-flex items-center justify-center rounded bg-emerald-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
-                                          onClick={async () => {
-                                    try {
-                                    const token = localStorage.getItem("access_token") || localStorage.getItem("token") || "";
-                                    const idNucleoFamiliar = fam.IdNucleoFamiliar;
-                                    const observaciones = (fam.Observaciones ?? "").trim();
-                                    if (!idNucleoFamiliar) {
-                                       alert("No se encontró IdNucleoFamiliar.");
-                                       return;
-                                    }
-                                    const res = await fetch(
-                                        `http://localhost:8000/api/observaciones-nucleo-familiar/${idNucleoFamiliar}`,
-                                       {
-                                          method: "PUT",
-                                          headers: {
-                                          "Content-Type": "application/json",
-                                          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                                          },
-                                          body: JSON.stringify({
-                                          observaciones: observaciones,
-                                          usuarioActualizacion: "juan",
-                                          }),
-                                       }
-                                    );
-                                    if (!res.ok) {
-                                       const txt = await res.text();
-                                       console.error("Error API:", res.status, txt);
-                                       alert("Error guardando observación.");
-                                       return;
-                                    }
-                                    alert("Observación guardada.");
-                                    } catch (err) {
-                                    console.error(err);
-                                    alert("Error guardando observación.");
-                                    }
-                                    }}
-                                    >
-                                          Guardar
-                                       </button>
-                                    </div>
-                                    </td>
+                              
 
                                     {/* <td className="px-3 py-2 text-sm">
                                       <Button size="icon" variant="ghost" className="h-6 w-6 text-red-400 hover:text-red-600 shrink-0" onClick={() => removeFamiliar(idx)}>
@@ -2769,6 +2702,76 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
                               </tbody>
                             </table>
                           </div>
+      <div className="mt-6 border-t pt-4">
+      <Label className="text-sm font-semibold text-gray-700 mb-2 block">
+         Observaciones generales del núcleo familiar
+      </Label>
+
+      <Textarea
+         className="min-h-[120px] resize-y"
+         placeholder="Escribe aquí las observaciones generales del núcleo familiar..."
+         value={formData?.observacionesNucleFamiliarEntrevista || ""}
+         onChange={(e) =>
+            setFormData((prev) => ({
+            ...prev,
+            observacionesNucleFamiliarEntrevista: e.target.value,
+            }))
+         }
+      />
+
+      <div className="flex justify-end mt-3">
+         <Button
+            type="button"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            onClick={async () => {
+            try {
+               
+          const token =
+            localStorage.getItem("access_token") ||
+            localStorage.getItem("token") ||
+            "";
+
+          const idNucleoFamiliar = formData?.nucleoFamiliar?.[0]?.IdNucleoFamiliar;
+          const observaciones = (formData?.observacionesNucleFamiliarEntrevista || "").trim();
+
+          if (!idNucleoFamiliar) {
+            alert("No se encontró un registro de núcleo familiar para guardar la observación.");
+            return;
+          }
+
+         const res = await fetch(
+            `${API_BASE}/observaciones-nucleo-familiar/${idNucleoFamiliar}`,
+            {
+               method: "PUT",
+               headers: {
+                  "Content-Type": "application/json",
+                  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+               },
+               body: JSON.stringify({
+                  observaciones,
+                  usuarioActualizacion: "juan",
+               }),
+            }
+            );
+          if (!res.ok) {
+            const txt = await res.text();
+            console.error("Error API:", res.status, txt);
+            alert("Error guardando observación.");
+            return;
+          }
+
+          alert("Observación guardada correctamente.");
+        } catch (err) {
+          console.error(err);
+          alert("Error guardando observación.");
+        }
+      }}
+    >
+      Guardar observaciones
+    </Button>
+  </div>
+</div>
+
                        </div>
                     </TabsContent>
 
