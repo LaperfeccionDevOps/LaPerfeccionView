@@ -1214,22 +1214,6 @@ const handleTelEmergenciaChange = (e) => {
       return;
     }
 
-    const tieneFirmaCargada = () => {
-  const d = documentos?.[42] || documentos?.["42"];
-      const data = d?.DocumentoCargado || d?.PreviewUrl || "";
-
-      if (typeof data !== "string") return false;
-
-      // 1) firma dibujada (base64)
-      if (data.startsWith("data:image/") && data.length > 50) return true;
-
-      // 2) firma adjunta (url/archivo)
-      if (data.startsWith("http")) return true;
-      if (/\.(png|jpg|jpeg|webp)$/i.test(data)) return true;
-
-      return false;
-    };
-
     // Validar campos requeridos
     const camposRequeridos = [
       { campo: formData.IdTipoIdentificacion, nombre: 'Tipo de identificación' },
@@ -1401,65 +1385,57 @@ const handleTelEmergenciaChange = (e) => {
       };
     });
 
-    // Si NumeroWhatsapp está vacío o no definido, enviarlo como null
-    const numeroWhatsappFinal = (!formData.NumeroWhatsapp || formData.NumeroWhatsapp.trim() === '') ? null : formData.NumeroWhatsapp;
+   // Si NumeroWhatsapp está vacío o no definido, enviarlo como null
+        const numeroWhatsappFinal =
+          !formData.NumeroWhatsapp || formData.NumeroWhatsapp.trim() === ''
+            ? null
+            : formData.NumeroWhatsapp;
 
-    const payload = {
-      ...restFormData,
-      Nombres: formData.Nombres,
-      Apellidos: formData.Apellidos,
-      NumeroIdentificacion: formData.NumeroIdentificacion,
-      IdEstadoProceso: formData.IdEstadoProceso,
-      IdTipoCargo: 5,
-      NumeroWhatsapp: numeroWhatsappFinal,
-      Documentacion,
-      Referencias: referenciasLimpias,
-      NucleoFamiliar: nucleoFamiliarLimpio,
-      IdLugarNacimiento: (() => {
-        // Si ya es número, devolverlo
-        if (!isNaN(Number(formData.IdLugarNacimiento))) {
-          return Number(formData.IdLugarNacimiento);
+        const payload = {
+          ...restFormData,
+          Nombres: formData.Nombres,
+          Apellidos: formData.Apellidos,
+          NumeroIdentificacion: formData.NumeroIdentificacion,
+          IdEstadoProceso: formData.IdEstadoProceso,
+          IdTipoCargo: 5,
+          NumeroWhatsapp: numeroWhatsappFinal,
+          Documentacion,
+          Referencias: referenciasLimpias,
+          NucleoFamiliar: nucleoFamiliarLimpio,
+          IdLugarNacimiento: (() => {
+            // Si ya es número, devolverlo
+            if (!isNaN(Number(formData.IdLugarNacimiento))) {
+              return Number(formData.IdLugarNacimiento);
+            }
+
+            // Buscar el key correspondiente al texto
+            const lugarNacimientoEncontrado = lugarNacimiento.find(
+              (c) =>
+                c.value.toLowerCase() ===
+                String(formData.IdLugarNacimiento).toLowerCase()
+            );
+
+            return lugarNacimientoEncontrado
+              ? lugarNacimientoEncontrado.key
+              : '';
+          })(),
+        };
+        try {
+
+        if (!tieneFirmaCargada()) {
+          Swal.fire({
+            position: "center",
+            icon: "warning",
+            title: "⚠️ Falta firma",
+            text: "Debes registrar la firma digital (dibujada) para poder guardar el registro.",
+            showConfirmButton: false,
+            timer: 5000,
+            customClass: {
+              title: 'swal2-title-sm'
+            }
+          });
+          return; // ⛔ bloquea el submit (Guardar Registro)
         }
-        // Buscar el key correspondiente al texto
-        const lugarNacimientoEncontrado = lugarNacimiento.find(
-          (c) => c.value.toLowerCase() === String(formData.IdLugarNacimiento).toLowerCase()
-        );
-        return lugarNacimientoEncontrado ? lugarNacimientoEncontrado.key : '';
-      })(),
-    };
-
-    try {
-      // ✅ BLOQUEO: No permitir guardar si NO hay firma (IdTipoDocumentacion = 42)
-      const tieneFirmaCargada = () => {
-        const d = documentos?.[42] || documentos?.["42"];
-        const data = d?.DocumentoCargado || d?.PreviewUrl || "";
-
-        if (typeof data !== "string") return false;
-
-        // 1) firma dibujada (base64)
-        if (data.startsWith("data:image/") && data.length > 50) return true;
-
-        // 2) firma adjunta (url/archivo)
-        if (data.startsWith("http")) return true;
-        if (/\.(png|jpg|jpeg|webp)$/i.test(data)) return true;
-
-        return false;
-      };
-
-      if (!tieneFirmaCargada()) {
-         Swal.fire({
-        position: "center",
-        icon: "warning",
-        title: "⚠️ Falta firma",
-        text: "Debes registrar la firma digital (dibujada) para poder guardar el registro.",
-        showConfirmButton: false,
-        timer: 5000,
-        customClass: {
-          title: 'swal2-title-sm'
-        }
-      });
-        return; // ⛔ bloquea el submit (Guardar Registro)
-      }
 
       let response;
 
@@ -1508,23 +1484,23 @@ const handleTelEmergenciaChange = (e) => {
 
       // El estilo swal2-title-sm ahora está en el CSS global
 
-    } catch (error) {
-      console.error('Error al enviar formulario:', error);
-      Swal.fire({
-        position: "center",
-        icon: "success",
-        title: "¡Advertencia!",
-        text: "Error de conexión. La información no se ha enviado. si persisten los problemas, por favor contacta a soporte.",
-        showConfirmButton: false,
-        timer: 5000,
-        customClass: {
-          title: 'swal2-title-sm'
-        }
-      });
-    } finally {
-      setIsSubmitting(false);
+} catch (error) {
+  console.error('Error al enviar formulario:', error);
+  Swal.fire({
+    position: "center",
+    icon: "error",
+    title: "Error de conexión",
+    text: "La información no se ha enviado. Si persisten los problemas, por favor contacta a soporte.",
+    showConfirmButton: false,
+    timer: 5000,
+    customClass: {
+      title: 'swal2-title-sm'
     }
-  };
+  });
+} finally {
+  setIsSubmitting(false);
+}
+};
 
   const handleFinalizarDocumentacion = () => {
     const missing = requisitosObligatorios.filter((req) => {
