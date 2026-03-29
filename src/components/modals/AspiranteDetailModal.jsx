@@ -415,6 +415,8 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   const [comentariosReferenciador, setComentariosReferenciador] = useState(null);
   const [indexValidacionExperiencia, setIndexValidacionExperiencia] = useState(null);
   const [nombreContacto, setNombreContacto] = useState(null);
+  const [cargoExperiencia, setCargoExperiencia] = useState('');
+  const [funcionesExperiencia, setFuncionesExperiencia] = useState('');
 
   // ✅ Estado inicial seguro para evitar uncontrolled inputs
   const initialFormData = {
@@ -950,6 +952,8 @@ const handleDescargarReferencia = async (ref) => {
       setTiempoDuracion(validacionSeleccionada?.TiempoDuracion || '');
       setFechaExpedicion(validacionSeleccionada?.FechaExpedicionDocumentoIdentidad || '');
       setComentariosReferenciador(validacionSeleccionada?.ComentariosDelReferenciado || '');
+      setCargoExperiencia(formData?.experienciaLaboral?.[idx]?.Cargo || aspiranteDetalle?.experienciaLaboral?.[idx]?.Cargo ||  '');
+      setFuncionesExperiencia(formData?.experienciaLaboral?.[idx]?.Funciones || aspiranteDetalle?.experienciaLaboral?.[idx]?.Funciones ||  '');
     }
 
     if (payload_1 && idx + 1 == 1) {
@@ -1128,7 +1132,7 @@ setreEps(epsTexto);
   // =========================
   // Datos de Proceso (Selección) - API /api/datos-proceso-aspirante/{id}
   // =========================
-  const API_BASE = import.meta?.env?.VITE_API_BASE_URL || 'https://api.laperfeccion.app/api';
+  const API_BASE = import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:8000/api';
   const token = localStorage.getItem('access_token') || localStorage.getItem('token') || '';
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
@@ -2728,7 +2732,7 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
                                        return;
                                     }
                                     const res = await fetch(
-                                        `https://api.laperfeccion.app/api/observaciones-nucleo-familiar/${idNucleoFamiliar}`,
+                                        `http://localhost:8000/api/observaciones-nucleo-familiar/${idNucleoFamiliar}`,
                                        {
                                           method: "PUT",
                                           headers: {
@@ -3188,29 +3192,44 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
                                           </SelectContent>
                                        </Select>
                                     </div>
-                                    <div className="space-y-2">
-                                       <Label>Fecha de expedición Documento Identidad</Label>
-                                       <Input
-                                          type="date"
-                                          placeholder="Fecha de expedición Documento Identidad"
-                                          value={fechaExpedicion || ''}
-                                          onChange={e => {
-                                             setFechaExpedicion(e.target.value);
-                                             setFormData(prev => ({
-                                                ...prev,
-                                                experiencia_laboral: {
-                                                   ...prev.experiencia_laboral,
-                                                   validaciones: {
-                                                      ...prev.experiencia_laboral?.validaciones,
-                                                      FechaExpedicionDocumentoIdentidad: e.target.value
-                                                   }
+                                  <div className="space-y-2">
+                                    <Label>Fecha de expedición Documento Identidad</Label>
+                                    <Input
+                                       type="date"
+                                       placeholder="Fecha de expedición Documento Identidad"
+                                       value={fechaExpedicion || ''}
+                                       onChange={e => {
+                                          setFechaExpedicion(e.target.value);
+                                          setFormData(prev => ({
+                                             ...prev,
+                                             experiencia_laboral: {
+                                                ...prev.experiencia_laboral,
+                                                validaciones: {
+                                                   ...prev.experiencia_laboral?.validaciones,
+                                                   FechaExpedicionDocumentoIdentidad: e.target.value
                                                 }
-                                             }));
-                                          }}
-                                       />
-                                    </div>
-                                    <div className="mb-2">
-                                       <Label>Comentarios del referenciador</Label>
+                                             }
+                                          }));
+                                       }}
+                                    />
+                                 </div>
+
+                                 <div className="space-y-2">
+                                    <Label>Cargo desempeñado</Label>
+                                    <Input value={cargoExperiencia || ''} disabled />
+                                 </div>
+
+                                 <div className="space-y-2 md:col-span-2">
+                                    <Label>Funciones realizadas</Label>
+                                    <Textarea
+                                       value={funcionesExperiencia || ''}
+                                       disabled
+                                       className="min-h-[110px]"
+                                    />
+                                 </div>
+
+                                 <div className="mb-2">
+                                    <Label>Comentarios del referenciador</Label>
                                        <Textarea
                                           placeholder="Comentarios del referenciador..."
                                           value={comentariosReferenciador || ''}
