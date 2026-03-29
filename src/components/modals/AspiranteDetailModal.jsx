@@ -1257,14 +1257,30 @@ setreEps(epsTexto);
     setSavingDatosProceso(true);
     try {
       setLoadingAspiranteDetalle(true);
+      if (!formData.asignacionCargo?.IdCargo) {
+  toast({
+    title: 'Campo requerido',
+    description: 'Debe seleccionar un cargo antes de guardar.',
+    variant: 'destructive',
+  });
+  return;
+}
       const payload = {
-        IdRegistroPersonal: formData.IdRegistroPersonal,
-        IdCliente: formData.asignacionCargo?.IdCliente || '',
-        IdCargo: formData.asignacionCargo?.IdCargo || '',
-        UsuarioActualizacion: localStorage.getItem('usuario') || 'sistema',
-        Salario: formData?.asignacionCargo?.Salario || 0
+      IdRegistroPersonal: formData.IdRegistroPersonal,
+      IdCliente: formData.asignacionCargo?.IdCliente
+         ? Number(formData.asignacionCargo.IdCliente)
+         : null,
+      IdCargo: formData.asignacionCargo?.IdCargo
+         ? Number(formData.asignacionCargo.IdCargo)
+         : null,
+      UsuarioActualizacion: localStorage.getItem('usuario') || 'sistema',
+      Salario:
+         formData?.asignacionCargo?.Salario !== undefined &&
+         formData?.asignacionCargo?.Salario !== null &&
+         String(formData.asignacionCargo.Salario).trim() !== ''
+            ? Number(formData.asignacionCargo.Salario)
+            : null
       };
-
       const response = await upsertAsignacionCargoCliente(payload);
       if (response.ok) {
         toast({
