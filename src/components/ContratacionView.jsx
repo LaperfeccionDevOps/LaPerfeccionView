@@ -852,10 +852,39 @@ const ContratacionView = () => {
     setNcModal({ isOpen: false, aspirante: null });
   };
 
-  // Marcar C (solo visual)
-      const marcarContratadoBD = async (aspirante) => {
-      const idReg = String(getIdRegistroPersonal(aspirante) ?? '');
-      if (!idReg) return;
+        // Marcar C (solo visual)
+          const marcarContratadoBD = async (aspirante) => {
+        const idReg = String(getIdRegistroPersonal(aspirante) ?? '');
+        if (!idReg) return;
+
+        const asignacion = asignacionMap?.[idReg] || {};
+
+        const tieneCargoCompleto =
+          asignacion?.IdCargo !== undefined &&
+          asignacion?.IdCargo !== null &&
+          String(asignacion.IdCargo).trim() !== '' &&
+          String(asignacion.IdCargo) !== '0';
+
+        const tieneClienteCompleto =
+          asignacion?.IdCliente !== undefined &&
+          asignacion?.IdCliente !== null &&
+          String(asignacion.IdCliente).trim() !== '' &&
+          String(asignacion.IdCliente) !== '0';
+
+        const tieneSalarioCompleto =
+          asignacion?.Salario !== undefined &&
+          asignacion?.Salario !== null &&
+          String(asignacion.Salario).trim() !== '' &&
+          Number(asignacion.Salario) > 0;
+
+        if (!tieneCargoCompleto || !tieneClienteCompleto || !tieneSalarioCompleto) {
+          toast({
+            title: 'No es posible avanzar a contratación',
+            description: 'Para marcar como contratado debe tener cargo, cliente y salario completos.',
+            variant: 'destructive',
+          });
+          return;
+        }
 
       const payload = { IdRegistroPersonal: Number(idReg) };
       const resp = await MarcarContratadoProceso(payload);

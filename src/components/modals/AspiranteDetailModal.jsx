@@ -1922,19 +1922,39 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
       setComentariosReferenciador(payload.ComentariosDelReferenciado);
    }
 
-   const addDatosSeleccion = async () => {
-      // if (!validarAntesDeGuardar()) return;
+  const addDatosSeleccion = async () => {
+   // if (!validarAntesDeGuardar()) return;
 
-      const payload = {
-         IdRegistroPersonal: formData.IdRegistroPersonal || '',
-         FechaProceso: formData.datosSeleccion?.FechaProceso || '',
-         TipoCargo: formData.datosSeleccion?.TipoCargo || '',
-         HaTrabajadoAntesEnLaEmpresa: formData.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === true,
-         Arl: formData.datosSeleccion?.Arl || '',
-         AntecedentesMedicos: formData.datosSeleccion?.AntecedentesMedicos || '',
-         Medicamentos: formData.datosSeleccion?.Medicamentos || '',
-         UsuarioActualizacion: localStorage.getItem('usuario') || 'sistema',
-      };
+   const estadoSeleccionado = String(formData?.estado || formData?.estadoProceso || '');
+
+   const tieneCargoCompleto = !!formData?.asignacionCargo?.IdCargo;
+   const tieneClienteCompleto = !!formData?.asignacionCargo?.IdCliente;
+   const tieneSalarioCompleto =
+      formData?.asignacionCargo?.Salario !== undefined &&
+      formData?.asignacionCargo?.Salario !== null &&
+      String(formData.asignacionCargo.Salario).trim() !== '';
+
+   if (estadoSeleccionado === '24') {
+      if (!tieneCargoCompleto || !tieneClienteCompleto || !tieneSalarioCompleto) {
+         toast({
+            title: 'No es posible avanzar a contratación',
+            description: 'Para avanzar a contratación debe tener cargo, cliente y salario completos.',
+            variant: 'destructive',
+         });
+         return;
+      }
+   }
+
+   const payload = {
+      IdRegistroPersonal: formData.IdRegistroPersonal || '',
+      FechaProceso: formData.datosSeleccion?.FechaProceso || '',
+      TipoCargo: formData.datosSeleccion?.TipoCargo || '',
+      HaTrabajadoAntesEnLaEmpresa: formData.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === true,
+      Arl: formData.datosSeleccion?.Arl || '',
+      AntecedentesMedicos: formData.datosSeleccion?.AntecedentesMedicos || '',
+      Medicamentos: formData.datosSeleccion?.Medicamentos || '',
+      UsuarioActualizacion: localStorage.getItem('usuario') || 'sistema',
+   };
 
       // Asegurar que IdGrupoSanguineo sea numérico
       let idGrupoSanguineo = formData?.IdGrupoSanguineo;
