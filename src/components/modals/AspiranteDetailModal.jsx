@@ -50,7 +50,7 @@ import entrevistaCandidatoService from "../../services/entrevistaCandidatoServic
 import { RegistrarDocumentosSeguridad } from '../../services/documentosSeguridad';
 import { ValidarExperienciaLaboral, ObservacionesExperienciaLaboral, EliminarExperienciaLaboral } from '../../services/experiencia_laboral';
 import { ValidarReferenciaPersonal } from '../../services/referenciaPersonal'
-import { upsertMotivoCierre } from "../../services/motivoCierreService";
+import { upsertMotivoCierre, getMotivoCierre } from "../../services/motivoCierreService";
 import { ActualizarEstadoProcesoService } from '../../services/aspirante';
 import { ActualizarFormacionEducacion } from '../../services/formacion';
 import { DatosSeleccion, ActualizarDatosSeleccion, getListaLugarNacimiento } from '../../services/aspirante';
@@ -526,14 +526,26 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
     const fetchAspiranteDetalle = async () => {
       try {
         const response = await getAspirante(aspirante.id);
-        const documentos = await getDocumentacionIngreso(aspirante.id);
-        const documentosSeguridadResp = await getDocumentosSeguridad(aspirante.id);
-        const responseEntrevista = await entrevistaCandidatoService.listarPorRegistro(aspirante.id);
+         const documentos = await getDocumentacionIngreso(aspirante.id);
+         const documentosSeguridadResp = await getDocumentosSeguridad(aspirante.id);
+         const responseEntrevista = await entrevistaCandidatoService.listarPorRegistro(aspirante.id);
+
+         let responseMotivoCierre = null;
+         try {
+         responseMotivoCierre = await getMotivoCierre(aspirante.id);
+         } catch (error) {
+         responseMotivoCierre = null;
+         }
 
         // ✅ entrevista SIEMPRE array
         const entrevistaArr = Array.isArray(responseEntrevista?.data)
           ? responseEntrevista.data
           : (responseEntrevista?.data ? [responseEntrevista.data] : []);
+
+         const motivoCierreGuardado =
+         responseMotivoCierre?.data?.MotivoCierre ||
+         responseMotivoCierre?.data?.motivoCierre ||
+         '';
 
         let asignacionCargoCliente = {};
         try {
@@ -619,8 +631,8 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
             tipoGeneroObj: fila?.tipo_genero || [],
             tipoIdentificacionObj: fila?.tipo_identificacion || [],
 
-           IdNivelEducativo: fila?.IdNivelEducativo || fila?.IdNivelEducativoFormacion || fila?.IdNivelEducativoSeleccion || '',
-nivelAcademico: fila?.DescripcionNivelEducativo || '',
+            IdNivelEducativo: fila?.IdNivelEducativo || fila?.IdNivelEducativoFormacion || fila?.IdNivelEducativoSeleccion || '',
+            nivelAcademico: fila?.DescripcionNivelEducativo || '',
             nombreEstadoFormacion: fila?.estado_formacion?.Nombre || '',
             lugarExpedicion: fila?.LugarExpedicion || '',
             fechaExpedicion: fila?.FechaExpedicion || '',
@@ -634,7 +646,10 @@ nivelAcademico: fila?.DescripcionNivelEducativo || '',
 
             lugarNacimiento: fila?.lugar_nacimiento?.Nombre || '',
 
-            entrevista: entrevistaArr,     // ✅
+            entrevista: {
+            ...(Array.isArray(entrevistaArr) ? (entrevistaArr[0] || {}) : {}),
+            motivo: motivoCierreGuardado,
+            },
             entrevistas: entrevistaArr,    // ✅
 
             asignacionCargo: asignacionCargoCliente || {},
@@ -658,15 +673,15 @@ nivelAcademico: fila?.DescripcionNivelEducativo || '',
             observacionesNucleFamiliarEntrevista: obsNF,
           }));
         }
-      } catch (error) {
-        console.error('Error al obtener detalle de aspirante:', error);
-      } finally {
-        setIsAddingRefLab(false);
-        setIndexValidacionExperiencia(null);
-        setNombreContacto('');
-        setLoadingAspiranteDetalle(false);
-      }
-    };
+         } catch (error) {
+         console.error('Error al obtener detalle de aspirante:', error);
+         } finally {
+         setIsAddingRefLab(false);
+         setIndexValidacionExperiencia(null);
+         setNombreContacto('');
+         setLoadingAspiranteDetalle(false);
+         }
+      };
 
     fetchAspiranteDetalle();
   }, [aspirante?.id, isOpen]);
