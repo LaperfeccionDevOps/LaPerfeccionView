@@ -1,4 +1,4 @@
-const API_BASE = (import.meta?.env?.VITE_API_URL || "https://api.laperfeccion.app").replace(/\/$/, "");
+const API_BASE = (import.meta?.env?.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
 // Si tú guardas el token en localStorage, ajusta la key aquí:
 const getToken = () => localStorage.getItem("access_token") || localStorage.getItem("token") || "";
