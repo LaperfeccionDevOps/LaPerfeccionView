@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 
 import entrevistaCandidatoService from "../../services/entrevistaCandidatoService";
+import { getAsignacionCargoCliente } from "../../services/asignacionCargoClienteServiceApi";
 import { toast } from '@/components/ui/use-toast';
 
 // Si ya tienes una URL base en .env, úsala (ej: VITE_API_URL=http://localhost:8000)
@@ -34,6 +35,8 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
   const [loadingPrefill, setLoadingPrefill] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  const [cargoAplicaNombre, setCargoAplicaNombre] = useState('');
 
   const [formData, setFormData] = useState({
     nombre: '',
@@ -254,46 +257,73 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
   // }, [isOpen, aspirante, aspirante?.entrevista, existingData]);
 
   // Nuevo useEffect: actualiza el nombre completo si cambia la entrevista
-  useEffect(() => {
-    if (!aspirante) return;
-    // Refuerzo: mapeo completo de datos vitales
-    setFormData(prev => ({
-      ...prev,
-      nombre: `${aspirante.nombres || ''} ${aspirante.apellidos || ''}`.trim() || prev.nombre || '',
-      tipoDocumento: aspirante?.tipoDocumento || aspirante?.IdTipoIdentificacion || prev.tipoDocumento || '',
-      identificacion: aspirante.cedula || aspirante.identificacion || prev.identificacion || '',
-      expedicion: aspirante.lugarExpedicion || prev.expedicion || '',
-      fechaExpedicion: aspirante.fechaExpedicion || prev.fechaExpedicion || '',
-      edad: aspirante.fechaNacimiento ? Math.floor((new Date() - new Date(aspirante.fechaNacimiento)) / 31557600000).toString() : (aspirante.edad || prev.edad || ''),
-      estadoCivil: aspirante.estadoCivil || aspirante.tipoEstadoCivil?.Descripcion || prev.estadoCivil || '',
-      hijos: aspirante.cuantosHijos?.toString() || aspirante.CuantosHijos?.toString() || prev.CuantosHijos || '',
-      celular: aspirante.celular || aspirante.telefono || prev.celular || '',
-      barrio: aspirante.barrio || aspirante.datosAdicionales?.[0]?.Barrio || prev.barrio || '',
-      localidad: aspirante.localidad || aspirante.datosAdicionales?.[0]?.IdLocalidad || prev.localidad || '',
-      eps: aspirante.eps || prev.eps || '',
-      fondoPensiones: aspirante.fondoPensiones || prev.fondoPensiones || '',
-      arl: aspirante.arl || prev.arl || '',
-      cargo: aspirante.cargo || prev.cargo || '',
-      tipoCargo: aspirante.tipoCargo || aspirante.cargo || prev.tipoCargo || '',
-      estudiaActualmente: aspirante.formacion?.estudiaActualmente || prev.estudiaActualmente || 'No',
-      // Entrevista previa (si existe)
-      fortalezas: aspirante.entrevista?.[0]?.Fortalezas || prev.fortalezas || '',
-      areasDeMejora: aspirante.entrevista?.[0]?.AreasDeMejora || prev.areasDeMejora || '',
-      conceptoFinalPruebaSeleccion: aspirante.entrevista?.[0]?.ConceptoFinalSeleccion || prev.conceptoFinalPruebaSeleccion || '',
-      observacionesFinales: aspirante.entrevista?.[0]?.ObservacionesFinales || prev.observacionesFinales || '',
-      entrevistadoPor: aspirante.entrevista?.[0]?.EntrevistadorPor || prev.entrevistadoPor || '',
-      haTenidoAccidentes: aspirante.entrevista?.[0]?.HaTenidoAccide ? 'SI' : 'NO',
-      detalleAccidente: aspirante.entrevista?.[0]?.AccidenteCual || prev.detalleAccidente || '',
+useEffect(() => {
+  if (!aspirante) return;
 
-      // ✅ NUEVO: Precargar Patologías (BD -> UI)
-      haTenidoPatologias: aspirante.entrevista?.[0]?.HaTenidoPatologias ? 'Si' : 'No',
-      detallePatologia: aspirante.entrevista?.[0]?.PatologiaCual || prev.detallePatologia || '',
+  const cargarCargoAsignado = async () => {
+    try {
+      const idRegistro =
+        aspirante?.IdRegistroPersonal ??
+        aspirante?.idRegistroPersonal ??
+        aspirante?.IdRegistroPerso ??
+        aspirante?.idRegistroPerso ??
+        aspirante?.id_registro_perso ??
+        aspirante?.id ??
+        null;
 
-      fechaActualizacion: aspirante.entrevista?.[0]?.FechaActualizacion
-        ? new Date(aspirante.entrevista[0].FechaActualizacion).toISOString().split('T')[0]
-        : (prev.fechaActualizacion || new Date().toISOString().split('T')[0]),
-    }));
-  }, [aspirante]);
+      if (!idRegistro) return;
+
+      const respCargo = await getAsignacionCargoCliente(idRegistro);
+      const nombreCargo =
+        respCargo?.CargoNombre ||
+        respCargo?.cargoNombre ||
+        respCargo?.NombreCargo ||
+        '';
+
+      setCargoAplicaNombre(nombreCargo);
+    } catch (error) {
+      console.error('Error cargando cargo asignado para entrevista:', error);
+      setCargoAplicaNombre('');
+    }
+  };
+
+  cargarCargoAsignado();
+
+  setFormData(prev => ({
+    ...prev,
+    nombre: `${aspirante.nombres || ''} ${aspirante.apellidos || ''}`.trim() || prev.nombre || '',
+    tipoDocumento: aspirante?.tipoDocumento || aspirante?.IdTipoIdentificacion || prev.tipoDocumento || '',
+    identificacion: aspirante.cedula || aspirante.identificacion || prev.identificacion || '',
+    expedicion: aspirante.lugarExpedicion || prev.expedicion || '',
+    fechaExpedicion: aspirante.fechaExpedicion || prev.fechaExpedicion || '',
+    edad: aspirante.fechaNacimiento
+      ? Math.floor((new Date() - new Date(aspirante.fechaNacimiento)) / 31557600000).toString()
+      : (aspirante.edad || prev.edad || ''),
+    estadoCivil: aspirante.estadoCivil || aspirante.tipoEstadoCivil?.Descripcion || prev.estadoCivil || '',
+    hijos: aspirante.cuantosHijos?.toString() || aspirante.CuantosHijos?.toString() || prev.CuantosHijos || '',
+    celular: aspirante.celular || aspirante.telefono || prev.celular || '',
+    barrio: aspirante.barrio || aspirante.datosAdicionales?.[0]?.Barrio || prev.barrio || '',
+    localidad: aspirante.localidad || aspirante.datosAdicionales?.[0]?.IdLocalidad || prev.localidad || '',
+    eps: aspirante.eps || prev.eps || '',
+    fondoPensiones: aspirante.fondoPensiones || prev.fondoPensiones || '',
+    arl: aspirante.arl || prev.arl || '',
+    cargo: aspirante.cargo || prev.cargo || '',
+    tipoCargo: aspirante.tipoCargo || aspirante.cargo || prev.tipoCargo || '',
+    estudiaActualmente: aspirante.formacion?.estudiaActualmente || prev.estudiaActualmente || 'No',
+    fortalezas: aspirante.entrevista?.[0]?.Fortalezas || prev.fortalezas || '',
+    areasDeMejora: aspirante.entrevista?.[0]?.AreasDeMejora || prev.areasDeMejora || '',
+    conceptoFinalPruebaSeleccion: aspirante.entrevista?.[0]?.ConceptoFinalSeleccion || prev.conceptoFinalPruebaSeleccion || '',
+    observacionesFinales: aspirante.entrevista?.[0]?.ObservacionesFinales || prev.observacionesFinales || '',
+    entrevistadoPor: aspirante.entrevista?.[0]?.EntrevistadorPor || prev.entrevistadoPor || '',
+    haTenidoAccidentes: aspirante.entrevista?.[0]?.HaTenidoAccide ? 'SI' : 'NO',
+    detalleAccidente: aspirante.entrevista?.[0]?.AccidenteCual || prev.detalleAccidente || '',
+    haTenidoPatologias: aspirante.entrevista?.[0]?.HaTenidoPatologias ? 'Si' : 'No',
+    detallePatologia: aspirante.entrevista?.[0]?.PatologiaCual || prev.detallePatologia || '',
+    fechaActualizacion: aspirante.entrevista?.[0]?.FechaActualizacion
+      ? new Date(aspirante.entrevista[0].FechaActualizacion).toISOString().split('T')[0]
+      : (prev.fechaActualizacion || new Date().toISOString().split('T')[0]),
+  }));
+}, [aspirante]);
 
   const handleChange = (field, value) => {
     setFormData(prev => {
@@ -606,16 +636,24 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
                   </Select>
                 </div>
 
-                <div className="col-span-1 md:col-span-2 space-y-2">
-                  <Label>Observaciones Finales</Label>
-                  <Textarea
-                    value={formData.observacionesFinales}
-                    onChange={(e) => handleChange('observacionesFinales', e.target.value)}
-                  />
-                </div>
+               <div className="col-span-1 md:col-span-2 space-y-2">
+                    <Label>Observaciones Finales</Label>
+                    <Textarea
+                      value={formData.observacionesFinales}
+                      onChange={(e) => handleChange('observacionesFinales', e.target.value)}
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label>Entrevistado Por</Label>
+                    <div className="col-span-1 md:col-span-2 space-y-2">
+                      <Label>Cargo al que aplica</Label>
+                      <Input
+                        value={cargoAplicaNombre || ''}
+                        disabled
+                      />
+                    </div>
+
+                  <div className="space-y-2">
+                    <Label>Entrevistado Por</Label>
                   <Select
                     value={formData.entrevistadoPor}
                     onValueChange={(v) => handleChange('entrevistadoPor', v)}
