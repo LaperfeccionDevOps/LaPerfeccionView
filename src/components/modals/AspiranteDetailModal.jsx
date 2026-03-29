@@ -1302,12 +1302,47 @@ setreEps(epsTexto);
     }
   };
 
-  const handleActualizarEstadoProceso = async () => {
-    setSavingDatosProceso(true);
-    try {
-      setLoadingAspiranteDetalle(true);
-      const estadoInt = parseInt(formData.estadoProceso, 10);
-      const response = await ActualizarEstadoProcesoService(formData.idRegistroPersonal, estadoInt, localStorage.getItem('usuario') || 'sistema');
+ const handleActualizarEstadoProceso = async () => {
+  setSavingDatosProceso(true);
+  try {
+    setLoadingAspiranteDetalle(true);
+
+    const estadoInt = parseInt(formData.estadoProceso, 10);
+
+    const tieneCargoCompleto =
+      formData?.asignacionCargo?.IdCargo !== undefined &&
+      formData?.asignacionCargo?.IdCargo !== null &&
+      String(formData.asignacionCargo.IdCargo).trim() !== '' &&
+      String(formData.asignacionCargo.IdCargo) !== '0';
+
+    const tieneClienteCompleto =
+      formData?.asignacionCargo?.IdCliente !== undefined &&
+      formData?.asignacionCargo?.IdCliente !== null &&
+      String(formData.asignacionCargo.IdCliente).trim() !== '' &&
+      String(formData.asignacionCargo.IdCliente) !== '0';
+
+    const tieneSalarioCompleto =
+      formData?.asignacionCargo?.Salario !== undefined &&
+      formData?.asignacionCargo?.Salario !== null &&
+      String(formData.asignacionCargo.Salario).trim() !== '' &&
+      Number(formData.asignacionCargo.Salario) > 0;
+
+    if (estadoInt === 24) {
+      if (!tieneCargoCompleto || !tieneClienteCompleto || !tieneSalarioCompleto) {
+        toast({
+          title: 'No es posible avanzar a contratación',
+          description: 'Para avanzar a contratación debe tener cargo, cliente y salario completos.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    const response = await ActualizarEstadoProcesoService(
+      formData.idRegistroPersonal,
+      estadoInt,
+      localStorage.getItem('usuario') || 'sistema'
+    );
 
       if (formData.estadoProceso == 28) {
         const payload = {
