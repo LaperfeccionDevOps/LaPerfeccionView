@@ -1047,7 +1047,7 @@ setreEps(epsTexto);
       EPS?.find((e) => String(e.key) === String(formData?.IdTipoEps))?.value || '';
 
   const handleDescargarEntrevista = async () => {
-    const campos = {
+         const campos = {
       LOGO: await getLogoBase64('LOGO1'),
       LOGO2: await getLogoBase64('LOGO2'),
       NOMBRES: ((formData?.nombres || '').toUpperCase() + ' ' + (formData?.apellidos || '').toUpperCase()).trim(),
@@ -1055,6 +1055,7 @@ setreEps(epsTexto);
       BARRIO: (formData?.datosAdicionales?.[0]?.Barrio || '').toUpperCase(),
       LOCALIDAD: formData?.datosAdicionales?.[0]?.localidad?.Nombre || '',
       CARGO: formData?.asignacionCargo?.CargoNombre || '',
+      NUCLEO_FAMILIAR: (formData?.observacionesNucleFamiliarEntrevista || '').toUpperCase(),
       HIJOS: formData?.CuantosHijos || '',
       EDAD: calcularEdad(formData?.fechaNacimiento),
       ESTADO_CIVIL: formData?.estadoCivil || '',
@@ -1064,10 +1065,10 @@ setreEps(epsTexto);
       ASPECTOS_ACADEMICOS: formData?.nivelEducativo?.Descripcion || '',
       EXPERIENCIA: formData?.experienciaLaboral?.[0]?.Compania.toUpperCase() || '',
       HA_TRABAJADO_EN_ALP: (formData?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === true
-        ? 'SI'
-        : formData?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === false
-          ? 'NO'
-          : formData?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa || ''),
+         ? 'SI'
+         : formData?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === false
+            ? 'NO'
+            : formData?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa || ''),
       VALIDACION_AM: formData?.AntecedentesMedicos.toUpperCase() || '',
       EPS: epsTexto || '',
       FORTALEZAS: formData?.entrevista?.[0]?.Fortalezas.toUpperCase() || '',
@@ -1075,7 +1076,7 @@ setreEps(epsTexto);
       PRUEBA_FISICA: formData?.entrevista?.[0]?.ConceptoFinalSeleccion || '',
       CONCEPTO_FINAL: formData?.entrevista?.[0]?.ConceptoFinalSeleccion.toUpperCase() || '',
       OBSERVACIONES: formData?.entrevista?.[0]?.ObservacionesFinales.toUpperCase() || ''
-    };
+      };
 
     let pdf_base64 = '';
     const response = await DescargarDocumentoPdf(campos, 'entrevista');
