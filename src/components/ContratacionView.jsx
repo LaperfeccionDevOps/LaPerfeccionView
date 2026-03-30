@@ -381,6 +381,7 @@ const documentosSeguridad = [
    { id: 67, label: 'Entrevista selección' },
    { id: 68, label: 'Confirmación de referencias laborales' },
    { id: 60, label: 'Certificado de competencias específicas' },
+   { id: 73, label: 'Tratamiento de datos' },
 ];
 
 const documentosContratacion = [
