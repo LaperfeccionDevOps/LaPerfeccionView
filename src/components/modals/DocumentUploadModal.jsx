@@ -135,16 +135,16 @@ const handleDescargarTratamientoDatos = async () => {
         const nombreCompleto = `${aspirante?.nombres || ''} ${aspirante?.apellidos || ''}`.trim();
 
        const campos = {
-    LOGO: await getLogoBase64('LOGO1'),
-    LOGO2: await getLogoBase64('LOGO2'),
-    NOMBRES: nombreCompleto,
-    TIPO_IDENTIFICACION: aspirante?.DescripcionTipoIdentificacion || aspirante?.tipoIdentificacion || '',
-    NUMERO_IDENTIFICACION: aspirante?.cedula || aspirante?.NumeroIdentificacion || '',
-    CIUDAD_EXPEDICION: aspirante?.lugarExpedicion || '',
-    FECHA_FIRMA: aspirante?.fechaExpedicion || '',
-    FIRMA: firmaBase64,
-    EMAIL: aspirante?.email || '',
-};
+        LOGO: await getLogoBase64('LOGO1'),
+        LOGO2: await getLogoBase64('LOGO2'),
+        NOMBRES: nombreCompleto,
+        TIPO_IDENTIFICACION: aspirante?.DescripcionTipoIdentificacion || aspirante?.tipoIdentificacion || '',
+        NUMERO_IDENTIFICACION: aspirante?.cedula || aspirante?.NumeroIdentificacion || '',
+        CIUDAD_EXPEDICION: aspirante?.lugarExpedicion || '',
+        FECHA_FIRMA: aspirante?.fechaExpedicion || '',
+        FIRMA: firmaBase64,
+        EMAIL: aspirante?.email || '',
+    };
 
        let pdf_base64 = '';
 const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos');
@@ -353,289 +353,289 @@ if (response?.data?.pdf_base64) {
                             </div>
                         </TabsContent>
                        <TabsContent value="seguridad">
-  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-4 max-h-[50vh] overflow-y-auto pr-2">
-    {docTypeConfigSeguridad?.list?.map((req) => {
-      const documentosArray = Array.isArray(documentos) ? documentos : [];
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-4 max-h-[50vh] overflow-y-auto pr-2">
+                    {docTypeConfigSeguridad?.list?.map((req) => {
+                    const documentosArray = Array.isArray(documentos) ? documentos : [];
 
-      const docDirecto = documentosArray.find(
-        d => String(d.IdTipoDocumentacion) === String(req.id)
-      );
+                    const docDirecto = documentosArray.find(
+                        d => String(d.IdTipoDocumentacion) === String(req.id)
+                    );
 
-      // Caso especial para Tratamiento de datos:
-      // si no existe el 73, tomar la firma digital (42) como respaldo
-      const docFirma42 = String(req.id) === '73'
-        ? documentosArray.find(d => String(d.IdTipoDocumentacion) === '42')
-        : null;
+                    // Caso especial para Tratamiento de datos:
+                    // si no existe el 73, tomar la firma digital (42) como respaldo
+                    const docFirma42 = String(req.id) === '73'
+                        ? documentosArray.find(d => String(d.IdTipoDocumentacion) === '42')
+                        : null;
 
-      const doc = docDirecto || docFirma42 || null;
-      const hasFile = !!doc;
+                    const doc = docDirecto || docFirma42 || null;
+                    const hasFile = !!doc;
 
-      let accept = '.pdf,image/*';
+                    let accept = '.pdf,image/*';
 
-      const esTratamientoDatos = String(req.id) === '73';
+                    const esTratamientoDatos = String(req.id) === '73';
 
-      return (
-        <div
-          key={req.id}
-          className="border-2 border-orange-200 rounded-2xl p-6 bg-white/90 shadow-lg flex flex-col justify-between h-full group w-full hover:shadow-2xl transition-shadow duration-200"
-        >
-          <div>
-            <h4 className="font-bold text-orange-800 mb-3 text-base leading-tight min-h-[40px] tracking-wide flex items-center gap-2">
-              <span className="inline-block w-2 h-2 rounded-full bg-orange-400"></span>
-              {req.nombre || req.label}
-            </h4>
+                    return (
+                        <div
+                        key={req.id}
+                        className="border-2 border-orange-200 rounded-2xl p-6 bg-white/90 shadow-lg flex flex-col justify-between h-full group w-full hover:shadow-2xl transition-shadow duration-200"
+                        >
+                        <div>
+                            <h4 className="font-bold text-orange-800 mb-3 text-base leading-tight min-h-[40px] tracking-wide flex items-center gap-2">
+                            <span className="inline-block w-2 h-2 rounded-full bg-orange-400"></span>
+                            {req.nombre || req.label}
+                            </h4>
 
-            <div
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-4 border shadow-sm ${
-                hasFile
-                  ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
-                  : 'bg-red-100 text-red-700 border-red-300'
-              }`}
-            >
-              {hasFile ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-              {hasFile ? 'Adjuntado' : 'Falta adjuntar'}
-            </div>
-          </div>
+                            <div
+                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-4 border shadow-sm ${
+                                hasFile
+                                ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                                : 'bg-red-100 text-red-700 border-red-300'
+                            }`}
+                            >
+                            {hasFile ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                            {hasFile ? 'Adjuntado' : 'Falta adjuntar'}
+                            </div>
+                        </div>
 
-          <div className="space-y-3">
-            {!hasFile && (
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <input
-                    type="file"
-                    id={`file-seguridad-${req.id}-${aspirante.id}`}
-                    className="hidden"
-                    onChange={(e) => handleFileUpload(e, req.id)}
-                    accept={accept}
-                  />
-                  <label
-                    htmlFor={`file-seguridad-${req.id}-${aspirante.id}`}
-                    className="cursor-pointer flex items-center justify-center w-full px-3 py-2 border-2 border-orange-300 shadow-sm text-sm font-semibold rounded-xl text-orange-700 bg-orange-50 hover:bg-orange-100 transition-colors"
-                  >
-                    <Upload className="w-4 h-4 mr-2" /> Cargar
-                  </label>
+                        <div className="space-y-3">
+                            {!hasFile && (
+                            <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                <input
+                                    type="file"
+                                    id={`file-seguridad-${req.id}-${aspirante.id}`}
+                                    className="hidden"
+                                    onChange={(e) => handleFileUpload(e, req.id)}
+                                    accept={accept}
+                                />
+                                <label
+                                    htmlFor={`file-seguridad-${req.id}-${aspirante.id}`}
+                                    className="cursor-pointer flex items-center justify-center w-full px-3 py-2 border-2 border-orange-300 shadow-sm text-sm font-semibold rounded-xl text-orange-700 bg-orange-50 hover:bg-orange-100 transition-colors"
+                                >
+                                    <Upload className="w-4 h-4 mr-2" /> Cargar
+                                </label>
+                                </div>
+                            </div>
+                            )}
+
+                            {hasFile && (
+                            <div className="flex flex-col gap-2 w-full">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="text-emerald-700 border-emerald-300 hover:bg-emerald-100 px-3 h-auto w-full font-semibold"
+                                onClick={() =>
+                                    esTratamientoDatos
+                                    ? handleDescargarTratamientoDatos()
+                                    : descargarDocumento(doc)
+                                }
+                                >
+                                <Download className="w-4 h-4 mr-2" /> Descargar
+                                </Button>
+
+                                {!esTratamientoDatos && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-red-700 border-red-300 hover:bg-red-100 px-3 h-auto w-full font-semibold"
+                                    onClick={() => removeDocument(req.id)}
+                                >
+                                    <Trash2 className="w-4 h-4 mr-2" /> Eliminar
+                                </Button>
+                                )}
+                            </div>
+                            )}
+
+                            <p className="text-xs text-gray-500 truncate h-4 italic">
+                            {hasFile ? (doc?.Nombre || 'Documento disponible') : 'Sin archivo'}
+                            </p>
+                        </div>
+                        </div>
+                    );
+                    })}
                 </div>
-              </div>
-            )}
 
-            {hasFile && (
-              <div className="flex flex-col gap-2 w-full">
-             <Button
-  type="button"
-  variant="outline"
-  size="sm"
-  className="text-emerald-700 border-emerald-300 hover:bg-emerald-100 px-3 h-auto w-full font-semibold"
-  onClick={() =>
-    esTratamientoDatos
-      ? handleDescargarTratamientoDatos()
-      : descargarDocumento(doc)
-  }
->
-  <Download className="w-4 h-4 mr-2" /> Descargar
-</Button>
-
-                {!esTratamientoDatos && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="text-red-700 border-red-300 hover:bg-red-100 px-3 h-auto w-full font-semibold"
-                    onClick={() => removeDocument(req.id)}
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" /> Eliminar
-                  </Button>
-                )}
-              </div>
-            )}
-
-            <p className="text-xs text-gray-500 truncate h-4 italic">
-              {hasFile ? (doc?.Nombre || 'Documento disponible') : 'Sin archivo'}
-            </p>
-          </div>
-        </div>
-      );
-    })}
-  </div>
-
-                        </TabsContent>
-                        <TabsContent value="contratacion">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-4 max-h-[50vh] overflow-y-auto pr-2">
-                                {docTypeConfigContratacion?.list?.map((req) => {
-                                    const doc = Array.isArray(documentos)
-                                        ? documentos.find(d => String(d.IdTipoDocumentacion) === String(req.id))
-                                        : null;
-                                    // Solo marcar como adjuntado si tiene archivo
-                                    const hasFile = !!doc && (doc.DocumentoBase64 || doc.DocumentoCargado);
-                                    let accept = '.pdf,image/*';
-                                    return (
-                                        <div key={req.id} className="border-2 border-emerald-200 rounded-2xl p-6 bg-white/90 shadow-lg flex flex-col justify-between h-full group w-full hover:shadow-2xl transition-shadow duration-200">
-                                            <div>
-                                                <h4 className="font-bold text-emerald-900 mb-3 text-base leading-tight min-h-[40px] tracking-wide flex items-center gap-2">
-                                                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
-                                                    {req.nombre || req.label}
-                                                </h4>
-                                                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-4 border shadow-sm ${hasFile ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-red-100 text-red-700 border-red-300'}`}>
-                                                    {hasFile ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                                                    {hasFile ? 'Adjuntado' : 'Falta adjuntar'}
+                </TabsContent>
+                <TabsContent value="contratacion">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-4 max-h-[50vh] overflow-y-auto pr-2">
+                        {docTypeConfigContratacion?.list?.map((req) => {
+                            const doc = Array.isArray(documentos)
+                                ? documentos.find(d => String(d.IdTipoDocumentacion) === String(req.id))
+                                : null;
+                            // Solo marcar como adjuntado si tiene archivo
+                            const hasFile = !!doc && (doc.DocumentoBase64 || doc.DocumentoCargado);
+                            let accept = '.pdf,image/*';
+                            return (
+                                <div key={req.id} className="border-2 border-emerald-200 rounded-2xl p-6 bg-white/90 shadow-lg flex flex-col justify-between h-full group w-full hover:shadow-2xl transition-shadow duration-200">
+                                    <div>
+                                        <h4 className="font-bold text-emerald-900 mb-3 text-base leading-tight min-h-[40px] tracking-wide flex items-center gap-2">
+                                            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
+                                            {req.nombre || req.label}
+                                        </h4>
+                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-4 border shadow-sm ${hasFile ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-red-100 text-red-700 border-red-300'}`}>
+                                            {hasFile ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                                            {hasFile ? 'Adjuntado' : 'Falta adjuntar'}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {!hasFile && (
+                                            <div className="flex gap-2">
+                                                <div className="relative flex-1">
+                                                    <input
+                                                        type="file"
+                                                        id={`file-contratacion-${req.id}-${aspirante.id}`}
+                                                        className="hidden"
+                                                        onChange={(e) => handleFileUpload(e, req.id)}
+                                                        accept={accept}
+                                                    />
+                                                    <label
+                                                        htmlFor={`file-contratacion-${req.id}-${aspirante.id}`}
+                                                        className="cursor-pointer flex items-center justify-center w-full px-3 py-2 border-2 border-emerald-300 shadow-sm text-sm font-semibold rounded-xl text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                                                    >
+                                                        <Upload className="w-4 h-4 mr-2" /> Cargar
+                                                    </label>
                                                 </div>
                                             </div>
-                                            <div className="space-y-3">
-                                                {!hasFile && (
-                                                    <div className="flex gap-2">
-                                                        <div className="relative flex-1">
-                                                            <input
-                                                                type="file"
-                                                                id={`file-contratacion-${req.id}-${aspirante.id}`}
-                                                                className="hidden"
-                                                                onChange={(e) => handleFileUpload(e, req.id)}
-                                                                accept={accept}
-                                                            />
-                                                            <label
-                                                                htmlFor={`file-contratacion-${req.id}-${aspirante.id}`}
-                                                                className="cursor-pointer flex items-center justify-center w-full px-3 py-2 border-2 border-emerald-300 shadow-sm text-sm font-semibold rounded-xl text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
-                                                            >
-                                                                <Upload className="w-4 h-4 mr-2" /> Cargar
-                                                            </label>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                {hasFile && (
-                                                    <div className="flex flex-col gap-2 w-full">
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="text-emerald-700 border-emerald-300 hover:bg-emerald-100 px-3 h-auto w-full font-semibold"
-                                                            onClick={() => descargarDocumento(doc)}
-                                                        >
-                                                            <Download className="w-4 h-4 mr-2" /> Descargar
-                                                        </Button>
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="text-red-700 border-red-300 hover:bg-red-100 px-3 h-auto w-full font-semibold"
-                                                            onClick={() => removeDocument(req.id)}
-                                                        >
-                                                            <Trash2 className="w-4 h-4 mr-2" /> Eliminar
-                                                        </Button>
-                                                    </div>
-                                                )}
-                                                <p className="text-xs text-gray-500 truncate h-4 italic">
-                                                    {hasFile ? doc.Nombre : 'Sin archivo'}
-                                                </p>
+                                        )}
+                                        {hasFile && (
+                                            <div className="flex flex-col gap-2 w-full">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="text-emerald-700 border-emerald-300 hover:bg-emerald-100 px-3 h-auto w-full font-semibold"
+                                                    onClick={() => descargarDocumento(doc)}
+                                                >
+                                                    <Download className="w-4 h-4 mr-2" /> Descargar
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="text-red-700 border-red-300 hover:bg-red-100 px-3 h-auto w-full font-semibold"
+                                                    onClick={() => removeDocument(req.id)}
+                                                >
+                                                    <Trash2 className="w-4 h-4 mr-2" /> Eliminar
+                                                </Button>
                                             </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                            <div className="flex justify-end mt-4">
-                                <Button
-                                    variant="default"
-                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-8 py-2 rounded-xl shadow-md"
-                                    onClick={() => handleEnviarDocumentosContratacion?.(documentos)}
-                                >
-                                    Guardar documentos
-                                </Button>
-                            </div>
-                        </TabsContent>
-                        {/* <TabsContent value="paquete-contratacion">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-4 max-h-[50vh] overflow-y-auto pr-2">
-                                <p className="text-sm text-gray-600 mb-6 italic">
-                                    <b>En esta sección puedes cargar el paquete de contratación, el cual debe corresponder a un único documento en formato PDF que contenga los siguientes ítems:</b><br /><br /><br /><br />
-                                    1) Datos personales de colaboradores – Consentimiento informado<br />
-                                    2) Conocimiento informado – Política de prevención de tabaquismo, alcoholismo y consumo de sustancias<br />
-                                    3) Responsabilidad SG-SST: Nivel de autoliderazgo de colaboradores<br />
-                                    4) Notificación de recomendaciones médicas y compromisos F-SS-035
-                                </p>
-                                {docTypeConfigPaquete?.list?.map((req) => {
-                                    const doc = Array.isArray(documentos)
-                                        ? documentos.find(d => String(d.IdTipoDocumentacion) === String(req.id))
-                                        : null;
-                                    const hasFile = !!doc;
-                                    let accept = '.pdf,image/*';
-                                    return (
-                                        <div key={req.id} className="border-2 border-purple-200 rounded-2xl p-6 bg-white/90 shadow-lg flex flex-col justify-between h-full group w-full hover:shadow-2xl transition-shadow duration-200">
-                                            <div>
-                                                <h4 className="font-bold text-purple-900 mb-3 text-base leading-tight min-h-[40px] tracking-wide flex items-center gap-2">
-                                                    <span className="inline-block w-2 h-2 rounded-full bg-purple-400"></span>
-                                                    {req.nombre || req.label}
-                                                </h4>
-                                                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-4 border shadow-sm ${hasFile ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-red-100 text-red-700 border-red-300'}`}> 
-                                                    {hasFile ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                                                    {hasFile ? 'Adjuntado' : 'Falta adjuntar'}
-                                                </div>
-                                            </div>
-                                            <div className="space-y-3">
-                                                {!hasFile && (
-                                                    <div className="flex gap-2">
-                                                        <div className="relative flex-1">
-                                                            <input
-                                                                type="file"
-                                                                id={`file-paquete-contratacion-${req.id}-${aspirante.id}`}
-                                                                className="hidden"
-                                                                onChange={(e) => handleFileUpload(e, req.id)}
-                                                                accept={accept}
-                                                            />
-                                                            <label
-                                                                htmlFor={`file-paquete-contratacion-${req.id}-${aspirante.id}`}
-                                                                className="cursor-pointer flex items-center justify-center w-full px-3 py-2 border-2 border-purple-300 shadow-sm text-sm font-semibold rounded-xl text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors"
-                                                            >
-                                                                <Upload className="w-4 h-4 mr-2" /> Cargar
-                                                            </label>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                {hasFile && (
-                                                    <div className="flex flex-col gap-2 w-full">
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="text-emerald-700 border-emerald-300 hover:bg-emerald-100 px-3 h-auto w-full font-semibold"
-                                                            onClick={() => descargarDocumento(doc)}
-                                                        >
-                                                            <Download className="w-4 h-4 mr-2" /> Descargar
-                                                        </Button>
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="text-red-700 border-red-300 hover:bg-red-100 px-3 h-auto w-full font-semibold"
-                                                            onClick={() => removeDocument(req.id)}
-                                                        >
-                                                            <Trash2 className="w-4 h-4 mr-2" /> Eliminar
-                                                        </Button>
-                                                    </div>
-                                                )}
-                                                <p className="text-xs text-gray-500 truncate h-4 italic">
-                                                    {hasFile ? doc.Nombre : 'Sin archivo'}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                            <div className="flex justify-end mt-4">
-                                <Button
-                                    variant="default"
-                                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-8 py-2 rounded-xl shadow-md"
-                                    onClick={() => onSave?.(documentos)}
-                                >
-                                    Guardar documentos
-                                </Button>
-                            </div>
-                        </TabsContent> */}
-                    </Tabs>
+                                        )}
+                                        <p className="text-xs text-gray-500 truncate h-4 italic">
+                                            {hasFile ? doc.Nombre : 'Sin archivo'}
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
-                </div>
-                <DialogFooter className="bg-gradient-to-r from-emerald-50 to-yellow-50 rounded-b-3xl px-8 py-4 border-t border-emerald-100 flex justify-end">
-                    <Button variant="outline" onClick={onClose} className="rounded-xl px-8 py-2 text-lg font-semibold border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-700 shadow-sm">
-                        Cerrar
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    );
+                    <div className="flex justify-end mt-4">
+                        <Button
+                            variant="default"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-8 py-2 rounded-xl shadow-md"
+                            onClick={() => handleEnviarDocumentosContratacion?.(documentos)}
+                        >
+                            Guardar documentos
+                        </Button>
+                    </div>
+                </TabsContent>
+                {/* <TabsContent value="paquete-contratacion">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-4 max-h-[50vh] overflow-y-auto pr-2">
+                        <p className="text-sm text-gray-600 mb-6 italic">
+                            <b>En esta sección puedes cargar el paquete de contratación, el cual debe corresponder a un único documento en formato PDF que contenga los siguientes ítems:</b><br /><br /><br /><br />
+                            1) Datos personales de colaboradores – Consentimiento informado<br />
+                            2) Conocimiento informado – Política de prevención de tabaquismo, alcoholismo y consumo de sustancias<br />
+                            3) Responsabilidad SG-SST: Nivel de autoliderazgo de colaboradores<br />
+                            4) Notificación de recomendaciones médicas y compromisos F-SS-035
+                        </p>
+                        {docTypeConfigPaquete?.list?.map((req) => {
+                            const doc = Array.isArray(documentos)
+                                ? documentos.find(d => String(d.IdTipoDocumentacion) === String(req.id))
+                                : null;
+                            const hasFile = !!doc;
+                            let accept = '.pdf,image/*';
+                            return (
+                                <div key={req.id} className="border-2 border-purple-200 rounded-2xl p-6 bg-white/90 shadow-lg flex flex-col justify-between h-full group w-full hover:shadow-2xl transition-shadow duration-200">
+                                    <div>
+                                        <h4 className="font-bold text-purple-900 mb-3 text-base leading-tight min-h-[40px] tracking-wide flex items-center gap-2">
+                                            <span className="inline-block w-2 h-2 rounded-full bg-purple-400"></span>
+                                            {req.nombre || req.label}
+                                        </h4>
+                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-4 border shadow-sm ${hasFile ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-red-100 text-red-700 border-red-300'}`}> 
+                                            {hasFile ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                                            {hasFile ? 'Adjuntado' : 'Falta adjuntar'}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {!hasFile && (
+                                            <div className="flex gap-2">
+                                                <div className="relative flex-1">
+                                                    <input
+                                                        type="file"
+                                                        id={`file-paquete-contratacion-${req.id}-${aspirante.id}`}
+                                                        className="hidden"
+                                                        onChange={(e) => handleFileUpload(e, req.id)}
+                                                        accept={accept}
+                                                    />
+                                                    <label
+                                                        htmlFor={`file-paquete-contratacion-${req.id}-${aspirante.id}`}
+                                                        className="cursor-pointer flex items-center justify-center w-full px-3 py-2 border-2 border-purple-300 shadow-sm text-sm font-semibold rounded-xl text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors"
+                                                    >
+                                                        <Upload className="w-4 h-4 mr-2" /> Cargar
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {hasFile && (
+                                            <div className="flex flex-col gap-2 w-full">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="text-emerald-700 border-emerald-300 hover:bg-emerald-100 px-3 h-auto w-full font-semibold"
+                                                    onClick={() => descargarDocumento(doc)}
+                                                >
+                                                    <Download className="w-4 h-4 mr-2" /> Descargar
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="text-red-700 border-red-300 hover:bg-red-100 px-3 h-auto w-full font-semibold"
+                                                    onClick={() => removeDocument(req.id)}
+                                                >
+                                                    <Trash2 className="w-4 h-4 mr-2" /> Eliminar
+                                                </Button>
+                                            </div>
+                                        )}
+                                        <p className="text-xs text-gray-500 truncate h-4 italic">
+                                            {hasFile ? doc.Nombre : 'Sin archivo'}
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div className="flex justify-end mt-4">
+                        <Button
+                            variant="default"
+                            className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-8 py-2 rounded-xl shadow-md"
+                            onClick={() => onSave?.(documentos)}
+                        >
+                            Guardar documentos
+                        </Button>
+                    </div>
+                </TabsContent> */}
+            </Tabs>
+            </div>
+        </div>
+        <DialogFooter className="bg-gradient-to-r from-emerald-50 to-yellow-50 rounded-b-3xl px-8 py-4 border-t border-emerald-100 flex justify-end">
+            <Button variant="outline" onClick={onClose} className="rounded-xl px-8 py-2 text-lg font-semibold border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-700 shadow-sm">
+                Cerrar
+            </Button>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>
+);
 };
 export default DocumentUploadModal;
