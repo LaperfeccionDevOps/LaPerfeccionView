@@ -2148,19 +2148,55 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
     setEntrevistaModalOpen(true);
   };
 
-   const handleSaveEntrevista = (entrevistaData) => {
-      // Si viene edición, reemplaza; si es nueva, agrega
-      setFormData(prev => {
-         let newEntrevistas = [...prev.entrevistas];
-         if (selectedEntrevista && selectedEntrevista._index !== undefined) {
-            newEntrevistas[selectedEntrevista._index] = entrevistaData;
-         } else {
-            newEntrevistas.push(entrevistaData);
-         }
-         return { ...prev, entrevistas: newEntrevistas };
-      });
-      setEntrevistaModalOpen(false);
-   };
+ const handleSaveEntrevista = async (entrevistaData) => {
+  try {
+    let documentosSeguridadActualizados = [];
+
+    if (aspirante?.id) {
+      const respDocsSeguridad = await getDocumentosSeguridad(aspirante.id);
+      documentosSeguridadActualizados = respDocsSeguridad?.data || [];
+    }
+
+    setFormData(prev => {
+      let newEntrevistas = [...(prev.entrevistas || [])];
+
+      if (selectedEntrevista && selectedEntrevista._index !== undefined) {
+        newEntrevistas[selectedEntrevista._index] = entrevistaData;
+      } else {
+        newEntrevistas.push(entrevistaData);
+      }
+
+      return {
+        ...prev,
+        entrevistas: newEntrevistas,
+        entrevista: [entrevistaData],
+        documentosSeguridad: documentosSeguridadActualizados,
+      };
+    });
+
+    setEntrevistaModalOpen(false);
+  } catch (error) {
+    console.error('Error recargando documentos de seguridad después de guardar entrevista:', error);
+
+    setFormData(prev => {
+      let newEntrevistas = [...(prev.entrevistas || [])];
+
+      if (selectedEntrevista && selectedEntrevista._index !== undefined) {
+        newEntrevistas[selectedEntrevista._index] = entrevistaData;
+      } else {
+        newEntrevistas.push(entrevistaData);
+      }
+
+      return {
+        ...prev,
+        entrevistas: newEntrevistas,
+        entrevista: [entrevistaData],
+      };
+    });
+
+    setEntrevistaModalOpen(false);
+  }
+};
 
   const handleRemoveEntrevista = (index) => {
     setFormData(prev => ({ ...prev, entrevistas: prev.entrevistas.filter((_, i) => i !== index) }));

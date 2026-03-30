@@ -23,7 +23,36 @@ import {
 
 import entrevistaCandidatoService from "../../services/entrevistaCandidatoService";
 import { getAsignacionCargoCliente } from "../../services/asignacionCargoClienteServiceApi";
+import { RegistrarDocumentosSeguridad } from "../../services/documentosSeguridad";
+import { DescargarDocumentoPdf } from "../../services/descargarDocumento";
 import { toast } from '@/components/ui/use-toast';
+
+const DOCUMENTO_ENTREVISTA_SELECCION_ID = 67;
+
+const getLogoBase64 = async (logo) => {
+  let res = null;
+
+  switch (logo) {
+    case 'LOGO1':
+      res = await fetch('/LOGO/LOGOPRINCIPAL.png');
+      break;
+    case 'LOGO2':
+      res = await fetch('/LOGO/LOGO_MANTENER_INGENIERIA.png');
+      break;
+    default:
+      res = await fetch('/LOGO/LOGOPRINCIPAL.png');
+      break;
+  }
+
+  const blob = await res.blob();
+
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
+};
+
 
 // Si ya tienes una URL base en .env, úsala (ej: VITE_API_URL=http://localhost:8000)
 // Si no existe, usa http://localhost:8000 por defecto.
@@ -62,6 +91,7 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
     reintegroProceso: 'No',
     haTenidoAccidentes: 'No',
     validacionMinSalud: 'Si',
+    antecedentesMedicos: '',
     idEps: '',
     haTrabajado: 'No',
     detalleAccidente: '',
@@ -289,6 +319,10 @@ useEffect(() => {
 
   cargarCargoAsignado();
 
+    const entrevistaBase = Array.isArray(aspirante?.entrevista)
+    ? (aspirante.entrevista[0] || {})
+    : (aspirante?.entrevista || {});
+
   setFormData(prev => ({
     ...prev,
     nombre: `${aspirante.nombres || ''} ${aspirante.apellidos || ''}`.trim() || prev.nombre || '',
@@ -307,20 +341,26 @@ useEffect(() => {
     eps: aspirante.eps || prev.eps || '',
     fondoPensiones: aspirante.fondoPensiones || prev.fondoPensiones || '',
     arl: aspirante.arl || prev.arl || '',
+    antecedentesMedicos:
+    aspirante?.AntecedentesMedicos ||
+    aspirante?.antecedentesMedicos ||
+    aspirante?.datosSeleccion?.AntecedentesMedicos ||
+    prev.antecedentesMedicos ||
+    '',
     cargo: aspirante.cargo || prev.cargo || '',
     tipoCargo: aspirante.tipoCargo || aspirante.cargo || prev.tipoCargo || '',
     estudiaActualmente: aspirante.formacion?.estudiaActualmente || prev.estudiaActualmente || 'No',
-    fortalezas: aspirante.entrevista?.[0]?.Fortalezas || prev.fortalezas || '',
-    areasDeMejora: aspirante.entrevista?.[0]?.AreasDeMejora || prev.areasDeMejora || '',
-    conceptoFinalPruebaSeleccion: aspirante.entrevista?.[0]?.ConceptoFinalSeleccion || prev.conceptoFinalPruebaSeleccion || '',
-    observacionesFinales: aspirante.entrevista?.[0]?.ObservacionesFinales || prev.observacionesFinales || '',
-    entrevistadoPor: aspirante.entrevista?.[0]?.EntrevistadorPor || prev.entrevistadoPor || '',
-    haTenidoAccidentes: aspirante.entrevista?.[0]?.HaTenidoAccide ? 'SI' : 'NO',
-    detalleAccidente: aspirante.entrevista?.[0]?.AccidenteCual || prev.detalleAccidente || '',
-    haTenidoPatologias: aspirante.entrevista?.[0]?.HaTenidoPatologias ? 'Si' : 'No',
-    detallePatologia: aspirante.entrevista?.[0]?.PatologiaCual || prev.detallePatologia || '',
-    fechaActualizacion: aspirante.entrevista?.[0]?.FechaActualizacion
-      ? new Date(aspirante.entrevista[0].FechaActualizacion).toISOString().split('T')[0]
+       fortalezas: entrevistaBase?.Fortalezas || prev.fortalezas || '',
+    areasDeMejora: entrevistaBase?.AreasDeMejora || prev.areasDeMejora || '',
+    conceptoFinalPruebaSeleccion: entrevistaBase?.ConceptoFinalSeleccion || prev.conceptoFinalPruebaSeleccion || '',
+    observacionesFinales: entrevistaBase?.ObservacionesFinales || prev.observacionesFinales || '',
+    entrevistadoPor: entrevistaBase?.EntrevistadorPor || prev.entrevistadoPor || '',
+    haTenidoAccidentes: entrevistaBase?.HaTenidoAccide ? 'SI' : 'NO',
+    detalleAccidente: entrevistaBase?.AccidenteCual || prev.detalleAccidente || '',
+    haTenidoPatologias: entrevistaBase?.HaTenidoPatologias ? 'Si' : 'No',
+    detallePatologia: entrevistaBase?.PatologiaCual || prev.detallePatologia || '',
+    fechaActualizacion: entrevistaBase?.FechaActualizacion
+      ? new Date(entrevistaBase.FechaActualizacion).toISOString().split('T')[0]
       : (prev.fechaActualizacion || new Date().toISOString().split('T')[0]),
   }));
 }, [aspirante]);
@@ -341,7 +381,93 @@ useEffect(() => {
     });
   };
 
-  const handleSubmit = async () => {
+  const generarYAdjuntarPdfEntrevista = async (idRegistro) => {
+  const campos = {
+  LOGO: await getLogoBase64('LOGO1'),
+  LOGO2: await getLogoBase64('LOGO2'),
+  NOMBRES: (formData?.nombre || '').toUpperCase(),
+  DOCUMENTO: formData?.identificacion || '',
+  BARRIO: (formData?.barrio || '').toUpperCase(),
+  LOCALIDAD: String(formData?.localidad || ''),
+  CARGO: (cargoAplicaNombre || formData?.cargo || '').toUpperCase(),
+  HIJOS: formData?.hijos || '',
+  EDAD: formData?.edad || '',
+  ESTADO_CIVIL: (formData?.estadoCivil || '').toUpperCase(),
+  ESTUDIA: (formData?.estudiaActualmente || '').toUpperCase(),
+  CELULAR: formData?.celular || '',
+  EVALUADOR: (formData?.entrevistadoPor || '').toUpperCase(),
+ ASPECTOS_ACADEMICOS: (aspirante?.nivelEducativo?.Descripcion || aspirante?.descripcionNivelEducativo || '').toUpperCase(),
+EXPERIENCIA: (aspirante?.experienciaLaboral?.[0]?.Compania || '').toUpperCase(),
+HA_TRABAJADO_EN_ALP:
+  aspirante?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === true
+    ? 'SI'
+    : aspirante?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === false
+      ? 'NO'
+      : (aspirante?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa || ''),
+VALIDACION_AM: (aspirante?.AntecedentesMedicos || aspirante?.datosSeleccion?.AntecedentesMedicos || '').toUpperCase(),
+EPS: (aspirante?.descripcionEps || aspirante?.eps?.Descripcion || aspirante?.eps || '').toUpperCase(),
+  FORTALEZAS: (formData?.fortalezas || '').toUpperCase(),
+  AREAS_DE_MEJORA: (formData?.areasDeMejora || '').toUpperCase(),
+  PRUEBA_FISICA: (formData?.conceptoFinalPruebaSeleccion || '').toUpperCase(),
+  CONCEPTO_FINAL: (formData?.conceptoFinalPruebaSeleccion || '').toUpperCase(),
+  OBSERVACIONES: (formData?.observacionesFinales || '').toUpperCase(),
+};
+
+  const responsePdf = await DescargarDocumentoPdf(campos, 'entrevista');
+  console.log('PDF entrevista - responsePdf:', responsePdf);
+
+  let pdf_base64 = '';
+  if (responsePdf && typeof responsePdf.json === 'function') {
+    const dataPdf = await responsePdf.json();
+    pdf_base64 = dataPdf?.pdf_base64 || '';
+  } else if (responsePdf?.pdf_base64) {
+    pdf_base64 = responsePdf.pdf_base64;
+  }
+
+  console.log('PDF entrevista - base64 generado:', !!pdf_base64, pdf_base64 ? pdf_base64.length : 0);
+
+  if (!pdf_base64) {
+    throw new Error('No fue posible generar el PDF de la entrevista.');
+  }
+
+  const payloadDocumento = {
+    idRegistroPersonal: Number(idRegistro),
+    documentos_seguridad: [
+      {
+        IdTipoDocumentacion: DOCUMENTO_ENTREVISTA_SELECCION_ID,
+        DocumentoCargado: pdf_base64.startsWith('data:application/pdf;base64,')
+          ? pdf_base64
+          : `data:application/pdf;base64,${pdf_base64}`,
+        Formato: 'application/pdf',
+        Nombre: `Entrevista_Seleccion_${idRegistro}.pdf`,
+      },
+    ],
+  };
+
+  console.log('Payload documento seguridad:', payloadDocumento);
+const responseUpload = await RegistrarDocumentosSeguridad(payloadDocumento);
+console.log('Upload documento seguridad - status:', responseUpload.status, responseUpload.ok);
+
+let uploadResult = null;
+try {
+  uploadResult = await responseUpload.clone().json();
+} catch (e) {
+  uploadResult = null;
+}
+
+console.log('Upload documento seguridad - respuesta:', uploadResult);
+
+if (!responseUpload.ok) {
+  const errorDetalle =
+    uploadResult?.detail ||
+    'No fue posible adjuntar automáticamente la entrevista en documentos de seguridad.';
+  throw new Error(errorDetalle);
+}
+
+return true;
+};
+
+const handleSubmit = async () => {
     setErrorMsg('');
     const idRegistro = getIdRegistroPerso();
 
@@ -375,27 +501,41 @@ useEffect(() => {
       const data = await resp.json().catch(() => ({}));
 
       if (!resp.ok) {
-        throw new Error(data?.detail || `Error guardando entrevista (${resp.status})`);
-      } else {
-        toast({
-          title: 'Entrevista guardada',
-          description: 'La información de la entrevista se ha guardado correctamente.',
-          duration: 4000,
-        });
-        // Al guardar exitosamente, agregamos la entrevista al historial en el padre
-        if (typeof onSave === 'function') {
-          // Pasamos los datos relevantes para la tabla de historial
-          onSave({
-            FechaCreacion: formData.fechaActualizacion || new Date().toISOString().split('T')[0],
-            ConceptoFinalSeleccion: formData.conceptoFinalPruebaSeleccion || '',
-            EntrevistadorPor: formData.entrevistadoPor || '',
-            Fortalezas: formData.fortalezas || '',
-            AreasDeMejora: formData.areasDeMejora || '',
-            ObservacionesFinales: formData.observacionesFinales || '',
-            ...formData
-          });
-        }
+      throw new Error(data?.detail || `Error guardando entrevista (${resp.status})`);
+    } else {
+      toast({
+        title: 'Entrevista guardada',
+        description: 'La información de la entrevista se ha guardado correctamente.',
+        duration: 4000,
+      });
+
+            let errorPdfAdjunto = '';
+
+      try {
+        await generarYAdjuntarPdfEntrevista(idRegistro);
+      } catch (errorAdjunto) {
+        console.error('Error generando o adjuntando PDF de entrevista:', errorAdjunto);
+        errorPdfAdjunto =
+          errorAdjunto?.message ||
+          'La entrevista se guardó, pero no fue posible generar o adjuntar el PDF automáticamente.';
       }
+
+      if (typeof onSave === 'function') {
+        onSave({
+          FechaCreacion: formData.fechaActualizacion || new Date().toISOString().split('T')[0],
+          ConceptoFinalSeleccion: formData.conceptoFinalPruebaSeleccion || '',
+          EntrevistadorPor: formData.entrevistadoPor || '',
+          Fortalezas: formData.fortalezas || '',
+          AreasDeMejora: formData.areasDeMejora || '',
+          ObservacionesFinales: formData.observacionesFinales || '',
+          ...formData
+        });
+      }
+
+      if (errorPdfAdjunto) {
+        setErrorMsg(errorPdfAdjunto);
+      }
+    }
       onClose();
     } catch (e) {
       console.error(e);
