@@ -47,8 +47,8 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import EntrevistaModal from '@/components/modals/EntrevistaModal';
 import entrevistaCandidatoService from "../../services/entrevistaCandidatoService";
-import { RegistrarDocumentosSeguridad } from '../../services/documentosSeguridad';
-import { ValidarExperienciaLaboral, ObservacionesExperienciaLaboral, EliminarExperienciaLaboral } from '../../services/experiencia_laboral';
+import { RegistrarDocumentosSeguridad, EliminarDocumentoSeguridadPorTipo } from '../../services/documentosSeguridad';
+import { ValidarExperienciaLaboral, ObservacionesExperienciaLaboral, EliminarExperienciaLaboral, GenerarPdfConsolidadoReferencias } from '../../services/experiencia_laboral';
 import { ValidarReferenciaPersonal } from '../../services/referenciaPersonal'
 import { upsertMotivoCierre, getMotivoCierre } from "../../services/motivoCierreService";
 import { ActualizarEstadoProcesoService } from '../../services/aspirante';
@@ -1166,7 +1166,7 @@ const campos = {
   // =========================
   // Datos de Proceso (Selección) - API /api/datos-proceso-aspirante/{id}
   // =========================
-  const API_BASE = import.meta?.env?.VITE_API_BASE_URL || 'https://api.laperfeccion.app/api';
+  const API_BASE = import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:8000/api';
   const token = localStorage.getItem('access_token') || localStorage.getItem('token') || '';
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
@@ -1691,25 +1691,42 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
 
 
    // Elimina documentos (seguridad u obligatorios) del estado
-   const removeDocument = (docId) => {
-      setFormData(prev => {
-         const documentos = Array.isArray(prev.documentos)
-            ? prev.documentos.filter(
-                  d => String(d.IdTipoDocumentacion) !== String(docId)
-               )
-            : prev.documentos;
-         const documentosSeguridad = Array.isArray(prev.documentosSeguridad)
-            ? prev.documentosSeguridad.filter(
-                  d => String(d.IdTipoDocumentacion) !== String(docId)
-               )
-            : prev.documentosSeguridad;
-         return {
-            ...prev,
-            documentos,
-            documentosSeguridad
-         };
-      });
-   };
+ const removeDocument = async (docId) => {
+  try {
+    const idRegistroPersonal =
+      formData?.IdRegistroPersonal ||
+      aspirante?.id ||
+      aspirante?.IdRegistroPersonal ||
+      null;
+
+    if (!idRegistroPersonal) {
+      alert('No se encontró el IdRegistroPersonal.');
+      return;
+    }
+
+    const response = await EliminarDocumentoSeguridadPorTipo(idRegistroPersonal, docId);
+
+    if (!response.ok) {
+      const txt = await response.text();
+      console.error('Error eliminando documento de seguridad:', txt);
+      alert('No fue posible eliminar el documento.');
+      return;
+    }
+
+    const respDocsSeguridad = await getDocumentosSeguridad(idRegistroPersonal);
+    const documentosSeguridadActualizados = respDocsSeguridad?.data || [];
+
+    setFormData(prev => ({
+      ...prev,
+      documentosSeguridad: documentosSeguridadActualizados,
+    }));
+
+    alert('Documento eliminado correctamente.');
+  } catch (error) {
+    console.error('Error eliminando documento de seguridad:', error);
+    alert('Ocurrió un error al eliminar el documento.');
+  }
+};
 
    // Construye el payload para documentos de seguridad y lo muestra en consola
    const handleEnviarDocumentosSeguridad = async (docsSeguridad) => {
@@ -1989,17 +2006,68 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
          ComentariosDelReferenciado: comentariosReferenciador || '',
       };
 
-      const response = await ValidarExperienciaLaboral(payload);
-      await ActualizarEstadoValidacionExperienciaLaboral(payload);
-      setIsAddingRefLab(false);
-      setNombreContacto('');
-      setIndexValidacionExperiencia(null);
-      if (response && response.status === 201) {
-         alert('Referencia laboral validada correctamente.');
+    const response = await ValidarExperienciaLaboral(payload);
+await ActualizarEstadoValidacionExperienciaLaboral(payload);
+
+if (response && response.status === 201) {
+  try {
+    const idRegistroPersonal =
+      formData?.IdRegistroPersonal ||
+      aspirante?.id ||
+      aspirante?.IdRegistroPersonal ||
+      null;
+
+    if (idRegistroPersonal) {
+      const respPdf = await GenerarPdfConsolidadoReferencias(idRegistroPersonal);
+      const dataPdf = await respPdf.json();
+
+      if (dataPdf?.ok && dataPdf?.pdf_base64) {
+        const payloadDocumento = {
+          idRegistroPersonal: Number(idRegistroPersonal),
+          documentos_seguridad: [
+            {
+              IdTipoDocumentacion: 68,
+              DocumentoCargado: dataPdf.pdf_base64.startsWith('data:application/pdf;base64,')
+                ? dataPdf.pdf_base64
+                : `data:application/pdf;base64,${dataPdf.pdf_base64}`,
+              Formato: 'application/pdf',
+              Nombre: `Confirmacion_Referencias_${idRegistroPersonal}.pdf`,
+            },
+          ],
+        };
+
+        const responseUpload = await RegistrarDocumentosSeguridad(payloadDocumento);
+
+        if (!responseUpload.ok) {
+          const txt = await responseUpload.text();
+          console.error('Error adjuntando consolidado de referencias:', txt);
+        } else {
+          const respDocsSeguridad = await getDocumentosSeguridad(idRegistroPersonal);
+          const documentosSeguridadActualizados = respDocsSeguridad?.data || [];
+
+          setFormData(prev => ({
+            ...prev,
+            documentosSeguridad: documentosSeguridadActualizados,
+          }));
+        }
+      } else {
+        console.warn('No se generó PDF consolidado de referencias:', dataPdf);
       }
-      else {
-         alert('Error al validar la referencia laboral.');
-      }
+    }
+  } catch (error) {
+    console.error('Error generando o adjuntando consolidado de referencias:', error);
+  }
+
+  setIsAddingRefLab(false);
+  setNombreContacto('');
+  setIndexValidacionExperiencia(null);
+  alert('Referencia laboral validada correctamente.');
+} else {
+  setIsAddingRefLab(false);
+  setNombreContacto('');
+  setIndexValidacionExperiencia(null);
+  alert('Error al validar la referencia laboral.');
+}
       // No limpiar ni cerrar el modal ni los campos, para mantener los datos visibles
    };
 

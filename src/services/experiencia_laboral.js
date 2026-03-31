@@ -4,7 +4,7 @@ function getToken() {
   return localStorage.getItem("token");
 }
 
-// ✅ POST: validar experiencia laboral (ya lo tienes)
+// ✅ POST: validar experiencia laboral
 export async function ValidarExperienciaLaboral(payload) {
   const token = getToken();
   const url = getApiUrl('/experiencia-laboral-validacion/insertar');
@@ -21,7 +21,23 @@ export async function ValidarExperienciaLaboral(payload) {
   return response;
 }
 
-// ✅ PUT: guardar observaciones (ya lo tienes)
+// ✅ POST: generar PDF consolidado de referencias laborales
+export async function GenerarPdfConsolidadoReferencias(idRegistroPersonal) {
+  const token = getToken();
+  const url = getApiUrl(`/experiencia-laboral-validacion/generar-consolidado/${idRegistroPersonal}`);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  return response;
+}
+
+// ✅ PUT: guardar observaciones
 export async function ObservacionesExperienciaLaboral(payload, idExperienciaLaboral) {
   const token = getToken();
   const url = getApiUrl(`/observaciones-experiencia-laboral/${idExperienciaLaboral}`);
@@ -39,7 +55,6 @@ export async function ObservacionesExperienciaLaboral(payload, idExperienciaLabo
 }
 
 // ✅ GET: traer observaciones guardadas por IdExperienciaLaboral
-// (Esto es lo que te falta para que al volver a entrar CARGUE)
 export async function GetObservacionesExperienciaLaboral(idExperienciaLaboral) {
   const token = getToken();
   const url = getApiUrl(`/observaciones-experiencia-laboral/${idExperienciaLaboral}`);
@@ -55,6 +70,7 @@ export async function GetObservacionesExperienciaLaboral(idExperienciaLaboral) {
   return response;
 }
 
+// ✅ DELETE: eliminar experiencia laboral
 export async function EliminarExperienciaLaboral(idExperienciaLaboral) {
   const url = getApiUrl(`/experiencia-laboral/${idExperienciaLaboral}`);
 
