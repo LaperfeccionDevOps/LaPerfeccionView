@@ -50,7 +50,7 @@ import entrevistaCandidatoService from "../../services/entrevistaCandidatoServic
 import { RegistrarDocumentosSeguridad } from '../../services/documentosSeguridad';
 import { ValidarExperienciaLaboral, ObservacionesExperienciaLaboral, EliminarExperienciaLaboral } from '../../services/experiencia_laboral';
 import { ValidarReferenciaPersonal } from '../../services/referenciaPersonal'
-import { upsertMotivoCierre } from "../../services/motivoCierreService";
+import { upsertMotivoCierre, getMotivoCierre } from "../../services/motivoCierreService";
 import { ActualizarEstadoProcesoService } from '../../services/aspirante';
 import { ActualizarFormacionEducacion } from '../../services/formacion';
 import { DatosSeleccion, ActualizarDatosSeleccion, getListaLugarNacimiento } from '../../services/aspirante';
@@ -415,6 +415,8 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   const [comentariosReferenciador, setComentariosReferenciador] = useState(null);
   const [indexValidacionExperiencia, setIndexValidacionExperiencia] = useState(null);
   const [nombreContacto, setNombreContacto] = useState(null);
+  const [cargoExperiencia, setCargoExperiencia] = useState('');
+  const [funcionesExperiencia, setFuncionesExperiencia] = useState('');
 
   // ✅ Estado inicial seguro para evitar uncontrolled inputs
   const initialFormData = {
@@ -524,14 +526,26 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
     const fetchAspiranteDetalle = async () => {
       try {
         const response = await getAspirante(aspirante.id);
-        const documentos = await getDocumentacionIngreso(aspirante.id);
-        const documentosSeguridadResp = await getDocumentosSeguridad(aspirante.id);
-        const responseEntrevista = await entrevistaCandidatoService.listarPorRegistro(aspirante.id);
+         const documentos = await getDocumentacionIngreso(aspirante.id);
+         const documentosSeguridadResp = await getDocumentosSeguridad(aspirante.id);
+         const responseEntrevista = await entrevistaCandidatoService.listarPorRegistro(aspirante.id);
+
+         let responseMotivoCierre = null;
+         try {
+         responseMotivoCierre = await getMotivoCierre(aspirante.id);
+         } catch (error) {
+         responseMotivoCierre = null;
+         }
 
         // ✅ entrevista SIEMPRE array
         const entrevistaArr = Array.isArray(responseEntrevista?.data)
           ? responseEntrevista.data
           : (responseEntrevista?.data ? [responseEntrevista.data] : []);
+
+         const motivoCierreGuardado =
+         responseMotivoCierre?.data?.MotivoCierre ||
+         responseMotivoCierre?.data?.motivoCierre ||
+         '';
 
         let asignacionCargoCliente = {};
         try {
@@ -617,8 +631,8 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
             tipoGeneroObj: fila?.tipo_genero || [],
             tipoIdentificacionObj: fila?.tipo_identificacion || [],
 
-           IdNivelEducativo: fila?.IdNivelEducativo || fila?.IdNivelEducativoFormacion || fila?.IdNivelEducativoSeleccion || '',
-nivelAcademico: fila?.DescripcionNivelEducativo || '',
+            IdNivelEducativo: fila?.IdNivelEducativo || fila?.IdNivelEducativoFormacion || fila?.IdNivelEducativoSeleccion || '',
+            nivelAcademico: fila?.DescripcionNivelEducativo || '',
             nombreEstadoFormacion: fila?.estado_formacion?.Nombre || '',
             lugarExpedicion: fila?.LugarExpedicion || '',
             fechaExpedicion: fila?.FechaExpedicion || '',
@@ -632,7 +646,10 @@ nivelAcademico: fila?.DescripcionNivelEducativo || '',
 
             lugarNacimiento: fila?.lugar_nacimiento?.Nombre || '',
 
-            entrevista: entrevistaArr,     // ✅
+            entrevista: {
+            ...(Array.isArray(entrevistaArr) ? (entrevistaArr[0] || {}) : {}),
+            motivo: motivoCierreGuardado,
+            },
             entrevistas: entrevistaArr,    // ✅
 
             asignacionCargo: asignacionCargoCliente || {},
@@ -656,15 +673,15 @@ nivelAcademico: fila?.DescripcionNivelEducativo || '',
             observacionesNucleFamiliarEntrevista: obsNF,
           }));
         }
-      } catch (error) {
-        console.error('Error al obtener detalle de aspirante:', error);
-      } finally {
-        setIsAddingRefLab(false);
-        setIndexValidacionExperiencia(null);
-        setNombreContacto('');
-        setLoadingAspiranteDetalle(false);
-      }
-    };
+         } catch (error) {
+         console.error('Error al obtener detalle de aspirante:', error);
+         } finally {
+         setIsAddingRefLab(false);
+         setIndexValidacionExperiencia(null);
+         setNombreContacto('');
+         setLoadingAspiranteDetalle(false);
+         }
+      };
 
     fetchAspiranteDetalle();
   }, [aspirante?.id, isOpen]);
@@ -934,18 +951,54 @@ const handleDescargarReferencia = async (ref) => {
     const aspiranteDetalle = formData;
     const validacionSeleccionada = formData?.experienciaLaboral?.[idx]?.validaciones?.[0] || null;
 
-   setNombreContacto(aspiranteDetalle?.experienciaLaboral?.[idx]?.JefeInmediato || '');
-   setIndexValidacionExperiencia(idx + 1);
-   setconcepto(validacionSeleccionada?.Concepto || '');
-   setDesempeñoReportado(validacionSeleccionada?.DesempenoReportado || '');
-   setMotivoRetiro(validacionSeleccionada?.MotivoRetiroReal || '');
-   setpersonaQReferencia(validacionSeleccionada?.PersonaQueReferencia || '');
-   settelefonoExperiencia(validacionSeleccionada?.Telefono || '');
-   setreferenciadoPor(validacionSeleccionada?.ReferenciadoPor || '');
-   setreEps(validacionSeleccionada?.Eps || '');
-   setTiempoDuracion(validacionSeleccionada?.TiempoDuracion || '');
-   setFechaExpedicion(validacionSeleccionada?.FechaExpedicionDocumentoIdentidad || '');
-   setComentariosReferenciador(validacionSeleccionada?.ComentariosDelReferenciado || '');
+    if (!payload_1 || !payload_2) {
+      setNombreContacto(aspiranteDetalle?.experienciaLaboral?.[idx]?.JefeInmediato || '');
+      setIndexValidacionExperiencia(idx + 1);
+      setconcepto(validacionSeleccionada?.Concepto || '');
+      setDesempeñoReportado(validacionSeleccionada?.DesempenoReportado || '');
+      setMotivoRetiro(validacionSeleccionada?.MotivoRetiroReal || '');
+      setpersonaQReferencia(validacionSeleccionada?.PersonaQueReferencia || '');
+      settelefonoExperiencia(validacionSeleccionada?.Telefono || '');
+      setreferenciadoPor(validacionSeleccionada?.ReferenciadoPor || '');
+      setreEps(validacionSeleccionada?.Eps || '');
+      setTiempoDuracion(validacionSeleccionada?.TiempoDuracion || '');
+      setFechaExpedicion(validacionSeleccionada?.FechaExpedicionDocumentoIdentidad || '');
+      setComentariosReferenciador(validacionSeleccionada?.ComentariosDelReferenciado || '');
+      setCargoExperiencia(formData?.experienciaLaboral?.[idx]?.Cargo || aspiranteDetalle?.experienciaLaboral?.[idx]?.Cargo ||  '');
+      setFuncionesExperiencia(formData?.experienciaLaboral?.[idx]?.Funciones || aspiranteDetalle?.experienciaLaboral?.[idx]?.Funciones ||  '');
+    }
+
+    if (payload_1 && idx + 1 == 1) {
+      let payload = JSON.parse(payload_1);
+      setNombreContacto(aspiranteDetalle?.experienciaLaboral?.[idx]?.JefeInmediato || '');
+      setIndexValidacionExperiencia(idx + 1);
+      setconcepto(payload.Concepto || '');
+      setDesempeñoReportado(payload.DesempenoReportado || '');
+      setMotivoRetiro(payload.MotivoRetiroReal || '');
+      setpersonaQReferencia(payload.PersonaQueReferencia || '');
+      settelefonoExperiencia(payload.Telefono || '');
+      setreferenciadoPor(payload.ReferenciadoPor || '');
+      setreEps(payload.Eps || '');
+      setTiempoDuracion(payload.TiempoDuracion || '');
+      setFechaExpedicion(payload.FechaExpedicionDocumentoIdentidad || '');
+      setComentariosReferenciador(payload.ComentariosDelReferenciado || '');
+    }
+
+    if (payload_2 && idx + 1 == 2) {
+      let payload = JSON.parse(payload_2);
+      setNombreContacto(aspiranteDetalle?.experienciaLaboral?.[idx]?.JefeInmediato || '');
+      setIndexValidacionExperiencia(idx + 1);
+      setconcepto(payload.Concepto || '');
+      setDesempeñoReportado(payload.DesempenoReportado || '');
+      setMotivoRetiro(payload.MotivoRetiroReal || '');
+      setpersonaQReferencia(payload.PersonaQueReferencia || '');
+      settelefonoExperiencia(payload.Telefono || '');
+      setreferenciadoPor(payload.ReferenciadoPor || '');
+      setreEps(payload.Eps || '');
+      setTiempoDuracion(payload.TiempoDuracion || '');
+      setFechaExpedicion(payload.FechaExpedicionDocumentoIdentidad || '');
+      setComentariosReferenciador(payload.ComentariosDelReferenciado || '');
+    }
 
    
     if (isAddingRefLab && selectedRefLabIdx === idx) {
@@ -1249,14 +1302,30 @@ setreEps(epsTexto);
     setSavingDatosProceso(true);
     try {
       setLoadingAspiranteDetalle(true);
+      if (!formData.asignacionCargo?.IdCargo) {
+  toast({
+    title: 'Campo requerido',
+    description: 'Debe seleccionar un cargo antes de guardar.',
+    variant: 'destructive',
+  });
+  return;
+}
       const payload = {
-        IdRegistroPersonal: formData.IdRegistroPersonal,
-        IdCliente: formData.asignacionCargo?.IdCliente || '',
-        IdCargo: formData.asignacionCargo?.IdCargo || '',
-        UsuarioActualizacion: localStorage.getItem('usuario') || 'sistema',
-        Salario: formData?.asignacionCargo?.Salario || 0
+      IdRegistroPersonal: formData.IdRegistroPersonal,
+      IdCliente: formData.asignacionCargo?.IdCliente
+         ? Number(formData.asignacionCargo.IdCliente)
+         : null,
+      IdCargo: formData.asignacionCargo?.IdCargo
+         ? Number(formData.asignacionCargo.IdCargo)
+         : null,
+      UsuarioActualizacion: localStorage.getItem('usuario') || 'sistema',
+      Salario:
+         formData?.asignacionCargo?.Salario !== undefined &&
+         formData?.asignacionCargo?.Salario !== null &&
+         String(formData.asignacionCargo.Salario).trim() !== ''
+            ? Number(formData.asignacionCargo.Salario)
+            : null
       };
-
       const response = await upsertAsignacionCargoCliente(payload);
       if (response.ok) {
         toast({
@@ -1278,12 +1347,47 @@ setreEps(epsTexto);
     }
   };
 
-  const handleActualizarEstadoProceso = async () => {
-    setSavingDatosProceso(true);
-    try {
-      setLoadingAspiranteDetalle(true);
-      const estadoInt = parseInt(formData.estadoProceso, 10);
-      const response = await ActualizarEstadoProcesoService(formData.idRegistroPersonal, estadoInt, localStorage.getItem('usuario') || 'sistema');
+ const handleActualizarEstadoProceso = async () => {
+  setSavingDatosProceso(true);
+  try {
+    setLoadingAspiranteDetalle(true);
+
+    const estadoInt = parseInt(formData.estadoProceso, 10);
+
+    const tieneCargoCompleto =
+      formData?.asignacionCargo?.IdCargo !== undefined &&
+      formData?.asignacionCargo?.IdCargo !== null &&
+      String(formData.asignacionCargo.IdCargo).trim() !== '' &&
+      String(formData.asignacionCargo.IdCargo) !== '0';
+
+    const tieneClienteCompleto =
+      formData?.asignacionCargo?.IdCliente !== undefined &&
+      formData?.asignacionCargo?.IdCliente !== null &&
+      String(formData.asignacionCargo.IdCliente).trim() !== '' &&
+      String(formData.asignacionCargo.IdCliente) !== '0';
+
+    const tieneSalarioCompleto =
+      formData?.asignacionCargo?.Salario !== undefined &&
+      formData?.asignacionCargo?.Salario !== null &&
+      String(formData.asignacionCargo.Salario).trim() !== '' &&
+      Number(formData.asignacionCargo.Salario) > 0;
+
+    if (estadoInt === 24) {
+      if (!tieneCargoCompleto || !tieneClienteCompleto || !tieneSalarioCompleto) {
+        toast({
+          title: 'No es posible avanzar a contratación',
+          description: 'Para avanzar a contratación debe tener cargo, cliente y salario completos.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    const response = await ActualizarEstadoProcesoService(
+      formData.idRegistroPersonal,
+      estadoInt,
+      localStorage.getItem('usuario') || 'sistema'
+    );
 
       if (formData.estadoProceso == 28) {
         const payload = {
@@ -1880,30 +1984,57 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
    };
 
    const ActualizarEstadoValidacionExperienciaLaboral = async (payload) => {
-   setconcepto(payload.Concepto || '');
-   setDesempeñoReportado(payload.DesempenoReportado || '');
-   setMotivoRetiro(payload.MotivoRetiroReal || '');
-   setpersonaQReferencia(payload.PersonaQueReferencia || '');
-   settelefonoExperiencia(payload.Telefono || '');
-   setreferenciadoPor(payload.ReferenciadoPor || '');
-   setreEps(payload.Eps || '');
-   setTiempoDuracion(payload.TiempoDuracion || '');
-   setFechaExpedicion(payload.FechaExpedicionDocumentoIdentidad || '');
-   setComentariosReferenciador(payload.ComentariosDelReferenciado || '');
-}
-   const addDatosSeleccion = async () => {
-      // if (!validarAntesDeGuardar()) return;
+      const index = localStorage.getItem('IndexValidacionExperienciaLaboral');
+      if(index === "1"){
+         localStorage.setItem('estadoValidacionExperienciaLaboral_payload_1', JSON.stringify(payload));   
+      } else {
+         localStorage.setItem('estadoValidacionExperienciaLaboral_payload_2', JSON.stringify(payload));   
+      }
+      setconcepto(payload.Concepto);
+      setDesempeñoReportado(payload.DesempenoReportado);
+      setMotivoRetiro(payload.MotivoRetiroReal);
+      setpersonaQReferencia(payload.PersonaQueReferencia);
+      settelefonoExperiencia(payload.Telefono);
+      setreferenciadoPor(payload.ReferenciadoPor);
+      setreEps(payload.Eps);
+      setTiempoDuracion(payload.TiempoDuracion);
+      setFechaExpedicion(payload.FechaExpedicionDocumentoIdentidad);
+      setComentariosReferenciador(payload.ComentariosDelReferenciado);
+   }
+
+  const addDatosSeleccion = async () => {
+   // if (!validarAntesDeGuardar()) return;
+
+   const estadoSeleccionado = String(formData?.estado || formData?.estadoProceso || '');
+
+   const tieneCargoCompleto = !!formData?.asignacionCargo?.IdCargo;
+   const tieneClienteCompleto = !!formData?.asignacionCargo?.IdCliente;
+   const tieneSalarioCompleto =
+      formData?.asignacionCargo?.Salario !== undefined &&
+      formData?.asignacionCargo?.Salario !== null &&
+      String(formData.asignacionCargo.Salario).trim() !== '';
+
+   if (estadoSeleccionado === '24') {
+      if (!tieneCargoCompleto || !tieneClienteCompleto || !tieneSalarioCompleto) {
+         toast({
+            title: 'No es posible avanzar a contratación',
+            description: 'Para avanzar a contratación debe tener cargo, cliente y salario completos.',
+            variant: 'destructive',
+         });
+         return;
+      }
+   }
 
    const payload = {
-         IdRegistroPersonal: formData.IdRegistroPersonal || '',
-         FechaProceso: formData.datosSeleccion?.FechaProceso || '',
-         TipoCargo: formData.datosSeleccion?.TipoCargo || '',
-         HaTrabajadoAntesEnLaEmpresa: formData.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === true,
-         Arl: formData.datosSeleccion?.Arl || '',
-         AntecedentesMedicos: formData.datosSeleccion?.AntecedentesMedicos || '',
-         Medicamentos: formData.datosSeleccion?.Medicamentos || '',
-         UsuarioActualizacion: localStorage.getItem('usuario') || 'sistema',
-      };
+      IdRegistroPersonal: formData.IdRegistroPersonal || '',
+      FechaProceso: formData.datosSeleccion?.FechaProceso || '',
+      TipoCargo: formData.datosSeleccion?.TipoCargo || '',
+      HaTrabajadoAntesEnLaEmpresa: formData.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === true,
+      Arl: formData.datosSeleccion?.Arl || '',
+      AntecedentesMedicos: formData.datosSeleccion?.AntecedentesMedicos || '',
+      Medicamentos: formData.datosSeleccion?.Medicamentos || '',
+      UsuarioActualizacion: localStorage.getItem('usuario') || 'sistema',
+   };
 
       // Asegurar que IdGrupoSanguineo sea numérico
       let idGrupoSanguineo = formData?.IdGrupoSanguineo;
@@ -2047,19 +2178,55 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
     setEntrevistaModalOpen(true);
   };
 
-   const handleSaveEntrevista = (entrevistaData) => {
-      // Si viene edición, reemplaza; si es nueva, agrega
-      setFormData(prev => {
-         let newEntrevistas = [...prev.entrevistas];
-         if (selectedEntrevista && selectedEntrevista._index !== undefined) {
-            newEntrevistas[selectedEntrevista._index] = entrevistaData;
-         } else {
-            newEntrevistas.push(entrevistaData);
-         }
-         return { ...prev, entrevistas: newEntrevistas };
-      });
-      setEntrevistaModalOpen(false);
-   };
+ const handleSaveEntrevista = async (entrevistaData) => {
+  try {
+    let documentosSeguridadActualizados = [];
+
+    if (aspirante?.id) {
+      const respDocsSeguridad = await getDocumentosSeguridad(aspirante.id);
+      documentosSeguridadActualizados = respDocsSeguridad?.data || [];
+    }
+
+    setFormData(prev => {
+      let newEntrevistas = [...(prev.entrevistas || [])];
+
+      if (selectedEntrevista && selectedEntrevista._index !== undefined) {
+        newEntrevistas[selectedEntrevista._index] = entrevistaData;
+      } else {
+        newEntrevistas.push(entrevistaData);
+      }
+
+      return {
+        ...prev,
+        entrevistas: newEntrevistas,
+        entrevista: [entrevistaData],
+        documentosSeguridad: documentosSeguridadActualizados,
+      };
+    });
+
+    setEntrevistaModalOpen(false);
+  } catch (error) {
+    console.error('Error recargando documentos de seguridad después de guardar entrevista:', error);
+
+    setFormData(prev => {
+      let newEntrevistas = [...(prev.entrevistas || [])];
+
+      if (selectedEntrevista && selectedEntrevista._index !== undefined) {
+        newEntrevistas[selectedEntrevista._index] = entrevistaData;
+      } else {
+        newEntrevistas.push(entrevistaData);
+      }
+
+      return {
+        ...prev,
+        entrevistas: newEntrevistas,
+        entrevista: [entrevistaData],
+      };
+    });
+
+    setEntrevistaModalOpen(false);
+  }
+};
 
   const handleRemoveEntrevista = (index) => {
     setFormData(prev => ({ ...prev, entrevistas: prev.entrevistas.filter((_, i) => i !== index) }));
@@ -3180,29 +3347,44 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
                                           </SelectContent>
                                        </Select>
                                     </div>
-                                    <div className="space-y-2">
-                                       <Label>Fecha de expedición Documento Identidad</Label>
-                                       <Input
-                                          type="date"
-                                          placeholder="Fecha de expedición Documento Identidad"
-                                          value={fechaExpedicion || ''}
-                                          onChange={e => {
-                                             setFechaExpedicion(e.target.value);
-                                             setFormData(prev => ({
-                                                ...prev,
-                                                experiencia_laboral: {
-                                                   ...prev.experiencia_laboral,
-                                                   validaciones: {
-                                                      ...prev.experiencia_laboral?.validaciones,
-                                                      FechaExpedicionDocumentoIdentidad: e.target.value
-                                                   }
+                                  <div className="space-y-2">
+                                    <Label>Fecha de expedición Documento Identidad</Label>
+                                    <Input
+                                       type="date"
+                                       placeholder="Fecha de expedición Documento Identidad"
+                                       value={fechaExpedicion || ''}
+                                       onChange={e => {
+                                          setFechaExpedicion(e.target.value);
+                                          setFormData(prev => ({
+                                             ...prev,
+                                             experiencia_laboral: {
+                                                ...prev.experiencia_laboral,
+                                                validaciones: {
+                                                   ...prev.experiencia_laboral?.validaciones,
+                                                   FechaExpedicionDocumentoIdentidad: e.target.value
                                                 }
-                                             }));
-                                          }}
-                                       />
-                                    </div>
-                                    <div className="mb-2">
-                                       <Label>Comentarios del referenciador</Label>
+                                             }
+                                          }));
+                                       }}
+                                    />
+                                 </div>
+
+                                 <div className="space-y-2">
+                                    <Label>Cargo desempeñado</Label>
+                                    <Input value={cargoExperiencia || ''} disabled />
+                                 </div>
+
+                                 <div className="space-y-2 md:col-span-2">
+                                    <Label>Funciones realizadas</Label>
+                                    <Textarea
+                                       value={funcionesExperiencia || ''}
+                                       disabled
+                                       className="min-h-[110px]"
+                                    />
+                                 </div>
+
+                                 <div className="mb-2">
+                                    <Label>Comentarios del referenciador</Label>
                                        <Textarea
                                           placeholder="Comentarios del referenciador..."
                                           value={comentariosReferenciador || ''}
