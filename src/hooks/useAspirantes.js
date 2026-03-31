@@ -1,8 +1,8 @@
 // src/hooks/useAspirantes.js
 import { useState, useEffect, useCallback } from 'react';
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.laperfeccion.app';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-// ✅ Endpoint real según Swagger: GET https://api.laperfeccion.app/api/aspirantes
+// ✅ Endpoint real según Swagger: GET http://localhost:8000/api/aspirantes
 const ASPIRANTES_ENDPOINT = `${API_BASE_URL}/aspirantes`;
 const NUCLEO_FAMILIAR_ENDPOINT = `${API_BASE_URL}/nucleo-familiar`;
 

@@ -947,6 +947,10 @@ const handleDescargarReferencia = async (ref) => {
     const [refLabEstadosCargados, setRefLabEstadosCargados] = useState({});
 
     const handleViewRefLaboral = (idx, ref) => {
+
+      const payload_1 = localStorage.getItem('estadoValidacionExperienciaLaboral_payload_1');
+      const payload_2 = localStorage.getItem('estadoValidacionExperienciaLaboral_payload_2');
+      localStorage.setItem('IndexValidacionExperienciaLaboral', idx + 1);
   
     const aspiranteDetalle = formData;
     const validacionSeleccionada = formData?.experienciaLaboral?.[idx]?.validaciones?.[0] || null;
@@ -1100,36 +1104,52 @@ setreEps(epsTexto);
       EPS?.find((e) => String(e.key) === String(formData?.IdTipoEps))?.value || '';
 
   const handleDescargarEntrevista = async () => {
-         const campos = {
-      LOGO: await getLogoBase64('LOGO1'),
-      LOGO2: await getLogoBase64('LOGO2'),
-      NOMBRES: ((formData?.nombres || '').toUpperCase() + ' ' + (formData?.apellidos || '').toUpperCase()).trim(),
-      DOCUMENTO: formData?.cedula || '',
-      BARRIO: (formData?.datosAdicionales?.[0]?.Barrio || '').toUpperCase(),
-      LOCALIDAD: formData?.datosAdicionales?.[0]?.localidad?.Nombre || '',
-      CARGO: formData?.asignacionCargo?.CargoNombre || '',
-      NUCLEO_FAMILIAR: (formData?.observacionesNucleFamiliarEntrevista || '').toUpperCase(),
-      HIJOS: formData?.CuantosHijos || '',
-      EDAD: calcularEdad(formData?.fechaNacimiento),
-      ESTADO_CIVIL: formData?.estadoCivil || '',
-      ESTUDIA: formData?.estudiaActualmente || '',
-      CELULAR: formData?.celular || '',
-      EVALUADOR: formData?.entrevista?.[0]?.EntrevistadorPor || '',
-      ASPECTOS_ACADEMICOS: formData?.nivelEducativo?.Descripcion || '',
-      EXPERIENCIA: formData?.experienciaLaboral?.[0]?.Compania.toUpperCase() || '',
-      HA_TRABAJADO_EN_ALP: (formData?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === true
-         ? 'SI'
-         : formData?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === false
-            ? 'NO'
-            : formData?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa || ''),
-      VALIDACION_AM: formData?.AntecedentesMedicos.toUpperCase() || '',
-      EPS: epsTexto || '',
-      FORTALEZAS: formData?.entrevista?.[0]?.Fortalezas.toUpperCase() || '',
-      AREAS_DE_MEJORA: formData?.entrevista?.[0]?.AreasDeMejora.toUpperCase() || '',
-      PRUEBA_FISICA: formData?.entrevista?.[0]?.ConceptoFinalSeleccion || '',
-      CONCEPTO_FINAL: formData?.entrevista?.[0]?.ConceptoFinalSeleccion.toUpperCase() || '',
-      OBSERVACIONES: formData?.entrevista?.[0]?.ObservacionesFinales.toUpperCase() || ''
-      };
+
+  const entrevistaBase = Array.isArray(formData?.entrevista)
+  ? (formData.entrevista[0] || {})
+  : (formData?.entrevista || {});
+
+const campos = {
+  LOGO: await getLogoBase64('LOGO1'),
+  LOGO2: await getLogoBase64('LOGO2'),
+  NOMBRES: ((formData?.nombres || '').toUpperCase() + ' ' + (formData?.apellidos || '').toUpperCase()).trim(),
+  DOCUMENTO: formData?.cedula || '',
+  BARRIO: (formData?.datosAdicionales?.[0]?.Barrio || '').toUpperCase(),
+  LOCALIDAD: formData?.datosAdicionales?.[0]?.localidad?.Nombre || '',
+  CARGO: formData?.asignacionCargo?.CargoNombre || '',
+  NUCLEO_FAMILIAR: (formData?.observacionesNucleFamiliarEntrevista || '').toUpperCase(),
+  HIJOS: formData?.CuantosHijos || '',
+  EDAD: calcularEdad(formData?.fechaNacimiento),
+  ESTADO_CIVIL: formData?.estadoCivil || '',
+  ESTUDIA: formData?.estudiaActualmente || '',
+  CELULAR: formData?.celular || '',
+  EVALUADOR: (entrevistaBase?.EntrevistadorPor || '').toUpperCase(),
+  ASPECTOS_ACADEMICOS: (formData?.nivelEducativo?.Descripcion || '').toUpperCase(),
+  EXPERIENCIA: (formData?.experienciaLaboral?.[0]?.Compania || '').toUpperCase(),
+  HA_TRABAJADO_EN_ALP: (
+    formData?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === true
+      ? 'SI'
+      : formData?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === false
+        ? 'NO'
+        : (formData?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa || '')
+  ),
+  VALIDACION_AM: (formData?.AntecedentesMedicos || '').toUpperCase(),
+  EPS: epsTexto || '',
+  FORTALEZAS: (entrevistaBase?.Fortalezas || '').toUpperCase(),
+  AREAS_DE_MEJORA: (entrevistaBase?.AreasDeMejora || '').toUpperCase(),
+  PRUEBA_FISICA: (
+    entrevistaBase?.ConceptoFinalPruebaFisica ||
+    entrevistaBase?.ConceptoFinalSeleccion ||
+    entrevistaBase?.ConceptoFinalS ||
+    ''
+  ).toUpperCase(),
+  CONCEPTO_FINAL: (
+    entrevistaBase?.ConceptoFinalSeleccion ||
+    entrevistaBase?.ConceptoFinalS ||
+    ''
+  ).toUpperCase(),
+  OBSERVACIONES: (entrevistaBase?.ObservacionesFinales || '').toUpperCase()
+};
 
     let pdf_base64 = '';
     const response = await DescargarDocumentoPdf(campos, 'entrevista');
@@ -1146,7 +1166,7 @@ setreEps(epsTexto);
   // =========================
   // Datos de Proceso (Selección) - API /api/datos-proceso-aspirante/{id}
   // =========================
-  const API_BASE = import.meta?.env?.VITE_API_BASE_URL || 'https://api.laperfeccion.app/api';
+  const API_BASE = import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:8000/api';
   const token = localStorage.getItem('access_token') || localStorage.getItem('token') || '';
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 

@@ -54,11 +54,11 @@ const getLogoBase64 = async (logo) => {
 };
 
 
-// Si ya tienes una URL base en .env, úsala (ej: VITE_API_URL=https://api.laperfeccion.app)
-// Si no existe, usa https://api.laperfeccion.app por defecto.
+// Si ya tienes una URL base en .env, úsala (ej: VITE_API_URL=http://localhost:8000)
+// Si no existe, usa http://localhost:8000 por defecto.
 const API_BASE =
   (typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL)) ||
-  'https://api.laperfeccion.app';
+  'http://localhost:8000';
 
 const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = null }) => {
   const [loadingPrefill, setLoadingPrefill] = useState(false);
@@ -103,6 +103,7 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
     conceptoFinalPruebaFisica: '',
     conceptoFinalPruebaSeleccion: '',
     observacionesFinales: '',
+    observacionesNucleoFamiliar: '',
     entrevistadoPor: 'Usuario Actual',
     cargoAccion: '',
     examenesMedicos: 'PENDIENTE',
@@ -354,6 +355,11 @@ useEffect(() => {
     areasDeMejora: entrevistaBase?.AreasDeMejora || prev.areasDeMejora || '',
     conceptoFinalPruebaSeleccion: entrevistaBase?.ConceptoFinalSeleccion || prev.conceptoFinalPruebaSeleccion || '',
     observacionesFinales: entrevistaBase?.ObservacionesFinales || prev.observacionesFinales || '',
+    observacionesNucleoFamiliar:
+    aspirante?.observacionesNucleFamiliarEntrevista ||
+    aspirante?.observacionesNucleoFamiliar ||
+    prev.observacionesNucleoFamiliar ||
+      '',
     entrevistadoPor: entrevistaBase?.EntrevistadorPor || prev.entrevistadoPor || '',
     haTenidoAccidentes: entrevistaBase?.HaTenidoAccide ? 'SI' : 'NO',
     detalleAccidente: entrevistaBase?.AccidenteCual || prev.detalleAccidente || '',
@@ -395,23 +401,77 @@ useEffect(() => {
   ESTADO_CIVIL: (formData?.estadoCivil || '').toUpperCase(),
   ESTUDIA: (formData?.estudiaActualmente || '').toUpperCase(),
   CELULAR: formData?.celular || '',
-  EVALUADOR: (formData?.entrevistadoPor || '').toUpperCase(),
- ASPECTOS_ACADEMICOS: (aspirante?.nivelEducativo?.Descripcion || aspirante?.descripcionNivelEducativo || '').toUpperCase(),
-EXPERIENCIA: (aspirante?.experienciaLaboral?.[0]?.Compania || '').toUpperCase(),
-HA_TRABAJADO_EN_ALP:
-  aspirante?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === true
-    ? 'SI'
-    : aspirante?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === false
-      ? 'NO'
-      : (aspirante?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa || ''),
-VALIDACION_AM: (aspirante?.AntecedentesMedicos || aspirante?.datosSeleccion?.AntecedentesMedicos || '').toUpperCase(),
-EPS: (aspirante?.descripcionEps || aspirante?.eps?.Descripcion || aspirante?.eps || '').toUpperCase(),
+
+  EVALUADOR: (
+    formData?.entrevistadoPor ||
+    aspirante?.entrevista?.[0]?.EntrevistadorPor ||
+    aspirante?.entrevista?.EntrevistadorPor ||
+    ''
+  ).toUpperCase(),
+
+  ASPECTOS_ACADEMICOS: (
+    aspirante?.nivelEducativo?.Descripcion ||
+    aspirante?.descripcionNivelEducativo ||
+    ''
+  ).toUpperCase(),
+
+  EXPERIENCIA: (
+    aspirante?.experienciaLaboral?.[0]?.Compania ||
+    ''
+  ).toUpperCase(),
+
+  HA_TRABAJADO_EN_ALP:
+    aspirante?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === true
+      ? 'SI'
+      : aspirante?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === false
+        ? 'NO'
+        : (aspirante?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa || ''),
+
+  VALIDACION_AM: (
+    aspirante?.AntecedentesMedicos ||
+    aspirante?.datosSeleccion?.AntecedentesMedicos ||
+    ''
+  ).toUpperCase(),
+
+  EPS: (
+    aspirante?.descripcionEps ||
+    aspirante?.eps?.Descripcion ||
+    aspirante?.eps ||
+    ''
+  ).toUpperCase(),
+
   FORTALEZAS: (formData?.fortalezas || '').toUpperCase(),
   AREAS_DE_MEJORA: (formData?.areasDeMejora || '').toUpperCase(),
-  PRUEBA_FISICA: (formData?.conceptoFinalPruebaSeleccion || '').toUpperCase(),
-  CONCEPTO_FINAL: (formData?.conceptoFinalPruebaSeleccion || '').toUpperCase(),
-  OBSERVACIONES: (formData?.observacionesFinales || '').toUpperCase(),
+
+  PRUEBA_FISICA: (
+    formData?.conceptoFinalPruebaFisica ||
+    aspirante?.entrevista?.[0]?.ConceptoFinalPruebaFisica ||
+    aspirante?.entrevista?.ConceptoFinalPruebaFisica ||
+    formData?.conceptoFinalPruebaSeleccion ||
+    ''
+  ).toUpperCase(),
+
+  CONCEPTO_FINAL: (
+    formData?.conceptoFinalPruebaSeleccion ||
+    aspirante?.entrevista?.[0]?.ConceptoFinalSeleccion ||
+    aspirante?.entrevista?.ConceptoFinalSeleccion ||
+    ''
+  ).toUpperCase(),
+
+  OBSERVACIONES: (
+    formData?.observacionesFinales ||
+    aspirante?.entrevista?.[0]?.ObservacionesFinales ||
+    aspirante?.entrevista?.ObservacionesFinales ||
+    ''
+  ).toUpperCase(),
+
+  OBSERVACIONES_NUCLEO_FAMILIAR: (
+    formData?.observacionesNucleoFamiliar ||
+    ''
+  ).toUpperCase(),
 };
+
+console.log('Campos PDF entrevista:', campos);
 
   const responsePdf = await DescargarDocumentoPdf(campos, 'entrevista');
   console.log('PDF entrevista - responsePdf:', responsePdf);
