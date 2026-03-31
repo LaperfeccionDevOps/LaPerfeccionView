@@ -483,6 +483,7 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   };
 
   const [formData, setFormData] = useState(initialFormData);
+  const [observacionNucleoOriginal, setObservacionNucleoOriginal] = useState('');
   const [activeTab, setActiveTab] = useState('personal');
   const [lugarNacimiento, setLugarNacimiento] = useState([]);
 
@@ -568,7 +569,7 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
             fila?.nucleo_familiar?.[0]?.observaciones?.Observaciones ||
             '';
 
-          setFormData(prev => ({
+            setFormData(prev => ({
             ...prev,
             IdRegistroPersonal: fila?.IdRegistroPersonal || '',
             IdTipoIdentificacion: fila?.IdTipoIdentificacion ? String(fila.IdTipoIdentificacion) : '',
@@ -647,16 +648,16 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
             lugarNacimiento: fila?.lugar_nacimiento?.Nombre || '',
 
             entrevista: {
-            ...(Array.isArray(entrevistaArr) ? (entrevistaArr[0] || {}) : {}),
-            motivo: motivoCierreGuardado,
+               ...(Array.isArray(entrevistaArr) ? (entrevistaArr[0] || {}) : {}),
+               motivo: motivoCierreGuardado,
             },
-            entrevistas: entrevistaArr,    // ✅
+            entrevistas: entrevistaArr,
 
             asignacionCargo: asignacionCargoCliente || {},
 
             seleccion: {
-              ...(prev.seleccion || {}),
-              fechaExpedicion: fila?.FechaExpedicion || '',
+               ...(prev.seleccion || {}),
+               fechaExpedicion: fila?.FechaExpedicion || '',
             },
 
             referenciaPersonalValidacion: refPers0,
@@ -669,9 +670,10 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
             IdTipoEps: fila?.IdTipoEps || '',
             IdTipoEstadoFormacion: fila?.IdTipoEstadoFormacion || '',
 
-            // ✅ (CAMBIO) NO uses formData viejo aquí
             observacionesNucleFamiliarEntrevista: obsNF,
-          }));
+            }));
+
+            setObservacionNucleoOriginal(obsNF || '');
         }
          } catch (error) {
          console.error('Error al obtener detalle de aspirante:', error);
@@ -2946,75 +2948,82 @@ if (response && response.status === 201) {
                               </tbody>
                             </table>
                           </div>
-      <div className="mt-6 border-t pt-4">
-      <Label className="text-sm font-semibold text-gray-700 mb-2 block">
-         Observaciones generales del núcleo familiar
-      </Label>
+                        <div className="mt-6 border-t pt-4">
+                        <Label className="text-sm font-semibold text-gray-700 mb-2 block">
+                           Observaciones generales del núcleo familiar
+                        </Label>
 
-      <Textarea
-         className="min-h-[120px] resize-y"
-         placeholder="Escribe aquí las observaciones generales del núcleo familiar..."
-         value={formData?.observacionesNucleFamiliarEntrevista || ""}
-         onChange={(e) =>
-            setFormData((prev) => ({
-            ...prev,
-            observacionesNucleFamiliarEntrevista: e.target.value,
-            }))
-         }
-      />
+                        <Textarea
+                           className="min-h-[120px] resize-y"
+                           placeholder="Escribe aquí las observaciones generales del núcleo familiar..."
+                           value={formData?.observacionesNucleFamiliarEntrevista || ""}
+                           onChange={(e) =>
+                              setFormData((prev) => ({
+                              ...prev,
+                              observacionesNucleFamiliarEntrevista: e.target.value,
+                              }))
+                           }
+                        />
 
-      <div className="flex justify-end mt-3">
-         <Button
-            type="button"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white"
-            onClick={async () => {
-            try {
+                        <div className="flex justify-end mt-3">
+                           <Button
+                              type="button"
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                              onClick={async () => {
+                              try {
+                                 const token =
+                                    localStorage.getItem("access_token") ||
+                                    localStorage.getItem("token") ||
+                                    "";
 
-          const token =
-            localStorage.getItem("access_token") ||
-            localStorage.getItem("token") ||
-            "";
+                                 const idNucleoFamiliar = formData?.nucleoFamiliar?.[0]?.IdNucleoFamiliar;
+                                 const observaciones = (formData?.observacionesNucleFamiliarEntrevista || "").trim();
 
-          const idNucleoFamiliar = formData?.nucleoFamiliar?.[0]?.IdNucleoFamiliar;
-          const observaciones = (formData?.observacionesNucleFamiliarEntrevista || "").trim();
+                                 const observacionOriginalLimpia = (observacionNucleoOriginal || "").trim();
+                                 const seIntentoBorrarUnaObservacionExistente =
+                                    !!observacionOriginalLimpia && !observaciones;
 
-          if (!idNucleoFamiliar) {
-            alert("No se encontró un registro de núcleo familiar para guardar la observación.");
-            return;
-          }
+                                 if (!idNucleoFamiliar) {
+                                    alert("No se encontró un registro de núcleo familiar para guardar la observación.");
+                                    return;
+                                 }
 
-         const res = await fetch(
-            `${API_BASE}/observaciones-nucleo-familiar/${idNucleoFamiliar}`,
-            {
-               method: "PUT",
-               headers: {
-                  "Content-Type": "application/json",
-                  ...(token ? { Authorization: `Bearer ${token}` } : {}),
-               },
-               body: JSON.stringify({
-                  observaciones,
-                  usuarioActualizacion: "juan",
-               }),
-            }
-            );
-          if (!res.ok) {
-            const txt = await res.text();
-            console.error("Error API:", res.status, txt);
-            alert("Error guardando observación.");
-            return;
-          }
+                                 if (seIntentoBorrarUnaObservacionExistente) {
+                                    alert("La observación general del núcleo familiar no puede quedar vacía. Si deseas cambiarla, escribe una nueva observación.");
+                                    return;
+                                 }
 
-          alert("Observación guardada correctamente.");
-        } catch (err) {
-          console.error(err);
-          alert("Error guardando observación.");
-        }
-      }}
-    >
-      Guardar observaciones
-    </Button>
-  </div>
-</div>
+                                 const res = await fetch(
+                                    `${API_BASE}/observaciones-nucleo-familiar/${idNucleoFamiliar}`,
+                                    {
+                                    method: "PUT",
+                                    headers: {
+                                       "Content-Type": "application/json",
+                                       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                                    },
+                                   body: JSON.stringify({
+                                    observaciones: observaciones,
+                                    usuarioActualizacion: localStorage.getItem("usuario") || "sistema",
+                                    }),
+                                    }
+                                 );
+
+                                 if (!res.ok) {
+                                    throw new Error("No fue posible guardar la observación");
+                                 }
+
+                                 setObservacionNucleoOriginal(observaciones);
+                                 alert("Observación guardada correctamente.");
+                              } catch (error) {
+                                 console.error("Error guardando observación:", error);
+                                 alert("Error guardando observación.");
+                              }
+                              }}
+                           >
+                              Guardar observaciones
+                           </Button>
+                        </div>
+                        </div>
 
                        </div>
                     </TabsContent>
