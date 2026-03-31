@@ -464,8 +464,8 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
     lugarExpedicion: '',
     fechaExpedicion: '',
     descripcionNivelEducativo: '',
-    contactoEmergencia: [],
-    telefonoContactoEmergencia: [],
+    contactoEmergencia: '',
+    telefonoContactoEmergencia: '',
     documentos: [],
     seleccion: {},
     formacion: {},
@@ -927,63 +927,27 @@ const handleDescargarReferencia = async (ref) => {
   };
 
   // Function to handle viewing reference laboral
-  const [refLabEstadosCargados, setRefLabEstadosCargados] = useState({});
+    const [refLabEstadosCargados, setRefLabEstadosCargados] = useState({});
 
-  const handleViewRefLaboral = (idx, ref) => {
-    const payload_1 = localStorage.getItem('estadoValidacionExperienciaLaboral_payload_1');
-    const payload_2 = localStorage.getItem('estadoValidacionExperienciaLaboral_payload_2');
-    localStorage.setItem('IndexValidacionExperienciaLaboral', idx + 1);
-
+    const handleViewRefLaboral = (idx, ref) => {
+  
     const aspiranteDetalle = formData;
     const validacionSeleccionada = formData?.experienciaLaboral?.[idx]?.validaciones?.[0] || null;
 
-    if (!payload_1 || !payload_2) {
-      setNombreContacto(aspiranteDetalle?.experienciaLaboral?.[idx]?.JefeInmediato || '');
-      setIndexValidacionExperiencia(idx + 1);
-      setconcepto(validacionSeleccionada?.Concepto || '');
-      setDesempeñoReportado(validacionSeleccionada?.DesempenoReportado || '');
-      setMotivoRetiro(validacionSeleccionada?.MotivoRetiroReal || '');
-      setpersonaQReferencia(validacionSeleccionada?.PersonaQueReferencia || '');
-      settelefonoExperiencia(validacionSeleccionada?.Telefono || '');
-      setreferenciadoPor(validacionSeleccionada?.ReferenciadoPor || '');
-      setreEps(validacionSeleccionada?.Eps || '');
-      setTiempoDuracion(validacionSeleccionada?.TiempoDuracion || '');
-      setFechaExpedicion(validacionSeleccionada?.FechaExpedicionDocumentoIdentidad || '');
-      setComentariosReferenciador(validacionSeleccionada?.ComentariosDelReferenciado || '');
-    }
+   setNombreContacto(aspiranteDetalle?.experienciaLaboral?.[idx]?.JefeInmediato || '');
+   setIndexValidacionExperiencia(idx + 1);
+   setconcepto(validacionSeleccionada?.Concepto || '');
+   setDesempeñoReportado(validacionSeleccionada?.DesempenoReportado || '');
+   setMotivoRetiro(validacionSeleccionada?.MotivoRetiroReal || '');
+   setpersonaQReferencia(validacionSeleccionada?.PersonaQueReferencia || '');
+   settelefonoExperiencia(validacionSeleccionada?.Telefono || '');
+   setreferenciadoPor(validacionSeleccionada?.ReferenciadoPor || '');
+   setreEps(validacionSeleccionada?.Eps || '');
+   setTiempoDuracion(validacionSeleccionada?.TiempoDuracion || '');
+   setFechaExpedicion(validacionSeleccionada?.FechaExpedicionDocumentoIdentidad || '');
+   setComentariosReferenciador(validacionSeleccionada?.ComentariosDelReferenciado || '');
 
-    if (payload_1 && idx + 1 == 1) {
-      let payload = JSON.parse(payload_1);
-      setNombreContacto(aspiranteDetalle?.experienciaLaboral?.[idx]?.JefeInmediato || '');
-      setIndexValidacionExperiencia(idx + 1);
-      setconcepto(payload.Concepto || '');
-      setDesempeñoReportado(payload.DesempenoReportado || '');
-      setMotivoRetiro(payload.MotivoRetiroReal || '');
-      setpersonaQReferencia(payload.PersonaQueReferencia || '');
-      settelefonoExperiencia(payload.Telefono || '');
-      setreferenciadoPor(payload.ReferenciadoPor || '');
-      setreEps(payload.Eps || '');
-      setTiempoDuracion(payload.TiempoDuracion || '');
-      setFechaExpedicion(payload.FechaExpedicionDocumentoIdentidad || '');
-      setComentariosReferenciador(payload.ComentariosDelReferenciado || '');
-    }
-
-    if (payload_2 && idx + 1 == 2) {
-      let payload = JSON.parse(payload_2);
-      setNombreContacto(aspiranteDetalle?.experienciaLaboral?.[idx]?.JefeInmediato || '');
-      setIndexValidacionExperiencia(idx + 1);
-      setconcepto(payload.Concepto || '');
-      setDesempeñoReportado(payload.DesempenoReportado || '');
-      setMotivoRetiro(payload.MotivoRetiroReal || '');
-      setpersonaQReferencia(payload.PersonaQueReferencia || '');
-      settelefonoExperiencia(payload.Telefono || '');
-      setreferenciadoPor(payload.ReferenciadoPor || '');
-      setreEps(payload.Eps || '');
-      setTiempoDuracion(payload.TiempoDuracion || '');
-      setFechaExpedicion(payload.FechaExpedicionDocumentoIdentidad || '');
-      setComentariosReferenciador(payload.ComentariosDelReferenciado || '');
-    }
-
+   
     if (isAddingRefLab && selectedRefLabIdx === idx) {
       setIsAddingRefLab(false);
       setSelectedRefLabIdx(null);
@@ -1083,7 +1047,7 @@ setreEps(epsTexto);
       EPS?.find((e) => String(e.key) === String(formData?.IdTipoEps))?.value || '';
 
   const handleDescargarEntrevista = async () => {
-    const campos = {
+         const campos = {
       LOGO: await getLogoBase64('LOGO1'),
       LOGO2: await getLogoBase64('LOGO2'),
       NOMBRES: ((formData?.nombres || '').toUpperCase() + ' ' + (formData?.apellidos || '').toUpperCase()).trim(),
@@ -1091,6 +1055,7 @@ setreEps(epsTexto);
       BARRIO: (formData?.datosAdicionales?.[0]?.Barrio || '').toUpperCase(),
       LOCALIDAD: formData?.datosAdicionales?.[0]?.localidad?.Nombre || '',
       CARGO: formData?.asignacionCargo?.CargoNombre || '',
+      NUCLEO_FAMILIAR: (formData?.observacionesNucleFamiliarEntrevista || '').toUpperCase(),
       HIJOS: formData?.CuantosHijos || '',
       EDAD: calcularEdad(formData?.fechaNacimiento),
       ESTADO_CIVIL: formData?.estadoCivil || '',
@@ -1100,10 +1065,10 @@ setreEps(epsTexto);
       ASPECTOS_ACADEMICOS: formData?.nivelEducativo?.Descripcion || '',
       EXPERIENCIA: formData?.experienciaLaboral?.[0]?.Compania.toUpperCase() || '',
       HA_TRABAJADO_EN_ALP: (formData?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === true
-        ? 'SI'
-        : formData?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === false
-          ? 'NO'
-          : formData?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa || ''),
+         ? 'SI'
+         : formData?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === false
+            ? 'NO'
+            : formData?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa || ''),
       VALIDACION_AM: formData?.AntecedentesMedicos.toUpperCase() || '',
       EPS: epsTexto || '',
       FORTALEZAS: formData?.entrevista?.[0]?.Fortalezas.toUpperCase() || '',
@@ -1111,7 +1076,7 @@ setreEps(epsTexto);
       PRUEBA_FISICA: formData?.entrevista?.[0]?.ConceptoFinalSeleccion || '',
       CONCEPTO_FINAL: formData?.entrevista?.[0]?.ConceptoFinalSeleccion.toUpperCase() || '',
       OBSERVACIONES: formData?.entrevista?.[0]?.ObservacionesFinales.toUpperCase() || ''
-    };
+      };
 
     let pdf_base64 = '';
     const response = await DescargarDocumentoPdf(campos, 'entrevista');
@@ -1131,6 +1096,37 @@ setreEps(epsTexto);
   const API_BASE = import.meta?.env?.VITE_API_BASE_URL || 'https://api.laperfeccion.app/api';
   const token = localStorage.getItem('access_token') || localStorage.getItem('token') || '';
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
+  const handleGuardarContactoEmergencia = async () => {
+  try {
+    if (!formData?.IdRegistroPersonal) {
+      alert('No se encontró el IdRegistroPersonal.');
+      return;
+    }
+
+    const payload = {
+      ContactoEmergencia: formData?.contactoEmergencia || '',
+      TelefonoContactoEmergencia: formData?.telefonoContactoEmergencia || '',
+      UsuarioActualizacion: localStorage.getItem('usuario') || 'sistema',
+    };
+
+    const response = await axios.put(
+      `${API_BASE}/registro-personal/${formData.IdRegistroPersonal}`,
+      payload,
+      { headers: { ...authHeaders } }
+    );
+
+    if (response?.status === 200) {
+      alert('Contacto de emergencia guardado correctamente.');
+      return;
+    }
+
+    alert('No fue posible guardar el contacto de emergencia.');
+  } catch (error) {
+    console.error('Error guardando contacto de emergencia:', error);
+    alert('Error al guardar el contacto de emergencia.');
+  }
+};
 
   const toDateOnly = (value) => {
     if (!value) return null;
@@ -1884,28 +1880,21 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
    };
 
    const ActualizarEstadoValidacionExperienciaLaboral = async (payload) => {
-      const index = localStorage.getItem('IndexValidacionExperienciaLaboral');
-      if(index === "1"){
-         localStorage.setItem('estadoValidacionExperienciaLaboral_payload_1', JSON.stringify(payload));   
-      } else {
-         localStorage.setItem('estadoValidacionExperienciaLaboral_payload_2', JSON.stringify(payload));   
-      }
-      setconcepto(payload.Concepto);
-      setDesempeñoReportado(payload.DesempenoReportado);
-      setMotivoRetiro(payload.MotivoRetiroReal);
-      setpersonaQReferencia(payload.PersonaQueReferencia);
-      settelefonoExperiencia(payload.Telefono);
-      setreferenciadoPor(payload.ReferenciadoPor);
-      setreEps(payload.Eps);
-      setTiempoDuracion(payload.TiempoDuracion);
-      setFechaExpedicion(payload.FechaExpedicionDocumentoIdentidad);
-      setComentariosReferenciador(payload.ComentariosDelReferenciado);
-   }
-
+   setconcepto(payload.Concepto || '');
+   setDesempeñoReportado(payload.DesempenoReportado || '');
+   setMotivoRetiro(payload.MotivoRetiroReal || '');
+   setpersonaQReferencia(payload.PersonaQueReferencia || '');
+   settelefonoExperiencia(payload.Telefono || '');
+   setreferenciadoPor(payload.ReferenciadoPor || '');
+   setreEps(payload.Eps || '');
+   setTiempoDuracion(payload.TiempoDuracion || '');
+   setFechaExpedicion(payload.FechaExpedicionDocumentoIdentidad || '');
+   setComentariosReferenciador(payload.ComentariosDelReferenciado || '');
+}
    const addDatosSeleccion = async () => {
       // if (!validarAntesDeGuardar()) return;
 
-      const payload = {
+   const payload = {
          IdRegistroPersonal: formData.IdRegistroPersonal || '',
          FechaProceso: formData.datosSeleccion?.FechaProceso || '',
          TipoCargo: formData.datosSeleccion?.TipoCargo || '',
@@ -2653,7 +2642,7 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
                                          <SelectItem value="NO">NO</SelectItem>
                                       </SelectContent>
                                    </Select>
-                                   <Input placeholder="Observaciones" value={newFamiliar.observaciones} onChange={(e) => setNewFamiliar({...newFamiliar, observaciones: e.target.value})} />
+                                  
                                 </div>
                                 <div className="flex justify-end gap-2">
                                    <Button size="sm" variant="ghost" onClick={() => setIsAddingFamiliar(false)}>Cancelar</Button>
@@ -2673,14 +2662,13 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
                                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Ocupación</th>
                                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Teléfono</th>
                                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Depende económicamente</th>
-                                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Observaciones</th>
                                   {/* <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Acciones</th> */}
                                 </tr>
                               </thead>
                               <tbody>
                                 {formData.nucleoFamiliar.length === 0 && (
                                   <tr>
-                                    <td colSpan={8} className="text-center text-sm text-gray-500 italic py-4">No hay familiares registrados.</td>
+                                   <td colSpan={6} className="text-center text-sm text-gray-500 italic py-4">No hay familiares registrados.</td>
                                   </tr>
                                 )}
                                 {formData.nucleoFamiliar.map((fam, idx) => (
@@ -2691,73 +2679,7 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
                                     <td className="px-3 py-2 text-sm">{fam.Ocupacion}</td>
                                     <td className="px-3 py-2 text-sm">{fam.Telefono}</td>
                                     <td className="px-3 py-2 text-sm">{fam.DependeEconomicamente == null ? 'No' : fam.DependeEconomicamente}</td>
-                                    <td className="px-3 py-2 text-sm align-top">
-                                    <div className="min-w-[120px] flex flex-col gap-1">
-                                       <textarea
-                                          className="w-full min-h-[28px] resize-y rounded border border-gray-200 bg-white px-1 py-1 text-xs text-gray-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-100"
-                                          placeholder="Observaciones..."
-                                          value={fam.Observaciones ?? fam.observaciones?.Observaciones ?? ""}
-                                          onChange={(e) => {
-                                             const value = e.target.value;
-                                             setFormData((prev) => {
-                                                const list = Array.isArray(prev?.nucleoFamiliar) ? [...prev.nucleoFamiliar] : [];
-                                                if (!list[idx]) return prev;
-                                                // Preserve other fields, update Observaciones
-                                                list[idx] = {
-                                                   ...list[idx],
-                                                   Observaciones: value,
-                                                   observaciones: {
-                                                      ...list[idx].observaciones,
-                                                      Observaciones: value,
-                                                   },
-                                                };
-                                                return { ...prev, nucleoFamiliar: list };
-                                             });
-                                          }}
-                                       />
-                                       <button
-                                          type="button"
-                                          className="inline-flex items-center justify-center rounded bg-emerald-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
-                                          onClick={async () => {
-                                    try {
-                                    const token = localStorage.getItem("access_token") || localStorage.getItem("token") || "";
-                                    const idNucleoFamiliar = fam.IdNucleoFamiliar;
-                                    const observaciones = (fam.Observaciones ?? "").trim();
-                                    if (!idNucleoFamiliar) {
-                                       alert("No se encontró IdNucleoFamiliar.");
-                                       return;
-                                    }
-                                    const res = await fetch(
-                                        `https://api.laperfeccion.app/api/observaciones-nucleo-familiar/${idNucleoFamiliar}`,
-                                       {
-                                          method: "PUT",
-                                          headers: {
-                                          "Content-Type": "application/json",
-                                          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                                          },
-                                          body: JSON.stringify({
-                                          observaciones: observaciones,
-                                          usuarioActualizacion: "juan",
-                                          }),
-                                       }
-                                    );
-                                    if (!res.ok) {
-                                       const txt = await res.text();
-                                       console.error("Error API:", res.status, txt);
-                                       alert("Error guardando observación.");
-                                       return;
-                                    }
-                                    alert("Observación guardada.");
-                                    } catch (err) {
-                                    console.error(err);
-                                    alert("Error guardando observación.");
-                                    }
-                                    }}
-                                    >
-                                          Guardar
-                                       </button>
-                                    </div>
-                                    </td>
+                              
 
                                     {/* <td className="px-3 py-2 text-sm">
                                       <Button size="icon" variant="ghost" className="h-6 w-6 text-red-400 hover:text-red-600 shrink-0" onClick={() => removeFamiliar(idx)}>
@@ -2769,6 +2691,76 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
                               </tbody>
                             </table>
                           </div>
+      <div className="mt-6 border-t pt-4">
+      <Label className="text-sm font-semibold text-gray-700 mb-2 block">
+         Observaciones generales del núcleo familiar
+      </Label>
+
+      <Textarea
+         className="min-h-[120px] resize-y"
+         placeholder="Escribe aquí las observaciones generales del núcleo familiar..."
+         value={formData?.observacionesNucleFamiliarEntrevista || ""}
+         onChange={(e) =>
+            setFormData((prev) => ({
+            ...prev,
+            observacionesNucleFamiliarEntrevista: e.target.value,
+            }))
+         }
+      />
+
+      <div className="flex justify-end mt-3">
+         <Button
+            type="button"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            onClick={async () => {
+            try {
+
+          const token =
+            localStorage.getItem("access_token") ||
+            localStorage.getItem("token") ||
+            "";
+
+          const idNucleoFamiliar = formData?.nucleoFamiliar?.[0]?.IdNucleoFamiliar;
+          const observaciones = (formData?.observacionesNucleFamiliarEntrevista || "").trim();
+
+          if (!idNucleoFamiliar) {
+            alert("No se encontró un registro de núcleo familiar para guardar la observación.");
+            return;
+          }
+
+         const res = await fetch(
+            `${API_BASE}/observaciones-nucleo-familiar/${idNucleoFamiliar}`,
+            {
+               method: "PUT",
+               headers: {
+                  "Content-Type": "application/json",
+                  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+               },
+               body: JSON.stringify({
+                  observaciones,
+                  usuarioActualizacion: "juan",
+               }),
+            }
+            );
+          if (!res.ok) {
+            const txt = await res.text();
+            console.error("Error API:", res.status, txt);
+            alert("Error guardando observación.");
+            return;
+          }
+
+          alert("Observación guardada correctamente.");
+        } catch (err) {
+          console.error(err);
+          alert("Error guardando observación.");
+        }
+      }}
+    >
+      Guardar observaciones
+    </Button>
+  </div>
+</div>
+
                        </div>
                     </TabsContent>
 
@@ -3728,17 +3720,55 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
                         )}
                     </TabsContent>
 
-                    {/* 6. Contacto Emergencia */}
-                    <TabsContent value="contacto" className="mt-0 space-y-6">
-                       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                          <h3 className="text-lg font-bold text-gray-800 mb-6 border-b pb-2">CONTACTO DE EMERGENCIA</h3>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                             <div className="space-y-2"><Label>NOMBRE COMPLETO</Label><Input value={formData.contactoEmergencia} onChange={(e) => handleInputChange('contactoEmergencia', 'nombre', e.target.value)} /></div>
-                             <div className="space-y-2"><Label>Telefono</Label><Input value={formData.telefonoContactoEmergencia} onChange={(e) => handleInputChange('contactoEmergencia', 'telefonoContactoEmergencia', e.target.value)} /></div>
-                             <div className="space-y-2"m style={{ display: 'none' }}><Label>PARENTESCO</Label><Input value={formData.parentesco} disabled onChange={(e) => handleInputChange('contactoEmergencia', 'parentesco', e.target.value)} /></div>
-                          </div>
-                       </div>
-                    </TabsContent>
+                   {/* 6. Contacto Emergencia */}
+                     <TabsContent value="contacto" className="mt-0 space-y-6">
+                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 className="text-lg font-bold text-gray-800 mb-6 border-b pb-2">
+                           CONTACTO DE EMERGENCIA
+                        </h3>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                           <div className="space-y-2">
+                           <Label>NOMBRE COMPLETO</Label>
+                           <Input
+                              value={formData.contactoEmergencia || ""}
+                              onChange={(e) =>
+                                 setFormData((prev) => ({
+                                 ...prev,
+                                 contactoEmergencia: e.target.value,
+                                 }))
+                              }
+                           />
+                           </div>
+
+                           <div className="space-y-2">
+                           <Label>Teléfono</Label>
+                          <Input
+                           value={formData.telefonoContactoEmergencia || ""}
+                           inputMode="numeric"
+                           maxLength={10}
+                           onChange={(e) => {
+                              const soloNumeros = e.target.value.replace(/\D/g, '').slice(0, 10);
+                              setFormData((prev) => ({
+                                 ...prev,
+                                 telefonoContactoEmergencia: soloNumeros,
+                              }));
+                           }}
+                           />
+                           </div>
+                        </div>
+
+                        <div className="flex justify-end mt-6">
+                           <Button
+                           type="button"
+                           className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                           onClick={handleGuardarContactoEmergencia}
+                           >
+                           Guardar contacto de emergencia
+                           </Button>
+                        </div>
+                     </div>
+                     </TabsContent>
 
                     {/* 7. Documentos */}
                     <TabsContent value="documentos" className="mt-0 space-y-6">
