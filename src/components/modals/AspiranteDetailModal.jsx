@@ -1166,7 +1166,7 @@ const campos = {
   // =========================
   // Datos de Proceso (Selección) - API /api/datos-proceso-aspirante/{id}
   // =========================
-  const API_BASE = import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:8000/api';
+  const API_BASE = import.meta?.env?.VITE_API_BASE_URL || 'https://api.laperfeccion.app/api';
   const token = localStorage.getItem('access_token') || localStorage.getItem('token') || '';
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
