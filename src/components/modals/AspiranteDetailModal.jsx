@@ -803,7 +803,7 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
         res = await fetch('/LOGO/LOGOPRINCIPAL.png');
         break;
       case 'LOGO2':
-        res = await fetch('/LOGO/LOGO_MANTENER_INGENIERIA.png');
+        res = await fetch('/LOGO/LOGO_MANTENER_INGENIERIA.png?v=2');
         break;
       default:
         res = await fetch('/LOGO/LOGOPRINCIPAL.png');
