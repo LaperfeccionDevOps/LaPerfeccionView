@@ -54,11 +54,11 @@ const getLogoBase64 = async (logo) => {
 };
 
 
-// Si ya tienes una URL base en .env, úsala (ej: VITE_API_URL=https://api.laperfeccion.app)
-// Si no existe, usa https://api.laperfeccion.app por defecto.
+// Si ya tienes una URL base en .env, úsala (ej: VITE_API_URL=http://localhost:8000)
+// Si no existe, usa http://localhost:8000 por defecto.
 const API_BASE =
   (typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL)) ||
-  'https://api.laperfeccion.app';
+  'http://localhost:8000';
 
 const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = null }) => {
   const [loadingPrefill, setLoadingPrefill] = useState(false);

@@ -1,7 +1,7 @@
 // src/services/observacionesNucleoFamiliarService.js
 
 const API_BASE =
-  (import.meta?.env?.VITE_API_URL || "https://api.laperfeccion.app").replace(/\/$/, "");
+  (import.meta?.env?.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
 function buildHeaders(token) {
   const headers = { "Content-Type": "application/json" };
