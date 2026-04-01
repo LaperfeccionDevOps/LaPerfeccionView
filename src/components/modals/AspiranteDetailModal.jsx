@@ -920,7 +920,7 @@ const handleDescargarReferencia = async (ref) => {
     descargarDocumento(doc);
   };
 
-  const handleDescargarTratamientoDatos = async () => {
+    const handleDescargarTratamientoDatos = async () => {
     const campos = {
       LOGO: await getLogoBase64('LOGO1'),
       LOGO2: await getLogoBase64('LOGO2'),
@@ -944,6 +944,44 @@ const handleDescargarReferencia = async (ref) => {
     const doc = { DocumentoBase64: 'data:application/pdf;base64,' + (pdf_base64 || '') };
     descargarDocumento(doc);
   };
+
+   const handleVerDocumentoSeguridad = (doc, isTratamientoDatos = false) => {
+   try {
+      if (isTratamientoDatos) {
+         handleDescargarTratamientoDatos();
+         return;
+      }
+
+      if (!doc || !doc.DocumentoBase64) {
+         alert('No se encontró el documento para visualizar.');
+         return;
+      }
+
+      const formato = doc.Formato || 'application/pdf';
+      let base64 = doc.DocumentoBase64 || '';
+
+      if (base64.startsWith('data:')) {
+         base64 = base64.split(',')[1];
+      }
+
+      const byteCharacters = atob(base64);
+      const byteNumbers = new Array(byteCharacters.length);
+
+      for (let i = 0; i < byteCharacters.length; i++) {
+         byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: formato });
+      const blobUrl = URL.createObjectURL(blob);
+
+      window.open(blobUrl, '_blank', 'noopener,noreferrer');
+   } catch (error) {
+      console.error('Error al visualizar documento de seguridad:', error);
+      alert('No fue posible visualizar el documento.');
+   }
+   };
+
 
   // Function to handle viewing reference laboral
     const [refLabEstadosCargados, setRefLabEstadosCargados] = useState({});
@@ -4263,35 +4301,46 @@ if (response && response.status === 201) {
                                                       </div>
                                                    )}
                                                    {hasFile && (
-                                                      <div className="flex flex-col gap-2 w-full">
-                                                         <Button 
-                                                            type="button" 
-                                                            variant="outline" 
-                                                            size="sm"
-                                                            className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 px-3 h-auto w-full"
-                                                            onClick={() => {
-                                                               if (isTratamientoDatos) {
-                                                                  handleDescargarTratamientoDatos();
-                                                               } else {
-                                                                  descargarDocumento(foundDoc);
-                                                               }
-                                                            }}
-                                                         >
-                                                            Descargar
-                                                         </Button>
-                                                         {!isTratamientoDatos && (
-                                                           <Button 
-                                                              type="button" 
-                                                              variant="outline" 
-                                                              size="sm"
-                                                              className="text-red-600 border-red-200 hover:bg-red-50 px-3 h-auto w-full"
-                                                              onClick={() => removeDocument(seguridadDoc.id)}
-                                                           >
-                                                              Eliminar
-                                                           </Button>
-                                                         )}
-                                                      </div>
-                                                   )}
+                                                   <div className="flex flex-col gap-2 w-full">
+                                                      <Button 
+                                                         type="button" 
+                                                         variant="outline" 
+                                                         size="sm"
+                                                         className="text-sky-600 border-sky-200 hover:bg-sky-50 px-3 h-auto w-full"
+                                                         onClick={() => handleVerDocumentoSeguridad(foundDoc, isTratamientoDatos)}
+                                                      >
+                                                         Ver
+                                                      </Button>
+
+                                                      <Button 
+                                                         type="button" 
+                                                         variant="outline" 
+                                                         size="sm"
+                                                         className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 px-3 h-auto w-full"
+                                                         onClick={() => {
+                                                            if (isTratamientoDatos) {
+                                                               handleDescargarTratamientoDatos();
+                                                            } else {
+                                                               descargarDocumento(foundDoc);
+                                                            }
+                                                         }}
+                                                      >
+                                                         Descargar
+                                                      </Button>
+
+                                                      {!isTratamientoDatos && (
+                                                      <Button 
+                                                         type="button" 
+                                                         variant="outline" 
+                                                         size="sm"
+                                                         className="text-red-600 border-red-200 hover:bg-red-50 px-3 h-auto w-full"
+                                                         onClick={() => removeDocument(seguridadDoc.id)}
+                                                      >
+                                                         Eliminar
+                                                      </Button>
+                                                      )}
+                                                   </div>
+)}
                                                    <p className="text-xs text-gray-400 truncate h-4">
                                                       {hasFile && foundDoc && !isTratamientoDatos ? foundDoc.Nombre : (isTratamientoDatos ? 'Generado automáticamente' : 'Sin archivo')}
                                                    </p>
