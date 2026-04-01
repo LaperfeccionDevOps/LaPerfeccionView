@@ -2,7 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { getDocumentacionIngreso } from '@/services/detalle_aspirante';
-import { obtenerDocumentoSeguridadBase64 } from '@/services/documentosSeguridad';
+import {
+  obtenerDocumentoSeguridadBase64,
+  RegistrarDocumentosSeguridad,
+  EliminarDocumentoSeguridadPorTipo
+} from '@/services/documentosSeguridad';
 import { RegistrarDocumentosContratacion, obtenerDocumentosContratacion } from '@/services/contratacionService';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -220,19 +224,74 @@ if (response?.data?.pdf_base64) {
         }
     };
     // Eliminar documento (solo frontend)
-    const removeDocument = (tipoId) => {
-        setDocumentos(prev => prev.filter(d => String(d.IdTipoDocumentacion) !== String(tipoId)));
-        toast({ title: 'Documento eliminado (solo visual)' });
-    };
+  const removeDocument = async (tipoId) => {
+  try {
+    const idRegistroPersonal =
+      aspirante?.idRegistroPersonal ||
+      aspirante?.IdRegistroPersonal ||
+      aspirante?.id;
 
-    // Manejar carga de archivo (solo frontend)
-    const handleFileUpload = (e, tipoId) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const input = e.target;
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const base64 = event.target.result.split(',')[1];
+    const response = await EliminarDocumentoSeguridadPorTipo(
+      idRegistroPersonal,
+      tipoId
+    );
+
+    if (!response.ok) {
+      throw new Error('Error al eliminar documento');
+    }
+
+    setDocumentos(prev =>
+      prev.filter(d => String(d.IdTipoDocumentacion) !== String(tipoId))
+    );
+
+    toast({
+      title: '✅ Documento eliminado correctamente',
+    });
+  } catch (error) {
+    console.error('Error eliminando documento:', error);
+    toast({
+      title: '❌ Error al eliminar documento',
+      variant: 'destructive'
+    });
+  }
+};
+
+   // Manejar carga de archivo (guardar en backend)
+const handleFileUpload = async (e, tipoId) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const input = e.target;
+    const reader = new FileReader();
+
+    reader.onload = async (event) => {
+        try {
+            const base64Completo = event.target.result || '';
+            const base64 = String(base64Completo).split(',')[1] || '';
+
+            const idRegistroPersonal =
+                aspirante?.idRegistroPersonal ||
+                aspirante?.IdRegistroPersonal ||
+                aspirante?.id;
+
+            const payload = {
+                idRegistroPersonal,
+                documentos_seguridad: [
+                    {
+                        IdTipoDocumentacion: tipoId,
+                        Nombre: file.name,
+                        DocumentoCargado: base64,
+                        Formato: file.type || 'application/pdf',
+                    }
+                ]
+            };
+
+            const response = await RegistrarDocumentosSeguridad(payload);
+
+            if (!response.ok) {
+                throw new Error('Error al registrar documento de seguridad');
+            }
+
             setDocumentos(prev => [
                 ...prev.filter(d => String(d.IdTipoDocumentacion) !== String(tipoId)),
                 {
@@ -243,12 +302,24 @@ if (response?.data?.pdf_base64) {
                     NombreArchivo: file.name,
                 }
             ]);
-            toast({ title: `✅ Documento "${file.name}" cargado (solo visual).` });
-            // Reiniciar input para permitir volver a cargar el mismo archivo si se desea
+
+            toast({
+                title: '✅ Documento cargado correctamente',
+            });
+
             if (input) input.value = '';
-        };
-        reader.readAsDataURL(file);
+        } catch (error) {
+            console.error('Error cargando documento:', error);
+            toast({
+                title: '❌ Error al cargar documento',
+                variant: 'destructive'
+            });
+            if (input) input.value = '';
+        }
     };
+
+    reader.readAsDataURL(file);
+};
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>

@@ -47,8 +47,8 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import EntrevistaModal from '@/components/modals/EntrevistaModal';
 import entrevistaCandidatoService from "../../services/entrevistaCandidatoService";
-import { RegistrarDocumentosSeguridad } from '../../services/documentosSeguridad';
-import { ValidarExperienciaLaboral, ObservacionesExperienciaLaboral, EliminarExperienciaLaboral } from '../../services/experiencia_laboral';
+import { RegistrarDocumentosSeguridad, EliminarDocumentoSeguridadPorTipo } from '../../services/documentosSeguridad';
+import { ValidarExperienciaLaboral, ObservacionesExperienciaLaboral, EliminarExperienciaLaboral, GenerarPdfConsolidadoReferencias } from '../../services/experiencia_laboral';
 import { ValidarReferenciaPersonal } from '../../services/referenciaPersonal'
 import { upsertMotivoCierre, getMotivoCierre } from "../../services/motivoCierreService";
 import { ActualizarEstadoProcesoService } from '../../services/aspirante';
@@ -483,6 +483,7 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   };
 
   const [formData, setFormData] = useState(initialFormData);
+  const [observacionNucleoOriginal, setObservacionNucleoOriginal] = useState('');
   const [activeTab, setActiveTab] = useState('personal');
   const [lugarNacimiento, setLugarNacimiento] = useState([]);
 
@@ -568,7 +569,7 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
             fila?.nucleo_familiar?.[0]?.observaciones?.Observaciones ||
             '';
 
-          setFormData(prev => ({
+            setFormData(prev => ({
             ...prev,
             IdRegistroPersonal: fila?.IdRegistroPersonal || '',
             IdTipoIdentificacion: fila?.IdTipoIdentificacion ? String(fila.IdTipoIdentificacion) : '',
@@ -647,16 +648,16 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
             lugarNacimiento: fila?.lugar_nacimiento?.Nombre || '',
 
             entrevista: {
-            ...(Array.isArray(entrevistaArr) ? (entrevistaArr[0] || {}) : {}),
-            motivo: motivoCierreGuardado,
+               ...(Array.isArray(entrevistaArr) ? (entrevistaArr[0] || {}) : {}),
+               motivo: motivoCierreGuardado,
             },
-            entrevistas: entrevistaArr,    // ✅
+            entrevistas: entrevistaArr,
 
             asignacionCargo: asignacionCargoCliente || {},
 
             seleccion: {
-              ...(prev.seleccion || {}),
-              fechaExpedicion: fila?.FechaExpedicion || '',
+               ...(prev.seleccion || {}),
+               fechaExpedicion: fila?.FechaExpedicion || '',
             },
 
             referenciaPersonalValidacion: refPers0,
@@ -669,9 +670,10 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
             IdTipoEps: fila?.IdTipoEps || '',
             IdTipoEstadoFormacion: fila?.IdTipoEstadoFormacion || '',
 
-            // ✅ (CAMBIO) NO uses formData viejo aquí
             observacionesNucleFamiliarEntrevista: obsNF,
-          }));
+            }));
+
+            setObservacionNucleoOriginal(obsNF || '');
         }
          } catch (error) {
          console.error('Error al obtener detalle de aspirante:', error);
@@ -801,7 +803,7 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
         res = await fetch('/LOGO/LOGOPRINCIPAL.png');
         break;
       case 'LOGO2':
-        res = await fetch('/LOGO/LOGO_MANTENER_INGENIERIA.png');
+        res = await fetch('/LOGO/LOGO_MANTENER_INGENIERIA.png?v=2');
         break;
       default:
         res = await fetch('/LOGO/LOGOPRINCIPAL.png');
@@ -918,7 +920,7 @@ const handleDescargarReferencia = async (ref) => {
     descargarDocumento(doc);
   };
 
-  const handleDescargarTratamientoDatos = async () => {
+    const handleDescargarTratamientoDatos = async () => {
     const campos = {
       LOGO: await getLogoBase64('LOGO1'),
       LOGO2: await getLogoBase64('LOGO2'),
@@ -942,6 +944,44 @@ const handleDescargarReferencia = async (ref) => {
     const doc = { DocumentoBase64: 'data:application/pdf;base64,' + (pdf_base64 || '') };
     descargarDocumento(doc);
   };
+
+   const handleVerDocumentoSeguridad = (doc, isTratamientoDatos = false) => {
+   try {
+      if (isTratamientoDatos) {
+         handleDescargarTratamientoDatos();
+         return;
+      }
+
+      if (!doc || !doc.DocumentoBase64) {
+         alert('No se encontró el documento para visualizar.');
+         return;
+      }
+
+      const formato = doc.Formato || 'application/pdf';
+      let base64 = doc.DocumentoBase64 || '';
+
+      if (base64.startsWith('data:')) {
+         base64 = base64.split(',')[1];
+      }
+
+      const byteCharacters = atob(base64);
+      const byteNumbers = new Array(byteCharacters.length);
+
+      for (let i = 0; i < byteCharacters.length; i++) {
+         byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: formato });
+      const blobUrl = URL.createObjectURL(blob);
+
+      window.open(blobUrl, '_blank', 'noopener,noreferrer');
+   } catch (error) {
+      console.error('Error al visualizar documento de seguridad:', error);
+      alert('No fue posible visualizar el documento.');
+   }
+   };
+
 
   // Function to handle viewing reference laboral
     const [refLabEstadosCargados, setRefLabEstadosCargados] = useState({});
@@ -1109,6 +1149,30 @@ setreEps(epsTexto);
   ? (formData.entrevista[0] || {})
   : (formData?.entrevista || {});
 
+    const idExp =
+    formData?.experienciaLaboral?.[0]?.IdExperienciaLaboral ||
+    formData?.experienciaLaboral?.[0]?.id ||
+    null;
+
+  let observacionExperiencia = '';
+
+  if (idExp) {
+    try {
+      const resObs = await GetObservacionesExperienciaLaboral(idExp);
+      if (resObs?.ok) {
+        const dataObs = await resObs.json();
+        observacionExperiencia =
+          dataObs?.Observaciones ??
+          dataObs?.observaciones ??
+          dataObs?.observacionesInternas ??
+          dataObs?.observaciones_internas ??
+          '';
+      }
+    } catch (e) {
+      console.error('Error consultando observaciones de experiencia laboral para entrevista:', e);
+    }
+  }
+
 const campos = {
   LOGO: await getLogoBase64('LOGO1'),
   LOGO2: await getLogoBase64('LOGO2'),
@@ -1125,7 +1189,7 @@ const campos = {
   CELULAR: formData?.celular || '',
   EVALUADOR: (entrevistaBase?.EntrevistadorPor || '').toUpperCase(),
   ASPECTOS_ACADEMICOS: (formData?.nivelEducativo?.Descripcion || '').toUpperCase(),
-  EXPERIENCIA: (formData?.experienciaLaboral?.[0]?.Compania || '').toUpperCase(),
+  EXPERIENCIA: (observacionExperiencia || '').toUpperCase(),
   HA_TRABAJADO_EN_ALP: (
     formData?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === true
       ? 'SI'
@@ -1691,25 +1755,42 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
 
 
    // Elimina documentos (seguridad u obligatorios) del estado
-   const removeDocument = (docId) => {
-      setFormData(prev => {
-         const documentos = Array.isArray(prev.documentos)
-            ? prev.documentos.filter(
-                  d => String(d.IdTipoDocumentacion) !== String(docId)
-               )
-            : prev.documentos;
-         const documentosSeguridad = Array.isArray(prev.documentosSeguridad)
-            ? prev.documentosSeguridad.filter(
-                  d => String(d.IdTipoDocumentacion) !== String(docId)
-               )
-            : prev.documentosSeguridad;
-         return {
-            ...prev,
-            documentos,
-            documentosSeguridad
-         };
-      });
-   };
+ const removeDocument = async (docId) => {
+  try {
+    const idRegistroPersonal =
+      formData?.IdRegistroPersonal ||
+      aspirante?.id ||
+      aspirante?.IdRegistroPersonal ||
+      null;
+
+    if (!idRegistroPersonal) {
+      alert('No se encontró el IdRegistroPersonal.');
+      return;
+    }
+
+    const response = await EliminarDocumentoSeguridadPorTipo(idRegistroPersonal, docId);
+
+    if (!response.ok) {
+      const txt = await response.text();
+      console.error('Error eliminando documento de seguridad:', txt);
+      alert('No fue posible eliminar el documento.');
+      return;
+    }
+
+    const respDocsSeguridad = await getDocumentosSeguridad(idRegistroPersonal);
+    const documentosSeguridadActualizados = respDocsSeguridad?.data || [];
+
+    setFormData(prev => ({
+      ...prev,
+      documentosSeguridad: documentosSeguridadActualizados,
+    }));
+
+    alert('Documento eliminado correctamente.');
+  } catch (error) {
+    console.error('Error eliminando documento de seguridad:', error);
+    alert('Ocurrió un error al eliminar el documento.');
+  }
+};
 
    // Construye el payload para documentos de seguridad y lo muestra en consola
    const handleEnviarDocumentosSeguridad = async (docsSeguridad) => {
@@ -1989,17 +2070,68 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
          ComentariosDelReferenciado: comentariosReferenciador || '',
       };
 
-      const response = await ValidarExperienciaLaboral(payload);
-      await ActualizarEstadoValidacionExperienciaLaboral(payload);
-      setIsAddingRefLab(false);
-      setNombreContacto('');
-      setIndexValidacionExperiencia(null);
-      if (response && response.status === 201) {
-         alert('Referencia laboral validada correctamente.');
+    const response = await ValidarExperienciaLaboral(payload);
+await ActualizarEstadoValidacionExperienciaLaboral(payload);
+
+if (response && response.status === 201) {
+  try {
+    const idRegistroPersonal =
+      formData?.IdRegistroPersonal ||
+      aspirante?.id ||
+      aspirante?.IdRegistroPersonal ||
+      null;
+
+    if (idRegistroPersonal) {
+      const respPdf = await GenerarPdfConsolidadoReferencias(idRegistroPersonal);
+      const dataPdf = await respPdf.json();
+
+      if (dataPdf?.ok && dataPdf?.pdf_base64) {
+        const payloadDocumento = {
+          idRegistroPersonal: Number(idRegistroPersonal),
+          documentos_seguridad: [
+            {
+              IdTipoDocumentacion: 68,
+              DocumentoCargado: dataPdf.pdf_base64.startsWith('data:application/pdf;base64,')
+                ? dataPdf.pdf_base64
+                : `data:application/pdf;base64,${dataPdf.pdf_base64}`,
+              Formato: 'application/pdf',
+              Nombre: `Confirmacion_Referencias_${idRegistroPersonal}.pdf`,
+            },
+          ],
+        };
+
+        const responseUpload = await RegistrarDocumentosSeguridad(payloadDocumento);
+
+        if (!responseUpload.ok) {
+          const txt = await responseUpload.text();
+          console.error('Error adjuntando consolidado de referencias:', txt);
+        } else {
+          const respDocsSeguridad = await getDocumentosSeguridad(idRegistroPersonal);
+          const documentosSeguridadActualizados = respDocsSeguridad?.data || [];
+
+          setFormData(prev => ({
+            ...prev,
+            documentosSeguridad: documentosSeguridadActualizados,
+          }));
+        }
+      } else {
+        console.warn('No se generó PDF consolidado de referencias:', dataPdf);
       }
-      else {
-         alert('Error al validar la referencia laboral.');
-      }
+    }
+  } catch (error) {
+    console.error('Error generando o adjuntando consolidado de referencias:', error);
+  }
+
+  setIsAddingRefLab(false);
+  setNombreContacto('');
+  setIndexValidacionExperiencia(null);
+  alert('Referencia laboral validada correctamente.');
+} else {
+  setIsAddingRefLab(false);
+  setNombreContacto('');
+  setIndexValidacionExperiencia(null);
+  alert('Error al validar la referencia laboral.');
+}
       // No limpiar ni cerrar el modal ni los campos, para mantener los datos visibles
    };
 
@@ -2878,75 +3010,82 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
                               </tbody>
                             </table>
                           </div>
-      <div className="mt-6 border-t pt-4">
-      <Label className="text-sm font-semibold text-gray-700 mb-2 block">
-         Observaciones generales del núcleo familiar
-      </Label>
+                        <div className="mt-6 border-t pt-4">
+                        <Label className="text-sm font-semibold text-gray-700 mb-2 block">
+                           Observaciones generales del núcleo familiar
+                        </Label>
 
-      <Textarea
-         className="min-h-[120px] resize-y"
-         placeholder="Escribe aquí las observaciones generales del núcleo familiar..."
-         value={formData?.observacionesNucleFamiliarEntrevista || ""}
-         onChange={(e) =>
-            setFormData((prev) => ({
-            ...prev,
-            observacionesNucleFamiliarEntrevista: e.target.value,
-            }))
-         }
-      />
+                        <Textarea
+                           className="min-h-[120px] resize-y"
+                           placeholder="Escribe aquí las observaciones generales del núcleo familiar..."
+                           value={formData?.observacionesNucleFamiliarEntrevista || ""}
+                           onChange={(e) =>
+                              setFormData((prev) => ({
+                              ...prev,
+                              observacionesNucleFamiliarEntrevista: e.target.value,
+                              }))
+                           }
+                        />
 
-      <div className="flex justify-end mt-3">
-         <Button
-            type="button"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white"
-            onClick={async () => {
-            try {
+                        <div className="flex justify-end mt-3">
+                           <Button
+                              type="button"
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                              onClick={async () => {
+                              try {
+                                 const token =
+                                    localStorage.getItem("access_token") ||
+                                    localStorage.getItem("token") ||
+                                    "";
 
-          const token =
-            localStorage.getItem("access_token") ||
-            localStorage.getItem("token") ||
-            "";
+                                 const idNucleoFamiliar = formData?.nucleoFamiliar?.[0]?.IdNucleoFamiliar;
+                                 const observaciones = (formData?.observacionesNucleFamiliarEntrevista || "").trim();
 
-          const idNucleoFamiliar = formData?.nucleoFamiliar?.[0]?.IdNucleoFamiliar;
-          const observaciones = (formData?.observacionesNucleFamiliarEntrevista || "").trim();
+                                 const observacionOriginalLimpia = (observacionNucleoOriginal || "").trim();
+                                 const seIntentoBorrarUnaObservacionExistente =
+                                    !!observacionOriginalLimpia && !observaciones;
 
-          if (!idNucleoFamiliar) {
-            alert("No se encontró un registro de núcleo familiar para guardar la observación.");
-            return;
-          }
+                                 if (!idNucleoFamiliar) {
+                                    alert("No se encontró un registro de núcleo familiar para guardar la observación.");
+                                    return;
+                                 }
 
-         const res = await fetch(
-            `${API_BASE}/observaciones-nucleo-familiar/${idNucleoFamiliar}`,
-            {
-               method: "PUT",
-               headers: {
-                  "Content-Type": "application/json",
-                  ...(token ? { Authorization: `Bearer ${token}` } : {}),
-               },
-               body: JSON.stringify({
-                  observaciones,
-                  usuarioActualizacion: "juan",
-               }),
-            }
-            );
-          if (!res.ok) {
-            const txt = await res.text();
-            console.error("Error API:", res.status, txt);
-            alert("Error guardando observación.");
-            return;
-          }
+                                 if (seIntentoBorrarUnaObservacionExistente) {
+                                    alert("La observación general del núcleo familiar no puede quedar vacía. Si deseas cambiarla, escribe una nueva observación.");
+                                    return;
+                                 }
 
-          alert("Observación guardada correctamente.");
-        } catch (err) {
-          console.error(err);
-          alert("Error guardando observación.");
-        }
-      }}
-    >
-      Guardar observaciones
-    </Button>
-  </div>
-</div>
+                                 const res = await fetch(
+                                    `${API_BASE}/observaciones-nucleo-familiar/${idNucleoFamiliar}`,
+                                    {
+                                    method: "PUT",
+                                    headers: {
+                                       "Content-Type": "application/json",
+                                       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                                    },
+                                   body: JSON.stringify({
+                                    observaciones: observaciones,
+                                    usuarioActualizacion: localStorage.getItem("usuario") || "sistema",
+                                    }),
+                                    }
+                                 );
+
+                                 if (!res.ok) {
+                                    throw new Error("No fue posible guardar la observación");
+                                 }
+
+                                 setObservacionNucleoOriginal(observaciones);
+                                 alert("Observación guardada correctamente.");
+                              } catch (error) {
+                                 console.error("Error guardando observación:", error);
+                                 alert("Error guardando observación.");
+                              }
+                              }}
+                           >
+                              Guardar observaciones
+                           </Button>
+                        </div>
+                        </div>
 
                        </div>
                     </TabsContent>
@@ -4186,35 +4325,46 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
                                                       </div>
                                                    )}
                                                    {hasFile && (
-                                                      <div className="flex flex-col gap-2 w-full">
-                                                         <Button 
-                                                            type="button" 
-                                                            variant="outline" 
-                                                            size="sm"
-                                                            className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 px-3 h-auto w-full"
-                                                            onClick={() => {
-                                                               if (isTratamientoDatos) {
-                                                                  handleDescargarTratamientoDatos();
-                                                               } else {
-                                                                  descargarDocumento(foundDoc);
-                                                               }
-                                                            }}
-                                                         >
-                                                            Descargar
-                                                         </Button>
-                                                         {!isTratamientoDatos && (
-                                                           <Button 
-                                                              type="button" 
-                                                              variant="outline" 
-                                                              size="sm"
-                                                              className="text-red-600 border-red-200 hover:bg-red-50 px-3 h-auto w-full"
-                                                              onClick={() => removeDocument(seguridadDoc.id)}
-                                                           >
-                                                              Eliminar
-                                                           </Button>
-                                                         )}
-                                                      </div>
-                                                   )}
+                                                   <div className="flex flex-col gap-2 w-full">
+                                                      <Button 
+                                                         type="button" 
+                                                         variant="outline" 
+                                                         size="sm"
+                                                         className="text-sky-600 border-sky-200 hover:bg-sky-50 px-3 h-auto w-full"
+                                                         onClick={() => handleVerDocumentoSeguridad(foundDoc, isTratamientoDatos)}
+                                                      >
+                                                         Ver
+                                                      </Button>
+
+                                                      <Button 
+                                                         type="button" 
+                                                         variant="outline" 
+                                                         size="sm"
+                                                         className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 px-3 h-auto w-full"
+                                                         onClick={() => {
+                                                            if (isTratamientoDatos) {
+                                                               handleDescargarTratamientoDatos();
+                                                            } else {
+                                                               descargarDocumento(foundDoc);
+                                                            }
+                                                         }}
+                                                      >
+                                                         Descargar
+                                                      </Button>
+
+                                                      {!isTratamientoDatos && (
+                                                      <Button 
+                                                         type="button" 
+                                                         variant="outline" 
+                                                         size="sm"
+                                                         className="text-red-600 border-red-200 hover:bg-red-50 px-3 h-auto w-full"
+                                                         onClick={() => removeDocument(seguridadDoc.id)}
+                                                      >
+                                                         Eliminar
+                                                      </Button>
+                                                      )}
+                                                   </div>
+)}
                                                    <p className="text-xs text-gray-400 truncate h-4">
                                                       {hasFile && foundDoc && !isTratamientoDatos ? foundDoc.Nombre : (isTratamientoDatos ? 'Generado automáticamente' : 'Sin archivo')}
                                                    </p>
