@@ -1149,6 +1149,30 @@ setreEps(epsTexto);
   ? (formData.entrevista[0] || {})
   : (formData?.entrevista || {});
 
+    const idExp =
+    formData?.experienciaLaboral?.[0]?.IdExperienciaLaboral ||
+    formData?.experienciaLaboral?.[0]?.id ||
+    null;
+
+  let observacionExperiencia = '';
+
+  if (idExp) {
+    try {
+      const resObs = await GetObservacionesExperienciaLaboral(idExp);
+      if (resObs?.ok) {
+        const dataObs = await resObs.json();
+        observacionExperiencia =
+          dataObs?.Observaciones ??
+          dataObs?.observaciones ??
+          dataObs?.observacionesInternas ??
+          dataObs?.observaciones_internas ??
+          '';
+      }
+    } catch (e) {
+      console.error('Error consultando observaciones de experiencia laboral para entrevista:', e);
+    }
+  }
+
 const campos = {
   LOGO: await getLogoBase64('LOGO1'),
   LOGO2: await getLogoBase64('LOGO2'),
@@ -1165,7 +1189,7 @@ const campos = {
   CELULAR: formData?.celular || '',
   EVALUADOR: (entrevistaBase?.EntrevistadorPor || '').toUpperCase(),
   ASPECTOS_ACADEMICOS: (formData?.nivelEducativo?.Descripcion || '').toUpperCase(),
-  EXPERIENCIA: (formData?.experienciaLaboral?.[0]?.Compania || '').toUpperCase(),
+  EXPERIENCIA: (observacionExperiencia || '').toUpperCase(),
   HA_TRABAJADO_EN_ALP: (
     formData?.datosSeleccion?.HaTrabajadoAntesEnLaEmpresa === true
       ? 'SI'
