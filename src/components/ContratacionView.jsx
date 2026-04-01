@@ -368,7 +368,6 @@ const documentosIngreso = [
 ];
 
 const documentosSeguridad = [
-   { id: 6, label: 'Autorizacón de Tratamiento de datos' },
    { id: 6, label: 'Antecedentes de policía' },
    { id: 7, label: 'Antecedentes disciplinarios procuraduría' },
    { id: 8, label: 'Antecedentes disciplinarios contraloría' },

@@ -2,7 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { getDocumentacionIngreso } from '@/services/detalle_aspirante';
-import { obtenerDocumentoSeguridadBase64 } from '@/services/documentosSeguridad';
+import {
+  obtenerDocumentoSeguridadBase64,
+  RegistrarDocumentosSeguridad,
+  EliminarDocumentoSeguridadPorTipo
+} from '@/services/documentosSeguridad';
 import { RegistrarDocumentosContratacion, obtenerDocumentosContratacion } from '@/services/contratacionService';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -220,10 +224,37 @@ if (response?.data?.pdf_base64) {
         }
     };
     // Eliminar documento (solo frontend)
-    const removeDocument = (tipoId) => {
-        setDocumentos(prev => prev.filter(d => String(d.IdTipoDocumentacion) !== String(tipoId)));
-        toast({ title: 'Documento eliminado (solo visual)' });
-    };
+  const removeDocument = async (tipoId) => {
+  try {
+    const idRegistroPersonal =
+      aspirante?.idRegistroPersonal ||
+      aspirante?.IdRegistroPersonal ||
+      aspirante?.id;
+
+    const response = await EliminarDocumentoSeguridadPorTipo(
+      idRegistroPersonal,
+      tipoId
+    );
+
+    if (!response.ok) {
+      throw new Error('Error al eliminar documento');
+    }
+
+    setDocumentos(prev =>
+      prev.filter(d => String(d.IdTipoDocumentacion) !== String(tipoId))
+    );
+
+    toast({
+      title: '✅ Documento eliminado correctamente',
+    });
+  } catch (error) {
+    console.error('Error eliminando documento:', error);
+    toast({
+      title: '❌ Error al eliminar documento',
+      variant: 'destructive'
+    });
+  }
+};
 
     // Manejar carga de archivo (solo frontend)
     const handleFileUpload = (e, tipoId) => {
