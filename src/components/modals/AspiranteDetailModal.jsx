@@ -884,42 +884,30 @@ const handleDescargarReferencia = async (ref) => {
       IDENTIFICACION: formData?.cedula || '',
     };
 
-    let pdf_base64 = '';
-    const response = await DescargarDocumentoPdf(campos, 'referencias');
+   let pdf_base64 = '';
+const response = await DescargarDocumentoPdf(campos, 'referencias');
 
-    if (response && typeof response.json === 'function') {
-      const data = await response.json();
-      pdf_base64 = data.pdf_base64;
-    } else if (response && response.pdf_base64) {
-      pdf_base64 = response.pdf_base64;
-    }
+if (response && typeof response.json === 'function') {
+  const data = await response.json();
+  pdf_base64 = data.pdf_base64;
+} else if (response && response.pdf_base64) {
+  pdf_base64 = response.pdf_base64;
+}
 
-    if (!pdf_base64) {
-      console.error('No se recibió pdf_base64');
-      return;
-    }
+if (!pdf_base64) {
+  console.error('No se recibió pdf_base64');
+  return;
+}
 
-    const doc = {
-      DocumentoBase64: 'data:application/pdf;base64,' + pdf_base64,
-    };
+const doc = {
+  DocumentoBase64: 'data:application/pdf;base64,' + pdf_base64,
+};
 
-    descargarDocumento(doc);
-  } catch (error) {
-    console.error('Error al descargar referencia:', error);
-  }
-
-    let pdf_base64 = '';
-    const response = await DescargarDocumentoPdf(campos, 'referencias');
-    if (response && typeof response.json === 'function') {
-      const data = await response.json();
-      pdf_base64 = data.pdf_base64;
-    } else if (response && response.pdf_base64) {
-      pdf_base64 = response.pdf_base64;
-    }
-    const doc = { DocumentoBase64: 'data:application/pdf;base64,' + (pdf_base64 || '') };
-    descargarDocumento(doc);
-  };
-
+descargarDocumento(doc);
+} catch (error) {
+  console.error('Error al descargar referencia:', error);
+}
+};
     const handleDescargarTratamientoDatos = async () => {
     const campos = {
       LOGO: await getLogoBase64('LOGO1'),
@@ -1149,29 +1137,45 @@ setreEps(epsTexto);
   ? (formData.entrevista[0] || {})
   : (formData?.entrevista || {});
 
-    const idExp =
-    formData?.experienciaLaboral?.[0]?.IdExperienciaLaboral ||
-    formData?.experienciaLaboral?.[0]?.id ||
-    null;
+   const experienciasValidas = Array.isArray(formData?.experienciaLaboral)
+  ? formData.experienciaLaboral.slice(0, 2)
+  : [];
 
-  let observacionExperiencia = '';
+let observacionExperiencia = '';
 
-    if (idExp) {
+if (experienciasValidas.length > 0) {
   try {
-    console.log('=== DESCARGA ENTREVISTA - EXPERIENCIA ===');
-    console.log('idExp:', idExp);
+    const observacionesExperiencias = [];
 
-    const resObs = await GetObservacionesExperienciaLaboral(idExp);
-    console.log('resObs:', resObs);
+    for (let i = 0; i < experienciasValidas.length; i++) {
+      const exp = experienciasValidas[i];
 
-    if (resObs?.ok) {
+      const idExp =
+        exp?.IdExperienciaLaboral ||
+        exp?.id ||
+        null;
+
+      if (!idExp) continue;
+
+      const resObs = await GetObservacionesExperienciaLaboral(idExp);
+
+      if (!resObs?.ok) continue;
+
       const dataObs = await resObs.json();
 
-      console.log('dataObs completa:', dataObs);
-      console.log('dataObs.Observaciones:', dataObs?.Observaciones);
+      const observacion = String(dataObs?.Observaciones || '').trim();
+      const empresa = String(exp?.Compania || '').trim();
 
-      observacionExperiencia = String(dataObs?.Observaciones || '').trim();
+      if (observacion) {
+        observacionesExperiencias.push(
+          empresa
+            ? `${i + 1}. ${empresa}: ${observacion}`
+            : `${i + 1}. ${observacion}`
+        );
+      }
     }
+
+    observacionExperiencia = observacionesExperiencias.join(' | ');
   } catch (e) {
     console.error('Error consultando observaciones de experiencia laboral para entrevista:', e);
   }
@@ -1221,6 +1225,12 @@ const campos = {
 };
 
     let pdf_base64 = '';
+console.log('=== VALIDACION FINAL PDF ENTREVISTA ===');
+console.log('experienciasValidas:', experienciasValidas);
+console.log('observacionExperiencia final:', observacionExperiencia);
+console.log('campos.EXPERIENCIA:', campos?.EXPERIENCIA);
+console.log('campos completos:', campos);
+
     const response = await DescargarDocumentoPdf(campos, 'entrevista');
     if (response && typeof response.json === 'function') {
       const data = await response.json();
@@ -4479,7 +4489,10 @@ if (response && response.status === 201) {
                                  type="button"
                                  size="sm"
                                  className="h-9 px-4 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white"
-                                 onClick={handleDescargarEntrevista}
+                                 onClick={() => {
+  console.log('CLICK BOTON DESCARGAR ENTREVISTA');
+  handleDescargarEntrevista();
+}}
                                  style={{ marginTop: '1rem' }}
                               >
                                  Descargar entrevista
