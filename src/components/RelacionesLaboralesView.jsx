@@ -553,25 +553,61 @@ function viewLocalFile(file) {
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
-function viewBackendAdjunto(apiBase, file) {
+async function viewBackendAdjunto(apiBase, file) {
   if (!file?.IdRetiroLaboralAdjunto) return;
-  const url = `${apiBase}/rrll/adjuntos/${file.IdRetiroLaboralAdjunto}/descargar`;
+
+  const res = await fetch(
+    `${apiBase}/rrll/adjuntos/${file.IdRetiroLaboralAdjunto}/descargar`,
+    {
+      method: "GET",
+    }
+  );
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => null);
+    const mensaje =
+      errorData?.detail || "No se pudo abrir el adjunto.";
+    throw new Error(mensaje);
+  }
+
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
   window.open(url, "_blank", "noopener,noreferrer");
+
+  setTimeout(() => {
+    window.URL.revokeObjectURL(url);
+  }, 60000);
 }
 
-function downloadBackendAdjunto(apiBase, file) {
+async function downloadBackendAdjunto(apiBase, file) {
   if (!file?.IdRetiroLaboralAdjunto) return;
-  const url = `${apiBase}/rrll/adjuntos/${file.IdRetiroLaboralAdjunto}/descargar`;
+
+  const res = await fetch(
+    `${apiBase}/rrll/adjuntos/${file.IdRetiroLaboralAdjunto}/descargar`,
+    {
+      method: "GET",
+    }
+  );
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => null);
+    const mensaje =
+      errorData?.detail || "No se pudo descargar el adjunto.";
+    throw new Error(mensaje);
+  }
+
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
 
   const a = document.createElement("a");
   a.href = url;
-  a.target = "_blank";
-  a.rel = "noopener noreferrer";
+  a.download = file?.NombreArchivoOriginal || "adjunto.pdf";
   document.body.appendChild(a);
   a.click();
   a.remove();
-}
 
+  window.URL.revokeObjectURL(url);
+}
 export default function RelacionesLaboralesView() {
   // ✅ lee tu .env (debe ser: http://localhost:8000/api)
   const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
@@ -1828,9 +1864,11 @@ const verAdjuntoRetiroBackend = async (idAdjunto) => {
   );
 
   if (!res.ok) {
-    const msg = await res.text().catch(() => "");
-    throw new Error(msg || "No se pudo abrir el adjunto.");
-  }
+  const errorData = await res.json().catch(() => null);
+  const mensaje =
+    errorData?.detail || "No se pudo abrir el adjunto.";
+  throw new Error(mensaje);
+}
 
   const blob = await res.blob();
   const url = window.URL.createObjectURL(blob);
@@ -1852,10 +1890,12 @@ const descargarAdjuntoRetiroBackend = async (
     }
   );
 
-  if (!res.ok) {
-    const msg = await res.text().catch(() => "");
-    throw new Error(msg || "No se pudo descargar el adjunto.");
-  }
+ if (!res.ok) {
+  const errorData = await res.json().catch(() => null);
+  const mensaje =
+    errorData?.detail || "No se pudo descargar el adjunto.";
+  throw new Error(mensaje);
+}
 
   const blob = await res.blob();
   const url = window.URL.createObjectURL(blob);
