@@ -1156,23 +1156,28 @@ setreEps(epsTexto);
 
   let observacionExperiencia = '';
 
-  if (idExp) {
-    try {
-      const resObs = await GetObservacionesExperienciaLaboral(idExp);
-      if (resObs?.ok) {
-        const dataObs = await resObs.json();
-        observacionExperiencia =
-          dataObs?.Observaciones ??
-          dataObs?.observaciones ??
-          dataObs?.observacionesInternas ??
-          dataObs?.observaciones_internas ??
-          '';
-      }
-    } catch (e) {
-      console.error('Error consultando observaciones de experiencia laboral para entrevista:', e);
-    }
-  }
+    if (idExp) {
+  try {
+    console.log('=== DESCARGA ENTREVISTA - EXPERIENCIA ===');
+    console.log('idExp:', idExp);
 
+    const resObs = await GetObservacionesExperienciaLaboral(idExp);
+    console.log('resObs:', resObs);
+
+    if (resObs?.ok) {
+      const dataObs = await resObs.json();
+
+      console.log('dataObs completa:', dataObs);
+      console.log('dataObs.Observaciones:', dataObs?.Observaciones);
+
+      observacionExperiencia = String(dataObs?.Observaciones || '').trim();
+    }
+  } catch (e) {
+    console.error('Error consultando observaciones de experiencia laboral para entrevista:', e);
+  }
+}
+
+console.log('observacionExperiencia final:', observacionExperiencia);
 const campos = {
   LOGO: await getLogoBase64('LOGO1'),
   LOGO2: await getLogoBase64('LOGO2'),

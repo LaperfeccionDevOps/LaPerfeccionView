@@ -156,6 +156,43 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
     return map[value] || 'Cédula de Ciudadanía';
   };
 
+  const mapLocalidadToLabel = (value) => {
+  if (value === null || value === undefined || value === '') return '';
+
+  const localidades = {
+    1: 'USAQUÉN',
+    2: 'CHAPINERO',
+    3: 'SANTA FE',
+    4: 'SAN CRISTOBAL',
+    5: 'USME',
+    6: 'TUNJUELITO',
+    7: 'BOSA',
+    8: 'KENNEDY',
+    9: 'FONTIBON',
+    10: 'ENGATIVA',
+    11: 'SUBA',
+    12: 'BARRIOS UNIDOS',
+    13: 'TEUSAQUILLO',
+    14: 'LOS MARTIRES',
+    15: 'ANTONIO NARIÑO',
+    16: 'PUENTE ARANDA',
+    17: 'LA CANDELARIA',
+    18: 'RAFAEL URIBE URIBE',
+    19: 'CIUDAD BOLIVAR',
+    20: 'SUMAPAZ',
+  };
+
+  const valorTexto = String(value).trim();
+
+  // Si viene número o string numérico
+  if (/^\d+$/.test(valorTexto)) {
+    return localidades[Number(valorTexto)] || valorTexto;
+  }
+
+  // Si ya viene texto, lo devolvemos normalizado
+  return valorTexto.toUpperCase();
+};
+
   // const applyPrefillToForm = (prefillResp) => {
   //   const datos = prefillResp?.datos_personales || {};
   //   const entrevista = prefillResp?.entrevista || null;
@@ -338,7 +375,14 @@ useEffect(() => {
     hijos: aspirante.cuantosHijos?.toString() || aspirante.CuantosHijos?.toString() || prev.CuantosHijos || '',
     celular: aspirante.celular || aspirante.telefono || prev.celular || '',
     barrio: aspirante.barrio || aspirante.datosAdicionales?.[0]?.Barrio || prev.barrio || '',
-    localidad: aspirante.localidad || aspirante.datosAdicionales?.[0]?.IdLocalidad || prev.localidad || '',
+    localidad: mapLocalidadToLabel(
+    aspirante.localidad ||
+    aspirante.datosAdicionales?.[0]?.Localidad ||
+    aspirante.datosAdicionales?.[0]?.NombreLocalidad ||
+    aspirante.datosAdicionales?.[0]?.IdLocalidad ||
+    prev.localidad ||
+    ''
+  ),
     eps: aspirante.eps || prev.eps || '',
     fondoPensiones: aspirante.fondoPensiones || prev.fondoPensiones || '',
     arl: aspirante.arl || prev.arl || '',
@@ -394,7 +438,7 @@ useEffect(() => {
   NOMBRES: (formData?.nombre || '').toUpperCase(),
   DOCUMENTO: formData?.identificacion || '',
   BARRIO: (formData?.barrio || '').toUpperCase(),
-  LOCALIDAD: String(formData?.localidad || ''),
+  LOCALIDAD: mapLocalidadToLabel(formData?.localidad || ''),
   CARGO: (cargoAplicaNombre || formData?.cargo || '').toUpperCase(),
   HIJOS: formData?.hijos || '',
   EDAD: formData?.edad || '',
@@ -465,10 +509,10 @@ useEffect(() => {
     ''
   ).toUpperCase(),
 
-  OBSERVACIONES_NUCLEO_FAMILIAR: (
-    formData?.observacionesNucleoFamiliar ||
-    ''
-  ).toUpperCase(),
+  NUCLEO_FAMILIAR: (
+  formData?.observacionesNucleoFamiliar ||
+  ''
+).toUpperCase(),
 };
 
 console.log('Campos PDF entrevista:', campos);
