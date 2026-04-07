@@ -2795,15 +2795,62 @@ if (step === "retiros_docs") {
                         Descargar
                       </Button>
 
-                      <Button
-  type="button"
-  variant="outline"
-  className="border-gray-200"
-  disabled={!file || retiroBloqueado}
-  onClick={() => removeAdjuntoByKey(req.key)}
->
-  Eliminar
-</Button>
+                     <Button
+                      type="button"
+                      variant="outline"
+                      className="border-gray-200"
+                      disabled={!file || retiroBloqueado}
+                      onClick={async () => {
+                        try {
+                          if (retiroBloqueado) return;
+
+                          const fileBackend = adjuntosBackend[req.key] || null;
+                          const fileLocal = adjuntos[req.key] || null;
+
+                          if (fileBackend?.IdRetiroLaboralAdjunto) {
+                            const res = await fetch(
+                              `${API_BASE}/rrll/adjuntos/${fileBackend.IdRetiroLaboralAdjunto}`,
+                              {
+                                method: "DELETE",
+                              }
+                            );
+
+                            if (!res.ok) {
+                              const errorData = await res.json().catch(() => null);
+                              const mensaje =
+                                errorData?.detail || "No se pudo eliminar el paquete.";
+                              throw new Error(mensaje);
+                            }
+
+                            await cargarAdjuntosDesdeBackend(form.idRetiroLaboral);
+
+                            setAdjuntos((p) => {
+                              const copy = { ...p };
+                              delete copy[req.key];
+                              return copy;
+                            });
+
+                            alert("Paquete eliminado correctamente.");
+                            return;
+                          }
+
+                          if (fileLocal) {
+                            setAdjuntos((p) => {
+                              const copy = { ...p };
+                              delete copy[req.key];
+                              return copy;
+                            });
+
+                            alert("Paquete eliminado correctamente.");
+                          }
+                        } catch (error) {
+                          console.error("Error eliminando paquete:", error);
+                          alert(error.message || "No se pudo eliminar el paquete.");
+                        }
+                      }}
+                    >
+                      Eliminar
+                    </Button>
 
                       <label className="inline-flex items-center">
                         <input
