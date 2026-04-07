@@ -285,7 +285,7 @@ const TIPIFICACIONES_RETIRO = [
 
 const TIPO_DOCUMENTO_RETIRO = [
   { id: 1, nombre: "CARTA DE RENUNCIA", tipo: "ADJUNTABLE" },
-  { id: 2, nombre: "PAZ Y SALVO", tipo: "VIEW_ONLY" },
+  { id: 2, nombre: "PAZ Y SALVO", tipo: "ADJUNTABLE" },
   { id: 3, nombre: "ACTA DE ENTREGA DE CARNET", tipo: "ADJUNTABLE" },
   { id: 4, nombre: "CARTA DE FINALIZACIÓN DEL CONTRATO", tipo: "GENERADO" },
   { id: 5, nombre: "EDICTO", tipo: "GENERADO" },
@@ -304,7 +304,7 @@ const TIPO_DOCUMENTO_RETIRO = [
 ========================================================= */
 const REQUISITOS_POR_MOTIVO = {
   "RETIRO VOLUNTARIO": [
-    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
+    { label: "PAZ Y SALVO", tipo: "ADJUNTABLE", idTipoDocumentoRetiro: 2 },
     { label: "CARTA DE RENUNCIA", tipo: "ADJUNTABLE", idTipoDocumentoRetiro: 1 },
     { label: "DEVOLUCIÓN CARNET", tipo: "SI/NO" },
     {
@@ -318,7 +318,7 @@ const REQUISITOS_POR_MOTIVO = {
   ],
 
   "TERMINACIÓN DE CONTRATO CON JUSTA CAUSA/ABANDONO DE CARGO": [
-    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
+   { label: "PAZ Y SALVO", tipo: "ADJUNTABLE", idTipoDocumentoRetiro: 2 },
     {
       label: "PRIMER LLAMADO ABANDONO INASISTENCIA AL CARGO",
       tipo: "GENERADO",
@@ -349,7 +349,7 @@ const REQUISITOS_POR_MOTIVO = {
   ],
 
   "TERMINACIÓN DE CONTRATO CON JUSTA CAUSA": [
-    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
+   { label: "PAZ Y SALVO", tipo: "ADJUNTABLE", idTipoDocumentoRetiro: 2 },
     {
       label: "CARTA DE FINALIZACIÓN DEL CONTRATO",
       tipo: "ADJUNTABLE",
@@ -367,7 +367,7 @@ const REQUISITOS_POR_MOTIVO = {
   ],
 
   "TERMINACIÓN DE CONTRATO SIN JUSTA CAUSA": [
-    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
+    { label: "PAZ Y SALVO", tipo: "ADJUNTABLE", idTipoDocumentoRetiro: 2 },
     {
       label: "CARTA DE FINALIZACIÓN DEL CONTRATO",
       tipo: "ADJUNTABLE",
@@ -385,7 +385,7 @@ const REQUISITOS_POR_MOTIVO = {
   ],
 
   "TERMINACIÓN DE CONTRATO PERIODO DE PRUEBA": [
-    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
+    { label: "PAZ Y SALVO", tipo: "ADJUNTABLE", idTipoDocumentoRetiro: 2 },
     {
       label: "CARTA DE FINALIZACIÓN DEL CONTRATO",
       tipo: "ADJUNTABLE",
@@ -403,7 +403,7 @@ const REQUISITOS_POR_MOTIVO = {
   ],
 
   "TERMINACIÓN DE CONTRATO OBRA LABOR": [
-    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
+   { label: "PAZ Y SALVO", tipo: "ADJUNTABLE", idTipoDocumentoRetiro: 2 },
     {
       label: "CARTA DE FINALIZACIÓN DEL CONTRATO",
       tipo: "ADJUNTABLE",
@@ -421,7 +421,7 @@ const REQUISITOS_POR_MOTIVO = {
   ],
 
   "TERMINACIÓN DE CONTRATO DE APRENDIZAJE": [
-    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
+    { label: "PAZ Y SALVO", tipo: "ADJUNTABLE", idTipoDocumentoRetiro: 2 },
     {
       label: "CARTA DE FINALIZACIÓN DEL CONTRATO",
       tipo: "ADJUNTABLE",
@@ -439,7 +439,7 @@ const REQUISITOS_POR_MOTIVO = {
   ],
 
   "MUERTE DEL COLABORADOR": [
-    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
+    { label: "PAZ Y SALVO", tipo: "ADJUNTABLE", idTipoDocumentoRetiro: 2 },
     { label: "EDICTO", tipo: "ADJUNTABLE", idTipoDocumentoRetiro: 5 },
     {
       label: "DOCUMENTOS BENEFICIARIOS",
@@ -450,7 +450,7 @@ const REQUISITOS_POR_MOTIVO = {
   ],
 
   "MUTUO ACUERDO": [
-    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
+   { label: "PAZ Y SALVO", tipo: "ADJUNTABLE", idTipoDocumentoRetiro: 2 },
     {
       label: "ACTA DE MUTUO ACUERDO",
       tipo: "ADJUNTABLE",
@@ -477,7 +477,7 @@ const REQUISITOS_POR_MOTIVO = {
 
 
   "ACUERDO TRANSACCIONAL": [
-    { label: "PAZ Y SALVO", tipo: "VIEW_ONLY", idTipoDocumentoRetiro: 2 },
+    { label: "PAZ Y SALVO", tipo: "ADJUNTABLE", idTipoDocumentoRetiro: 2 },
     {
       label: "ACTA DE MUTUO ACUERDO",
       tipo: "ADJUNTABLE",
@@ -2180,6 +2180,17 @@ const handleActualizarEstadoProceso = async () => {
       return;
     }
 
+    if (estadoSeleccionado === "CERRADO") {
+      const keyPazYSalvo = keyFromLabel(`${form.motivoRetiro}_PAZ Y SALVO`);
+      const pazYSalvoBackend = adjuntosBackend[keyPazYSalvo];
+      const pazYSalvoLocal = adjuntos[keyPazYSalvo];
+
+      if (!pazYSalvoBackend && !pazYSalvoLocal) {
+        setMsgActualizar("Debe adjuntar el Paz y Salvo antes de cerrar el proceso.");
+        return;
+      }
+    }
+
     setLoadingActualizar(true);
 
     const estadoCasoRRLL = estadoSeleccionado;
@@ -3492,7 +3503,6 @@ if (step === "retiros_docs") {
             <p className="font-semibold text-gray-700 mb-3">
               Estado del Proceso General
             </p>
-
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
               <div className="md:col-span-8">
                 <Label className="text-xs text-gray-600">Estado</Label>
@@ -3502,7 +3512,7 @@ if (step === "retiros_docs") {
                   onValueChange={setEstadoSeleccionado}
                 >
                   <SelectTrigger className="bg-white h-12 border border-emerald-200">
-                    <SelectValue placeholder="Seleccionar..." />
+                    <SelectValue placeholder="Seleccionar." />
                   </SelectTrigger>
 
                   <SelectContent className="max-h-60 overflow-y-auto">
@@ -3523,6 +3533,14 @@ if (step === "retiros_docs") {
                 </Button>
               </div>
             </div>
+
+            {estadoSeleccionado === "CERRADO" &&
+              !adjuntosBackend[keyFromLabel(`${form.motivoRetiro}_PAZ Y SALVO`)] &&
+              !adjuntos[keyFromLabel(`${form.motivoRetiro}_PAZ Y SALVO`)] && (
+                <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  Falta adjuntar el Paz y Salvo para poder cerrar el proceso.
+                </div>
+              )}
           </div>
 
           <div className="mt-3 text-xs text-gray-500">
