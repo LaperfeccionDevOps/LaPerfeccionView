@@ -3616,6 +3616,7 @@ const tieneFirmaCargada = () => {
             </div>
 
             <div className="flex justify-end pt-4 border-t border-gray-100 mt-6">
+              {/*
               <Button
                 type="button"
                 onClick={handleFinalizarDocumentacion}
@@ -3624,6 +3625,7 @@ const tieneFirmaCargada = () => {
                 <CheckCircle2 className="w-4 h-4 mr-2" />
                 Finalizar Documentación
               </Button>
+              */}
             </div>
           </div>
         )}
