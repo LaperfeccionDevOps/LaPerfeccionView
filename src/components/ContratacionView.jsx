@@ -366,7 +366,6 @@ const documentosIngreso = [
 ];
 
 const documentosSeguridad = [
-   { id: 6, label: 'Autorizacón de Tratamiento de datos' },
    { id: 6, label: 'Antecedentes de policía' },
    { id: 7, label: 'Antecedentes disciplinarios procuraduría' },
    { id: 8, label: 'Antecedentes disciplinarios contraloría' },
@@ -378,7 +377,8 @@ const documentosSeguridad = [
    { id: 61, label: 'Historial de pensión (Personal Administrativo)' },
    { id: 67, label: 'Entrevista selección' },
    { id: 68, label: 'Confirmación de referencias laborales' },
-   { id: 60, label: 'Certificado de competencias específicas' },
+   { id: 13, label: 'Certificado de competencias específicas' },
+   { id: 73, label: 'Tratamiento de datos' }
 ];
 
 const documentosContratacion = [
