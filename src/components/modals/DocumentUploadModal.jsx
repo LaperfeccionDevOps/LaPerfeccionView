@@ -27,7 +27,7 @@ const DocumentUploadModal = ({ isOpen, onClose, aspirante, onSave, docTypeConfig
             return;
         }
         setLoading(true);
-        const id = aspirante.idRegistroPersonal || aspirante.id;
+        const id = aspirante?.idRegistroPersonal || aspirante?.IdRegistroPersonal || aspirante?.id;
         Promise.all([
             getDocumentacionIngreso(id).catch(() => null),
             obtenerDocumentoSeguridadBase64(id).catch(() => null),
@@ -191,7 +191,7 @@ if (response?.data?.pdf_base64) {
 };
     const handleEnviarDocumentosContratacion = async (docsContratacion) => {
         const idsContratacion = listaDocumentosContratacion.map(d => String(d.id));
-        const idRegistroPersonal = aspirante?.id || formData?.IdRegistroPersonal;
+        const idRegistroPersonal = aspirante?.idRegistroPersonal || aspirante?.IdRegistroPersonal || aspirante?.id;
         let docsPayload = docsContratacion
             .filter(doc => idsContratacion.includes(String(doc.IdTipoDocumentacion)))
             .map(doc => ({
