@@ -350,79 +350,81 @@ const handleFileUpload = async (e, tipoId) => {
                     </div>
                     <div className="px-8 pb-2 pt-2">
                         <Tabs value={tab} onValueChange={setTab} className="w-full">
-                        <TabsContent value="ingreso">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-4 max-h-[50vh] overflow-y-auto pr-2">
-                                {docTypeConfigIngreso?.list?.map((req) => {
-                                    const doc = Array.isArray(documentos)
-                                        ? documentos.find(d => String(d.IdTipoDocumentacion) === String(req.id))
-                                        : null;
-                                    const hasFile = !!doc;
-                                    let accept = '.pdf,image/*';
-                                    if (req.id === 'fotoAspirante') accept = 'image/*';
-                                    if (req.id === 'reciboPublico') accept = '.pdf,image/*';
-                                    return (
-                                        <div key={req.id} className="border-2 border-yellow-200 rounded-2xl p-6 bg-white/90 shadow-lg flex flex-col justify-between h-full group w-full hover:shadow-2xl transition-shadow duration-200">
-                                            <div>
-                                                <h4 className="font-bold text-emerald-800 mb-3 text-base leading-tight min-h-[40px] tracking-wide flex items-center gap-2">
-                                                    <span className="inline-block w-2 h-2 rounded-full bg-yellow-400"></span>
-                                                    {req.nombre || req.label}
-                                                </h4>
-                                                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-4 border shadow-sm ${hasFile ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-red-100 text-red-700 border-red-300'}`}> 
-                                                    {hasFile ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                                                    {hasFile ? 'Adjuntado' : 'Falta adjuntar'}
-                                                </div>
-                                            </div>
-                                            <div className="space-y-3">
-                                                {!hasFile && (
-                                                    <div className="flex gap-2">
-                                                        <div className="relative flex-1">
-                                                            <input
-                                                                type="file"
-                                                                id={`file-ingreso-${req.id}-${aspirante.id}`}
-                                                                className="hidden"
-                                                                onChange={(e) => handleFileUpload(e, req.id)}
-                                                                accept={accept}
-                                                            />
-                                                            <label
-                                                                htmlFor={`file-ingreso-${req.id}-${aspirante.id}`}
-                                                                className="cursor-pointer flex items-center justify-center w-full px-3 py-2 border-2 border-yellow-300 shadow-sm text-sm font-semibold rounded-xl text-yellow-700 bg-yellow-50 hover:bg-yellow-100 transition-colors"
-                                                            >
-                                                                <Upload className="w-4 h-4 mr-2" /> Cargar
-                                                            </label>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                {hasFile && (
-                                                    <div className="flex flex-col gap-2 w-full">
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="text-emerald-700 border-emerald-300 hover:bg-emerald-100 px-3 h-auto w-full font-semibold"
-                                                            onClick={() => descargarDocumento(doc)}
-                                                        >
-                                                            <Download className="w-4 h-4 mr-2" /> Descargar
-                                                        </Button>
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="text-red-700 border-red-300 hover:bg-red-100 px-3 h-auto w-full font-semibold"
-                                                            onClick={() => removeDocument(req.id)}
-                                                        >
-                                                            <Trash2 className="w-4 h-4 mr-2" /> Eliminar
-                                                        </Button>
-                                                    </div>
-                                                )}
-                                                <p className="text-xs text-gray-500 truncate h-4 italic">
-                                                    {hasFile ? doc.Nombre : 'Sin archivo'}
-                                                </p>
+                       <TabsContent value="ingreso">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-4 max-h-[50vh] overflow-y-auto pr-2">
+                        {docTypeConfigIngreso?.list
+                            ?.filter((req) => String(req.id) !== '73')
+                            ?.map((req) => {
+                                const doc = Array.isArray(documentos)
+                                    ? documentos.find(d => String(d.IdTipoDocumentacion) === String(req.id))
+                                    : null;
+                                const hasFile = !!doc;
+                                let accept = '.pdf,image/*';
+                                if (req.id === 'fotoAspirante') accept = 'image/*';
+                                if (req.id === 'reciboPublico') accept = '.pdf,image/*';
+                                return (
+                                    <div key={req.id} className="border-2 border-yellow-200 rounded-2xl p-6 bg-white/90 shadow-lg flex flex-col justify-between h-full group w-full hover:shadow-2xl transition-shadow duration-200">
+                                        <div>
+                                            <h4 className="font-bold text-emerald-800 mb-3 text-base leading-tight min-h-[40px] tracking-wide flex items-center gap-2">
+                                                <span className="inline-block w-2 h-2 rounded-full bg-yellow-400"></span>
+                                                {req.nombre || req.label}
+                                            </h4>
+                                            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-4 border shadow-sm ${hasFile ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-red-100 text-red-700 border-red-300'}`}> 
+                                                {hasFile ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                                                {hasFile ? 'Adjuntado' : 'Falta adjuntar'}
                                             </div>
                                         </div>
-                                    );
-                                })}
-                            </div>
-                        </TabsContent>
+                                        <div className="space-y-3">
+                                            {!hasFile && (
+                                                <div className="flex gap-2">
+                                                    <div className="relative flex-1">
+                                                        <input
+                                                            type="file"
+                                                            id={`file-ingreso-${req.id}-${aspirante.id}`}
+                                                            className="hidden"
+                                                            onChange={(e) => handleFileUpload(e, req.id)}
+                                                            accept={accept}
+                                                        />
+                                                        <label
+                                                            htmlFor={`file-ingreso-${req.id}-${aspirante.id}`}
+                                                            className="cursor-pointer flex items-center justify-center w-full px-3 py-2 border-2 border-yellow-300 shadow-sm text-sm font-semibold rounded-xl text-yellow-700 bg-yellow-50 hover:bg-yellow-100 transition-colors"
+                                                        >
+                                                            <Upload className="w-4 h-4 mr-2" /> Cargar
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {hasFile && (
+                                                <div className="flex flex-col gap-2 w-full">
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="text-emerald-700 border-emerald-300 hover:bg-emerald-100 px-3 h-auto w-full font-semibold"
+                                                        onClick={() => descargarDocumento(doc)}
+                                                    >
+                                                        <Download className="w-4 h-4 mr-2" /> Descargar
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="text-red-700 border-red-300 hover:bg-red-100 px-3 h-auto w-full font-semibold"
+                                                        onClick={() => removeDocument(req.id)}
+                                                    >
+                                                        <Trash2 className="w-4 h-4 mr-2" /> Eliminar
+                                                    </Button>
+                                                </div>
+                                            )}
+                                            <p className="text-xs text-gray-500 truncate h-4 italic">
+                                                {hasFile ? doc.Nombre : 'Sin archivo'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                    </div>
+                </TabsContent>
                        <TabsContent value="seguridad">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-4 max-h-[50vh] overflow-y-auto pr-2">
                     {docTypeConfigSeguridad?.list?.map((req) => {
