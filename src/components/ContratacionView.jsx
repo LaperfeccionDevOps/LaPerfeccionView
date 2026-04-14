@@ -362,9 +362,7 @@ const documentosIngreso = [
    { id: 40, label: 'Certificado fondo de pensiones' },
    { id: 41, label: 'Fotocopia de carné de vacunas covid' },
    { id: 42, label: 'Firma digital' },
-   { id: 30, label: 'Certificado de afiliación EPS' },
-   { id: 73, label: 'Tratamiento de datos' },
-   { id: 35, label: 'Fotocopia de carné de vacunas Hepatitis - Tétano' },
+   { id: 30, label: 'Certificado de afiliación EPS' }
 ];
 
 const documentosSeguridad = [
@@ -395,7 +393,6 @@ const documentosContratacion = [
   { id: 57, label: 'Paquete contratación' },
   { id: 20, label: 'Descripción del cargo y manual de funciones' },
   { id: 74, label: 'Contrato de trabajo' },
-  { id: 32, label: 'Certificación bancaria' },
 ];
 
 const docTypes = {

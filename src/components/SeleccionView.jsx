@@ -126,8 +126,7 @@ const SeleccionView = () => {
 
   // Exportar datos filtrados a Excel
       const exportToExcel = () => {
-
-          if (!filteredAspirantes.length) {
+            if (!filteredAspirantes.length) {
             toast({ title: 'No hay datos para exportar', description: 'No existen registros para exportar.' });
             return;
           }

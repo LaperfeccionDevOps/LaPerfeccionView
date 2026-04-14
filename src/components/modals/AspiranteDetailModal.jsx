@@ -887,18 +887,7 @@ const handleDescargarReferencia = async (ref) => {
   } catch (error) {
     console.error('Error al descargar referencia:', error);
   }
-
-    let pdf_base64 = '';
-    const response = await DescargarDocumentoPdf(campos, 'referencias');
-    if (response && typeof response.json === 'function') {
-      const data = await response.json();
-      pdf_base64 = data.pdf_base64;
-    } else if (response && response.pdf_base64) {
-      pdf_base64 = response.pdf_base64;
-    }
-    const doc = { DocumentoBase64: 'data:application/pdf;base64,' + (pdf_base64 || '') };
-    descargarDocumento(doc);
-  };
+};
 
   const handleDescargarTratamientoDatos = async () => {
     const campos = {
