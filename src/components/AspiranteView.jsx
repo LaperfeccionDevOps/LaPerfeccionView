@@ -628,16 +628,9 @@ const AspiranteView = () => {
           NucleoFamiliar: nucleos.length > 0 ? nucleos : prev.NucleoFamiliar,
           Referencias: [{ IdTipoReferencia: 1, Nombre: response.data[0].referencias[0]?.Nombre || '', Telefono: response.data[0].referencias[0]?.Telefono || '', Parentesco: response.data[0].referencias[0]?.Parentesco || '', TiempoConocerlo: response.data[0].referencias[0]?.TiempoConocerlo || '' }],
         }));
-        Swal.fire({
-          position: "center",
-          icon: "success",
-          title: "Datos precargados",
-          text: "Se han cargado los datos principales del aspirante.",
-          showConfirmButton: false,
-          timer: 5000,
-          customClass: {
-            title: 'swal2-title-sm'
-          }
+        toast({
+          title: 'Datos precargados',
+          description: 'Se han cargado los datos principales del aspirante.',
         });
       }
     } catch (error) {
@@ -891,17 +884,10 @@ const handleCelularChange = (e) => {
   // Si intenta pasar de 10, mostramos error
   if (onlyDigits.length > 10) {
     if (!celularError) {
-     
-      Swal.fire({
-        position: "center",
-        icon: "success",
-        title: "⚠️ Celular inválido ",
-        text: "El celular debe tener exactamente 10 dígitos.",
-        showConfirmButton: false,
-        timer: 5000,
-        customClass: {
-          title: 'swal2-title-sm'
-        }
+      toast({
+        title: "⚠️ Celular inválido",
+        description: "El celular debe tener exactamente 10 dígitos.",
+        variant: "destructive",
       });
     }
     setCelularError("El celular debe tener exactamente 10 dígitos.");
@@ -1069,16 +1055,10 @@ const handleTelEmergenciaChange = (e) => {
 
     // Tamaño máximo
     if (file.size > MAX_FILE_SIZE_BYTES) {
-       Swal.fire({
-        position: "center",
-        icon: "success",
-        title: "⚠️ Archivo demasiado pesado",
-        text: `El archivo supera el límite permitido de ${MAX_FILE_SIZE_MB} MB.`,
-        showConfirmButton: false,
-        timer: 5000,
-        customClass: {
-          title: 'swal2-title-sm'
-        }
+      toast({
+        title: '⚠️ Archivo demasiado pesado',
+        description: `El archivo supera el límite permitido de ${MAX_FILE_SIZE_MB} MB.`,
+        variant: 'destructive',
       });
       e.target.value = '';
       return;
@@ -1088,34 +1068,22 @@ const handleTelEmergenciaChange = (e) => {
     // - Foto (2) y Firma (42): SOLO imagen
     // - Resto: SOLO PDF
     if (!isFoto && !isFirma && !isPdf) {
-       Swal.fire({
-        position: "center",
-        icon: "success",
-        title: "⚠️ Formato no permitido",
-        text: 'Este documento debe cargarse en formato PDF.',
-        showConfirmButton: false,
-        timer: 5000,
-        customClass: {
-          title: 'swal2-title-sm'
-        }
+      toast({
+        title: '⚠️ Formato no permitido',
+        description: 'Este documento debe cargarse en formato PDF.',
+        variant: 'destructive',
       });
       e.target.value = '';
       return;
     }
 
     if ((isFoto || isFirma) && !isImage) {
-      Swal.fire({
-        position: "center",
-        icon: "success",
-        title: "⚠️ Formato no permitido",
-        text: isFoto
+      toast({
+        title: '⚠️ Formato no permitido',
+        description: isFoto
           ? 'La foto del aspirante debe ser una imagen (PNG/JPG).'
           : 'La firma debe ser una imagen (preferible PNG).',
-        showConfirmButton: false,
-        timer: 5000,
-        customClass: {
-          title: 'swal2-title-sm'
-        }
+        variant: 'destructive',
       });
       e.target.value = '';
       return;
@@ -1200,16 +1168,10 @@ const handleTelEmergenciaChange = (e) => {
       return false;
     };
     if (!tieneFotoCargada()) {
-       Swal.fire({
-        position: "center",
-        icon: "warning",
-        title: "⚠️ Falta foto del aspirante",
-        text: "Debes adjuntar la foto del aspirante para poder guardar el registro.",
-        showConfirmButton: false,
-        timer: 5000,
-        customClass: {
-          title: 'swal2-title-sm'
-        }
+      toast({
+        title: '⚠️ Falta foto del aspirante',
+        description: 'Debes adjuntar la foto del aspirante para poder guardar el registro.',
+        variant: 'destructive',
       });
       return;
     }
@@ -1248,16 +1210,10 @@ const handleTelEmergenciaChange = (e) => {
     ];
     const faltantes = camposRequeridos.filter(f => f.campo === undefined || f.campo === null || f.campo === '' || f.campo === 0);
     if (faltantes.length > 0) {
-        Swal.fire({
-        position: "center",
-        icon: "warning",
-        title: "⚠️ Campos requeridos",
-        text: "Por favor completa: " + faltantes.map(f => f.nombre).join(', '),
-        showConfirmButton: false,
-        timer: 5000,
-        customClass: {
-          title: 'swal2-title-sm'
-        }
+      toast({
+        title: '⚠️ Campos requeridos',
+        description: 'Por favor completa: ' + faltantes.map(f => f.nombre).join(', '),
+        variant: 'destructive',
       });
       return;
     }
@@ -1310,16 +1266,10 @@ const handleTelEmergenciaChange = (e) => {
     const id2 = String(numeroIdConfirmacion ?? "").trim();
 
     if (!id2) {
-       Swal.fire({
-        position: "center",
-        icon: "warning",
-        title: "Confirmación de identificación requerida",
-        text: "Por favor confirma el número de identificación.",
-        showConfirmButton: false,
-        timer: 5000,
-        customClass: {
-          title: 'swal2-title-sm'
-        }
+      toast({
+        title: 'Confirmación de identificación requerida',
+        description: 'Por favor confirma el número de identificación.',
+        variant: 'destructive',
       });
       return;
     }
@@ -1330,7 +1280,6 @@ const handleTelEmergenciaChange = (e) => {
         description: 'El número y la confirmación deben ser iguales.',
         variant: 'destructive',
       });
-      
       return;
     }
 
@@ -1422,21 +1371,21 @@ const handleTelEmergenciaChange = (e) => {
         };
         try {
 
-        if (!tieneFirmaCargada()) {
-          Swal.fire({
-            position: "center",
-            icon: "warning",
-            title: "⚠️ Falta firma",
-            text: "Debes registrar la firma digital (dibujada) para poder guardar el registro.",
-            showConfirmButton: false,
-            timer: 5000,
-            customClass: {
-              title: 'swal2-title-sm'
-            }
-          });
-          return; // ⛔ bloquea el submit (Guardar Registro)
-        }
-
+      
+      if (!tieneFirmaCargada()) {
+        Swal.fire({
+          position: "center",
+          icon: "warning",
+          title: "⚠️ Falta firma",
+          text: "Debes registrar la firma digital (dibujada) para poder guardar el registro.",
+          showConfirmButton: false,
+          timer: 5000,
+          customClass: {
+            title: 'swal2-title-sm'
+          }
+        });
+        return; // ⛔ bloquea el submit (Guardar Registro)
+      }
       let response;
 
       if (!existeAspirante) {
@@ -1854,22 +1803,22 @@ const tieneFirmaCargada = () => {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Lugar de Expedición *</Label>
-              <Input
-                name="LugarExpedicion"
-                value={formData.LugarExpedicion}
-                onChange={(e) => {
-                  const soloLetras = e.target.value.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñ\s]/g, '');
-                  handleInputChange({
-                    target: {
-                      name: 'LugarExpedicion',
-                      value: soloLetras,
-                    },
-                  });
-                }}
-              />
-            </div>
+        <div className="space-y-2">
+        <Label>Lugar de Expedición *</Label>
+        <Input
+          name="LugarExpedicion"
+          value={formData.LugarExpedicion}
+          onChange={(e) => {
+            const soloLetras = e.target.value.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñ\s]/g, '');
+            handleInputChange({
+              target: {
+                name: 'LugarExpedicion',
+                value: soloLetras,
+              },
+            });
+          }}
+        />
+      </div>
 
             <div className="space-y-2 md:col-span-2">
               <Label>¿Cómo se enteró de la vacante?</Label>

@@ -818,7 +818,6 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
     });
   };
 
-
 const handleDescargarReferencia = async (ref) => {
   try {
     const validacion = Array.isArray(ref?.validaciones)
@@ -884,29 +883,29 @@ const handleDescargarReferencia = async (ref) => {
       IDENTIFICACION: formData?.cedula || '',
     };
 
-   let pdf_base64 = '';
-const response = await DescargarDocumentoPdf(campos, 'referencias');
+    let pdf_base64 = '';
+    const response = await DescargarDocumentoPdf(campos, 'referencias');
 
-if (response && typeof response.json === 'function') {
-  const data = await response.json();
-  pdf_base64 = data.pdf_base64;
-} else if (response && response.pdf_base64) {
-  pdf_base64 = response.pdf_base64;
-}
+    if (response && typeof response.json === 'function') {
+      const data = await response.json();
+      pdf_base64 = data.pdf_base64;
+    } else if (response && response.pdf_base64) {
+      pdf_base64 = response.pdf_base64;
+    }
 
-if (!pdf_base64) {
-  console.error('No se recibió pdf_base64');
-  return;
-}
+    if (!pdf_base64) {
+      console.error('No se recibió pdf_base64');
+      return;
+    }
 
-const doc = {
-  DocumentoBase64: 'data:application/pdf;base64,' + pdf_base64,
-};
+    const doc = {
+      DocumentoBase64: 'data:application/pdf;base64,' + pdf_base64,
+    };
 
-descargarDocumento(doc);
-} catch (error) {
-  console.error('Error al descargar referencia:', error);
-}
+    descargarDocumento(doc);
+  } catch (error) {
+    console.error('Error al descargar referencia:', error);
+  }
 };
     const handleDescargarTratamientoDatos = async () => {
     const campos = {
@@ -1245,7 +1244,10 @@ console.log('campos completos:', campos);
   // =========================
   // Datos de Proceso (Selección) - API /api/datos-proceso-aspirante/{id}
   // =========================
-  const API_BASE = import.meta?.env?.VITE_API_BASE_URL || 'https://api.laperfeccion.app/api';
+const API_BASE =
+  import.meta?.env?.VITE_API_URL ||
+  import.meta?.env?.VITE_API_BASE_URL ||
+  'http://localhost:8000/api';  
   const token = localStorage.getItem('access_token') || localStorage.getItem('token') || '';
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
@@ -3013,7 +3015,74 @@ if (response && response.status === 201) {
                                     <td className="px-3 py-2 text-sm">{fam.Ocupacion}</td>
                                     <td className="px-3 py-2 text-sm">{fam.Telefono}</td>
                                     <td className="px-3 py-2 text-sm">{fam.DependeEconomicamente == null ? 'No' : fam.DependeEconomicamente}</td>
-                              
+
+                                    <td className="px-3 py-2 text-sm align-top">
+                                    <div className="min-w-[120px] flex flex-col gap-1">
+                                       <textarea
+                                          className="w-full min-h-[28px] resize-y rounded border border-gray-200 bg-white px-1 py-1 text-xs text-gray-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-100"
+                                          placeholder="Observaciones..."
+                                          value={fam.Observaciones ?? fam.observaciones?.Observaciones ?? ""}
+                                          onChange={(e) => {
+                                             const value = e.target.value;
+                                             setFormData((prev) => {
+                                                const list = Array.isArray(prev?.nucleoFamiliar) ? [...prev.nucleoFamiliar] : [];
+                                                if (!list[idx]) return prev;
+                                                // Preserve other fields, update Observaciones
+                                                list[idx] = {
+                                                   ...list[idx],
+                                                   Observaciones: value,
+                                                   observaciones: {
+                                                      ...list[idx].observaciones,
+                                                      Observaciones: value,
+                                                   },
+                                                };
+                                                return { ...prev, nucleoFamiliar: list };
+                                             });
+                                          }}
+                                       />
+                                       <button
+                                          type="button"
+                                          className="inline-flex items-center justify-center rounded bg-emerald-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
+                                          onClick={async () => {
+                                    try {
+                                    const token = localStorage.getItem("access_token") || localStorage.getItem("token") || "";
+                                    const idNucleoFamiliar = fam.IdNucleoFamiliar;
+                                    const observaciones = (fam.Observaciones ?? "").trim();
+                                    if (!idNucleoFamiliar) {
+                                       alert("No se encontró IdNucleoFamiliar.");
+                                       return;
+                                    }
+                                    const res = await fetch(
+                                       `http://localhost:8000/api/observaciones-nucleo-familiar/${idNucleoFamiliar}`,
+                                       {
+                                          method: "PUT",
+                                          headers: {
+                                          "Content-Type": "application/json",
+                                          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                                          },
+                                          body: JSON.stringify({
+                                          observaciones: observaciones,
+                                          usuarioActualizacion: "juan",
+                                          }),
+                                       }
+                                    );
+                                    if (!res.ok) {
+                                       const txt = await res.text();
+                                       console.error("Error API:", res.status, txt);
+                                       alert("Error guardando observación.");
+                                       return;
+                                    }
+                                    alert("Observación guardada.");
+                                    } catch (err) {
+                                    console.error(err);
+                                    alert("Error guardando observación.");
+                                    }
+                                    }}
+                                    >
+                                          Guardar
+                                       </button>
+                                    </div>
+                                    </td>
 
                                     {/* <td className="px-3 py-2 text-sm">
                                       <Button size="icon" variant="ghost" className="h-6 w-6 text-red-400 hover:text-red-600 shrink-0" onClick={() => removeFamiliar(idx)}>
