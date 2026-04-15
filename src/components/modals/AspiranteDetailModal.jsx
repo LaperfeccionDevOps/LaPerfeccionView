@@ -639,8 +639,8 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
             fechaExpedicion: fila?.FechaExpedicion || '',
             descripcionNivelEducativo: fila?.nivel_educativo?.Descripcion || '',
 
-            contactoEmergencia: fila?.ContactoEmergencia || [],
-            telefonoContactoEmergencia: fila?.TelefonoContactoEmergencia || [],
+            contactoEmergencia: fila?.ContactoEmergencia || '',
+            telefonoContactoEmergencia: fila?.TelefonoContactoEmergencia || '',
 
             documentos: documentos?.data || [],
             documentosSeguridad: documentosSeguridadResp?.data || [],
@@ -3016,74 +3016,6 @@ if (response && response.status === 201) {
                                     <td className="px-3 py-2 text-sm">{fam.Telefono}</td>
                                     <td className="px-3 py-2 text-sm">{fam.DependeEconomicamente == null ? 'No' : fam.DependeEconomicamente}</td>
 
-                                    <td className="px-3 py-2 text-sm align-top">
-                                    <div className="min-w-[120px] flex flex-col gap-1">
-                                       <textarea
-                                          className="w-full min-h-[28px] resize-y rounded border border-gray-200 bg-white px-1 py-1 text-xs text-gray-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-100"
-                                          placeholder="Observaciones..."
-                                          value={fam.Observaciones ?? fam.observaciones?.Observaciones ?? ""}
-                                          onChange={(e) => {
-                                             const value = e.target.value;
-                                             setFormData((prev) => {
-                                                const list = Array.isArray(prev?.nucleoFamiliar) ? [...prev.nucleoFamiliar] : [];
-                                                if (!list[idx]) return prev;
-                                                // Preserve other fields, update Observaciones
-                                                list[idx] = {
-                                                   ...list[idx],
-                                                   Observaciones: value,
-                                                   observaciones: {
-                                                      ...list[idx].observaciones,
-                                                      Observaciones: value,
-                                                   },
-                                                };
-                                                return { ...prev, nucleoFamiliar: list };
-                                             });
-                                          }}
-                                       />
-                                       <button
-                                          type="button"
-                                          className="inline-flex items-center justify-center rounded bg-emerald-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
-                                          onClick={async () => {
-                                    try {
-                                    const token = localStorage.getItem("access_token") || localStorage.getItem("token") || "";
-                                    const idNucleoFamiliar = fam.IdNucleoFamiliar;
-                                    const observaciones = (fam.Observaciones ?? "").trim();
-                                    if (!idNucleoFamiliar) {
-                                       alert("No se encontró IdNucleoFamiliar.");
-                                       return;
-                                    }
-                                    const res = await fetch(
-                                       `http://localhost:8000/api/observaciones-nucleo-familiar/${idNucleoFamiliar}`,
-                                       {
-                                          method: "PUT",
-                                          headers: {
-                                          "Content-Type": "application/json",
-                                          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                                          },
-                                          body: JSON.stringify({
-                                          observaciones: observaciones,
-                                          usuarioActualizacion: "juan",
-                                          }),
-                                       }
-                                    );
-                                    if (!res.ok) {
-                                       const txt = await res.text();
-                                       console.error("Error API:", res.status, txt);
-                                       alert("Error guardando observación.");
-                                       return;
-                                    }
-                                    alert("Observación guardada.");
-                                    } catch (err) {
-                                    console.error(err);
-                                    alert("Error guardando observación.");
-                                    }
-                                    }}
-                                    >
-                                          Guardar
-                                       </button>
-                                    </div>
-                                    </td>
-
                                     {/* <td className="px-3 py-2 text-sm">
                                       <Button size="icon" variant="ghost" className="h-6 w-6 text-red-400 hover:text-red-600 shrink-0" onClick={() => removeFamiliar(idx)}>
                                         <Trash2 className="w-3 h-3"/>
@@ -4559,9 +4491,9 @@ if (response && response.status === 201) {
                                  size="sm"
                                  className="h-9 px-4 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white"
                                  onClick={() => {
-  console.log('CLICK BOTON DESCARGAR ENTREVISTA');
-  handleDescargarEntrevista();
-}}
+                                 console.log('CLICK BOTON DESCARGAR ENTREVISTA');
+                                 handleDescargarEntrevista();
+                                 }}
                                  style={{ marginTop: '1rem' }}
                               >
                                  Descargar entrevista
@@ -4569,7 +4501,7 @@ if (response && response.status === 201) {
                            </div>
                            </TabsContent>
 
-                              {/* ✅✅✅ NUEVO BLOQUE: Asignación cargo y cliente (JUSTO AQUÍ, debajo del historial) */}
+                           {/* ✅✅✅ NUEVO BLOQUE: Asignación cargo y cliente (JUSTO AQUÍ, debajo del historial) */}
                            {/* <details className="mb-6 bg-white border border-gray-200 rounded-xl shadow-sm"> */}
                              <summary className="cursor-pointer select-none list-none px-4 py-3 flex items-center justify-between">
                                <span className="font-semibold text-gray-800">Asignación cargo y cliente</span>
