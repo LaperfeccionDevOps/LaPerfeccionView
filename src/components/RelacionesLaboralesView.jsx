@@ -3708,45 +3708,54 @@ if (step === "retiros_docs") {
 
 
 
-<div className="md:col-span-3">
-  <Label className="text-xs text-gray-600">Fecha envío operaciones</Label>
-  <Input
-    type="text"
-    value={form.fechaEnvioOperaciones || ""}
-    readOnly
-    className="bg-white font-bold text-gray-700 cursor-default"
-  />
-</div>
+            <div className="md:col-span-3">
+              <Label className="text-xs text-gray-600">Fecha envío operaciones</Label>
+              <Input
+                type="text"
+                value={form.fechaEnvioOperaciones || ""}
+                readOnly
+                className="bg-white font-bold text-gray-700 cursor-default"
+              />
+            </div>
 
-<div className="md:col-span-3">
-  <Label className="text-xs text-gray-600">Último día laborado</Label>
-  <Input
-    type="text"
-    value={form.fechaFinal || ""}
-    readOnly
-    className="bg-white font-bold text-gray-700 cursor-default"
-    title="Esta fecha la define Operaciones en el Paz y Salvo"
-  />
-</div>
+           <div className="md:col-span-3">
+              <Label className="text-xs text-gray-600">Último día laborado</Label>
+              <Input
+                type="date"
+                value={form.fechaFinal || ""}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    fechaFinal: e.target.value,
+                  }))
+                }
+                className="bg-white font-bold text-gray-700"
+                title={
+                  form.fechaFinal
+                    ? "Puede ajustarse manualmente mientras Operaciones no haya registrado el Paz y Salvo."
+                    : "Ingrese manualmente el último día laborado mientras Operaciones registra el Paz y Salvo."
+                }
+              />
+            </div>
 
-<div className="md:col-span-3">
-  <Label className="text-xs text-gray-600">Fecha cierre proceso</Label>
-  <Input
-    type="text"
-    value={form.fechaCierreProceso || ""}
-    readOnly
-    className="bg-white font-bold text-gray-700 cursor-default"
-  />
-</div>
+            <div className="md:col-span-3">
+              <Label className="text-xs text-gray-600">Fecha cierre proceso</Label>
+              <Input
+                type="text"
+                value={form.fechaCierreProceso || ""}
+                readOnly
+                className="bg-white font-bold text-gray-700 cursor-default"
+              />
+            </div>
 
-{faltaPazYSalvo && (
-  <div className="md:col-span-12">
-    <p className="mt-2 text-xs text-gray-500">
-      ⚠️ Aún no hay Paz y Salvo de Operaciones. El <b>último día laborado</b> se cargará
-      automáticamente cuando Operaciones lo registre. (Presiona <b>Buscar</b> para refrescar)
-    </p>
-  </div>
-)}
+            {faltaPazYSalvo && (
+              <div className="md:col-span-12">
+                <p className="mt-2 text-xs text-gray-500">
+                  ⚠️ Aún no hay Paz y Salvo de Operaciones. El <b>último día laborado</b> se cargará
+                  automáticamente cuando Operaciones lo registre. (Presiona <b>Buscar</b> para refrescar)
+                </p>
+              </div>
+            )}
 
             {/* Cliente */}
             <div className="md:col-span-3">
