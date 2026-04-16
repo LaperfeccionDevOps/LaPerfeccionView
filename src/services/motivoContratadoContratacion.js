@@ -1,5 +1,5 @@
 const RAW_BASE =
-  import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+  import.meta.env.VITE_API_BASE_URL || 'https://apiqa.laperfeccion.app';
 
 // ✅ Normaliza: quita "/" final y quita "/api" si ya viene incluido
 const API_BASE_URL = RAW_BASE
