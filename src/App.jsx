@@ -9,7 +9,7 @@ import HomePage from '@/pages/HomePage';
 import AspiranteView from '@/components/AspiranteView';
 import ContratacionView from '@/components/ContratacionView';
 import SeleccionView from '@/components/SeleccionView';
-import SeguimientoView from '@/components/SeguimientoView'; // Import SeguimientoView
+import SeguimientoView from '@/components/SeguimientoView';
 import RelacionesLaboralesView from '@/components/RelacionesLaboralesView';
 import ArchivosView from '@/components/ArchivosView';
 import CreateUserForm from '@/components/admin/CreateUserForm';
@@ -32,10 +32,10 @@ const RoleBasedRedirect = () => {
       return <Navigate to="/contratacion" replace />;
     case 'Administrador':
       return <Navigate to="/aspirantes" replace />;
-    default:
-      return <Navigate to="/aspirantes" replace />;
     case 'Relaciones Laborales':
       return <Navigate to="/relaciones-laborales" replace />;
+    default:
+      return <Navigate to="/aspirantes" replace />;
   }
 };
 
@@ -50,12 +50,13 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/entrevista-retiro" element={<EntrevistaRetiroPage />} />
+        <Route path="/entrevista-retiro-publica" element={<EntrevistaRetiroPage />} />
         
         <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>}>
           <Route index element={<RoleBasedRedirect />} />
           <Route path="aspirantes" element={<AspiranteView />} />
           <Route path="seleccion" element={<SeleccionView />} />
-          <Route path="seguimiento" element={<SeguimientoView />} /> {/* Add SeguimientoView route */}
+          <Route path="seguimiento" element={<SeguimientoView />} />
           <Route path="contratacion" element={<ContratacionView />} />
           <Route path="archivos" element={<ArchivosView />} />
           <Route path="relaciones-laborales" element={<RelacionesLaboralesView />} />
