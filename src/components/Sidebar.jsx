@@ -29,7 +29,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         { to: '/seleccion', label: 'Selección', roles: ['Administrador', 'Selección'] },
         { to: '/contratacion', label: 'Contratación', roles: ['Administrador', 'Contratación'] },
         { to: '/archivos', label: 'Archivos', roles: ['Administrador', 'Contratación'] },
-        { to: '/relaciones-laborales', label: 'Relaciones Laborales', roles: ['Administrador'] },
+        { to: '/relaciones-laborales', label: 'Relaciones Laborales', roles: ['Administrador', 'Relaciones Laborales'] },
       ]
     },
   ];
@@ -98,7 +98,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       {/* Navigation Items */}
       <nav className="flex-1 px-3 py-6 space-y-2 overflow-y-auto custom-scrollbar overflow-x-hidden">
         <div className={cn("px-4 mb-2 text-xs font-semibold text-emerald-400 uppercase tracking-wider whitespace-nowrap transition-opacity duration-200", isOpen ? "opacity-100" : "opacity-0 h-0 mb-0")}>
-          Menu Principal
+          Talento Humano
         </div>
 
         {navItems.map((item, index) => (
