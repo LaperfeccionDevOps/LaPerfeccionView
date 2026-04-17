@@ -50,8 +50,8 @@ const LoginPage = () => {
     try {
       const params = new URLSearchParams();
       params.append('grant_type', 'password'); // obligatorio
-      params.append('username', 'juandiaz'); // obligatorio
-      params.append('password', '123'); // obligatorio
+      params.append('username', username);
+      params.append('password', password);
       if (CLIENT_ID) params.append('client_id', CLIENT_ID);
       if (CLIENT_SECRET) params.append('client_secret', CLIENT_SECRET);
 
