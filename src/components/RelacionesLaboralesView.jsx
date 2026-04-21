@@ -1741,16 +1741,16 @@ const motivoActualEsPersistido =
   !motivoPersistidoId ||
   Number(form.idMotivoRetiro) === Number(motivoPersistidoId);
 
-useEffect(() => {
-  if (
-    step === "retiros_docs" &&
-    form.idRetiroLaboral &&
-    Array.isArray(requisitosActuales) &&
-    requisitosActuales.length > 0
-  ) {
-    cargarAdjuntosDesdeBackend(form.idRetiroLaboral);
-  }
-}, [step, form.idRetiroLaboral, requisitosActuales, motivoActualEsPersistido]);
+// useEffect(() => {
+//   if (
+//     step === "retiros_docs" &&
+//     form.idRetiroLaboral &&
+//     Array.isArray(requisitosActuales) &&
+//     requisitosActuales.length > 0
+//   ) {
+//     cargarAdjuntosDesdeBackend(form.idRetiroLaboral);
+//   }
+// }, [step, form.idRetiroLaboral, requisitosActuales, motivoActualEsPersistido]);
 
 
 
