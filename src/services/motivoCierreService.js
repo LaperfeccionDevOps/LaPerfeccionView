@@ -1,6 +1,6 @@
 import api from "./apiClient";
 
-const API_BASE = import.meta?.env?.VITE_API_URL || "http://localhost:8000/api";
+const API_BASE = import.meta?.env?.VITE_API_URL || "https://apiqa.laperfeccion.app/api";
 
 
 export const getMotivoCierre = (idRegistroPersonal) => {
