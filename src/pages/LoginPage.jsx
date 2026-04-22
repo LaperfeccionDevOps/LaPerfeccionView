@@ -20,9 +20,10 @@ import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/context/AuthContext';
 
 // 👉 Base de la API tomada del .env
-// Ejemplo: VITE_API_BASE_URL=https://api.laperfeccion.app/api
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.laperfeccion.app/api';
-// Token endpoint - los campos obligatorios son: grant_type, username, password
+// Ejemplo: VITE_API_BASE_URL=https://apiqa.laperfeccion.app/api
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://apiqa.laperfeccion.app/api';
+
+// 👉 Token endpoint - los campos obligatorios son: grant_type, username, password
 const TOKEN_URL = import.meta.env.VITE_TOKEN_URL || `${API_BASE_URL}/auth/token`;
 const CLIENT_ID = import.meta.env.VITE_CLIENT_ID || '';
 const CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET || '';

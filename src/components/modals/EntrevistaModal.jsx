@@ -54,9 +54,11 @@ const getLogoBase64 = async (logo) => {
   });
 };
 
-const API_BASE =
-  (typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL)) ||
-  'https://api.laperfeccion.app';
+  const API_BASE =
+  (typeof import.meta !== "undefined" && import.meta.env &&
+    (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL)) ||
+  "https://apiqa.laperfeccion.app";
+
 
 const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = null }) => {
   const [loadingPrefill, setLoadingPrefill] = useState(false);

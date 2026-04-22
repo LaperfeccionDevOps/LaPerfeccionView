@@ -1,6 +1,10 @@
 import api from "./apiClient";
 
+<<<<<<< HEAD
 const API_BASE = import.meta?.env?.VITE_API_URL || "https://api.laperfeccion.app/api";
+=======
+const API_BASE = import.meta?.env?.VITE_API_URL || "https://apiqa.laperfeccion.app/api";
+>>>>>>> juan_arreglos_rrll
 
 
 export const getMotivoCierre = (idRegistroPersonal) => {

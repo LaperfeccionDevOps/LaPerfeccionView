@@ -1244,10 +1244,12 @@ console.log('campos completos:', campos);
   // =========================
   // Datos de Proceso (Selección) - API /api/datos-proceso-aspirante/{id}
   // =========================
-const API_BASE =
+ 
+  const API_BASE =
   import.meta?.env?.VITE_API_URL ||
   import.meta?.env?.VITE_API_BASE_URL ||
-  'https://api.laperfeccion.app/api';  
+  "https://apiqa.laperfeccion.app/api";
+
   const token = localStorage.getItem('access_token') || localStorage.getItem('token') || '';
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
