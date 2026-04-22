@@ -3786,12 +3786,12 @@ if (step === "retiros_docs") {
                 </SelectContent>
               </Select>
 
-              <div className="mt-2 text-[11px] text-gray-400">
-                IdRegistroPersonal: <b>{String(form.idRegistroPersonal ?? "")}</b> | IdRetiroLaboral:{" "}
-                <b>{String(form.idRetiroLaboral ?? "")}</b> | IdCliente:{" "}
-                <b>{String(form.idCliente ?? "")}</b> | IdMotivoRetiro:{" "}
-                <b>{String(form.idMotivoRetiro ?? "")}</b>
-              </div>
+              <div className="hidden">
+              IdRegistroPersonal: <b>{String(form.idRegistroPersonal ?? "")}</b> | IdRetiroLaboral:{" "}
+              <b>{String(form.idRetiroLaboral ?? "")}</b> | IdCliente:{" "}
+              <b>{String(form.idCliente ?? "")}</b> | IdMotivoRetiro:{" "}
+              <b>{String(form.idMotivoRetiro ?? "")}</b>
+            </div>
             </div>
 
              {/* Motivo de retiro */}
