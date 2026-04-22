@@ -3770,8 +3770,11 @@ if (step === "retiros_docs") {
                   }))
                 }
               >
-                <SelectTrigger className="bg-white h-12">
-                  <SelectValue placeholder="Seleccionar." className="truncate" />
+                <SelectTrigger className="bg-white min-h-[64px] h-auto items-start py-2">
+                  <SelectValue
+                    placeholder="Seleccionar."
+                    className="whitespace-normal break-words text-left leading-5"
+                  />
                 </SelectTrigger>
 
                 <SelectContent className="max-h-72 overflow-y-auto">
@@ -3792,7 +3795,7 @@ if (step === "retiros_docs") {
             </div>
 
              {/* Motivo de retiro */}
-        <div className="md:col-span-3">
+        <div className="md:col-span-4">
           <Label className="text-xs text-gray-600">Motivo de retiro</Label>
 
       <Select
@@ -3812,8 +3815,8 @@ if (step === "retiros_docs") {
               }`}
             >
               <SelectValue
-                placeholder="Seleccionar (lista)"
-                className="whitespace-normal text-center leading-5 w-full"
+                placeholder="Seleccionar."
+                className="whitespace-normal break-words text-left leading-5"
               />
             </SelectTrigger>
 
