@@ -799,9 +799,9 @@ const [mensajeEntrevista, setMensajeEntrevista] = useState({
       return;
     }
 
-    const url = `http://127.0.0.1:8000/api/rrll-excel/exportar-retiros?fecha_inicio=${fechaInicioExcel}&fecha_fin=${fechaFinExcel}`;
+    const url = `https://apiqa.laperfeccion.app/api/rrll-excel/exportar-retiros?fecha_inicio=${fechaInicioExcel}&fecha_fin=${fechaFinExcel}`;
 
-    const response = await fetch(url, {
+const response = await fetch(url, {
       method: "GET",
     });
 
@@ -3632,8 +3632,8 @@ if (step === "retiros_docs") {
         <div className="mt-6 bg-white p-5 rounded-xl border border-gray-100">
           <p className="font-semibold text-gray-700 mb-4">Datos Personales</p>
 
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-            <div className="md:col-span-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-4">
+           <div className="col-span-1 sm:col-span-2 md:col-span-3">
               <Label className="text-xs text-gray-600">Fecha de Proceso</Label>
              <Input
               type="date"
@@ -3758,7 +3758,7 @@ if (step === "retiros_docs") {
             )}
 
             {/* Cliente */}
-            <div className="md:col-span-3">
+            <div className="col-span-1 sm:col-span-2 md:col-span-3">
               <Label className="text-xs text-gray-600">Cliente</Label>
               <Select
                 value={form.cliente || ""}
@@ -3795,85 +3795,85 @@ if (step === "retiros_docs") {
             </div>
 
              {/* Motivo de retiro */}
-        <div className="md:col-span-4">
-          <Label className="text-xs text-gray-600">Motivo de retiro</Label>
+            <div className="col-span-1 sm:col-span-2 md:col-span-4">
+                <Label className="text-xs text-gray-600">Motivo de retiro</Label>
 
-      <Select
-            value={
-              form.idMotivoRetiro
-                ? getMotivoValueById(form.idMotivoRetiro)
-                : (form.motivoRetiro || "")
-            }
-            onValueChange={handleSelectMotivo}
-            disabled={retiroBloqueado}
-          >
-            <SelectTrigger
-              className={`min-h-[64px] flex items-center ${
-                retiroBloqueado
-                  ? "bg-slate-100 text-slate-500 cursor-not-allowed"
-                  : "bg-white"
-              }`}
-            >
-              <SelectValue
-                placeholder="Seleccionar."
-                className="whitespace-normal break-words text-left leading-5"
-              />
-            </SelectTrigger>
+            <Select
+                  value={
+                    form.idMotivoRetiro
+                      ? getMotivoValueById(form.idMotivoRetiro)
+                      : (form.motivoRetiro || "")
+                  }
+                  onValueChange={handleSelectMotivo}
+                  disabled={retiroBloqueado}
+                >
+                <SelectTrigger
+                        className={`bg-white min-h-[64px] h-auto items-start py-2 ${
+                          retiroBloqueado
+                            ? "bg-slate-100 text-slate-500 cursor-not-allowed"
+                            : "bg-white"
+                        }`}
+                      >
+                    <SelectValue
+                      placeholder="Seleccionar."
+                      className="whitespace-normal break-words text-left leading-5"
+                    />
+                  </SelectTrigger>
 
-            <SelectContent className="max-h-64 overflow-y-auto">
-              {motivos.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {pretty(m)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                  <SelectContent className="max-h-64 overflow-y-auto">
+                    {motivos.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {pretty(m)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-          <p className="mt-2 text-xs text-gray-500">
-            * Al seleccionar un motivo se abre la vista de documentos automáticamente.
-          </p>
+                <p className="mt-2 text-xs text-gray-500">
+                  * Al seleccionar un motivo se abre la vista de documentos automáticamente.
+                </p>
 
-          {retiroBloqueado && (
-          <p className="mt-2 text-xs text-amber-700">
-            ⚠️ El motivo de retiro no se puede cambiar porque el proceso ya está en estado <b>CERRADO</b>.
-          </p>
-        )}
+                {retiroBloqueado && (
+                <p className="mt-2 text-xs text-amber-700">
+                  ⚠️ El motivo de retiro no se puede cambiar porque el proceso ya está en estado <b>CERRADO</b>.
+                </p>
+              )}
 
-          {/* ✅ BOTONES */}
-          <div className="mt-3 flex flex-wrap items-center justify-start gap-3">
-          <button
-          type="button"
-          className="bg-sky-600 hover:bg-sky-700 text-white shadow-md rounded-xl px-6 py-3"
-          onClick={() => {
-            console.log("CLICK BOTON IR DOCS", form.idRetiroLaboral);
+                {/* ✅ BOTONES */}
+                <div className="mt-3 flex flex-wrap items-center justify-start gap-3">
+                <button
+                type="button"
+                className="bg-sky-600 hover:bg-sky-700 text-white shadow-md rounded-xl px-6 py-3"
+                onClick={() => {
+                  console.log("CLICK BOTON IR DOCS", form.idRetiroLaboral);
 
-            if (!form.idRetiroLaboral) {
-              setMsgActualizar("⚠️ Aún no hay un retiro activo. Presiona Buscar o selecciona un motivo para crearlo.");
-              return;
-            }
+                  if (!form.idRetiroLaboral) {
+                    setMsgActualizar("⚠️ Aún no hay un retiro activo. Presiona Buscar o selecciona un motivo para crearlo.");
+                    return;
+                  }
 
-            abrirVistaDocumentos(form.idRetiroLaboral);
-          }}
-          title={form.idRetiroLaboral ? "Volver a documentos" : "Aún no hay retiro activo"}
-        >
-          Ir a documentos
-        </button>
-            <Button
-              type="button"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md rounded-xl px-6"
-              onClick={handleActualizarCabecera}
-              disabled={loadingActualizar}
-            >
-              {loadingActualizar ? "Actualizando..." : "Actualizar"}
-            </Button>
-          </div>
+                  abrirVistaDocumentos(form.idRetiroLaboral);
+                }}
+                title={form.idRetiroLaboral ? "Volver a documentos" : "Aún no hay retiro activo"}
+              >
+                  Ir a documentos
+                </button>
+                    <Button
+                      type="button"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md rounded-xl px-6"
+                      onClick={handleActualizarCabecera}
+                      disabled={loadingActualizar}
+                    >
+                      {loadingActualizar ? "Actualizando..." : "Actualizar"}
+                    </Button>
+                  </div>
 
-          {/* ✅ ALERTA BONITA (pegada al campo) */}
-          {msgActualizar ? (
-            <div className="mt-3 w-full max-w-md rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              {msgActualizar}
-            </div>
-          ) : null}
+                  {/* ✅ ALERTA BONITA (pegada al campo) */}
+                  {msgActualizar ? (
+                    <div className="mt-3 w-full max-w-md rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      {msgActualizar}
+                    </div>
+                  ) : null}
 
                     </div>
                   </div>
