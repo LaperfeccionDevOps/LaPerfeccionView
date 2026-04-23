@@ -1,5 +1,5 @@
 
-const API_BASE = (import.meta?.env?.VITE_API_URL || "https://apiqa.laperfeccion.app").replace(/\/$/, "");
+const API_BASE = (import.meta?.env?.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
 
 // Si tú guardas el token en localStorage, ajusta la key aquí:

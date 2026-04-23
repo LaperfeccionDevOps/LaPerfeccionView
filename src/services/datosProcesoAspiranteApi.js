@@ -1,5 +1,5 @@
 
-const API_URL = import.meta.env.VITE_API_URL || "https://apiqa.laperfeccion.app";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 
 // ajusta la key si tu token se guarda con otro nombre

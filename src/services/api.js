@@ -1,4 +1,4 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "https://apiqa.laperfeccion.app")
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000")
   .replace(/\/+$/, ""); // quitar / al final si existe
 
 export function getApiUrl(endpoint) {

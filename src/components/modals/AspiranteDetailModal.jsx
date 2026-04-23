@@ -1248,7 +1248,7 @@ console.log('campos completos:', campos);
   const API_BASE =
   import.meta?.env?.VITE_API_URL ||
   import.meta?.env?.VITE_API_BASE_URL ||
-  "https://apiqa.laperfeccion.app/api";
+  "http://localhost:8000/api";
 
   const token = localStorage.getItem('access_token') || localStorage.getItem('token') || '';
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};

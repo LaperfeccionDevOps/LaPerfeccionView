@@ -6,12 +6,12 @@ import axios from "axios";
  * ✅ Base URL
  * - Prioriza VITE_API_BASE_URL (según tu otro helper)
  * - Si no existe, usa VITE_API_URL
- * - Si no existe, https://apiqa.laperfeccion.app
+ * - Si no existe, http://localhost:8000
  */
 const API_BASE =
   (import.meta?.env?.VITE_API_BASE_URL ||
     import.meta?.env?.VITE_API_URL ||
-    "https://apiqa.laperfeccion.app"
+    "http://localhost:8000"
  
 
   ).replace(/\/+$/, ""); // quita / al final

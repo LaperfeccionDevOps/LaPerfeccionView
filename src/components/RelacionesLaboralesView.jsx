@@ -610,7 +610,7 @@ async function downloadBackendAdjunto(apiBase, file) {
 }
 
   export default function RelacionesLaboralesView() {
-  // ✅ lee tu .env (debe ser: https://apiqa.laperfeccion.app/api)
+  // ✅ lee tu .env (debe ser: http://localhost:8000/api)
   const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
   const API_BASE_ENTREVISTA = API_BASE.replace(/\/api$/, "");
 
