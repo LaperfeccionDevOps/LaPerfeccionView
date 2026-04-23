@@ -1,11 +1,7 @@
 import api from "./apiClient";
+import { getApiUrl } from "./api";
 
-<<<<<<< HEAD
-const API_BASE = import.meta?.env?.VITE_API_URL || "https://api.laperfeccion.app/api";
-=======
 const API_BASE = import.meta?.env?.VITE_API_URL || "https://apiqa.laperfeccion.app/api";
->>>>>>> juan_arreglos_rrll
-
 
 export const getMotivoCierre = (idRegistroPersonal) => {
   return api.get(`${API_BASE}/motivo-cierre/${idRegistroPersonal}`);

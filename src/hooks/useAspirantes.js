@@ -1,7 +1,7 @@
 // src/hooks/useAspirantes.js
 import { useState, useEffect, useCallback } from 'react';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://apiqa.laperfeccion.app';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://apiqa.laperfeccion.app/api';
 
 // ✅ Endpoint real según Swagger: GET https://apiqa.laperfeccion.app/api/aspirantes
 const ASPIRANTES_ENDPOINT = `${API_BASE_URL}/aspirantes`;
@@ -47,7 +47,6 @@ const mapApiAspiranteToFront = (item) => {
     cliente: item.NombreCliente ?? item.NombreCliente ?? '',
     fechaExpedicion: item.FechaExpedicion ?? item.fechaExpedicion ?? null,
     fechaNacimiento: item.FechaNacimiento ?? item.fechaNacimiento ?? null,
-
 
     estado:
       item.EstadoProcesoNombre ??
@@ -98,7 +97,7 @@ const normalizeEstadoKey = (value) => {
     .trim()
     .toUpperCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // quita tildes
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ');
 };
 
@@ -106,15 +105,12 @@ const normalizeEstadoKey = (value) => {
 const estadoProcesoToId = (estado) => {
   if (estado == null) return null;
 
-  // Si ya viene como número
   if (typeof estado === 'number' && Number.isFinite(estado)) return estado;
 
   const raw = String(estado).trim();
 
-  // Si viene "28" como string
   if (/^\d+$/.test(raw)) return Number(raw);
 
-  // Si viene "RECHAZADO"
   const key = normalizeEstadoKey(raw);
   return ESTADO_PROCESO_ID[key] ?? null;
 };
@@ -124,10 +120,9 @@ const getAccessToken = () => {
   const keys = ['token'];
 
   for (const key of keys) {
-    let raw = localStorage.getItem(keys);
+    let raw = localStorage.getItem(key);
     if (!raw) continue;
 
-    // Si es un objeto tipo { access_token: ... }
     try {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
@@ -137,7 +132,6 @@ const getAccessToken = () => {
       // No es JSON, sigue con el valor crudo
     }
 
-    // Limpia prefijo Bearer y comillas
     let token = String(raw).trim();
     if (token.toLowerCase().startsWith('bearer ')) token = token.slice(7).trim();
     token = token.replace(/^['"]+|['"]+$/g, '');
@@ -212,7 +206,6 @@ export const useAspirantes = () => {
     }
   }, []);
 
-  // Cargar automáticamente al montar el hook
   useEffect(() => {
     loadAspirantes();
   }, [loadAspirantes]);
@@ -277,7 +270,6 @@ export const useAspirantes = () => {
         return;
       }
 
-      // ✅ AQUÍ está la corrección: convertir texto -> ID entero
       const estadoId = estadoProcesoToId(updatedAspirante.estado);
       if (!estadoId) {
         console.warn(
@@ -290,7 +282,7 @@ export const useAspirantes = () => {
       const token = getAccessToken();
 
       const params = new URLSearchParams({
-        nuevo_estado: String(estadoId), // ✅ ahora va 28 y no "RECHAZADO"
+        nuevo_estado: String(estadoId),
         motivo: updatedAspirante.motivoCambio || updatedAspirante.motivo || 'Cambio de estado desde frontend',
         observaciones: updatedAspirante.observacionesCambio || updatedAspirante.observaciones || '',
         usuario: updatedAspirante.usuarioCambio || 'frontend',
@@ -319,7 +311,6 @@ export const useAspirantes = () => {
 
   // ➕ Crear aspirante (por ahora solo en front)
   const addAspirante = async (newAspirante) => {
-    // Para evitar timestamps que luego se usen por error como IdRegistroPersonal:
     const localId = -Date.now();
 
     const aspiranteConId =

@@ -276,6 +276,8 @@ const apiGetAsignacionCargoCliente = async (idRegistroPersonal) => {
     throw new Error(typeof data === 'string' ? data : (data?.detail || 'Error consultando asignación'));
   }
 
+  console.log('[CONTRATACION] asignacion-cargo-cliente OK:', idRegistroPersonal, data);
+
   return data;
 };
 
@@ -1207,7 +1209,7 @@ const ContratacionView = () => {
 
   const [filteredAspirantes, setFilteredAspirantes] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState(['todos','Contratado']);
+ const [statusFilter, setStatusFilter] = useState('todos');
 
   const [asignacionMap, setAsignacionMap] = useState({});
   const [cargoMap, setCargoMap] = useState({});
@@ -1231,127 +1233,18 @@ const ContratacionView = () => {
     if (aspirantes.length === 0) loadAspirantes();
   }, [loadAspirantes, aspirantes.length]);
 
-  useEffect(() => {
-    let cancel = false;
+ useEffect(() => {
+  setBancosOptions(BANCOS_FALLBACK);
+  setBancoLabelToId(buildLabelToIdFromOptions(BANCOS_FALLBACK));
 
-    const cargarCombosContratacion = async () => {
-      try {
-        const [bancosResp, tiposResp] = await Promise.all([
-          apiGetFirstOk(['/api/combos/bancos', '/api/bancos', '/api/combos/banco', '/api/banco']),
-          apiGetFirstOk([
-            '/api/combos/tipos-contrato',
-            '/api/tipos-contrato',
-            '/api/combos/tipo-contrato',
-            '/api/tipo-contrato',
-            '/api/combos/tipo-contratos',
-          ]),
-        ]);
+  setTiposContratoOptions(TIPOS_CONTRATO_FALLBACK);
+  setTipoContratoLabelToId(buildLabelToIdFromOptions(TIPOS_CONTRATO_FALLBACK));
+}, []);
 
-        if (cancel) return;
-
-        const bancosRaw = unwrapApiPayload(bancosResp);
-        const tiposRaw = unwrapApiPayload(tiposResp);
-
-        const bancosList =
-          Array.isArray(bancosRaw) ? bancosRaw :
-            (bancosRaw?.data || bancosRaw?.items || bancosRaw?.result || bancosRaw?.bancos || []);
-
-        const tiposList =
-          Array.isArray(tiposRaw) ? tiposRaw :
-            (tiposRaw?.data || tiposRaw?.items || tiposRaw?.result || tiposRaw?.tiposContrato || tiposRaw?.tipos || []);
-
-        if (Array.isArray(bancosList) && bancosList.length > 0) {
-          const bancosIdToLabel = buildIdLabelMap(
-            bancosList,
-            ['IdBanco', 'idBanco', 'id', 'value', 'ID', 'Id'],
-            ['NombreBanco', 'BancoNombre', 'Nombre', 'nombre', 'Descripcion', 'descripcion', 'label', 'Banco', 'banco']
-          );
-
-          const opts = Object.entries(bancosIdToLabel).map(([id, label]) => ({ id: Number(id), label }));
-          setBancosOptions(opts);
-          setBancoLabelToId(buildLabelToIdFromOptions(opts));
-        }
-
-        if (Array.isArray(tiposList) && tiposList.length > 0) {
-          const tiposIdToLabel = buildIdLabelMap(
-            tiposList,
-            ['IdTipoContrato', 'idTipoContrato', 'id', 'value', 'ID', 'Id'],
-            ['NombreTipoContrato', 'TipoContratoNombre', 'Nombre', 'nombre', 'Descripcion', 'descripcion', 'label', 'TipoContrato', 'tipoContrato']
-          );
-
-          const opts = Object.entries(tiposIdToLabel).map(([id, label]) => ({ id: Number(id), label }));
-          setTiposContratoOptions(opts);
-          setTipoContratoLabelToId(buildLabelToIdFromOptions(opts));
-        }
-
-      } catch (err) {
-        console.warn('[CONTRATACION] No se pudieron cargar combos bancos/tipos contrato (se usa fallback).', err);
-      }
-    };
-
-    cargarCombosContratacion();
-    return () => { cancel = true; };
-  }, []);
-
-  useEffect(() => {
-    let cancel = false;
-
-    const cargarCombos = async () => {
-      try {
-        const [cargosResp, clientesResp] = await Promise.all([
-          apiGetFirstOk(['/api/combos/cargos', '/api/cargos', '/api/combos/cargo', '/api/cargo']),
-          apiGetFirstOk(['/api/combos/clientes', '/api/clientes', '/api/combos/cliente', '/api/cliente']),
-        ]);
-
-        if (cancel) return;
-
-        const cargosRaw = unwrapApiPayload(cargosResp);
-        const clientesRaw = unwrapApiPayload(clientesResp);
-
-        const cargosList =
-          Array.isArray(cargosRaw) ? cargosRaw :
-            (cargosRaw?.data || cargosRaw?.items || cargosRaw?.result || cargosRaw?.cargos || []);
-
-        const clientesList =
-          Array.isArray(clientesRaw) ? clientesRaw :
-            (clientesRaw?.data || clientesRaw?.items || clientesRaw?.result || clientesRaw?.clientes || []);
-
-        const cargoMapBuilt = buildIdLabelMap(
-          cargosList,
-          ['IdCargo', 'idCargo', 'id', 'value', 'ID', 'Id'],
-          [
-            'DescripcionCargo', 'NombreCargo', 'CargoNombre',
-            'Descripcion', 'descripcion',
-            'Nombre', 'nombre',
-            'label',
-            'Cargo', 'cargo'
-          ]
-        );
-
-        const clienteMapBuilt = buildIdLabelMap(
-          clientesList,
-          ['IdCliente', 'idCliente', 'id', 'value', 'ID', 'Id'],
-          [
-            'NombreCliente', 'ClienteNombre',
-            'RazonSocial', 'NombreComercial',
-            'Descripcion', 'descripcion',
-            'Nombre', 'nombre',
-            'label',
-            'Cliente', 'cliente'
-          ]
-        );
-
-        setCargoMap(cargoMapBuilt);
-        setClienteMap(clienteMapBuilt);
-
-      } catch (err) {
-        console.warn('[CONTRATACION] No se pudieron cargar combos de cargo/cliente (se mostrará “—”).', err);
-      }
-    };
-
-    cargarCombos();
-    return () => { cancel = true; };
-  }, []);
+ useEffect(() => {
+  setCargoMap({});
+  setClienteMap({});
+}, []);
 
   useEffect(() => {
     let filtered = aspirantes;
@@ -2004,23 +1897,38 @@ const ContratacionView = () => {
                       const idReg = getIdRegistroPersonal(aspirante);
                       const asignacion = idReg ? asignacionMap[String(idReg)] : null;
 
-                      const cargoNombre =
-                        asignacion?.CargoNombre ||
-                        (asignacion?.IdCargo ? cargoMap[String(asignacion.IdCargo)] : '') ||
-                        (aspirante.cargo || '');
+                    const cargoNombre =
+                  asignacion?.CargoNombre ||
+                  (asignacion?.IdCargo ? cargoMap[String(asignacion.IdCargo)] : '') ||
+                  aspirante?.cargo_nombre ||
+                  aspirante?.cargo ||
+                  '';
 
-                      const cargoCell = cargoNombre || '—';
+                const cargoCell = cargoNombre || '—';
 
-                      const salarioCell = asignacion && asignacion.Salario !== undefined && asignacion.Salario !== null
-                        ? formatMoney(asignacion.Salario)
-                        : '';
+                const salarioValor =
+                  asignacion?.Salario ??
+                  aspirante?.salario ??
+                  aspirante?.Salario ??
+                  '';
 
-                      const clienteCell = asignacion && asignacion.ClienteNombre
-                        ? asignacion.ClienteNombre
-                        : '';
+                const salarioCell =
+                  salarioValor !== '' && salarioValor !== null && salarioValor !== undefined
+                    ? formatMoney(salarioValor)
+                    : '—';
 
+                const clienteNombre =
+                  asignacion?.ClienteNombre ||
+                  (asignacion?.IdCliente ? clienteMap[String(asignacion.IdCliente)] : '') ||
+                  aspirante?.cliente_nombre ||
+                  aspirante?.cliente ||
+                  '';
+
+                const clienteCell = clienteNombre || '—';
+
+                                          
                       return (
-                        <tr>
+                         <tr key={String(getIdRegistroPersonal(aspirante) ?? aspirante.cedula ?? `${aspirante.nombres}-${aspirante.apellidos}`)}>
                           <td className="px-6 py-4 font-medium text-gray-900">{aspirante.estado}</td>
                           <td className="px-6 py-4 font-medium text-gray-900">{aspirante.nombres}</td>
                           <td className="px-6 py-4 text-gray-600">{aspirante.apellidos}</td>
