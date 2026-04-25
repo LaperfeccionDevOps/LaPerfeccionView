@@ -32,32 +32,28 @@ const SeleccionView = () => {
   const [itemsPerPage] = useState(10);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
 
-  useEffect(() => {
-    let filtered = aspirantes;
+ useEffect(() => {
+  let filtered = aspirantes;
 
-    if (estadoFilter !== 'todos') {
-      filtered = filtered.filter(asp => asp.estado.trim() === estadoFilter.trim());
-    }
+  if (estadoFilter !== 'todos') {
+    filtered = filtered.filter(asp => asp.estado.trim() === estadoFilter.trim());
+  }
 
-    if (estadoFilter === 'todos') {
-      filtered = filtered.filter(asp => asp.estado.trim() !== 'Contratado'.trim());
-    }
-    
-    if (searchTerm) {
-      const lowerTerm = searchTerm.toLowerCase();
-      filtered = filtered.filter(asp =>
-        `${asp.nombres} ${asp.apellidos}`.toLowerCase().includes(lowerTerm) ||
-        (asp.cedula && asp.cedula.includes(lowerTerm))
-      );
-    }
+  if (searchTerm) {
+    const lowerTerm = searchTerm.toLowerCase();
+    filtered = filtered.filter(asp =>
+      `${asp.nombres} ${asp.apellidos}`.toLowerCase().includes(lowerTerm) ||
+      (asp.cedula && asp.cedula.includes(lowerTerm))
+    );
+  }
 
-    if (dateFilter) {
-      filtered = filtered.filter(asp => asp.fechaRegistro && asp.fechaRegistro.startsWith(dateFilter));
-    }
+  if (dateFilter) {
+    filtered = filtered.filter(asp => asp.fechaRegistro && asp.fechaRegistro.startsWith(dateFilter));
+  }
 
-    setFilteredAspirantes(filtered);
-    setCurrentPage(1);
-  }, [estadoFilter, searchTerm, dateFilter, aspirantes]);
+  setFilteredAspirantes(filtered);
+  setCurrentPage(1);
+}, [estadoFilter, searchTerm, dateFilter, aspirantes]);
 
   // Handlers
   const handleStatusChangeRequest = (aspirante, newStatus) => {
@@ -125,52 +121,60 @@ const SeleccionView = () => {
   };
 
   // Exportar datos filtrados a Excel
-      const exportToExcel = () => {
+const exportToExcel = async () => {
+  try {
+    const response = await fetch(
+  `${import.meta.env.VITE_API_BASE_URL}/datos-seleccion/reporte-excel`,
+  {
+    method: "GET",
+  }
+);
 
-          if (!filteredAspirantes.length) {
-            toast({ title: 'No hay datos para exportar', description: 'No existen registros para exportar.' });
-            return;
-          }
-          const data = filteredAspirantes.map(({ 
-          nombres, 
-          apellidos, 
-          cedula, 
-          celular, 
-          telefono, 
-          correo, 
-          nombreCargo, 
-          fechaRegistro, 
-          estado 
-        }) => ({
-          Nombres: nombres || '',
-          Apellidos: apellidos || '',
-          Cédula: cedula || '',
-          Teléfono: celular || telefono || '',
-          Correo: correo || '',
-          Cargo: nombreCargo || '',
-          FechaRegistro: fechaRegistro
-      ? new Date(fechaRegistro).toLocaleString('es-CO', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: true,
-          timeZone: 'America/Bogota'
-        })
-  : '',
-      Estado: getEstadoInfo(estado)?.label || estado || ''
-      }));
-      const ws = XLSX.utils.json_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
-      XLSX.writeFile(wb, 'reporte_seleccion.xlsx');
-    };
+    if (!response.ok) {
+      throw new Error("Error al generar el Excel");
+    }
 
-  return (
-    <>
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    const contentType = response.headers.get("content-type");
+console.log("Content-Type Excel:", contentType);
+
+const blob = await response.blob();
+console.log("Blob size Excel:", blob.size);
+
+    const file = new Blob([blob], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    const url = window.URL.createObjectURL(file);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "reporte_seleccion.xlsx";
+    document.body.appendChild(a);
+    a.click();
+
+    setTimeout(() => {
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    }, 100);
+
+    toast({
+      title: "✅ Excel generado",
+      description: "El reporte se descargó correctamente",
+    });
+
+  } catch (error) {
+    console.error(error);
+    toast({
+      title: "Error descargando el Excel",
+      description: "No se pudo generar el archivo",
+      variant: "destructive",
+    });
+  }
+};
+
+return (
+  <>
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
         <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
