@@ -1245,7 +1245,7 @@ console.log('campos completos:', campos);
   // =========================
   // Datos de Proceso (Selección) - API /api/datos-proceso-aspirante/{id}
   // =========================
-  const API_BASE = import.meta?.env?.VITE_API_BASE_URL || 'https://api.laperfeccion.app/api';
+  const API_BASE = import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:8000/api';
   const token = localStorage.getItem('access_token') || localStorage.getItem('token') || '';
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
@@ -4622,6 +4622,7 @@ if (response && response.status === 201) {
                                        <SelectItem value={26}>Referenciación</SelectItem>
                                        <SelectItem value={27}>Desiste del Proceso</SelectItem>
                                        <SelectItem value={28}>Rechazado</SelectItem>
+                                       <SelectItem value={29}>Pendiente Contratacion</SelectItem>
                                     </SelectContent>
                                  </Select>
                               </div>
