@@ -14,6 +14,7 @@ import SeguimientoView from '@/components/SeguimientoView'; // Import Seguimient
 import ArchivosView from '@/components/ArchivosView';
 import CreateUserForm from '@/components/admin/CreateUserForm';
 import UpdateUserView from '@/components/admin/UpdateUserView';
+import IndicadoresContratacionView from './components/IndicadoresContratacionView';
 
 // Helper component to redirect based on role
 const RoleBasedRedirect = () => {
@@ -54,6 +55,7 @@ function App() {
           <Route path="seguimiento" element={<SeguimientoView />} /> {/* Add SeguimientoView route */}
           <Route path="contratacion" element={<ContratacionView />} />
           <Route path="archivos" element={<ArchivosView />} />
+          <Route path="/indicadores-contratacion" element={<IndicadoresContratacionView />} />
           
           {/* Rutas de Administrador */}
           <Route path="admin/crear-usuario" element={<CreateUserForm />} />

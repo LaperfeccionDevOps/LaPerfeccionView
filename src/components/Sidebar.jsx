@@ -29,6 +29,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         { to: '/seleccion', label: 'Selección', roles: ['Administrador', 'Selección'] },
         { to: '/contratacion', label: 'Contratación', roles: ['Administrador', 'Contratación'] },
         { to: '/archivos', label: 'Carpeta Digital', roles: ['Administrador', 'Contratación'] },
+        { to: '/indicadores-contratacion', label: 'Indicadores', roles: ['Administrador', 'Contratación'] },
         { to: '/relaciones-laborales', label: 'Relaciones Laborales', roles: ['Administrador', 'Relaciones Laborales'] },
       ]
     },
