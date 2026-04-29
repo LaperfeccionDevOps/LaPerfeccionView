@@ -130,52 +130,9 @@ const exportToExcel = async () => {
   }
 );
 
-<<<<<<< HEAD
-if (!filteredAspirantes.length) {
-  toast({ title: 'No hay datos para exportar', description: 'No existen registros para exportar.' });
-  return;
-}
-          const data = filteredAspirantes.map(({ 
-          nombres, 
-          apellidos, 
-          cedula, 
-          celular, 
-          telefono, 
-          correo, 
-          nombreCargo, 
-          fechaRegistro, 
-          estado 
-        }) => ({
-          Nombres: nombres || '',
-          Apellidos: apellidos || '',
-          Cédula: cedula || '',
-          Teléfono: celular || telefono || '',
-          Correo: correo || '',
-          Cargo: nombreCargo || '',
-          FechaRegistro: fechaRegistro
-      ? new Date(fechaRegistro).toLocaleString('es-CO', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: true,
-          timeZone: 'America/Bogota'
-        })
-  : '',
-      Estado: getEstadoInfo(estado)?.label || estado || ''
-      }));
-      const ws = XLSX.utils.json_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
-      XLSX.writeFile(wb, 'reporte_seleccion.xlsx');
-    };
-=======
     if (!response.ok) {
       throw new Error("Error al generar el Excel");
     }
->>>>>>> juan_carpeta_digital
 
     const contentType = response.headers.get("content-type");
 console.log("Content-Type Excel:", contentType);
