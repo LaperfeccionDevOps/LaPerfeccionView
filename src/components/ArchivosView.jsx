@@ -19,94 +19,78 @@ import { getEstadoInfo } from '@/utils/statusUtils';
 import { cn } from '@/lib/utils';
 
 const documentosIngreso = [
-  { id: 'hojaDeVida', nombre: 'Hoja de vida' },
-  { id: 'cedulaCiudadania', nombre: 'Cédula de ciudadanía' },
-  { id: 'certificadosLaborales', nombre: 'Certificados laborales' },
-  { id: 'certificadosEstudio', nombre: 'Certificados de estudio' },
-
-  { id: 'tarjetaProfesional', nombre: 'Tarjeta profesional' },
-  { id: 'certificadoAFP', nombre: 'Certificado fondo de pensiones' },
-  { id: 'certificadoEPS', nombre: 'Certificado de afiliación EPS' },
-  { id: 'certificacionBancaria', nombre: 'Certificación bancaria' },
-
-  { id: 'carneVacunasCovid', nombre: 'Fotocopia de carné de vacunas covid' },
-  { id: 'carneVacunasHepatitisTetano', nombre: 'Fotocopia de carné de vacunas Hepatitis - Tetano' },
-  { id: 'reciboPublico', nombre: 'Recibo Servicio Público' },
-  { id: 'fotoAspirante', nombre: 'Foto del Aspirante' },
-
-  { id: 'certificadoCursosEspeciales', nombre: 'Certificado de Cursos Especiales' },
+  { id: 3, label: 'Hoja de vida' },
+  { id: 4, label: 'Cedula' },
+  { id: 10, label: 'Certificado laboral' },
+  { id: 11, label: 'Certificado de estudio' },
+  { id: 12, label: 'Tarjeta profesional' },
+  { id: 1, label: 'Recibo público' },
+  { id: 2, label: 'Foto' },
+  { id: 39, label: 'Certificado de cursos especiales' },
+  { id: 40, label: 'Certificado fondo de pensiones' },
+  { id: 41, label: 'Fotocopia de carne de vacunas covid' },
+  { id: 42, label: 'Firma digital' },
+  { id: 30, label: 'Certificado de afiliación EPS' },
+  { id: 73, label: 'Tratamiento de datos' },
 ];
 
-const documentosActivos = [
-  // 1) PRIMERA INSTANCIA
-  { id: 'hojaDeVida', nombre: 'Hoja de vida' },
-  { id: 'cedulaCiudadania', nombre: 'Cédula de ciudadanía' },
-  { id: 'antecedentesPolicia', nombre: 'Antecedentes de la Policía' },
-  { id: 'antecedentesDisciplinariosProcuraduria', nombre: 'Antecedentes disciplinarios de Procuraduría' },
-  { id: 'antecedentesDisciplinariosContraloria', nombre: 'Antecedentes disciplinarios de Contraloría' },
-  { id: 'antecedentesDisciplinariosRamaJudicial', nombre: 'Antecedentes disciplinarios de Rama Judicial' },
-  { id: 'certificadosLaborales', nombre: 'Certificaciones laborales' },
-  { id: 'certificadosEstudio', nombre: 'Certificados de estudios específicos' },
+const documentosSeleccion = [
+  { id: 6, label: 'Antecedentes de policía' },
+  { id: 7, label: 'Antecedentes disciplinarios procuraduría' },
+  { id: 8, label: 'Antecedentes disciplinarios contraloría' },
+  { id: 9, label: 'Antecedentes disciplinarios rama judicial' },
+  { id: 17, label: 'Examen médico ingreso' },
+  { id: 15, label: 'Estudio de seguridad administrativa' },
+  { id: 21, label: 'Pruebas de conocimiento' },
+  { id: 58, label: 'Antecedentes delitos sexuales' },
+  { id: 61, label: 'Historial de pensión (Personal Administrativo)' },
+  { id: 67, label: 'Entrevista selección' },
+  { id: 68, label: 'Confirmación de referencias laborales' },
+  { id: 60, label: 'Certificado de competencias específicas' },
+  { id: 73, label: 'Tratamiento de datos' },
+];
 
-  // 2) SEGUNDA INSTANCIA
-  { id: 'entrevistaSeleccion', nombre: 'Entrevista de Selección' },
-  { id: 'estudioSeguridad', nombre: 'Estudio de Seguridad' },
-  { id: 'ExamenMedicoIngreso', nombre: 'Examen médico de ingreso' },
-  { id: 'confirmacionReferencias', nombre: 'Confirmación de referencias' },
-  { id: 'descripciondeCargoyManulFunciones', nombre: 'Descripción de cargo y manual de funciones' },
-  { id: 'PruebasConocimiento', nombre: 'Pruebas de conocimiento' },
-  { id: 'carneVacunas', nombre: 'Fotocopia de carné (Hepatitis - Tétano)' },
-  { id: 'carneCovid', nombre: 'Fotocopia de carné COVID' },
-
-  // 3) ÚLTIMA INSTANCIA
-  { id: 'datosPersonalesColaboradores', nombre: 'Datos personales de los colaboradores (Consentimiento informado)' },
-  { id: 'contratoTrabajo', nombre: 'Contrato de trabajo' },
-  { id: 'afiliacionARL', nombre: 'Afiliación ARL' },
-  { id: 'afiliacionEPS', nombre: 'Afiliación EPS' },
-  { id: 'afiliacionAFP', nombre: 'Afiliación AFP' },
-  { id: 'certificadoAFP', nombre: 'Certificado AFP' },
-  { id: 'certificadoEPS', nombre: 'Certificado EPS' },
-  { id: 'afiliacionCajaCompensacion', nombre: 'Afiliación a Caja de Compensación' },
-  { id: 'certificacionBancaria', nombre: 'Certificación bancaria' },
-  { id: 'consentimientoPrevencion', nombre: 'Consentimiento informado - Política de prevención' },
-  { id: 'responsabilidadesSST', nombre: 'Responsabilidades SG-SST (Nivel autoliderazgo)' },
-  { id: 'entregaDotacion', nombre: 'Entrega de dotación' },
-  { id: 'constanciaInduccion', nombre: 'Constancia de inducción' },
-  { id: 'notificacionRecomendaciones', nombre: 'Notificación de recomendaciones médicas y compromisos' },
+const documentosContratacion = [
+  { id: 62, label: 'Acuerdos de confidencialidad' },
+  { id: 37, label: 'Constancia de inducción' },
+  { id: 64, label: 'Otro si (Si aplica)' },
+  { id: 26, label: 'Afiliación ARL' },
+  { id: 27, label: 'Afiliación EPS' },
+  { id: 31, label: 'Afiliación caja de compensación' },
+  { id: 36, label: 'Entrega de dotación' },
+  { id: 65, label: 'Carnet Aseo la Perfección' },
+  { id: 57, label: 'Paquete contratación' },
+  { id: 20, label: 'Descripción del cargo y manual de funciones' },
+  { id: 74, label: 'Contrato de trabajo' },
 ];
 
 const documentosRetiro = [
-  { id: 'carta_renuncia', nombre: 'Carta de Renuncia' },
-  { id: 'paz_y_salvo', nombre: 'Paz y Salvo' },
-  { id: 'examen_medico_retiro', nombre: 'Examen Médico de Retiro' },
-
-  { id: 'aceptacion_renuncia', nombre: 'Aceptación Renuncia' },
-  { id: 'certificacion_periodo_laborado', nombre: 'Certificación Periodo Laborado' },
-  { id: 'entrega_dotacion', nombre: 'Entrega Dotación' },
-  { id: 'entrega_carne', nombre: 'Entrega Carné' },
-  { id: 'carta_entrega_soporte_perdida_carne', nombre: 'Carta Entrega Soporte Pérdida de Carné' },
-  { id: 'acta_entrega_cargo', nombre: 'Acta de Entrega de Cargo' },
-  { id: 'entrega_herramientas', nombre: 'Entrega de Herramientas' },
-  { id: 'carta_terminacion_contrato', nombre: 'Carta Terminación del Contrato' },
-  { id: 'carta_liquidacion_firmada', nombre: 'Carta Liquidación Firmada' },
+  { id: 2, label: 'Paz y salvo' },
+  { id: 4, label: 'Carta finalización contrato' },
+  { id: 10, label: 'Paquete de retiro' },
 ];
 
 const docTypes = {
-  ingreso: { title: 'Documentos de Ingreso', list: documentosIngreso, color: 'yellow' },
-  activo: { title: 'Documentos Activos', list: documentosActivos, color: 'emerald' },
-  retiro: { title: 'Documentos de Retiro', list: documentosRetiro, color: 'red' },
-};
-
-// ✅ DEMO para que SIEMPRE puedas ver las carpetas si no hay contratados reales
-const DEMO_ASPIRANTE = {
-  id: '__demo_contratado__',
-  nombres: 'EJEMPLO',
-  apellidos: 'CONTRATADO',
-  correo: 'demo@laperfeccion.com',
-  cedula: '1234567890',
-  cargo: 'Operario de Aseo (Demo)',
-  estado: 'contratado',
-  documentosGestion: { ingreso: [], activo: [], retiro: [] },
+  ingreso: {
+    title: 'Documentos de Ingreso',
+    list: documentosIngreso,
+    color: 'yellow',
+  },
+  seleccion: {
+    title: 'Documentos de Selección',
+    list: documentosSeleccion,
+    color: 'orange',
+  },
+  contratacion: {
+    title: 'Documentos de Contratación',
+    list: documentosContratacion,
+    color: 'emerald',
+  },
+  retiro: {
+    title: 'Documentos de Retiro',
+    list: documentosRetiro,
+    color: 'red',
+  },
 };
 
 const ArchivosView = () => {
@@ -118,17 +102,15 @@ const ArchivosView = () => {
   const [modalState, setModalState] = useState({
     isOpen: false,
     aspirante: null,
-    docType: null,
     isDemo: false,
+    carpeta: 'ingreso',
   });
 
-  // Pagination & Sorting
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
 
-  // ✅ ÚNICO ESTADO EN ESTA VISTA
-  const ONLY_STATUS = 'contratado';
+  const [estadoFiltro, setEstadoFiltro] = useState('contratado');
 
   useEffect(() => {
     if (aspirantes.length === 0) loadAspirantes();
@@ -137,71 +119,159 @@ const ArchivosView = () => {
   useEffect(() => {
     let filtered = aspirantes;
 
-    // ✅ Solo contratados (trim + lower para evitar espacios/variaciones)
-    filtered = filtered.filter(a => (a?.estado || '').toString().trim().toLowerCase() === ONLY_STATUS);
+    filtered = filtered.filter(
+  a => (a?.estado || '').toString().trim().toLowerCase() === estadoFiltro
+);
 
-    // Búsqueda
     const q = (searchTerm || '').trim().toLowerCase();
-    if (q) {
-      filtered = filtered.filter(a => {
-        const nombre = `${a?.nombres || ''} ${a?.apellidos || ''}`.toLowerCase();
-        const cedula = (a?.cedula || '').toString();
-        return nombre.includes(q) || cedula.includes(searchTerm);
-      });
+
+    if (!q) {
+      setFilteredAspirantes([]);
+      setCurrentPage(1);
+      return;
     }
 
-    // ✅ Si no hay registros reales, mostramos DEMO (si la búsqueda lo permite)
-    if (filtered.length === 0) {
-      const demoMatch =
-        !q ||
-        `${DEMO_ASPIRANTE.nombres} ${DEMO_ASPIRANTE.apellidos}`.toLowerCase().includes(q) ||
-        DEMO_ASPIRANTE.cedula.includes(searchTerm);
+    filtered = filtered.filter(a => {
+      const nombre = `${a?.nombres || ''} ${a?.apellidos || ''}`.toLowerCase();
+      const correo = (a?.correo || '').toLowerCase();
+      const cedula = (a?.cedula || '').toString();
 
-      setFilteredAspirantes(demoMatch ? [DEMO_ASPIRANTE] : []);
-    } else {
-      setFilteredAspirantes(filtered);
-    }
+      return nombre.includes(q) || correo.includes(q) || cedula.includes(searchTerm);
+    });
+
+   setFilteredAspirantes(filtered);
 
     setCurrentPage(1);
   }, [searchTerm, aspirantes]);
 
-  const openModal = (aspirante, docType) => {
-    const isDemo = aspirante?.id === DEMO_ASPIRANTE.id;
-    setModalState({ isOpen: true, aspirante, docType, isDemo });
+  const openDocumentosTrabajador = (aspirante, carpeta = 'ingreso') => {
+    const isDemo = false;
+
+    setModalState({
+      isOpen: true,
+      aspirante,
+      isDemo,
+      carpeta,
+    });
+  };
+
+  const closeDocumentosTrabajador = () => {
+    setModalState({
+      isOpen: false,
+      aspirante: null,
+      isDemo: false,
+      carpeta: 'ingreso',
+    });
   };
 
   const handleDocumentSave = (updatedDocs) => {
     if (modalState.isDemo) {
       toast({
-        title: "🧪 Modo ejemplo",
-        description: "Este registro es DEMO. No guarda cambios, solo sirve para ver las carpetas.",
+        title: 'Modo ejemplo',
+        description: 'Este registro es DEMO. No guarda cambios.',
       });
       return;
     }
 
     const targetAspirante = modalState.aspirante;
-    const updatedAspirante = { ...targetAspirante, documentosGestion: updatedDocs };
+    const updatedAspirante = {
+      ...targetAspirante,
+      documentosGestion: updatedDocs,
+    };
+
     updateAspirante(updatedAspirante);
 
-    toast({ title: "💾 Cambios guardados", description: "Documentación actualizada exitosamente." });
+    toast({
+      title: 'Cambios guardados',
+      description: 'Documentación actualizada exitosamente.',
+    });
   };
 
-  // Sorting
+ const getModalConfigs = () => {
+  if (modalState.carpeta === 'ingreso') {
+    return {
+      ingreso: docTypes.ingreso,
+      seguridad: docTypes.seleccion,
+      contratacion: docTypes.contratacion,
+    };
+  }
+
+  if (modalState.carpeta === 'activo') {
+    return {
+      ingreso: {
+        title: 'Documentos Activos',
+        list: [],
+        color: 'emerald',
+      },
+      seguridad: {
+        title: 'Documentos Activos',
+        list: [],
+        color: 'emerald',
+      },
+      contratacion: {
+        title: 'Documentos Activos',
+        list: [],
+        color: 'emerald',
+      },
+    };
+  }
+
+  if (modalState.carpeta === 'retiro') {
+    return {
+      ingreso: {
+        title: 'Documentos de Retiro',
+        list: [],
+        color: 'red',
+      },
+      seguridad: {
+        title: 'Documentos de Retiro',
+        list: [],
+        color: 'red',
+      },
+      contratacion: {
+        title: 'Documentos de Retiro',
+        list: [],
+        color: 'red',
+      },
+    };
+  }
+
+  return {
+    ingreso: docTypes.ingreso,
+    seguridad: docTypes.seleccion,
+    contratacion: docTypes.contratacion,
+  };
+};
+
+  const modalConfigs = getModalConfigs();
+
   const handleSort = (key) => {
     let direction = 'ascending';
-    if (sortConfig.key === key && sortConfig.direction === 'ascending') direction = 'descending';
+
+    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+
     setSortConfig({ key, direction });
   };
 
   const sortedData = React.useMemo(() => {
-    let sortableItems = [...filteredAspirantes];
+    const sortableItems = [...filteredAspirantes];
+
     if (sortConfig.key !== null) {
       sortableItems.sort((a, b) => {
-        if (a?.[sortConfig.key] < b?.[sortConfig.key]) return sortConfig.direction === 'ascending' ? -1 : 1;
-        if (a?.[sortConfig.key] > b?.[sortConfig.key]) return sortConfig.direction === 'ascending' ? 1 : -1;
+        if (a?.[sortConfig.key] < b?.[sortConfig.key]) {
+          return sortConfig.direction === 'ascending' ? -1 : 1;
+        }
+
+        if (a?.[sortConfig.key] > b?.[sortConfig.key]) {
+          return sortConfig.direction === 'ascending' ? 1 : -1;
+        }
+
         return 0;
       });
     }
+
     return sortableItems;
   }, [filteredAspirantes, sortConfig]);
 
@@ -212,36 +282,50 @@ const ArchivosView = () => {
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
   const SortIcon = ({ columnKey }) => {
-    if (sortConfig.key !== columnKey) return <ArrowUpDown className="w-4 h-4 ml-2 text-gray-500 opacity-50" />;
+    if (sortConfig.key !== columnKey) {
+      return <ArrowUpDown className="w-4 h-4 ml-2 text-gray-500 opacity-50" />;
+    }
+
     return (
       <ArrowUpDown
         className={cn(
-          "w-4 h-4 ml-2",
-          sortConfig.direction === 'ascending' ? "text-emerald-400" : "text-emerald-400 rotate-180"
+          'w-4 h-4 ml-2',
+          sortConfig.direction === 'ascending'
+            ? 'text-emerald-400'
+            : 'text-emerald-400 rotate-180'
         )}
       />
     );
   };
 
-  const contratadoLabel = getEstadoInfo?.(ONLY_STATUS)?.label || 'Contratado';
+  const estadoFiltroLabel =
+  estadoFiltro === 'retirado' ? 'Retirado' : 'Contratado';
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-6"
+    >
       <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
               <FolderOpen className="w-6 h-6 text-white" />
             </div>
+
             <div>
               <h1 className="text-2xl font-bold text-gray-800">Gestión de Archivos</h1>
-              <p className="text-sm text-gray-500">Repositorio digital de expedientes de colaboradores.</p>
+              <p className="text-sm text-gray-500">
+                Repositorio digital de expedientes de colaboradores.
+              </p>
             </div>
           </div>
 
           <div className="flex flex-col sm:flex-row w-full md:w-auto gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+
               <Input
                 placeholder="Buscar por nombre o cédula..."
                 value={searchTerm}
@@ -250,13 +334,20 @@ const ArchivosView = () => {
               />
             </div>
 
-            {/* ✅ Estado fijo (SIN botón de Archivo Excel en esta vista) */}
             <div className="w-full md:w-48">
-              <div className="w-full bg-gray-50 border border-gray-200 rounded-md h-10 px-3 flex items-center">
-                <Filter className="w-4 h-4 mr-2 text-emerald-600" />
-                <span className="text-sm text-gray-700 font-medium">{contratadoLabel}</span>
-              </div>
+            <div className="relative">
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-600" />
+
+              <select
+                value={estadoFiltro}
+                onChange={(e) => setEstadoFiltro(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-md h-10 pl-9 pr-3 text-sm text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              >
+                <option value="contratado">Contratado</option>
+                <option value="retirado">Retirado</option>
+              </select>
             </div>
+          </div>
           </div>
         </div>
 
@@ -265,63 +356,80 @@ const ArchivosView = () => {
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-gray-900 text-white">
-                  <th
-                    className="p-4 font-semibold cursor-pointer hover:bg-gray-800 transition-colors"
-                    onClick={() => handleSort('nombres')}
-                  >
-                    <div className="flex items-center">Colaborador <SortIcon columnKey="nombres" /></div>
+                  <th className="p-4 font-semibold cursor-pointer hover:bg-gray-800 transition-colors" onClick={() => handleSort('nombres')}>
+                    <div className="flex items-center">
+                      Colaborador <SortIcon columnKey="nombres" />
+                    </div>
                   </th>
 
-                  <th
-                    className="p-4 font-semibold cursor-pointer hover:bg-gray-800 transition-colors"
-                    onClick={() => handleSort('cedula')}
-                  >
-                    <div className="flex items-center">Identificación <SortIcon columnKey="cedula" /></div>
+                  <th className="p-4 font-semibold cursor-pointer hover:bg-gray-800 transition-colors" onClick={() => handleSort('cedula')}>
+                    <div className="flex items-center">
+                      Identificación <SortIcon columnKey="cedula" />
+                    </div>
                   </th>
 
-                  <th
-                    className="p-4 font-semibold cursor-pointer hover:bg-gray-800 transition-colors"
-                    onClick={() => handleSort('cargo')}
-                  >
-                    <div className="flex items-center">Cargo <SortIcon columnKey="cargo" /></div>
+                  <th className="p-4 font-semibold cursor-pointer hover:bg-gray-800 transition-colors" onClick={() => handleSort('cargo')}>
+                    <div className="flex items-center">
+                      Cargo <SortIcon columnKey="cargo" />
+                    </div>
                   </th>
 
                   <th className="p-4 font-semibold text-center">Estado</th>
-                  <th className="p-4 font-semibold text-center">Acciones</th>
+                  <th className="p-4 font-semibold text-center">Carpeta Digital</th>
                 </tr>
               </thead>
 
               <tbody className="divide-y divide-gray-100">
                 {currentItems.length > 0 ? (
                   currentItems.map((aspirante) => {
-                    const isDemoRow = aspirante?.id === DEMO_ASPIRANTE.id;
+                   const isDemoRow = false;
 
                     return (
                       <motion.tr
                         key={aspirante.id}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        className={cn("hover:bg-emerald-50/30 transition-colors group", isDemoRow && "bg-amber-50/40")}
+                       className={cn(
+                          'hover:bg-emerald-50/30 transition-colors group'
+                        )}
+                        
                       >
                         <td className="p-4">
                           <div className="font-medium text-gray-900 flex items-center gap-2">
-                            {aspirante.nombres} {aspirante.apellidos}
+                            {`${aspirante.nombres || ''} ${aspirante.apellidos || ''}`.toUpperCase()}
+
                             {isDemoRow && (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
                                 DEMO
                               </span>
                             )}
                           </div>
-                          <div className="text-xs text-gray-500">{aspirante.correo || 'Sin correo'}</div>
+
+                          <div className="text-xs text-gray-500">
+                            {(aspirante.correo || 'SIN CORREO').toUpperCase()}
+                          </div>
                         </td>
 
-                        <td className="p-4 text-gray-600 font-mono text-sm">{aspirante.cedula}</td>
-                        <td className="p-4 text-gray-600">{aspirante.cargo || 'No asignado'}</td>
+                        <td className="p-4 text-gray-600 font-mono text-sm">
+                          {aspirante.cedula}
+                        </td>
+
+                        <td className="p-4 text-gray-600">
+                          {aspirante.cargo ||
+                            aspirante.Cargo ||
+                            aspirante.nombreCargo ||
+                            aspirante.NombreCargo ||
+                            aspirante.descripcionCargo ||
+                            aspirante.DescripcionCargo ||
+                            aspirante.cargoNombre ||
+                            aspirante.CargoNombre ||
+                            'No asignado'}
+                        </td>
 
                         <td className="p-4 text-center">
                           <span
                             className={cn(
-                              "px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide border",
+                              'px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide border',
                               getEstadoInfo(aspirante.estado).color
                                 .replace('text-', 'bg-')
                                 .replace('700', '100 text-')
@@ -333,46 +441,44 @@ const ArchivosView = () => {
                         </td>
 
                         <td className="p-4 text-center">
-                          <div className="flex gap-2 justify-center">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-yellow-600"
-                              title="Ingreso"
-                              onClick={() => openModal(aspirante, 'ingreso')}
+                          <div className="flex gap-5 justify-center items-center">
+                            <button
+                              type="button"
+                              title="Documentos de ingreso"
+                              onClick={() => openDocumentosTrabajador(aspirante, 'ingreso')}
+                              className="flex flex-col items-center gap-1 text-yellow-600 hover:scale-105 transition-transform"
                             >
-                              <Folder className="w-5 h-5" />
-                            </Button>
+                              <Folder className="w-6 h-6" />
+                              <span className="text-[11px] font-semibold text-gray-600">
+                                Ingreso
+                              </span>
+                            </button>
 
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-emerald-600"
-                              title="Activo"
-                              onClick={() => openModal(aspirante, 'activo')}
+                            <button
+                              type="button"
+                              title="Documentos activos"
+                              onClick={() => openDocumentosTrabajador(aspirante, 'activo')}
+                              className="flex flex-col items-center gap-1 text-emerald-600 hover:scale-105 transition-transform"
                             >
-                              <Files className="w-5 h-5" />
-                            </Button>
+                              <Files className="w-6 h-6" />
+                              <span className="text-[11px] font-semibold text-gray-600">
+                                Activos
+                              </span>
+                            </button>
 
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-red-600"
-                              title="Retiro"
-                              onClick={() => openModal(aspirante, 'retiro')}
+                            <button
+                              type="button"
+                              title="Documentos de retiro"
+                              onClick={() => openDocumentosTrabajador(aspirante, 'retiro')}
+                              className="flex flex-col items-center gap-1 text-red-600 hover:scale-105 transition-transform"
                             >
-                              <FolderOpen className="w-5 h-5" />
-                            </Button>
+                              <FolderOpen className="w-6 h-6" />
+                              <span className="text-[11px] font-semibold text-gray-600">
+                                Retiro
+                              </span>
+                            </button>
                           </div>
                         </td>
-
-                        <DocumentUploadModal
-                          isOpen={modalState.isOpen}
-                          onClose={() => setModalState({ isOpen: false, aspirante: null, docType: null, isDemo: false })}
-                          aspirante={modalState.aspirante}
-                          onSave={handleDocumentSave}
-                          docTypeConfig={modalState.docType ? docTypes[modalState.docType] : null}
-                        />
                       </motion.tr>
                     );
                   })
@@ -383,8 +489,18 @@ const ArchivosView = () => {
                         <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                           <Search className="w-8 h-8 text-gray-400" />
                         </div>
-                        <p className="text-lg font-medium">No se encontraron registros</p>
-                        <p className="text-sm">No hay colaboradores en estado “Contratado” con ese criterio.</p>
+
+                        <p className="text-lg font-medium">
+                          {searchTerm.trim()
+                            ? 'No se encontraron registros'
+                            : 'Busca un trabajador'}
+                        </p>
+
+                        <p className="text-sm">
+                          {searchTerm.trim()
+                            ? `No hay colaboradores en estado “${estadoFiltroLabel}” con ese criterio.`
+                            : 'Ingresa el nombre o número de identificación para consultar la carpeta digital.'}
+                        </p>
                       </div>
                     </td>
                   </tr>
@@ -396,7 +512,8 @@ const ArchivosView = () => {
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-4 py-4 border-t border-gray-200 bg-gray-50/50">
               <div className="text-sm text-gray-500">
-                Mostrando {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, sortedData.length)} de {sortedData.length}
+                Mostrando {indexOfFirstItem + 1}-
+                {Math.min(indexOfLastItem, sortedData.length)} de {sortedData.length}
               </div>
 
               <div className="flex items-center gap-2">
@@ -424,6 +541,19 @@ const ArchivosView = () => {
           )}
         </div>
       </div>
+
+      <DocumentUploadModal
+        key={`${modalState.aspirante?.id || 'sin-aspirante'}-${modalState.carpeta}`}
+        isOpen={modalState.isOpen}
+        onClose={closeDocumentosTrabajador}
+        aspirante={modalState.aspirante}
+        onSave={handleDocumentSave}
+        docTypeConfigIngreso={modalConfigs.ingreso}
+        docTypeConfigSeguridad={modalConfigs.seguridad}
+        docTypeConfigContratacion={modalConfigs.contratacion}
+        tipoCarpeta={modalState.carpeta}
+        soloLectura={true}
+      />
     </motion.div>
   );
 };
