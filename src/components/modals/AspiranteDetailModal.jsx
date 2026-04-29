@@ -4625,6 +4625,7 @@ if (response && response.status === 201) {
                                        <SelectItem value={26}>Referenciación</SelectItem>
                                        <SelectItem value={27}>Desiste del Proceso</SelectItem>
                                        <SelectItem value={28}>Rechazado</SelectItem>
+                                       <SelectItem value={34}>Pendiente de Contratación</SelectItem>
                                     </SelectContent>
                                  </Select>
                               </div>

@@ -25,12 +25,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       icon: Users,
       roles: ['Administrador', 'Aspirante', 'Selección', 'Contratación', 'Relaciones Laborales'],
       children: [
-        { to: '/aspirantes', label: 'Registro Aspirante', roles: ['Administrador', 'Aspirante'] },
-        { to: '/seleccion', label: 'Selección', roles: ['Administrador', 'Selección'] },
-        { to: '/contratacion', label: 'Contratación', roles: ['Administrador', 'Contratación'] },
-        { to: '/archivos', label: 'Archivos', roles: ['Administrador', 'Contratación'] },
-        { to: '/relaciones-laborales', label: 'Relaciones Laborales', roles: ['Administrador', 'Relaciones Laborales'] },
-      ]
+      { to: '/aspirantes', label: 'Registro Aspirante', roles: ['Administrador', 'Aspirante'] },
+      { to: '/seleccion', label: 'Selección', roles: ['Administrador', 'Selección'] },
+      { to: '/contratacion', label: 'Contratación', roles: ['Administrador', 'Contratación'] },
+      { to: '/archivos', label: 'Carpeta Digital', roles: ['Administrador', 'Contratación'] },
+      { to: '/relaciones-laborales', label: 'Relaciones Laborales', roles: ['Administrador', 'Relaciones Laborales'] },
+    ]
     },
   ];
 
