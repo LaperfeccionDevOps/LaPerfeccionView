@@ -29,6 +29,8 @@ const DocumentUploadModal = ({
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState('ingreso');
 
+  const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+
   const esCarpetaIngreso = tipoCarpeta === 'ingreso';
   const esCarpetaActivos = tipoCarpeta === 'activo';
   const esCarpetaRetiro = tipoCarpeta === 'retiro';
@@ -55,6 +57,35 @@ const DocumentUploadModal = ({
       return;
     }
 
+    const id =
+      aspirante?.idRegistroPersonal ||
+      aspirante?.IdRegistroPersonal ||
+      aspirante?.id;
+
+    if (esCarpetaRetiro) {
+      setLoading(true);
+      setTab('ingreso');
+
+      fetch(`${API_BASE}/retiros-laborales/carpeta-digital/${id}/documentos`)
+        .then((res) => res.json())
+        .then((res) => {
+          setDocumentos(Array.isArray(res?.data) ? res.data : []);
+        })
+        .catch((error) => {
+          console.error('Error cargando documentos de retiro:', error);
+          setDocumentos([]);
+        })
+        .finally(() => setLoading(false));
+
+      return;
+    }
+
+    if (esCarpetaActivos) {
+      setDocumentos([]);
+      setTab('ingreso');
+      return;
+    }
+
     if (!esCarpetaIngreso) {
       setDocumentos([]);
       setTab('ingreso');
@@ -62,11 +93,6 @@ const DocumentUploadModal = ({
     }
 
     setLoading(true);
-
-    const id =
-      aspirante?.idRegistroPersonal ||
-      aspirante?.IdRegistroPersonal ||
-      aspirante?.id;
 
     Promise.all([
       getDocumentacionIngreso(id).catch(() => null),
@@ -109,7 +135,7 @@ const DocumentUploadModal = ({
         setDocumentos(docs);
       })
       .finally(() => setLoading(false));
-  }, [aspirante, esCarpetaIngreso]);
+  }, [aspirante, esCarpetaIngreso, esCarpetaActivos, esCarpetaRetiro, API_BASE]);
 
   if (!aspirante) return null;
 
@@ -179,6 +205,86 @@ const DocumentUploadModal = ({
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
+const verDocumentoRetiro = async (doc) => {
+  try {
+    if (doc?.OrigenArchivo === 'ENTREVISTA' && !doc?.IdEntrevistaRetiro) {
+      return toast({ title: 'No hay entrevista para visualizar' });
+    }
+
+    if (doc?.OrigenArchivo !== 'ENTREVISTA' && !doc?.IdRetiroLaboralAdjunto) {
+      return toast({ title: 'No hay archivo para visualizar' });
+    }
+
+    const urlDescarga =
+      doc?.OrigenArchivo === 'ENTREVISTA'
+        ? `${API_BASE}/retiros-laborales/carpeta-digital/entrevista-retiro/${doc.IdEntrevistaRetiro}/descargar`
+        : `${API_BASE}/rrll/adjuntos/${doc.IdRetiroLaboralAdjunto}/descargar`;
+
+    const response = await fetch(urlDescarga);
+
+    if (!response.ok) {
+      throw new Error('No fue posible visualizar el documento.');
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+
+    window.open(url, '_blank');
+
+    setTimeout(() => URL.revokeObjectURL(url), 15000);
+  } catch (error) {
+    console.error('Error visualizando documento de retiro:', error);
+    toast({
+      title: 'Error al visualizar documento',
+      description: error.message || 'No fue posible abrir el documento.',
+      variant: 'destructive',
+    });
+  }
+};
+
+const descargarDocumentoRetiro = async (doc) => {
+  try {
+    if (doc?.OrigenArchivo === 'ENTREVISTA' && !doc?.IdEntrevistaRetiro) {
+      return toast({ title: 'No hay entrevista para descargar' });
+    }
+
+    if (doc?.OrigenArchivo !== 'ENTREVISTA' && !doc?.IdRetiroLaboralAdjunto) {
+      return toast({ title: 'No hay archivo para descargar' });
+    }
+
+    const urlDescarga =
+      doc?.OrigenArchivo === 'ENTREVISTA'
+        ? `${API_BASE}/retiros-laborales/carpeta-digital/entrevista-retiro/${doc.IdEntrevistaRetiro}/descargar`
+        : `${API_BASE}/rrll/adjuntos/${doc.IdRetiroLaboralAdjunto}/descargar`;
+
+    const response = await fetch(urlDescarga);
+
+    if (!response.ok) {
+      throw new Error('No fue posible descargar el documento.');
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+
+    a.href = url;
+    a.download =
+      doc.NombreArchivoOriginal ||
+      doc.NombreArchivo ||
+      `${doc.NombreDocumento || 'documento_retiro'}.pdf`;
+
+    a.click();
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (error) {
+    console.error('Error descargando documento de retiro:', error);
+    toast({
+      title: 'Error al descargar documento',
+      description: error.message || 'No fue posible descargar el documento.',
+      variant: 'destructive',
+    });
+  }
+};
   const getDocumentoBase64Tipo42 = () => {
     if (!Array.isArray(documentos)) return '';
 
@@ -349,12 +455,12 @@ const DocumentUploadModal = ({
       );
 
       toast({
-        title: '✅ Documento eliminado correctamente',
+        title: 'Documento eliminado correctamente',
       });
     } catch (error) {
       console.error('Error eliminando documento:', error);
       toast({
-        title: '❌ Error al eliminar documento',
+        title: 'Error al eliminar documento',
         variant: 'destructive',
       });
     }
@@ -409,14 +515,14 @@ const DocumentUploadModal = ({
         ]);
 
         toast({
-          title: '✅ Documento cargado correctamente',
+          title: 'Documento cargado correctamente',
         });
 
         if (input) input.value = '';
       } catch (error) {
         console.error('Error cargando documento:', error);
         toast({
-          title: '❌ Error al cargar documento',
+          title: 'Error al cargar documento',
           variant: 'destructive',
         });
 
@@ -426,6 +532,107 @@ const DocumentUploadModal = ({
 
     reader.readAsDataURL(file);
   };
+
+  const renderCarpetaActivos = () => (
+    <div className="py-14 flex flex-col items-center justify-center text-center">
+      <div className="w-20 h-20 rounded-2xl bg-white border border-gray-200 flex items-center justify-center mb-4 shadow-sm">
+        <Folder className={`w-10 h-10 ${colorIcono}`} />
+      </div>
+
+      <h3 className="text-xl font-bold text-gray-800">
+        Documentos Activos
+      </h3>
+
+      <p className="text-sm text-gray-500 mt-2 max-w-md">
+        Actualmente no hay documentos activos configurados para este trabajador.
+      </p>
+
+      <p className="text-xs text-gray-400 mt-3">
+        Esta carpeta queda preparada para consultar documentos activos cuando se defina el flujo correspondiente.
+      </p>
+    </div>
+  );
+
+  const renderCarpetaRetiro = () => (
+    <div className="py-4">
+      {loading ? (
+        <div className="py-14 text-center text-gray-500">
+          Cargando documentos de retiro...
+        </div>
+      ) : documentos.length === 0 ? (
+        <div className="py-14 flex flex-col items-center justify-center text-center">
+          <div className="w-20 h-20 rounded-2xl bg-white border border-gray-200 flex items-center justify-center mb-4 shadow-sm">
+            <Folder className={`w-10 h-10 ${colorIcono}`} />
+          </div>
+
+          <h3 className="text-xl font-bold text-gray-800">
+            Documentos de Retiro
+          </h3>
+
+          <p className="text-sm text-gray-500 mt-2 max-w-md">
+            Este trabajador aún no tiene retiro laboral registrado.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-h-[50vh] overflow-y-auto pr-2">
+          {documentos.map((doc) => {
+            const hasFile = !!doc?.Adjuntado;
+
+            return (
+              <div
+                key={doc.IdTipoDocumentoRetiro}
+                className="border-2 border-red-200 rounded-2xl p-6 bg-white/90 shadow-lg flex flex-col justify-between h-full group w-full hover:shadow-2xl transition-shadow duration-200"
+              >
+                <div>
+                  <h4 className="font-bold text-red-800 mb-3 text-base leading-tight min-h-[40px] tracking-wide flex items-center gap-2">
+                    <span className="inline-block w-2 h-2 rounded-full bg-red-400"></span>
+                    {doc.NombreDocumento}
+                  </h4>
+
+                  <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-4 border shadow-sm ${hasFile ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-red-100 text-red-700 border-red-300'}`}>
+                    {hasFile ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                    {hasFile ? 'Adjuntado' : 'Sin archivo'}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {hasFile && (
+                    <div className="flex flex-col gap-2 w-full">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-blue-700 border-blue-300 hover:bg-blue-100 px-3 h-auto w-full font-semibold"
+                        onClick={() => verDocumentoRetiro(doc)}
+                      >
+                        <Eye className="w-4 h-4 mr-2" /> Ver
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-emerald-700 border-emerald-300 hover:bg-emerald-100 px-3 h-auto w-full font-semibold"
+                        onClick={() => descargarDocumentoRetiro(doc)}
+                      >
+                        <Download className="w-4 h-4 mr-2" /> Descargar
+                      </Button>
+                    </div>
+                  )}
+
+                  <p className="text-xs text-gray-500 truncate h-4 italic">
+                    {hasFile
+                      ? doc.NombreArchivoOriginal || doc.NombreArchivo || 'Documento disponible'
+                      : 'Sin archivo adjunto'}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -471,25 +678,9 @@ const DocumentUploadModal = ({
           </div>
 
           <div className="px-8 pb-2 pt-2">
-            {!esCarpetaIngreso && (
-              <div className="py-14 flex flex-col items-center justify-center text-center">
-                <div className="w-20 h-20 rounded-2xl bg-white border border-gray-200 flex items-center justify-center mb-4 shadow-sm">
-                  <Folder className={`w-10 h-10 ${colorIcono}`} />
-                </div>
+            {esCarpetaActivos && renderCarpetaActivos()}
 
-                <h3 className="text-xl font-bold text-gray-800">
-                  {tituloModal}
-                </h3>
-
-                <p className="text-sm text-gray-500 mt-2 max-w-md">
-                  {descripcionVacia}
-                </p>
-
-                <p className="text-xs text-gray-400 mt-3">
-                  Esta carpeta queda estructurada para agregar documentos más adelante.
-                </p>
-              </div>
-            )}
+            {esCarpetaRetiro && renderCarpetaRetiro()}
 
             {esCarpetaIngreso && (
               <Tabs value={tab} onValueChange={setTab} className="w-full">
