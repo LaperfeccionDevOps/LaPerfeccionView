@@ -292,7 +292,12 @@ const url = `${BASE_ASIGNACION}/asignacion-cargo-cliente/${idRegistroPersonal}`;
 
 // ✅ POST Upsert Contratación Básica
 const apiUpsertContratacionBasica = async (body) => {
-  const url = `${API_BASE_URL}/api/contratacion-basica`;
+  const BASE_CONTRATACION_BASICA =
+  window.location.hostname === "localhost"
+    ? "http://localhost:8000/api"
+    : "https://apiqa.laperfeccion.app/api";
+
+const url = `${BASE_CONTRATACION_BASICA}/contratacion-basica`;
   const res = await fetch(url, {
     method: 'POST',
     headers: buildAuthHeaders(),
@@ -313,7 +318,12 @@ const apiUpsertContratacionBasica = async (body) => {
 const apiGetContratacionBasicaByRegistroPersonal = async (idRegistroPersonal) => {
   if (!idRegistroPersonal) return null;
 
-  const url = `${API_BASE_URL}/api/contratacion-basica/registro-personal/${idRegistroPersonal}`;
+  const BASE_CONTRATACION_BASICA =
+  window.location.hostname === "localhost"
+    ? "http://localhost:8000/api"
+    : "https://apiqa.laperfeccion.app/api";
+
+const url = `${BASE_CONTRATACION_BASICA}/contratacion-basica/registro-personal/${idRegistroPersonal}`;
   const res = await fetch(url, {
     method: 'GET',
     headers: buildAuthHeaders(),
