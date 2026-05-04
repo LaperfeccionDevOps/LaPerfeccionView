@@ -265,7 +265,10 @@ const resolveCiudadFromAny = async (maybeIdOrName) => {
 const apiGetAsignacionCargoCliente = async (idRegistroPersonal) => {
   if (!idRegistroPersonal) return null;
 
-  const url = `${API_BASE_URL}/api/asignacion-cargo-cliente/${idRegistroPersonal}`;
+  const url =
+  window.location.hostname === "localhost"
+    ? `http://localhost:8000/api/asignacion-cargo-cliente/${idRegistroPersonal}`
+    : `${API_BASE_URL}/asignacion-cargo-cliente/${idRegistroPersonal}`;
   const res = await fetch(url, {
     method: 'GET',
     headers: buildAuthHeaders(),
@@ -1493,9 +1496,9 @@ const ContratacionView = () => {
 
   // ✅ Cargar asignación SOLO para visibles
   const currentIdsKey = currentItems
-    .map(a => String(getIdRegistroPersonal(a) ?? ''))
-    .filter(Boolean)
-    .join('|');
+  .map(a => String(getIdRegistroPersonal(a) ?? ''))
+  .filter(Boolean)
+  .join('|');
 
   useEffect(() => {
     let cancel = false;
@@ -1508,7 +1511,8 @@ const ContratacionView = () => {
         .filter(Boolean)
         .map(id => String(id));
 
-      const idsPendientes = ids.filter(id => !asignacionMap[id]);
+      
+      const idsPendientes = ids;
       if (idsPendientes.length === 0) return;
 
       try {
@@ -1518,10 +1522,10 @@ const ContratacionView = () => {
             if (!data) return;
             if (cancel) return;
 
-            setAsignacionMap(prev => ({
-              ...prev,
-              [String(idStr)]: data,
-            }));
+           setAsignacionMap(prev => ({
+  ...prev,
+  [String(idStr)]: data,
+}));
           })
         );
       } catch (err) {
