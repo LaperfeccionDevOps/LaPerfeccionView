@@ -1,5 +1,5 @@
-  const RAW_BASE =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const RAW_BASE =
+  import.meta.env.VITE_API_BASE_URL || "";
 
 
 // ✅ Normaliza: quita "/" final y quita "/api" si ya viene incluido

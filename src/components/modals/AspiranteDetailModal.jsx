@@ -565,10 +565,11 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
           const exp0Val0 = fila?.experiencia_laboral?.[0]?.validaciones?.[0] || {};
           const refPers0 = fila?.referencias_personales_validacion?.[0] || {};
 
-          const obsNF =
-            fila?.nucleo_familiar?.[0]?.observaciones?.Observaciones ||
-            '';
-
+         const obsNF =
+         fila?.nucleo_familiar?.[0]?.Observaciones ||
+         fila?.nucleo_familiar?.[0]?.observaciones?.Observaciones ||
+         fila?.nucleo_familiar?.[0]?.observaciones ||
+         '';
             setFormData(prev => ({
             ...prev,
             IdRegistroPersonal: fila?.IdRegistroPersonal || '',
@@ -1245,10 +1246,12 @@ console.log('campos completos:', campos);
   // Datos de Proceso (Selección) - API /api/datos-proceso-aspirante/{id}
   // =========================
  
-  const API_BASE =
-  import.meta?.env?.VITE_API_URL ||
-  import.meta?.env?.VITE_API_BASE_URL ||
-  "http://localhost:8000/api";
+
+   const API_BASE = (
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  ""
+).replace(/\/+$/, "");
 
   const token = localStorage.getItem('access_token') || localStorage.getItem('token') || '';
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
@@ -3073,8 +3076,8 @@ if (response && response.status === 201) {
                                     return;
                                  }
 
-                                 const res = await fetch(
-                                    `${API_BASE}/observaciones-nucleo-familiar/${idNucleoFamiliar}`,
+                                 const res = await fetch(                                   
+                                    `${API_BASE}/nucleo-familiar/${idNucleoFamiliar}/observaciones`,
                                     {
                                     method: "PUT",
                                     headers: {

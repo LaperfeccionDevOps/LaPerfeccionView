@@ -21,7 +21,8 @@ import { useAuth } from '@/context/AuthContext';
 
 // 👉 Base de la API tomada del .env
 // Ejemplo: VITE_API_BASE_URL=http://localhost:8000/api
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 // 👉 Token endpoint - los campos obligatorios son: grant_type, username, password
 const TOKEN_URL = import.meta.env.VITE_TOKEN_URL || `${API_BASE_URL}/auth/token`;
