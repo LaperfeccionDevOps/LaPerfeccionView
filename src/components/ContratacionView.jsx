@@ -265,10 +265,12 @@ const resolveCiudadFromAny = async (maybeIdOrName) => {
 const apiGetAsignacionCargoCliente = async (idRegistroPersonal) => {
   if (!idRegistroPersonal) return null;
 
-  const url =
+ const BASE_ASIGNACION =
   window.location.hostname === "localhost"
-    ? `http://localhost:8000/api/asignacion-cargo-cliente/${idRegistroPersonal}`
-    : `${API_BASE_URL}/asignacion-cargo-cliente/${idRegistroPersonal}`;
+    ? "http://localhost:8000/api"
+    : "https://apiqa.laperfeccion.app/api";
+
+const url = `${BASE_ASIGNACION}/asignacion-cargo-cliente/${idRegistroPersonal}`;
   const res = await fetch(url, {
     method: 'GET',
     headers: buildAuthHeaders(),
