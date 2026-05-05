@@ -10,29 +10,31 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const location = useLocation();
   const [openSubmenus, setOpenSubmenus] = useState({});
 
-  const allNavItems = [
-    { 
-      label: 'Administrador', 
-      icon: ShieldAlert, 
-      roles: ['Administrador'],
-      children: [
-        { to: '/admin/crear-usuario', label: 'Crear Usuario' },
-        { to: '/admin/actualizar-usuario', label: 'Actualizar Usuario' }
-      ]
-    },
-    {
-      label: 'Talento Humano',
-      icon: Users,
-      roles: ['Administrador', 'Aspirante', 'Selección', 'Contratación', 'Relaciones Laborales'],
-      children: [
+const allNavItems = [
+  {
+    label: 'Administrador',
+    icon: ShieldAlert,
+    roles: ['Administrador'],
+    children: [
+      { to: '/admin/crear-usuario', label: 'Crear Usuario' },
+      { to: '/admin/actualizar-usuario', label: 'Actualizar Usuario' },
+    ],
+  },
+  {
+    label: 'Talento Humano',
+    icon: Users,
+    roles: ['Administrador', 'Aspirante', 'Selección', 'Contratación', 'Relaciones Laborales'],
+    children: [
       { to: '/aspirantes', label: 'Registro Aspirante', roles: ['Administrador', 'Aspirante'] },
       { to: '/seleccion', label: 'Selección', roles: ['Administrador', 'Selección'] },
+      { to: '/indicadores-seleccion', label: 'Indicadores', roles: ['Administrador', 'Selección'] },
       { to: '/contratacion', label: 'Contratación', roles: ['Administrador', 'Contratación'] },
       { to: '/archivos', label: 'Carpeta Digital', roles: ['Administrador', 'Contratación'] },
+      { to: '/indicadores-contratacion', label: 'Indicadores', roles: ['Administrador', 'Contratación'] },
       { to: '/relaciones-laborales', label: 'Relaciones Laborales', roles: ['Administrador', 'Relaciones Laborales'] },
-    ]
-    },
-  ];
+    ],
+  },
+];
 
   // Filter items based on user role
   const navItems = allNavItems

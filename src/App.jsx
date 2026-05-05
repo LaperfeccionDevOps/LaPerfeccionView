@@ -15,11 +15,11 @@ import ArchivosView from '@/components/ArchivosView';
 import CreateUserForm from '@/components/admin/CreateUserForm';
 import UpdateUserView from '@/components/admin/UpdateUserView';
 import EntrevistaRetiroPage from '@/pages/EntrevistaRetiroPage';
+import IndicadoresContratacionView from './components/IndicadoresContratacionView';
+import IndicadoresSeleccionView from './components/IndicadoresSeleccionView';
 
-// Helper component to redirect based on role
 const RoleBasedRedirect = () => {
   const { user } = useAuth();
-  const SESSION_TIME = 30 * 60 * 1000; // 30 minutos
 
   if (!user) return <Navigate to="/login" replace />;
 
@@ -44,31 +44,35 @@ function App() {
     <AuthProvider>
       <Helmet>
         <title>Portal de Recursos Humanos - Empresa de Aseo</title>
-        <meta name="description" content="Sistema de gestión de recursos humanos para empresa de aseo." />
+        <meta
+          name="description"
+          content="Sistema de gestión de recursos humanos para empresa de aseo."
+        />
       </Helmet>
-      
+
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/entrevista-retiro" element={<EntrevistaRetiroPage />} />
         <Route path="/entrevista-retiro-publica" element={<EntrevistaRetiroPage />} />
-        
+
         <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>}>
           <Route index element={<RoleBasedRedirect />} />
           <Route path="aspirantes" element={<AspiranteView />} />
           <Route path="seleccion" element={<SeleccionView />} />
+          <Route path="indicadores-seleccion" element={<IndicadoresSeleccionView />} />
           <Route path="seguimiento" element={<SeguimientoView />} />
           <Route path="contratacion" element={<ContratacionView />} />
           <Route path="archivos" element={<ArchivosView />} />
+          <Route path="indicadores-contratacion" element={<IndicadoresContratacionView />} />
           <Route path="relaciones-laborales" element={<RelacionesLaboralesView />} />
-          
-          {/* Rutas de Administrador */}
+
           <Route path="admin/crear-usuario" element={<CreateUserForm />} />
           <Route path="admin/actualizar-usuario" element={<UpdateUserView />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      
+
       <Toaster />
     </AuthProvider>
   );
