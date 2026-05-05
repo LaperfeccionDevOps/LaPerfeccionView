@@ -27,6 +27,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       children: [
         { to: '/aspirantes', label: 'Registro Aspirante', roles: ['Administrador', 'Aspirante'] },
         { to: '/seleccion', label: 'Selección', roles: ['Administrador', 'Selección'] },
+        { to: '/indicadores-seleccion', label: 'Indicadores', roles: ['Administrador', 'Selección'] },
         { to: '/contratacion', label: 'Contratación', roles: ['Administrador', 'Contratación'] },
         { to: '/archivos', label: 'Carpeta Digital', roles: ['Administrador', 'Contratación'] },
         { to: '/indicadores-contratacion', label: 'Indicadores', roles: ['Administrador', 'Contratación'] },
