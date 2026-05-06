@@ -32,6 +32,7 @@ const allNavItems = [
       { to: '/archivos', label: 'Carpeta Digital', roles: ['Administrador', 'Contratación'] },
       { to: '/indicadores-contratacion', label: 'Indicadores', roles: ['Administrador', 'Contratación'] },
       { to: '/relaciones-laborales', label: 'Relaciones Laborales', roles: ['Administrador', 'Relaciones Laborales'] },
+      { to: '/indicadores-rrll', label: 'Indicadores', roles: ['Administrador', 'Relaciones Laborales'] },
     ],
   },
 ];

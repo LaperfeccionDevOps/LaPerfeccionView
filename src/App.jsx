@@ -17,6 +17,7 @@ import UpdateUserView from '@/components/admin/UpdateUserView';
 import EntrevistaRetiroPage from '@/pages/EntrevistaRetiroPage';
 import IndicadoresContratacionView from './components/IndicadoresContratacionView';
 import IndicadoresSeleccionView from './components/IndicadoresSeleccionView';
+import IndicadoresRRLLView from './components/IndicadoresRRLLView';
 
 const RoleBasedRedirect = () => {
   const { user } = useAuth();
@@ -65,6 +66,7 @@ function App() {
           <Route path="archivos" element={<ArchivosView />} />
           <Route path="indicadores-contratacion" element={<IndicadoresContratacionView />} />
           <Route path="relaciones-laborales" element={<RelacionesLaboralesView />} />
+          <Route path="indicadores-rrll" element={<IndicadoresRRLLView />} />
 
           <Route path="admin/crear-usuario" element={<CreateUserForm />} />
           <Route path="admin/actualizar-usuario" element={<UpdateUserView />} />
