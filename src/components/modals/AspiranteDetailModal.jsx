@@ -4547,7 +4547,7 @@ if (response && response.status === 201) {
                                        pattern="[0-9]*"
                                        placeholder="Ej: 1300000"
                                        onChange={(e) => {
-                                          const onlyNums = (e.target.value || "").replace(/\D/g, "").slice(0, 9); // 👈 solo números (máx 9 dígitos)
+                                          const onlyNums = (e.target.value || "").replace(/\D/g, "").slice(0, 7); // 👈 solo números (máx 9 dígitos)
                                           handleInputChange("asignacionCargo", "Salario", onlyNums);
                                        }}
                                     />
