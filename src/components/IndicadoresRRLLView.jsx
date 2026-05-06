@@ -192,69 +192,78 @@ const IndicadoresRRLLView = () => {
   );
 
   const DonutChart = ({ title, subtitle, dataChart, selected, setSelected, icon: Icon }) => (
-    <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-7">
-      <div className="flex items-start gap-4 mb-4">
-        <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center">
-          <Icon className="w-6 h-6 text-emerald-600" />
+  <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-7">
+    <div className="flex items-start gap-4 mb-4">
+      <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center">
+        <Icon className="w-6 h-6 text-emerald-600" />
+      </div>
+      <div>
+        <h2 className="text-2xl font-black text-gray-900">{title}</h2>
+        <p className="text-sm text-gray-500">{subtitle}</p>
+      </div>
+    </div>
+
+    {dataChart.length === 0 ? (
+      <div className="h-[260px] flex items-center justify-center text-gray-400 font-bold">
+        Sin datos para el periodo seleccionado
+      </div>
+    ) : (
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-center">
+        <div className="xl:col-span-2 h-[360px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+            <Pie
+                data={dataChart}
+                dataKey="value"
+                nameKey="name"
+                innerRadius={70}
+                outerRadius={100}
+                paddingAngle={4}
+                label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                labelLine={{ length: 18, length2: 16 }}
+                >
+                {dataChart.map((item, index) => (
+                  <Cell
+                    key={`${item.name}-${index}`}
+                    fill={COLORS[index % COLORS.length]}
+                    cursor="pointer"
+                    onMouseDown={(event) => {
+                      event?.preventDefault?.();
+                      event?.stopPropagation?.();
+                    }}
+                    onClick={(event) => {
+                      event?.preventDefault?.();
+                      event?.stopPropagation?.();
+                      setSelected({
+                        name: item.name,
+                        value: item.value,
+                      });
+                    }}
+                  />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value, name) => [`${value} registros`, name]} />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
-        <div>
-          <h2 className="text-2xl font-black text-gray-900">{title}</h2>
-          <p className="text-sm text-gray-500">{subtitle}</p>
+
+        <div className="rounded-3xl bg-gray-50 border border-gray-100 p-6 min-h-[230px]">
+          <p className="text-xs font-bold text-gray-500 uppercase">
+            Detalle seleccionado
+          </p>
+          <h3 className="text-xl font-black text-gray-900 mt-3 break-words">
+            {selected?.name || 'Sin selección'}
+          </h3>
+          <p className="text-5xl font-black text-emerald-600 mt-5">
+            {selected?.value || 0}
+          </p>
+          <p className="text-sm text-gray-500 mt-2">registros asociados</p>
         </div>
       </div>
-
-      {dataChart.length === 0 ? (
-        <div className="h-[260px] flex items-center justify-center text-gray-400 font-bold">
-          Sin datos para el periodo seleccionado
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-center">
-          <div className="xl:col-span-2 h-[360px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={dataChart}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={85}
-                  outerRadius={135}
-                  paddingAngle={4}
-                  onClick={(entry, index, event) => {
-                    event?.stopPropagation?.();
-                    setSelected(entry);
-                  }}
-                >
-                  {dataChart.map((_, index) => (
-                    <Cell
-                      key={index}
-                      fill={COLORS[index % COLORS.length]}
-                      cursor="pointer"
-                      onClick={(event) => event?.stopPropagation?.()}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value, name) => [`${value} registros`, name]} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="rounded-3xl bg-gray-50 border border-gray-100 p-6 min-h-[230px]">
-            <p className="text-xs font-bold text-gray-500 uppercase">
-              Detalle seleccionado
-            </p>
-            <h3 className="text-xl font-black text-gray-900 mt-3 break-words">
-              {selected?.name || 'Sin selección'}
-            </h3>
-            <p className="text-5xl font-black text-emerald-600 mt-5">
-              {selected?.value || 0}
-            </p>
-            <p className="text-sm text-gray-500 mt-2">registros asociados</p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+    )}
+  </div>
+);
 
   if (loading) {
     return (
