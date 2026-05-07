@@ -20,9 +20,11 @@ import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/context/AuthContext';
 
 // 👉 Base de la API tomada del .env
-// Ejemplo: VITE_API_BASE_URL=https://api.laperfeccion.app/api
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.laperfeccion.app/api';
-// Token endpoint - los campos obligatorios son: grant_type, username, password
+// Ejemplo: VITE_API_BASE_URL=http://localhost:8000/api
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
+// 👉 Token endpoint - los campos obligatorios son: grant_type, username, password
 const TOKEN_URL = import.meta.env.VITE_TOKEN_URL || `${API_BASE_URL}/auth/token`;
 const CLIENT_ID = import.meta.env.VITE_CLIENT_ID || '';
 const CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET || '';
@@ -50,8 +52,8 @@ const LoginPage = () => {
     try {
       const params = new URLSearchParams();
       params.append('grant_type', 'password'); // obligatorio
-      params.append('username', 'juandiaz'); // obligatorio
-      params.append('password', '123'); // obligatorio
+      params.append('username', username);
+      params.append('password', password);
       if (CLIENT_ID) params.append('client_id', CLIENT_ID);
       if (CLIENT_SECRET) params.append('client_secret', CLIENT_SECRET);
 

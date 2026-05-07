@@ -35,6 +35,10 @@ const SeleccionView = () => {
  useEffect(() => {
   let filtered = aspirantes;
 
+  filtered = filtered.filter(
+    asp => (asp.estado || '').trim().toUpperCase() !== 'CONTRATADO'
+  );
+
   if (estadoFilter !== 'todos') {
     filtered = filtered.filter(asp => asp.estado.trim() === estadoFilter.trim());
   }

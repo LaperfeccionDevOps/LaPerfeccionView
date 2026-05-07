@@ -5,7 +5,6 @@ import {
   Search,
   Folder,
   Files,
-  Filter,
   ArrowUpDown,
   ChevronLeft,
   ChevronRight,
@@ -110,18 +109,13 @@ const ArchivosView = () => {
   const [itemsPerPage] = useState(10);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
 
-  const [estadoFiltro, setEstadoFiltro] = useState('contratado');
-
+  
   useEffect(() => {
     if (aspirantes.length === 0) loadAspirantes();
   }, [loadAspirantes, aspirantes.length]);
 
   useEffect(() => {
     let filtered = aspirantes;
-
-    filtered = filtered.filter(
-  a => (a?.estado || '').toString().trim().toLowerCase() === estadoFiltro
-);
 
     const q = (searchTerm || '').trim().toLowerCase();
 
@@ -298,9 +292,6 @@ const ArchivosView = () => {
     );
   };
 
-  const estadoFiltroLabel =
-  estadoFiltro === 'retirado' ? 'Retirado' : 'Contratado';
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -333,21 +324,6 @@ const ArchivosView = () => {
                 className="pl-9 w-full md:w-64 bg-gray-50 border-gray-200 focus:bg-white transition-colors"
               />
             </div>
-
-            <div className="w-full md:w-48">
-            <div className="relative">
-              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-600" />
-
-              <select
-                value={estadoFiltro}
-                onChange={(e) => setEstadoFiltro(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-md h-10 pl-9 pr-3 text-sm text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-400"
-              >
-                <option value="contratado">Contratado</option>
-                <option value="retirado">Retirado</option>
-              </select>
-            </div>
-          </div>
           </div>
         </div>
 
@@ -498,7 +474,7 @@ const ArchivosView = () => {
 
                         <p className="text-sm">
                           {searchTerm.trim()
-                            ? `No hay colaboradores en estado “${estadoFiltroLabel}” con ese criterio.`
+                            ? 'No se encontró ningún colaborador con ese criterio.'
                             : 'Ingresa el nombre o número de identificación para consultar la carpeta digital.'}
                         </p>
                       </div>

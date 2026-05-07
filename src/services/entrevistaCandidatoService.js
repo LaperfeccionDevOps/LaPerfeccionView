@@ -2,22 +2,23 @@
 import { getApiUrl } from '../configFiles/api';
 import axios from "axios";
 
-/**
+    /**
  * ✅ Base URL
  * - Prioriza VITE_API_BASE_URL (según tu otro helper)
  * - Si no existe, usa VITE_API_URL
- * - Si no existe, https://api.laperfeccion.app
+ * - Si no existe, http://localhost:8000
  */
-const API_BASE =
-  (import.meta?.env?.VITE_API_BASE_URL ||
-    import.meta?.env?.VITE_API_URL ||
-    "https://api.laperfeccion.app"
-  ).replace(/\/+$/, ""); // quita / al final
+const API_BASE = (
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  ""
+).replace(/\/+$/, "");
 
 /**
  * ✅ Backend prefix
  */
-const BASE_PATH = "/api/entrevistas-candidato";
+
+const BASE_PATH = "/entrevistas-candidato";
 
 const api = axios.create({
   baseURL: API_BASE,

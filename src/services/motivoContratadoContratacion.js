@@ -1,5 +1,6 @@
 const RAW_BASE =
-  import.meta.env.VITE_API_BASE_URL || 'https://api.laperfeccion.app';
+  import.meta.env.VITE_API_BASE_URL || "";
+
 
 // ✅ Normaliza: quita "/" final y quita "/api" si ya viene incluido
 const API_BASE_URL = RAW_BASE

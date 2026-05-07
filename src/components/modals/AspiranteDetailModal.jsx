@@ -565,10 +565,11 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
           const exp0Val0 = fila?.experiencia_laboral?.[0]?.validaciones?.[0] || {};
           const refPers0 = fila?.referencias_personales_validacion?.[0] || {};
 
-          const obsNF =
-            fila?.nucleo_familiar?.[0]?.observaciones?.Observaciones ||
-            '';
-
+         const obsNF =
+         fila?.nucleo_familiar?.[0]?.Observaciones ||
+         fila?.nucleo_familiar?.[0]?.observaciones?.Observaciones ||
+         fila?.nucleo_familiar?.[0]?.observaciones ||
+         '';
             setFormData(prev => ({
             ...prev,
             IdRegistroPersonal: fila?.IdRegistroPersonal || '',
@@ -639,8 +640,8 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
             fechaExpedicion: fila?.FechaExpedicion || '',
             descripcionNivelEducativo: fila?.nivel_educativo?.Descripcion || '',
 
-            contactoEmergencia: fila?.ContactoEmergencia || [],
-            telefonoContactoEmergencia: fila?.TelefonoContactoEmergencia || [],
+            contactoEmergencia: fila?.ContactoEmergencia || '',
+            telefonoContactoEmergencia: fila?.TelefonoContactoEmergencia || '',
 
             documentos: documentos?.data || [],
             documentosSeguridad: documentosSeguridadResp?.data || [],
@@ -818,7 +819,6 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
     });
   };
 
-
 const handleDescargarReferencia = async (ref) => {
   try {
     const validacion = Array.isArray(ref?.validaciones)
@@ -884,29 +884,29 @@ const handleDescargarReferencia = async (ref) => {
       IDENTIFICACION: formData?.cedula || '',
     };
 
-   let pdf_base64 = '';
-const response = await DescargarDocumentoPdf(campos, 'referencias');
+    let pdf_base64 = '';
+    const response = await DescargarDocumentoPdf(campos, 'referencias');
 
-if (response && typeof response.json === 'function') {
-  const data = await response.json();
-  pdf_base64 = data.pdf_base64;
-} else if (response && response.pdf_base64) {
-  pdf_base64 = response.pdf_base64;
-}
+    if (response && typeof response.json === 'function') {
+      const data = await response.json();
+      pdf_base64 = data.pdf_base64;
+    } else if (response && response.pdf_base64) {
+      pdf_base64 = response.pdf_base64;
+    }
 
-if (!pdf_base64) {
-  console.error('No se recibió pdf_base64');
-  return;
-}
+    if (!pdf_base64) {
+      console.error('No se recibió pdf_base64');
+      return;
+    }
 
-const doc = {
-  DocumentoBase64: 'data:application/pdf;base64,' + pdf_base64,
-};
+    const doc = {
+      DocumentoBase64: 'data:application/pdf;base64,' + pdf_base64,
+    };
 
-descargarDocumento(doc);
-} catch (error) {
-  console.error('Error al descargar referencia:', error);
-}
+    descargarDocumento(doc);
+  } catch (error) {
+    console.error('Error al descargar referencia:', error);
+  }
 };
     const handleDescargarTratamientoDatos = async () => {
     const campos = {
@@ -1245,7 +1245,14 @@ console.log('campos completos:', campos);
   // =========================
   // Datos de Proceso (Selección) - API /api/datos-proceso-aspirante/{id}
   // =========================
-  const API_BASE = import.meta?.env?.VITE_API_BASE_URL || 'https://api.laperfeccion.app/api';
+ 
+
+   const API_BASE = (
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  ""
+).replace(/\/+$/, "");
+
   const token = localStorage.getItem('access_token') || localStorage.getItem('token') || '';
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
@@ -3013,7 +3020,6 @@ if (response && response.status === 201) {
                                     <td className="px-3 py-2 text-sm">{fam.Ocupacion}</td>
                                     <td className="px-3 py-2 text-sm">{fam.Telefono}</td>
                                     <td className="px-3 py-2 text-sm">{fam.DependeEconomicamente == null ? 'No' : fam.DependeEconomicamente}</td>
-                              
 
                                     {/* <td className="px-3 py-2 text-sm">
                                       <Button size="icon" variant="ghost" className="h-6 w-6 text-red-400 hover:text-red-600 shrink-0" onClick={() => removeFamiliar(idx)}>
@@ -3070,8 +3076,8 @@ if (response && response.status === 201) {
                                     return;
                                  }
 
-                                 const res = await fetch(
-                                    `${API_BASE}/observaciones-nucleo-familiar/${idNucleoFamiliar}`,
+                                 const res = await fetch(                                   
+                                    `${API_BASE}/nucleo-familiar/${idNucleoFamiliar}/observaciones`,
                                     {
                                     method: "PUT",
                                     headers: {
@@ -4490,9 +4496,9 @@ if (response && response.status === 201) {
                                  size="sm"
                                  className="h-9 px-4 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white"
                                  onClick={() => {
-  console.log('CLICK BOTON DESCARGAR ENTREVISTA');
-  handleDescargarEntrevista();
-}}
+                                 console.log('CLICK BOTON DESCARGAR ENTREVISTA');
+                                 handleDescargarEntrevista();
+                                 }}
                                  style={{ marginTop: '1rem' }}
                               >
                                  Descargar entrevista
@@ -4500,7 +4506,7 @@ if (response && response.status === 201) {
                            </div>
                            </TabsContent>
 
-                              {/* ✅✅✅ NUEVO BLOQUE: Asignación cargo y cliente (JUSTO AQUÍ, debajo del historial) */}
+                           {/* ✅✅✅ NUEVO BLOQUE: Asignación cargo y cliente (JUSTO AQUÍ, debajo del historial) */}
                            {/* <details className="mb-6 bg-white border border-gray-200 rounded-xl shadow-sm"> */}
                              <summary className="cursor-pointer select-none list-none px-4 py-3 flex items-center justify-between">
                                <span className="font-semibold text-gray-800">Asignación cargo y cliente</span>
