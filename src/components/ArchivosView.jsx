@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { useAspirantes } from '@/hooks/useAspirantes';
+import { useAuth } from '@/context/AuthContext';
 import DocumentUploadModal from '@/components/modals/DocumentUploadModal';
 import { getEstadoInfo } from '@/utils/statusUtils';
 import { cn } from '@/lib/utils';
@@ -69,6 +70,19 @@ const documentosRetiro = [
   { id: 10, label: 'Paquete de retiro' },
 ];
 
+const documentosOperaciones = [
+  { id: 3, label: 'Hoja de vida' },
+  { id: 4, label: 'Documento de identidad' },
+  { id: 65, label: 'Carnet de la empresa' },
+  { id: 30, label: 'Certificado EPS' },
+  { id: 26, label: 'Certificado ARL' },
+  { id: 41, label: 'Vacunación COVID' },
+  { id: 6, label: 'Consulta Antecedentes Policía' },
+  { id: 7, label: 'Consulta Procuraduría' },
+  { id: 8, label: 'Consulta Contraloría' },
+  { id: 9, label: 'Consulta Rama Judicial' },
+];
+
 const docTypes = {
   ingreso: {
     title: 'Documentos de Ingreso',
@@ -90,10 +104,18 @@ const docTypes = {
     list: documentosRetiro,
     color: 'red',
   },
+  operaciones: {
+  title: 'Documentos Operaciones',
+  list: documentosOperaciones,
+  color: 'emerald',
+},
 };
 
 const ArchivosView = () => {
   const { aspirantes, updateAspirante, loadAspirantes } = useAspirantes();
+
+  const { user } = useAuth();
+  const isOperaciones = user?.role === 'Operaciones';
 
   const [filteredAspirantes, setFilteredAspirantes] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -187,6 +209,22 @@ const ArchivosView = () => {
       ingreso: docTypes.ingreso,
       seguridad: docTypes.seleccion,
       contratacion: docTypes.contratacion,
+    };
+  }
+
+  if (modalState.carpeta === 'operaciones') {
+    return {
+      ingreso: docTypes.operaciones,
+      seguridad: {
+        title: 'Documentos Operaciones',
+        list: [],
+        color: 'emerald',
+      },
+      contratacion: {
+        title: 'Documentos Operaciones',
+        list: [],
+        color: 'emerald',
+      },
     };
   }
 
@@ -416,45 +454,61 @@ const ArchivosView = () => {
                           </span>
                         </td>
 
-                        <td className="p-4 text-center">
-                          <div className="flex gap-5 justify-center items-center">
-                            <button
-                              type="button"
-                              title="Documentos de ingreso"
-                              onClick={() => openDocumentosTrabajador(aspirante, 'ingreso')}
-                              className="flex flex-col items-center gap-1 text-yellow-600 hover:scale-105 transition-transform"
-                            >
-                              <Folder className="w-6 h-6" />
-                              <span className="text-[11px] font-semibold text-gray-600">
-                                Ingreso
-                              </span>
-                            </button>
+                       <td className="p-4 text-center">
+  <div className="flex gap-5 justify-center items-center">
+    {isOperaciones ? (
+      <button
+        type="button"
+        title="Documentos Operaciones"
+        onClick={() => openDocumentosTrabajador(aspirante, 'operaciones')}
+        className="flex flex-col items-center gap-1 text-emerald-600 hover:scale-105 transition-transform"
+      >
+        <FolderOpen className="w-6 h-6" />
+        <span className="text-[11px] font-semibold text-gray-600">
+          Operaciones
+        </span>
+      </button>
+    ) : (
+      <>
+        <button
+          type="button"
+          title="Documentos de ingreso"
+          onClick={() => openDocumentosTrabajador(aspirante, 'ingreso')}
+          className="flex flex-col items-center gap-1 text-yellow-600 hover:scale-105 transition-transform"
+        >
+          <Folder className="w-6 h-6" />
+          <span className="text-[11px] font-semibold text-gray-600">
+            Ingreso
+          </span>
+        </button>
 
-                            <button
-                              type="button"
-                              title="Documentos activos"
-                              onClick={() => openDocumentosTrabajador(aspirante, 'activo')}
-                              className="flex flex-col items-center gap-1 text-emerald-600 hover:scale-105 transition-transform"
-                            >
-                              <Files className="w-6 h-6" />
-                              <span className="text-[11px] font-semibold text-gray-600">
-                                Activos
-                              </span>
-                            </button>
+        <button
+          type="button"
+          title="Documentos activos"
+          onClick={() => openDocumentosTrabajador(aspirante, 'activo')}
+          className="flex flex-col items-center gap-1 text-emerald-600 hover:scale-105 transition-transform"
+        >
+          <Files className="w-6 h-6" />
+          <span className="text-[11px] font-semibold text-gray-600">
+            Activos
+          </span>
+        </button>
 
-                            <button
-                              type="button"
-                              title="Documentos de retiro"
-                              onClick={() => openDocumentosTrabajador(aspirante, 'retiro')}
-                              className="flex flex-col items-center gap-1 text-red-600 hover:scale-105 transition-transform"
-                            >
-                              <FolderOpen className="w-6 h-6" />
-                              <span className="text-[11px] font-semibold text-gray-600">
-                                Retiro
-                              </span>
-                            </button>
-                          </div>
-                        </td>
+        <button
+          type="button"
+          title="Documentos de retiro"
+          onClick={() => openDocumentosTrabajador(aspirante, 'retiro')}
+          className="flex flex-col items-center gap-1 text-red-600 hover:scale-105 transition-transform"
+        >
+          <FolderOpen className="w-6 h-6" />
+          <span className="text-[11px] font-semibold text-gray-600">
+            Retiro
+          </span>
+        </button>
+      </>
+    )}
+  </div>
+</td>
                       </motion.tr>
                     );
                   })

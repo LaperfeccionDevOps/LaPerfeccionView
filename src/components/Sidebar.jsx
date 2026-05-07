@@ -10,7 +10,11 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const location = useLocation();
   const [openSubmenus, setOpenSubmenus] = useState({});
 
-const allNavItems = [
+  const isAdminFull =
+  user?.role === 'Administrador' ||
+  user?.role === 'Super Administrador';
+
+  const allNavItems = [
   {
     label: 'Administrador',
     icon: ShieldAlert,
@@ -23,13 +27,13 @@ const allNavItems = [
   {
     label: 'Talento Humano',
     icon: Users,
-    roles: ['Administrador', 'Aspirante', 'Selección', 'Contratación', 'Relaciones Laborales'],
+    roles: ['Administrador', 'Super Administrador', 'Aspirante', 'Selección', 'Contratación', 'Relaciones Laborales', 'Operaciones'],
     children: [
       { to: '/aspirantes', label: 'Registro Aspirante', roles: ['Administrador', 'Aspirante'] },
       { to: '/seleccion', label: 'Selección', roles: ['Administrador', 'Selección'] },
       { to: '/indicadores-seleccion', label: 'Indicadores', roles: ['Administrador', 'Selección'] },
       { to: '/contratacion', label: 'Contratación', roles: ['Administrador', 'Contratación'] },
-      { to: '/archivos', label: 'Carpeta Digital', roles: ['Administrador', 'Contratación'] },
+      { to: '/archivos', label: 'Carpeta Digital', roles: ['Administrador', 'Super Administrador', 'Contratación', 'Operaciones'] },
       { to: '/indicadores-contratacion', label: 'Indicadores', roles: ['Administrador', 'Contratación'] },
       { to: '/relaciones-laborales', label: 'Relaciones Laborales', roles: ['Administrador', 'Relaciones Laborales'] },
       { to: '/indicadores-rrll', label: 'Indicadores', roles: ['Administrador', 'Relaciones Laborales'] },
@@ -38,19 +42,21 @@ const allNavItems = [
 ];
 
   // Filter items based on user role
-  const navItems = allNavItems
-    .map(item => {
-      // Ocultar siempre el bloque de Administrador
-      if (item.label === 'Administrador') {
-        return null;
-      }
+      const navItems = allNavItems
+        .map(item => {
+          // Ocultar siempre el bloque de Administrador
+          if (item.label === 'Administrador' && !isAdminFull) {
+      return null;
+    }
       if (item.children) {
         // Filtrar los hijos por rol
         const filteredChildren = item.children.filter(child => {
-          if (!user || !user.role) return false;
-          // Si el hijo tiene roles, filtrar por ellos
-          return !child.roles || child.roles.includes(user.role);
-        });
+        if (!user || !user.role) return false;
+
+        if (isAdminFull) return true;
+
+        return !child.roles || child.roles.includes(user.role);
+      });
         return filteredChildren.length > 0 ? { ...item, children: filteredChildren } : null;
       } else {
         if (!user || !user.role) return null;

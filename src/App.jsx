@@ -27,16 +27,25 @@ const RoleBasedRedirect = () => {
   switch (user.role) {
     case 'Aspirante':
       return <Navigate to="/aspirantes" replace />;
+
     case 'Selección':
       return <Navigate to="/seleccion" replace />;
+
     case 'Contratación':
       return <Navigate to="/contratacion" replace />;
+
     case 'Administrador':
-      return <Navigate to="/aspirantes" replace />;
+    case 'Super Administrador':
+      return <Navigate to="/seleccion" replace />;
+
     case 'Relaciones Laborales':
       return <Navigate to="/relaciones-laborales" replace />;
+
+    case 'Operaciones':
+      return <Navigate to="/archivos" replace />;
+
     default:
-      return <Navigate to="/aspirantes" replace />;
+      return <Navigate to="/seleccion" replace />;
   }
 };
 
