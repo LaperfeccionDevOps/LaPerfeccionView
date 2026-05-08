@@ -148,13 +148,25 @@ const ArchivosView = () => {
       return;
     }
 
-    filtered = filtered.filter(a => {
-      const nombre = `${a?.nombres || ''} ${a?.apellidos || ''}`.toLowerCase();
-      const correo = (a?.correo || '').toLowerCase();
-      const cedula = (a?.cedula || '').toString();
+   filtered = filtered.filter(a => {
+    const nombre = `${a?.nombres || ''} ${a?.apellidos || ''}`.toLowerCase();
+    const correo = (a?.correo || '').toLowerCase();
 
-      return nombre.includes(q) || correo.includes(q) || cedula.includes(searchTerm);
-    });
+    const cedula = (
+      a?.cedula ||
+      a?.identificacion ||
+      a?.NumeroIdentificacion ||
+      a?.numeroIdentificacion ||
+      a?.documento ||
+      ''
+    ).toString().toLowerCase();
+
+    return (
+      nombre.includes(q) ||
+      correo.includes(q) ||
+      cedula.includes(q)
+    );
+  });
 
    setFilteredAspirantes(filtered);
 
