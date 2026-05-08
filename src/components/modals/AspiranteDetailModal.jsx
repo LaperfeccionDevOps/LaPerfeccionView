@@ -4644,6 +4644,7 @@ if (response && response.status === 201) {
                                           <SelectItem value="Exámenes No Aptos">EXÁMENES NO APTOS</SelectItem>
                                           <SelectItem value="Documentación Incompleta">DOCUMENTACIÓN INCOMPLETA</SelectItem>
                                           <SelectItem value="Estudio de Seguridad">ESTUDIO DE SEGURIDAD</SelectItem>
+                                          <SelectItem value="Reintegro No Aprobado">REINTEGRO NO APROBADO</SelectItem>
                                           <SelectItem value="No asiste a Contratación">NO ASISTE A CONTRATACIÓN</SelectItem>
                                        </SelectContent>
                                     </Select>
