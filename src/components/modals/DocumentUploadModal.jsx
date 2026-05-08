@@ -34,11 +34,14 @@ const DocumentUploadModal = ({
   const esCarpetaIngreso = tipoCarpeta === 'ingreso';
   const esCarpetaActivos = tipoCarpeta === 'activo';
   const esCarpetaRetiro = tipoCarpeta === 'retiro';
+  const esCarpetaOperaciones = tipoCarpeta === 'operaciones';
 
-  const tituloModal = esCarpetaActivos
-    ? 'Documentos Activos'
-    : esCarpetaRetiro
-      ? 'Documentos de Retiro'
+ const tituloModal = esCarpetaActivos
+  ? 'Documentos Activos'
+  : esCarpetaRetiro
+    ? 'Documentos de Retiro'
+    : esCarpetaOperaciones
+      ? 'Documentos Operaciones'
       : 'Documentos del Aspirante';
 
   const descripcionVacia = esCarpetaActivos
@@ -86,7 +89,7 @@ const DocumentUploadModal = ({
       return;
     }
 
-    if (!esCarpetaIngreso) {
+   if (!esCarpetaIngreso && !esCarpetaOperaciones) {
       setDocumentos([]);
       setTab('ingreso');
       return;
@@ -135,7 +138,7 @@ const DocumentUploadModal = ({
         setDocumentos(docs);
       })
       .finally(() => setLoading(false));
-  }, [aspirante, esCarpetaIngreso, esCarpetaActivos, esCarpetaRetiro, API_BASE]);
+ }, [aspirante, esCarpetaIngreso, esCarpetaActivos, esCarpetaRetiro, esCarpetaOperaciones, API_BASE]);
 
   if (!aspirante) return null;
 
@@ -681,6 +684,79 @@ const descargarDocumentoRetiro = async (doc) => {
             {esCarpetaActivos && renderCarpetaActivos()}
 
             {esCarpetaRetiro && renderCarpetaRetiro()}
+
+            {esCarpetaOperaciones && (
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-4 max-h-[50vh] overflow-y-auto pr-2">
+    {[
+      { id: 3, label: 'Hoja de vida' },
+      { id: 4, label: 'Documento de identidad' },
+      { id: 65, label: 'Carnet de la empresa' },
+      { id: 30, label: 'Certificado EPS' },
+      { id: 26, label: 'Certificado ARL' },
+      { id: 41, label: 'Vacunación COVID' },
+      { id: 35, label: 'Vacunación tétano Hepatitis' },
+      { id: 6, label: 'Consulta Antecedentes Policía' },
+      { id: 7, label: 'Consulta Procuraduría' },
+      { id: 8, label: 'Consulta Contraloría' },
+      { id: 9, label: 'Consulta Rama Judicial' },
+    ].map((req) => {
+      const doc = Array.isArray(documentos)
+        ? documentos.find(d => String(d.IdTipoDocumentacion) === String(req.id))
+        : null;
+
+      const hasFile = !!doc && (doc.DocumentoBase64 || doc.DocumentoCargado);
+
+      return (
+        <div
+          key={req.id}
+          className="border-2 border-emerald-200 rounded-2xl p-6 bg-white/90 shadow-lg flex flex-col justify-between h-full group w-full hover:shadow-2xl transition-shadow duration-200"
+        >
+          <div>
+            <h4 className="font-bold text-emerald-900 mb-3 text-base leading-tight min-h-[40px] tracking-wide flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
+              {req.label}
+            </h4>
+
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-4 border shadow-sm ${hasFile ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-red-100 text-red-700 border-red-300'}`}>
+              {hasFile ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+              {hasFile ? 'Adjuntado' : 'No disponible'}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {hasFile && (
+              <div className="flex flex-col gap-2 w-full">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-blue-700 border-blue-300 hover:bg-blue-100 px-3 h-auto w-full font-semibold"
+                  onClick={() => verDocumento(doc)}
+                >
+                  <Eye className="w-4 h-4 mr-2" /> Ver
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-emerald-700 border-emerald-300 hover:bg-emerald-100 px-3 h-auto w-full font-semibold"
+                  onClick={() => descargarDocumento(doc)}
+                >
+                  <Download className="w-4 h-4 mr-2" /> Descargar
+                </Button>
+              </div>
+            )}
+
+            <p className="text-xs text-gray-500 truncate h-4 italic">
+              {hasFile ? doc.Nombre : 'Sin archivo'}
+            </p>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+)}
 
             {esCarpetaIngreso && (
               <Tabs value={tab} onValueChange={setTab} className="w-full">

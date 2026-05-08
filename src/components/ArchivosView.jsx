@@ -77,6 +77,7 @@ const documentosOperaciones = [
   { id: 30, label: 'Certificado EPS' },
   { id: 26, label: 'Certificado ARL' },
   { id: 41, label: 'Vacunación COVID' },
+  { id: 35, label: 'Vacunación tétano Hepatitis' },
   { id: 6, label: 'Consulta Antecedentes Policía' },
   { id: 7, label: 'Consulta Procuraduría' },
   { id: 8, label: 'Consulta Contraloría' },
