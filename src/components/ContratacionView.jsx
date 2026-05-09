@@ -58,7 +58,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 const API_BASE_URL = (
   import.meta?.env?.VITE_API_BASE_URL ||
   import.meta?.env?.VITE_API_URL ||
-  ""
+  (window.location.hostname === "localhost"
+    ? "http://localhost:8000"
+    : "https://api.laperfeccion.app")
 ).replace(/\/+$/, "");
 
 
@@ -265,12 +267,7 @@ const resolveCiudadFromAny = async (maybeIdOrName) => {
 const apiGetAsignacionCargoCliente = async (idRegistroPersonal) => {
   if (!idRegistroPersonal) return null;
 
- const BASE_ASIGNACION =
-  window.location.hostname === "localhost"
-    ? "http://localhost:8000/api"
-    : "https://apiqa.laperfeccion.app/api";
-
-const url = `${BASE_ASIGNACION}/asignacion-cargo-cliente/${idRegistroPersonal}`;
+const url = `${API_BASE_URL}/api/asignacion-cargo-cliente/${idRegistroPersonal}`;
   const res = await fetch(url, {
     method: 'GET',
     headers: buildAuthHeaders(),
@@ -285,19 +282,12 @@ const url = `${BASE_ASIGNACION}/asignacion-cargo-cliente/${idRegistroPersonal}`;
     throw new Error(typeof data === 'string' ? data : (data?.detail || 'Error consultando asignación'));
   }
 
-  console.log('[CONTRATACION] asignacion-cargo-cliente OK:', idRegistroPersonal, data);
-
   return data;
 };
 
 // ✅ POST Upsert Contratación Básica
 const apiUpsertContratacionBasica = async (body) => {
-  const BASE_CONTRATACION_BASICA =
-  window.location.hostname === "localhost"
-    ? "http://localhost:8000/api"
-    : "https://apiqa.laperfeccion.app/api";
-
-const url = `${BASE_CONTRATACION_BASICA}/contratacion-basica`;
+  const url = `${API_BASE_URL}/api/contratacion-basica`;
   const res = await fetch(url, {
     method: 'POST',
     headers: buildAuthHeaders(),
@@ -318,12 +308,7 @@ const url = `${BASE_CONTRATACION_BASICA}/contratacion-basica`;
 const apiGetContratacionBasicaByRegistroPersonal = async (idRegistroPersonal) => {
   if (!idRegistroPersonal) return null;
 
-  const BASE_CONTRATACION_BASICA =
-  window.location.hostname === "localhost"
-    ? "http://localhost:8000/api"
-    : "https://apiqa.laperfeccion.app/api";
-
-const url = `${BASE_CONTRATACION_BASICA}/contratacion-basica/registro-personal/${idRegistroPersonal}`;
+const url = `${API_BASE_URL}/api/contratacion-basica/registro-personal/${idRegistroPersonal}`;
   const res = await fetch(url, {
     method: 'GET',
     headers: buildAuthHeaders(),
@@ -1506,8 +1491,8 @@ const ContratacionView = () => {
   const totalPages = Math.ceil(sortedData.length / itemsPerPage);
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
-  // ✅ Cargar asignación SOLO para visibles
-  const currentIdsKey = currentItems
+ // ✅ Cargar asignación SOLO para visibles
+const currentIdsKey = currentItems
   .map(a => String(getIdRegistroPersonal(a) ?? ''))
   .filter(Boolean)
   .join('|');
@@ -1535,9 +1520,9 @@ const ContratacionView = () => {
             if (cancel) return;
 
            setAsignacionMap(prev => ({
-  ...prev,
-  [String(idStr)]: data,
-}));
+            ...prev,
+            [String(idStr)]: data,
+          }));
           })
         );
       } catch (err) {
