@@ -39,6 +39,7 @@ const RoleBasedRedirect = () => {
       return <Navigate to="/seleccion" replace />;
 
     case 'Relaciones Laborales':
+    case 'Talento Humano':
       return <Navigate to="/relaciones-laborales" replace />;
 
     case 'Operaciones':
