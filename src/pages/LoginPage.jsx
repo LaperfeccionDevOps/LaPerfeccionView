@@ -19,15 +19,12 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/context/AuthContext';
 
-// 👉 Base de la API tomada del .env
-// Ejemplo: VITE_API_BASE_URL=http://localhost:8000/api
-
+// Base de la API tomada del .env
+// Ejemplo producción: VITE_API_BASE_URL=https://api.laperfeccion.app/api
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
-// 👉 Token endpoint - los campos obligatorios son: grant_type, username, password
-const TOKEN_URL = import.meta.env.VITE_TOKEN_URL || `${API_BASE_URL}/auth/token`;
-const CLIENT_ID = import.meta.env.VITE_CLIENT_ID || '';
-const CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET || '';
+// Endpoint correcto de login corporativo
+const LOGIN_URL = `${API_BASE_URL}/auth/login`;
 
 const LoginPage = () => {
   const { login } = useAuth();
@@ -39,109 +36,99 @@ const LoginPage = () => {
   const [view, setView] = useState('selection'); // 'selection' | 'login'
   const [loading, setLoading] = useState(false);
 
-  // 🔐 LOGIN CORPORATIVO contra la API
+  // LOGIN CORPORATIVO contra la API
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
+
     if (!username || !password) {
-      toast({ title: '⚠️ Campos incompletos', description: 'Por favor ingrese usuario y contraseña.', variant: 'destructive' });
+      toast({
+        title: '⚠️ Campos incompletos',
+        description: 'Por favor ingrese usuario y contraseña.',
+        variant: 'destructive',
+      });
       return;
     }
 
     setLoading(true);
 
     try {
-      const params = new URLSearchParams();
-      params.append('grant_type', 'password'); // obligatorio
-      params.append('username', username);
-      params.append('password', password);
-      if (CLIENT_ID) params.append('client_id', CLIENT_ID);
-      if (CLIENT_SECRET) params.append('client_secret', CLIENT_SECRET);
-
-      const tokenRes = await fetch(TOKEN_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
-      });
-      console.log(tokenRes, 'tokenRes');
-      const tokenData = await (async () => { try { return await tokenRes.json(); } catch (e) { return null; } })();
-      console.log(tokenData, 'tokenData');
-      if (!tokenRes.ok) {
-        const detail = tokenData?.error_description || tokenData?.error || 'No fue posible obtener el token.';
-        console.error('Token error:', tokenRes.status, tokenData);
-        toast({ title: '⛔ Error al obtener token', description: detail, variant: 'destructive' });
-        return;
-      }
-
-      const token = tokenData?.access_token;
-      console.log('Obtained token:', token);
-      localStorage.setItem('token', token);
-      if (!token) {
-        console.error('Token response no contiene access_token:', tokenData);
-        toast({ title: '⛔ Token inválido', description: 'La respuesta del servidor no contiene access_token.', variant: 'destructive' });
-        return;
-      }
-
-      // 2) Llamar al endpoint de login enviando Authorization: Bearer <token>
-      const resp = await fetch(`${API_BASE_URL}/auth/login`, {
+      const resp = await fetch(LOGIN_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ nombre_usuario: username, contrasena: password }),
+        body: JSON.stringify({
+          nombre_usuario: username.trim(),
+          contrasena: password,
+        }),
       });
 
+      let data = null;
+
+      try {
+        data = await resp.json();
+      } catch (_) {
+        data = null;
+      }
+
       if (!resp.ok) {
-        let detail = 'Error al iniciar sesión. Verifique sus credenciales.';
-        try {
-          const errorData = await resp.json();
-          if (errorData?.detail) detail = errorData.detail;
-        } catch (_) {
-          // ignore parse error
-        }
+        const detail = data?.detail || 'Usuario o contraseña incorrectos.';
 
         toast({
           title: '⛔ Error de acceso',
           description: detail,
           variant: 'destructive',
         });
+
         return;
       }
 
-      const data = await resp.json();
+      const finalToken = data?.access_token;
 
-      // ✅ Guardamos lo que devuelve tu API (si la API devuelve un token usamos ese, sino usamos el token obtenido antes)
+      if (!finalToken) {
+        console.error('La respuesta no contiene access_token:', data);
+
+        toast({
+          title: '⛔ Token inválido',
+          description: 'La respuesta del servidor no contiene access_token.',
+          variant: 'destructive',
+        });
+
+        return;
+      }
+
+      // Guardamos la información devuelta por la API
       // data: { access_token, token_type, usuario, id_usuario, roles, roles_ids, message }
-      const finalToken = data?.access_token || token;
-      if (finalToken) localStorage.setItem('token', finalToken);
-      localStorage.setItem('usuario', data.usuario);
-      localStorage.setItem('id_usuario', data.id_usuario);
+      localStorage.setItem('token', finalToken);
+      localStorage.setItem('usuario', data.usuario || username.trim());
+      localStorage.setItem('id_usuario', data.id_usuario || '');
       localStorage.setItem('roles', JSON.stringify(data.roles || []));
       localStorage.setItem('roles_ids', JSON.stringify(data.roles_ids || []));
 
-      // Rol principal para el contexto (tomamos el primero si existe)
-      const mainRole = Array.isArray(data.roles) && data.roles.length > 0
-        ? data.roles[0]
-        : 'Usuario';
+      // Rol principal para el contexto
+      const mainRole =
+        Array.isArray(data.roles) && data.roles.length > 0
+          ? data.roles[0]
+          : 'Usuario';
 
-      // 👉 Actualizamos AuthContext
+      // Actualizamos AuthContext
       login({
-        username: data.usuario,
+        username: data.usuario || username.trim(),
         role: mainRole,
-        name: data.usuario,
+        name: data.usuario || username.trim(),
         token: finalToken,
       });
 
       toast({
-        title: `👋 Bienvenid@, ${data.usuario}`,
+        title: `👋 Bienvenid@, ${data.usuario || username.trim()}`,
         description: data.message || `Has ingresado con perfil de ${mainRole}.`,
         className: 'bg-emerald-50 border-emerald-200 text-emerald-800',
       });
 
-      // Redirige donde quieras después del login
       navigate('/');
     } catch (err) {
       console.error('Error en login:', err);
+
       toast({
         title: '⛔ Error al conectar',
         description: 'No fue posible comunicarse con el servidor de autenticación.',
@@ -152,7 +139,7 @@ const LoginPage = () => {
     }
   };
 
-  // 🔓 Acceso rápido de aspirante (por ahora sigue siendo “local”)
+  // Acceso rápido de aspirante
   const handleAspiranteQuickAccess = () => {
     login({
       username: 'nuevo_aspirante',
