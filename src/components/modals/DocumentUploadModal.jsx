@@ -536,6 +536,96 @@ const descargarDocumentoRetiro = async (doc) => {
     reader.readAsDataURL(file);
   };
 
+  const esDocumentoRetiroManual = (doc) => {
+  const nombre = (doc?.NombreDocumento || '').toUpperCase();
+
+  return (
+  nombre.includes('RETIRO ARL') ||
+  nombre.includes('LIQUIDACIÓN DE CONTRATO') ||
+  nombre.includes('LIQUIDACION DE CONTRATO')
+);
+};
+
+const recargarDocumentosRetiro = async () => {
+  const id =
+    aspirante?.idRegistroPersonal ||
+    aspirante?.IdRegistroPersonal ||
+    aspirante?.id;
+
+  const res = await fetch(`${API_BASE}/retiros-laborales/carpeta-digital/${id}/documentos`);
+  const data = await res.json();
+
+  setDocumentos(Array.isArray(data?.data) ? data.data : []);
+};
+
+const handleFileUploadRetiro = async (e, doc) => {
+  if (soloLectura) return;
+
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const input = e.target;
+
+  const idRetiroLaboral =
+    doc?.IdRetiroLaboral ||
+    doc?.idRetiroLaboral ||
+    aspirante?.IdRetiroLaboral ||
+    aspirante?.idRetiroLaboral;
+
+  if (!idRetiroLaboral) {
+    console.error('No hay IdRetiroLaboral para adjuntar documento de retiro', {
+      doc,
+      aspirante,
+    });
+
+    toast({
+      title: 'No se puede adjuntar',
+      description: 'Este trabajador no tiene IdRetiroLaboral asociado en la carpeta digital.',
+      variant: 'destructive',
+    });
+
+    if (input) input.value = '';
+    return;
+  }
+
+  try {
+    const formData = new FormData();
+
+    formData.append('file', file);
+    formData.append('IdTipoDocumentoRetiro', doc.IdTipoDocumentoRetiro);
+
+    const response = await fetch(
+      `${API_BASE}/rrll/retiro/${idRetiroLaboral}/adjuntos`,
+      {
+        method: 'POST',
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('No fue posible adjuntar el documento.');
+    }
+
+    toast({
+      title: 'Documento adjuntado correctamente',
+    });
+
+    await recargarDocumentosRetiro();
+
+    if (input) input.value = '';
+  } catch (error) {
+    console.error('Error adjuntando documento de retiro:', error);
+
+    toast({
+      title: 'Error al adjuntar documento',
+      description: error.message || 'No fue posible adjuntar el documento.',
+      variant: 'destructive',
+    });
+
+    if (input) input.value = '';
+  }
+};
+
   const renderCarpetaActivos = () => (
     <div className="py-14 flex flex-col items-center justify-center text-center">
       <div className="w-20 h-20 rounded-2xl bg-white border border-gray-200 flex items-center justify-center mb-4 shadow-sm">
@@ -597,8 +687,28 @@ const descargarDocumentoRetiro = async (doc) => {
                     {hasFile ? 'Adjuntado' : 'Sin archivo'}
                   </div>
                 </div>
-
                 <div className="space-y-3">
+                  {!hasFile && !soloLectura && esDocumentoRetiroManual(doc) && (
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="file"
+                          id={`file-retiro-${doc.IdTipoDocumentoRetiro}-${aspirante.id}`}
+                          className="hidden"
+                          onChange={(e) => handleFileUploadRetiro(e, doc)}
+                          accept=".pdf,image/*,.doc,.docx"
+                        />
+
+                        <label
+                          htmlFor={`file-retiro-${doc.IdTipoDocumentoRetiro}-${aspirante.id}`}
+                          className="cursor-pointer flex items-center justify-center w-full px-3 py-2 border-2 border-red-300 shadow-sm text-sm font-semibold rounded-xl text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
+                        >
+                          <Upload className="w-4 h-4 mr-2" /> Adjuntar
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
                   {hasFile && (
                     <div className="flex flex-col gap-2 w-full">
                       <Button
@@ -963,7 +1073,7 @@ const descargarDocumentoRetiro = async (doc) => {
 
                 <TabsContent value="contratacion">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-4 max-h-[50vh] overflow-y-auto pr-2">
-                    {docTypeConfigContratacion?.list?.map((req) => {
+                    {listaDocumentosContratacion.map((req) => {
                       const doc = Array.isArray(documentos)
                         ? documentos.find(d => String(d.IdTipoDocumentacion) === String(req.id))
                         : null;
