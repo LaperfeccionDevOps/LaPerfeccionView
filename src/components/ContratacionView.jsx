@@ -369,6 +369,7 @@ const documentosIngreso = [
    { id: 39, label: 'Certificado de cursos especiales' },
    { id: 40, label: 'Certificado fondo de pensiones' },
    { id: 41, label: 'Fotocopia de carné de vacunas covid' },
+   { id: 35, label: 'Fotocopia de carné de vacunas Hepatitis - Tétano' },
    { id: 42, label: 'Firma digital' },
    { id: 30, label: 'Certificado de afiliación EPS' },
    { id: 73, label: 'Tratamiento de datos' }
