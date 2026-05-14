@@ -317,6 +317,9 @@ const clientesALP = [
    { id: 208, name: "Textiles Asitex S.A.S S Cr 63 18 A 43 Aseo" },
    { id: 209, name: "Thomas Gred Seguridad Integral LTDA S CALLE 77 28B 25 Aseo" },
    { id: 210, name: "FUNDACIÓN UNIVERSITARIA KONRAD LORENZ CRA 9 BIS 62-43 Aseo" },
+   { id: 211, name: "Bel Medicina SAS S Cl 110 9 25 CS 601 1701 Salud" },
+   { id: 212, name: "Coedigraf SAS S CR 69 73 A 35 Aseo" },
+   { id: 213, name: "Edif Proyecto Neo S Av Cr 15 145a-31 Aseo" },
 ];
 
 const EPS = [

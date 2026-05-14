@@ -15,7 +15,7 @@ import {
    ✅ LISTA REAL DE CLIENTES (pegada en el mismo archivo)
 ========================================================= */
 const clientesALP = [
-   { id: 1, name: "alp s cl 4 bis 53c-50 calidad y riesgos" },
+     { id: 1, name: "alp s cl 4 bis 53c-50 calidad y riesgos" },
    { id: 2, name: "ALP S Cl 4 Bis 53c-50 Compensación y Beneficios" },
    { id: 3, name: "ALP S Cl 4 Bis 53c-50 Compras - Abastecimiento Operaciones" },
    { id: 4, name: "ALP S Cl 4 Bis 53c-50 Compras y Abastecimiento" },
@@ -224,6 +224,10 @@ const clientesALP = [
    { id: 207, name: "Teleférico Monserrate S Cr 2 Este 21-48 Aseo" },
    { id: 208, name: "Textiles Asitex S.A.S S Cr 63 18 A 43 Aseo" },
    { id: 209, name: "Thomas Gred Seguridad Integral LTDA S CALLE 77 28B 25 Aseo" },
+   { id: 210, name: "FUNDACIÓN UNIVERSITARIA KONRAD LORENZ CRA 9 BIS 62-43 Aseo" },
+   { id: 211, name: "Bel Medicina SAS S Cl 110 9 25 CS 601 1701 Salud" },
+   { id: 212, name: "Coedigraf SAS S CR 69 73 A 35 Aseo" },
+   { id: 213, name: "Edif Proyecto Neo S Av Cr 15 145a-31 Aseo" },
 ];
 
 /* =========================================================
