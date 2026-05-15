@@ -1908,6 +1908,7 @@ const currentIdsKey = currentItems
                       asignacion?.NombreCargo ||
                       (asignacion?.IdCargo ? cargoMap[String(asignacion.IdCargo)] : '') ||
                       aspirante?.NombreCargo ||
+                      aspirante?.CargoNombre ||
                       aspirante?.cargo_nombre ||
                       aspirante?.cargo ||
                       '';
@@ -1925,15 +1926,15 @@ const currentIdsKey = currentItems
                     ? formatMoney(salarioValor)
                     : '—';
 
-               const clienteNombre =
-                  asignacion?.ClienteNombre ||
-                  asignacion?.NombreCliente ||
-                  (asignacion?.IdCliente ? clienteMap[String(asignacion.IdCliente)] : '') ||
-                  aspirante?.NombreCliente ||
-                  aspirante?.cliente_nombre ||
-                  aspirante?.cliente ||
-                  '';
-
+             const clienteNombre =
+                asignacion?.ClienteNombre ||
+                asignacion?.NombreCliente ||
+                (asignacion?.IdCliente ? clienteMap[String(asignacion.IdCliente)] : '') ||
+                aspirante?.NombreCliente ||
+                aspirante?.ClienteNombre ||
+                aspirante?.cliente_nombre ||
+                aspirante?.cliente ||
+                '';
                 const clienteCell = clienteNombre || '—';
 
                                           
