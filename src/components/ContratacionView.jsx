@@ -1903,12 +1903,14 @@ const currentIdsKey = currentItems
                       const idReg = getIdRegistroPersonal(aspirante);
                       const asignacion = idReg ? asignacionMap[String(idReg)] : null;
 
-                    const cargoNombre =
-                  asignacion?.CargoNombre ||
-                  (asignacion?.IdCargo ? cargoMap[String(asignacion.IdCargo)] : '') ||
-                  aspirante?.cargo_nombre ||
-                  aspirante?.cargo ||
-                  '';
+                   const cargoNombre =
+                      asignacion?.CargoNombre ||
+                      asignacion?.NombreCargo ||
+                      (asignacion?.IdCargo ? cargoMap[String(asignacion.IdCargo)] : '') ||
+                      aspirante?.NombreCargo ||
+                      aspirante?.cargo_nombre ||
+                      aspirante?.cargo ||
+                      '';
 
                 const cargoCell = cargoNombre || '—';
 
@@ -1923,9 +1925,11 @@ const currentIdsKey = currentItems
                     ? formatMoney(salarioValor)
                     : '—';
 
-                const clienteNombre =
+               const clienteNombre =
                   asignacion?.ClienteNombre ||
+                  asignacion?.NombreCliente ||
                   (asignacion?.IdCliente ? clienteMap[String(asignacion.IdCliente)] : '') ||
+                  aspirante?.NombreCliente ||
                   aspirante?.cliente_nombre ||
                   aspirante?.cliente ||
                   '';
