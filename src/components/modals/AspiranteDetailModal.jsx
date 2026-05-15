@@ -2458,27 +2458,50 @@ if (response && response.status === 201) {
   };
 
   const descargarDocumento = (doc) => {
-   if (!doc?.DocumentoBase64) return;
-      let prefix = '';
-      if (doc.Formato === 'image/png') {
-         prefix = doc && doc.Formato === 'image/png'
-      ? 'data:image/png;base64,'
-      : '';
-      } else if (doc.Formato === 'application/pdf') {
-         prefix = doc && doc.Formato === 'application/pdf'
-         ? 'data:application/pdf;base64,'
-         : '';
-      }
+  console.log('CLICK DESCARGAR ASPIRANTE DETAIL:', doc);
 
-      const link = document.createElement('a');
-      link.href = `${prefix}${doc.DocumentoBase64}`;
-      link.download = doc.Nombre || 'documento';
+  if (doc?.IdDocumento) {
+    const url = `${API_BASE}/documentos-ingreso/documento/${doc.IdDocumento}/descargar`;
+    window.open(url, '_blank');
+    return;
+  }
 
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-   };
+  const base64Original = doc?.DocumentoBase64 || doc?.DocumentoCargado || '';
 
+  if (!base64Original) {
+    console.error('Documento sin contenido real:', doc);
+    return toast({
+      title: 'El documento no tiene archivo para descargar',
+      variant: 'destructive',
+    });
+  }
+
+  let formato = doc?.Formato || 'application/pdf';
+  let base64 = String(base64Original).replace(/^data:.*;base64,/, '');
+
+  try {
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: formato });
+    const url = URL.createObjectURL(blob);
+
+    window.open(url, '_blank');
+
+    setTimeout(() => URL.revokeObjectURL(url), 15000);
+  } catch (error) {
+    console.error('Error abriendo documento:', error);
+    toast({
+      title: 'No fue posible abrir el documento',
+      variant: 'destructive',
+    });
+  }
+};
   const handelObservacionesExperienciaLaboral = async () => {
   setSavingDatosProceso(true);
 
@@ -4224,7 +4247,11 @@ if (response && response.status === 201) {
                                  let doc = Array.isArray(formData.documentos)
                                     ? formData.documentos.find(d => String(d.IdTipoDocumentacion) === String(req.id))
                                     : null;
-                                 let hasFile = !!doc;
+                                 let hasFile = !!doc && (
+                                 doc.DocumentoBase64 ||
+                                 doc.DocumentoCargado ||
+                                 doc.IdDocumento
+                                 );
                                  let accept = '.pdf,image/*';
                                  if (req.id === 'fotoAspirante') accept = 'image/*';
                                  if (req.id === 'reciboPublico') accept = '.pdf,image/*';

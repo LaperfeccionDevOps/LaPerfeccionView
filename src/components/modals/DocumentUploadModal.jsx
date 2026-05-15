@@ -178,36 +178,49 @@ const DocumentUploadModal = ({
     return new Blob([bytes], { type: mime });
   };
 
-  const verDocumento = (doc) => {
-    const blob = crearBlobDocumento(doc);
+ const verDocumento = (doc) => {
+  console.log('CLICK VER:', doc);
 
-    if (!blob) {
-      return toast({ title: 'No hay archivo para visualizar' });
-    }
-
-    const url = URL.createObjectURL(blob);
+  if (doc?.IdDocumento) {
+    const url = `${API_BASE}/documentos-ingreso/documento/${doc.IdDocumento}/descargar`;
     window.open(url, '_blank');
+    return;
+  }
 
-    setTimeout(() => URL.revokeObjectURL(url), 15000);
-  };
+  const blob = crearBlobDocumento(doc);
+
+  if (!blob || blob.size === 0) {
+    console.error('Documento sin contenido real:', doc);
+    return toast({ title: 'No hay archivo para visualizar' });
+  }
+
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+
+  setTimeout(() => URL.revokeObjectURL(url), 15000);
+};
 
   const descargarDocumento = (doc) => {
-    const blob = crearBlobDocumento(doc);
+  console.log('CLICK DESCARGAR:', doc);
 
-    if (!blob) {
-      return toast({ title: 'No hay archivo para descargar' });
-    }
+  if (doc?.IdDocumento) {
+    const url = `${API_BASE}/documentos-ingreso/documento/${doc.IdDocumento}/descargar`;
+    window.open(url, '_blank');
+    return;
+  }
 
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+  const blob = crearBlobDocumento(doc);
 
-    a.href = url;
-    a.download = doc.Nombre || doc.NombreArchivo || 'documento.pdf';
-    a.click();
+  if (!blob || blob.size === 0) {
+    console.error('Documento sin contenido real:', doc);
+    return toast({ title: 'El documento no tiene archivo para descargar' });
+  }
 
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-  };
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
 
+  setTimeout(() => URL.revokeObjectURL(url), 15000);
+};
 const verDocumentoRetiro = async (doc) => {
   try {
     if (doc?.OrigenArchivo === 'ENTREVISTA' && !doc?.IdEntrevistaRetiro) {
@@ -814,7 +827,11 @@ const handleFileUploadRetiro = async (e, doc) => {
         ? documentos.find(d => String(d.IdTipoDocumentacion) === String(req.id))
         : null;
 
-      const hasFile = !!doc && (doc.DocumentoBase64 || doc.DocumentoCargado);
+      const hasFile = !!doc && (
+  doc.DocumentoBase64 ||
+  doc.DocumentoCargado ||
+  doc.IdDocumento
+);
 
       return (
         <div
@@ -877,7 +894,11 @@ const handleFileUploadRetiro = async (e, doc) => {
                         ? documentos.find(d => String(d.IdTipoDocumentacion) === String(req.id))
                         : null;
 
-                      const hasFile = !!doc;
+                     const hasFile = !!doc && (
+  doc.DocumentoBase64 ||
+  doc.DocumentoCargado ||
+  doc.IdDocumento
+);
 
                       let accept = '.pdf,image/*';
 
