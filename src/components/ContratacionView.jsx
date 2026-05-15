@@ -54,13 +54,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 // ------------------------------
 // ✅ API BASE + Helpers
 // ------------------------------
-
 const API_BASE_URL = (
   import.meta?.env?.VITE_API_BASE_URL ||
   import.meta?.env?.VITE_API_URL ||
   (window.location.hostname === "localhost"
     ? "http://localhost:8000"
-    : "https://api.laperfeccion.app")
+    : "https://apiqa.laperfeccion.app/api")
 ).replace(/\/+$/, "");
 
 
