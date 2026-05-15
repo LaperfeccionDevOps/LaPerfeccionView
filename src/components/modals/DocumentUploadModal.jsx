@@ -147,17 +147,21 @@ const DocumentUploadModal = ({
   };
 
   const obtenerMimeDocumento = (doc) => {
-    const nombre = (doc?.Nombre || doc?.NombreArchivo || '').toLowerCase();
-    const formato = doc?.Formato || '';
+  const nombre = (doc?.Nombre || doc?.NombreArchivo || '').toLowerCase();
+  const formato = (doc?.Formato || '').toLowerCase();
 
-    if (formato) return formato;
+  if (formato === 'pdf' || formato === 'application/pdf') return 'application/pdf';
+  if (formato === 'jpg' || formato === 'jpeg' || formato === 'image/jpeg') return 'image/jpeg';
+  if (formato === 'png' || formato === 'image/png') return 'image/png';
+  if (formato === 'webp' || formato === 'image/webp') return 'image/webp';
 
-    if (nombre.match(/\.(jpg|jpeg)$/)) return 'image/jpeg';
-    if (nombre.match(/\.png$/)) return 'image/png';
-    if (nombre.match(/\.webp$/)) return 'image/webp';
+  if (nombre.endsWith('.pdf')) return 'application/pdf';
+  if (nombre.match(/\.(jpg|jpeg)$/)) return 'image/jpeg';
+  if (nombre.match(/\.png$/)) return 'image/png';
+  if (nombre.match(/\.webp$/)) return 'image/webp';
 
-    return 'application/pdf';
-  };
+  return 'application/pdf';
+};
 
   const crearBlobDocumento = (doc) => {
     const base64Original = obtenerBase64Documento(doc);
@@ -179,28 +183,10 @@ const DocumentUploadModal = ({
   };
 
  const verDocumento = (doc) => {
-  console.log('CLICK VER:', doc);
-
-  if (doc?.IdDocumento) {
-    const url = `${API_BASE}/documentos-ingreso/documento/${doc.IdDocumento}/descargar`;
-    window.open(url, '_blank');
-    return;
-  }
-
-  const blob = crearBlobDocumento(doc);
-
-  if (!blob || blob.size === 0) {
-    console.error('Documento sin contenido real:', doc);
-    return toast({ title: 'No hay archivo para visualizar' });
-  }
-
-  const url = URL.createObjectURL(blob);
-  window.open(url, '_blank');
-
-  setTimeout(() => URL.revokeObjectURL(url), 15000);
+  return descargarDocumento(doc);
 };
 
-  const descargarDocumento = (doc) => {
+ const descargarDocumento = (doc) => {
   console.log('CLICK DESCARGAR:', doc);
 
   if (doc?.IdDocumento) {
@@ -217,11 +203,17 @@ const DocumentUploadModal = ({
   }
 
   const url = URL.createObjectURL(blob);
-  window.open(url, '_blank');
 
-  setTimeout(() => URL.revokeObjectURL(url), 15000);
-};
-const verDocumentoRetiro = async (doc) => {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = doc?.Nombre || doc?.NombreArchivo || 'documento.pdf';
+
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+};const verDocumentoRetiro = async (doc) => {
   try {
     if (doc?.OrigenArchivo === 'ENTREVISTA' && !doc?.IdEntrevistaRetiro) {
       return toast({ title: 'No hay entrevista para visualizar' });
@@ -792,7 +784,7 @@ const handleFileUploadRetiro = async (e, doc) => {
                   </TabsTrigger>
 
                   <TabsTrigger value="seguridad" className="rounded-lg px-6 py-2 text-base font-semibold data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-orange-600 data-[state=active]:border">
-                    Documentos de Selección
+                  Documentos de Selección
                   </TabsTrigger>
 
                   <TabsTrigger value="contratacion" className="rounded-lg px-6 py-2 text-base font-semibold data-[state=active]:bg-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-emerald-600 data-[state=active]:border">
@@ -1047,7 +1039,7 @@ const handleFileUploadRetiro = async (e, doc) => {
                                   variant="outline"
                                   size="sm"
                                   className="text-blue-700 border-blue-300 hover:bg-blue-100 px-3 h-auto w-full font-semibold"
-                                  onClick={() => verDocumento(doc)}
+                                  onClick={() => descargarDocumento(doc)}
                                 >
                                   <Eye className="w-4 h-4 mr-2" /> Ver
                                 </Button>

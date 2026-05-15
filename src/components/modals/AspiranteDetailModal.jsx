@@ -4382,7 +4382,13 @@ if (response && response.status === 201) {
                                                          variant="outline" 
                                                          size="sm"
                                                          className="text-sky-600 border-sky-200 hover:bg-sky-50 px-3 h-auto w-full"
-                                                         onClick={() => handleVerDocumentoSeguridad(foundDoc, isTratamientoDatos)}
+                                                         onClick={() => {
+  if (isTratamientoDatos) {
+    handleDescargarTratamientoDatos();
+  } else {
+    descargarDocumento(foundDoc);
+  }
+}}
                                                       >
                                                          Ver
                                                       </Button>
