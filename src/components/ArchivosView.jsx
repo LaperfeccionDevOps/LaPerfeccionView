@@ -63,7 +63,7 @@ const documentosContratacion = [
   { id: 57, label: 'Paquete contratación' },
   { id: 20, label: 'Descripción del cargo y manual de funciones' },
   { id: 74, label: 'Contrato de trabajo' },
-  { id: 32, label: 'Cuenta bancaria' },
+  { id: 76, label: 'Cuenta bancaria' },
 ];
 
 const documentosRetiro = [

@@ -1091,7 +1091,11 @@ const handleFileUploadRetiro = async (e, doc) => {
                         ? documentos.find(d => String(d.IdTipoDocumentacion) === String(req.id))
                         : null;
 
-                      const hasFile = !!doc && (doc.DocumentoBase64 || doc.DocumentoCargado);
+                      const hasFile = !!doc && (
+  doc.DocumentoBase64 ||
+  doc.DocumentoCargado ||
+  doc.IdDocumento
+);
 
                       return (
                         <div key={req.id} className="border-2 border-emerald-200 rounded-2xl p-6 bg-white/90 shadow-lg flex flex-col justify-between h-full group w-full hover:shadow-2xl transition-shadow duration-200">
