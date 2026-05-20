@@ -472,6 +472,15 @@ const RegistroContratacionModal = ({
   const [escalafon, setEscalafon] = useState('');
   const [numeroCuenta, setNumeroCuenta] = useState('');
 
+    // VACUNAS
+  const [tetanosDosis, setTetanosDosis] = useState('');
+  const [tetanosFechaUltimaDosis, setTetanosFechaUltimaDosis] = useState('');
+  const [tetanosDescontable, setTetanosDescontable] = useState('');
+
+  const [hepatitisDosis, setHepatitisDosis] = useState('');
+  const [hepatitisFechaUltimaDosis, setHepatitisFechaUltimaDosis] = useState('');
+  const [hepatitisDescontable, setHepatitisDescontable] = useState('');
+
   useEffect(() => {
     let cancel = false;
 
@@ -487,6 +496,13 @@ const RegistroContratacionModal = ({
       setPosicion('');
       setEscalafon('');
       setNumeroCuenta('');
+      setTetanosDosis('');
+      setTetanosFechaUltimaDosis('');
+      setTetanosDescontable('');
+
+      setHepatitisDosis('');
+      setHepatitisFechaUltimaDosis('');
+      setHepatitisDescontable('');
 
       const idReg = getIdRegistroPersonal(aspirante);
 
@@ -506,6 +522,24 @@ const RegistroContratacionModal = ({
             setPosicion(fromDb.Posicion || '');
             setEscalafon(fromDb.Escalafon || '');
             setNumeroCuenta(fromDb.NumeroCuenta || '');
+
+            setTetanosDosis(fromDb.TetanosDosis !== null && fromDb.TetanosDosis !== undefined ? String(fromDb.TetanosDosis) : '');
+            setTetanosFechaUltimaDosis(fromDb.TetanosFechaUltimaDosis ? String(fromDb.TetanosFechaUltimaDosis).slice(0, 10) : '');
+
+            setHepatitisDosis(fromDb.HepatitisDosis !== null && fromDb.HepatitisDosis !== undefined ? String(fromDb.HepatitisDosis) : '');
+            setHepatitisFechaUltimaDosis(fromDb.HepatitisFechaUltimaDosis ? String(fromDb.HepatitisFechaUltimaDosis).slice(0, 10) : '');
+
+            setTetanosDescontable(
+              fromDb.TetanosDescontable !== null && fromDb.TetanosDescontable !== undefined
+                ? String(fromDb.TetanosDescontable)
+                : ''
+            );
+
+            setHepatitisDescontable(
+              fromDb.HepatitisDescontable !== null && fromDb.HepatitisDescontable !== undefined
+                ? String(fromDb.HepatitisDescontable)
+                : ''
+            );
 
             setDuracionFijo('');
             return;
@@ -546,17 +580,26 @@ const RegistroContratacionModal = ({
   const guardar = () => {
     if (!aspirante) return;
 
-    const payload = {
+       const payload = {
       fechaInicio: fechaIngreso,
       bancoId: banco,
       riesgoLaboral,
       tipoContratoId: tipoContrato,
       duracionFijo,
 
-      // ✅ NUEVOS
+      // NUEVOS
       posicion,
       escalafon,
       numeroCuenta,
+
+      // VACUNAS
+      tetanosDosis,
+      tetanosFechaUltimaDosis,
+      tetanosDescontable,
+
+      hepatitisDosis,
+      hepatitisFechaUltimaDosis,
+      hepatitisDescontable,
     };
 
     onSave(payload);
@@ -779,6 +822,81 @@ const RegistroContratacionModal = ({
             />
 
               <p className="text-xs text-gray-500 mt-2">Campo manual (se guarda como texto para no perder ceros).</p>
+            </div>
+                        {/* VACUNAS: Tétano */}
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm md:col-span-1">
+              <div className="flex items-center gap-2 mb-2">
+                <Shield className="w-4 h-4 text-emerald-700" />
+                <Label className="text-sm font-semibold text-gray-800">Tétano</Label>
+              </div>
+
+              <Select value={tetanosDosis} onValueChange={setTetanosDosis}>
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="Selecciona dosis" />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4, 5].map((d) => (
+                    <SelectItem key={d} value={String(d)}>{d}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Input
+                type="date"
+                value={tetanosFechaUltimaDosis}
+                onChange={(e) => setTetanosFechaUltimaDosis(e.target.value)}
+                className="rounded-xl mt-3"
+              />
+
+              <Select value={tetanosDescontable} onValueChange={setTetanosDescontable}>
+                <SelectTrigger className="rounded-xl mt-3">
+                  <SelectValue placeholder="¿Descontable?" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">Sí</SelectItem>
+                  <SelectItem value="false">No</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <p className="text-xs text-gray-500 mt-2">Dosis, fecha última dosis y si aplica descuento.</p>
+            </div>
+
+                        {/* VACUNAS: Hepatitis */}
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm md:col-span-1">
+              <div className="flex items-center gap-2 mb-2">
+                <Shield className="w-4 h-4 text-blue-700" />
+                <Label className="text-sm font-semibold text-gray-800">Hepatitis</Label>
+              </div>
+
+              <Select value={hepatitisDosis} onValueChange={setHepatitisDosis}>
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="Selecciona dosis" />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4].map((d) => (
+                    <SelectItem key={d} value={String(d)}>{d}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Input
+                type="date"
+                value={hepatitisFechaUltimaDosis}
+                onChange={(e) => setHepatitisFechaUltimaDosis(e.target.value)}
+                className="rounded-xl mt-3"
+              />
+
+              <Select value={hepatitisDescontable} onValueChange={setHepatitisDescontable}>
+                <SelectTrigger className="rounded-xl mt-3">
+                  <SelectValue placeholder="¿Descontable?" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">Sí</SelectItem>
+                  <SelectItem value="false">No</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <p className="text-xs text-gray-500 mt-2">Dosis, fecha última dosis y si aplica descuento.</p>
             </div>
 
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm md:col-span-1 flex flex-col">
@@ -1366,7 +1484,7 @@ const ContratacionView = () => {
       return;
     }
 
-    const body = {
+        const body = {
       IdRegistroPersonal: Number(idRegistroPersonal),
       IdBanco: Number(idBanco),
       IdTipoContrato: Number(idTipoContrato),
@@ -1376,6 +1494,20 @@ const ContratacionView = () => {
       Posicion: (payload.posicion ?? '').trim() || null,
       Escalafon: (payload.escalafon ?? '').trim() || null,
       NumeroCuenta: (payload.numeroCuenta ?? '').trim() || null,
+
+      TetanosDosis: payload.tetanosDosis ? Number(payload.tetanosDosis) : null,
+      TetanosFechaUltimaDosis: payload.tetanosFechaUltimaDosis || null,
+      TetanosDescontable:
+        payload.tetanosDescontable === ''
+          ? null
+          : payload.tetanosDescontable === 'true',
+
+      HepatitisDosis: payload.hepatitisDosis ? Number(payload.hepatitisDosis) : null,
+      HepatitisFechaUltimaDosis: payload.hepatitisFechaUltimaDosis || null,
+      HepatitisDescontable:
+        payload.hepatitisDescontable === ''
+          ? null
+          : payload.hepatitisDescontable === 'true',
     };
 
     try {
