@@ -241,6 +241,7 @@ const clientesALP = [
    { id: 132, name: "Cruz Roja Colombiana S ED. Admon Cr 23 73 19 Supernumerarios" },
    { id: 133, name: "Cruz Roja Colombiana S Salvamento Av 68 68b 31 Piscinas" },
    { id: 134, name: "Cruz Roja Colombiana S Salvamento Av 68 68b 31 Recreacion" },
+   { id: 214, name: "CRUZ ROJA COLOMBIANA S PET CRA 45 # 106B - 18 ASEO" },
    { id: 135, name: "Edif Ahorramas S Cr 15a 121-12 Aseo" },
    { id: 136, name: "Edif Banco Ganadero S Av 15 122-35 Aseo" },
    { id: 137, name: "Edif Banco Ganadero S Av 15 122-35 Mantenimiento General" },
@@ -317,7 +318,6 @@ const clientesALP = [
    { id: 208, name: "Textiles Asitex S.A.S S Cr 63 18 A 43 Aseo" },
    { id: 209, name: "Thomas Gred Seguridad Integral LTDA S CALLE 77 28B 25 Aseo" },
    { id: 210, name: "FUNDACIÓN UNIVERSITARIA KONRAD LORENZ CRA 9 BIS 62-43 Aseo" },
-   { id: 214, name: "CRUZ ROJA COLOMBIANA S PET CRA 45 # 106B - 18 ASEO" },
 ];
 
 const EPS = [
