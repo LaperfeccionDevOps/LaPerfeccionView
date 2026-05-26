@@ -317,6 +317,7 @@ const clientesALP = [
    { id: 208, name: "Textiles Asitex S.A.S S Cr 63 18 A 43 Aseo" },
    { id: 209, name: "Thomas Gred Seguridad Integral LTDA S CALLE 77 28B 25 Aseo" },
    { id: 210, name: "FUNDACIÓN UNIVERSITARIA KONRAD LORENZ CRA 9 BIS 62-43 Aseo" },
+   { id: 214, name: "CRUZ ROJA COLOMBIANA S PET CRA 45 # 106B - 18 ASEO" },
 ];
 
 const EPS = [
