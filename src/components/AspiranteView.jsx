@@ -88,7 +88,7 @@ const requisitosObligatorios = [
   { IdTipoDocumentacion: 12, label: 'Tarjeta profesional (si aplica)' },
   { IdTipoDocumentacion: 40, label: 'Certificado fondo de pensiones' },
   { IdTipoDocumentacion: 30, label: 'Certificado de afiliación EPS' },
-  //{ IdTipoDocumentacion: 32, label: 'Certificación bancaria' },
+  { IdTipoDocumentacion: 32, label: 'Certificación bancaria' },
 
   // 👇 IDs únicos
   { IdTipoDocumentacion: 41, label: 'Fotocopia de carné de vacunas covid' },
