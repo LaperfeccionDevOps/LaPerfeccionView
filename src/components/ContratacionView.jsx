@@ -60,8 +60,10 @@ const API_BASE_URL = (
   import.meta?.env?.VITE_API_URL ||
   (window.location.hostname === "localhost"
     ? "http://localhost:8000"
-    : "https://api.laperfeccion.app")
-).replace(/\/+$/, "");
+    : window.location.hostname.includes("qa")
+      ? "https://apiqa.laperfeccion.app"
+      : "https://api.laperfeccion.app")
+).replace(/\/+$/, "").replace(/\/api$/, "");
 
 
 const getAccessToken = () => {
