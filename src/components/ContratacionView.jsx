@@ -1392,9 +1392,18 @@ const ContratacionView = () => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, aspirantes]);
 
-  const openModal = (aspirante, docType) => {
-    setModalState({ isOpen: true, aspirante, docType });
+ const openModal = (aspirante, docType) => {
+  const idReg = getIdRegistroPersonal(aspirante);
+
+  const aspiranteNormalizado = {
+    ...aspirante,
+    IdRegistroPersonal: idReg,
+    idRegistroPersonal: idReg,
+    id: idReg,
   };
+
+  setModalState({ isOpen: true, aspirante: aspiranteNormalizado, docType });
+};
 
   const openRegistroModal = (aspirante) => {
     setRegistroModalState({ isOpen: true, aspirante });
