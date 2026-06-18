@@ -445,14 +445,16 @@ const ArchivosView = () => {
                         </td>
 
                         <td className="p-4 text-gray-600">
-                          {aspirante.cargo ||
-                            aspirante.Cargo ||
-                            aspirante.nombreCargo ||
+                          {aspirante.nombreCargo ||
                             aspirante.NombreCargo ||
                             aspirante.descripcionCargo ||
                             aspirante.DescripcionCargo ||
                             aspirante.cargoNombre ||
                             aspirante.CargoNombre ||
+                            aspirante.NombreTipoCargo ||
+                            aspirante.DescripcionTipoCargo ||
+                            aspirante.cargo ||
+                            aspirante.Cargo ||
                             'No asignado'}
                         </td>
 
