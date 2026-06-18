@@ -54,16 +54,17 @@ const DocumentUploadModal = ({
       ? 'text-red-600'
       : 'text-yellow-500';
 
-  useEffect(() => {
-    if (!aspirante) {
-      setDocumentos([]);
-      return;
-    }
+ useEffect(() => {
+  if (!aspirante) {
+    setDocumentos([]);
+    return;
+  }
 
-    const id =
-      aspirante?.idRegistroPersonal ||
-      aspirante?.IdRegistroPersonal ||
-      aspirante?.id;
+  const id =
+    aspirante?.IdRegistroPersonal ||
+    aspirante?.idRegistroPersonal ||
+    aspirante?.id_registro_personal ||
+    aspirante?.id;
 
     if (esCarpetaRetiro) {
       setLoading(true);
@@ -147,17 +148,28 @@ const DocumentUploadModal = ({
   };
 
   const obtenerMimeDocumento = (doc) => {
-    const nombre = (doc?.Nombre || doc?.NombreArchivo || '').toLowerCase();
-    const formato = doc?.Formato || '';
+  const nombre = (doc?.Nombre || doc?.NombreArchivo || '').toLowerCase();
+  const formato = String(doc?.Formato || '').toLowerCase().trim();
 
-    if (formato) return formato;
+  if (formato === 'application/pdf') return 'application/pdf';
+  if (formato === 'pdf') return 'application/pdf';
 
-    if (nombre.match(/\.(jpg|jpeg)$/)) return 'image/jpeg';
-    if (nombre.match(/\.png$/)) return 'image/png';
-    if (nombre.match(/\.webp$/)) return 'image/webp';
+  if (formato === 'image/jpeg') return 'image/jpeg';
+  if (formato === 'jpg') return 'image/jpeg';
+  if (formato === 'jpeg') return 'image/jpeg';
 
-    return 'application/pdf';
-  };
+  if (formato === 'image/png') return 'image/png';
+  if (formato === 'png') return 'image/png';
+
+  if (formato === 'image/webp') return 'image/webp';
+  if (formato === 'webp') return 'image/webp';
+
+  if (nombre.match(/\.(jpg|jpeg)$/)) return 'image/jpeg';
+  if (nombre.match(/\.png$/)) return 'image/png';
+  if (nombre.match(/\.webp$/)) return 'image/webp';
+
+  return 'application/pdf';
+};
 
   const crearBlobDocumento = (doc) => {
     const base64Original = obtenerBase64Documento(doc);
