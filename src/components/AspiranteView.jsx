@@ -609,6 +609,7 @@ const AspiranteView = () => {
           AlturaMetros: response.data[0].AlturaMetros || 0,
           IdTipoEps: response.data[0].IdTipoEps || 1,
           IdFondoPensiones: response.data[0].IdFondoPensiones || 1,
+          IdFondoCesantias: response.data[0].IdFondoCesantias || '',
           DescripcionFormacionAcademica: response.data[0].DescripcionFormacionAcademica || '',
           IdNivelEducativo: response.data[0].IdNivelEducativo || 1,
           EstudiaActualmente: response.data[0].EstudiaActualmente || '',
@@ -776,6 +777,7 @@ const buildDireccionEstructurada = (p) => {
     AlturaMetros: 0,
     IdTipoEps: 1,
     IdFondoPensiones: 1,
+    IdFondoCesantias: '',
     DescripcionFormacionAcademica: '',
     IdNivelEducativo: 1,
     EstudiaActualmente: '',
@@ -1155,19 +1157,18 @@ const handleTelEmergenciaChange = (e) => {
     }
 
 
-    // ✅ FOTO DEL ASPIRANTE (IdTipoDocumentacion = 2) SIEMPRE OBLIGATORIA
+    // ✅ FOTO DEL ASPIRANTE (IdTipoDocumentacion = 2) OBLIGATORIA SOLO EN PRIMER REGISTRO
     const tieneFotoCargada = () => {
       const d = documentos?.[2] || documentos?.['2'] || documentos?.['fotoAspirante'];
       const data = d?.DocumentoCargado || d?.PreviewUrl || '';
       if (typeof data !== 'string') return false;
-      // 1) foto cargada (base64)
       if (data.startsWith('data:image/') && data.length > 50) return true;
-      // 2) foto adjunta (url/archivo)
       if (data.startsWith('http')) return true;
       if (/\.(png|jpg|jpeg|webp)$/i.test(data)) return true;
       return false;
     };
-    if (!tieneFotoCargada()) {
+
+    if (!existeAspirante && !tieneFotoCargada()) {
       toast({
         title: '⚠️ Falta foto del aspirante',
         description: 'Debes adjuntar la foto del aspirante para poder guardar el registro.',
@@ -1175,7 +1176,6 @@ const handleTelEmergenciaChange = (e) => {
       });
       return;
     }
-
     // Validar campos requeridos
     const camposRequeridos = [
       { campo: formData.IdTipoIdentificacion, nombre: 'Tipo de identificación' },
@@ -1206,7 +1206,7 @@ const handleTelEmergenciaChange = (e) => {
       { campo: formData.EstudiaActualmente, nombre: '¿Estudia actualmente?' },
       { campo: formData.Nombres, nombre: 'Nombres' },
       { campo: formData.Apellidos, nombre: 'Apellidos' },
-      { campo: formData.IdFondoCesantias, nombre: 'Fondo de cesantías' },
+      // { campo: formData.IdFondoCesantias, nombre: 'Fondo de cesantías' },
     ];
     const faltantes = camposRequeridos.filter(f => f.campo === undefined || f.campo === null || f.campo === '' || f.campo === 0);
     if (faltantes.length > 0) {
