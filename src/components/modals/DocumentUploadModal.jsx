@@ -14,6 +14,13 @@ import { toast } from '@/components/ui/use-toast';
 import { listaDocumentosContratacion } from '@/utils/listaDocumentos';
 import { DescargarDocumentoPdf } from '../../services/descargarDocumento';
 
+import {
+  listarDocumentosActivos,
+  obtenerDocumentoActivo,
+  subirDocumentosActivos,
+  eliminarDocumentoActivo
+} from '@/services/documentosActivos';
+
 const DocumentUploadModal = ({
   isOpen,
   onClose,
@@ -84,11 +91,24 @@ const DocumentUploadModal = ({
       return;
     }
 
-    if (esCarpetaActivos) {
+  if (esCarpetaActivos) {
+  setLoading(true);
+  setTab('ingreso');
+
+ listarDocumentosActivos(id)
+  .then((res) => {
+    console.log('ID ACTIVOS ENVIADO =>', id);
+    console.log('DOCUMENTOS ACTIVOS RESPUESTA =>', res);
+    setDocumentos(Array.isArray(res) ? res : []);
+  })
+    .catch((error) => {
+      console.error('Error cargando documentos activos:', error);
       setDocumentos([]);
-      setTab('ingreso');
-      return;
-    }
+    })
+    .finally(() => setLoading(false));
+
+  return;
+}
 
    if (!esCarpetaIngreso && !esCarpetaOperaciones) {
       setDocumentos([]);
@@ -638,25 +658,203 @@ const handleFileUploadRetiro = async (e, doc) => {
   }
 };
 
-  const renderCarpetaActivos = () => (
-    <div className="py-14 flex flex-col items-center justify-center text-center">
-      <div className="w-20 h-20 rounded-2xl bg-white border border-gray-200 flex items-center justify-center mb-4 shadow-sm">
-        <Folder className={`w-10 h-10 ${colorIcono}`} />
+const recargarDocumentosActivos = async () => {
+  const id =
+    aspirante?.IdRegistroPersonal ||
+    aspirante?.idRegistroPersonal ||
+    aspirante?.id_registro_personal ||
+    aspirante?.id;
+
+  const res = await listarDocumentosActivos(id);
+  setDocumentos(Array.isArray(res) ? res : []);
+};
+
+const verDocumentoActivo = async (doc) => {
+  const data = await obtenerDocumentoActivo(doc.IdDocumento);
+  verDocumento({
+    ...data,
+    DocumentoBase64: data.DocumentoBase64,
+  });
+};
+
+const descargarDocumentoActivo = async (doc) => {
+  const data = await obtenerDocumentoActivo(doc.IdDocumento);
+  descargarDocumento({
+    ...data,
+    DocumentoBase64: data.DocumentoBase64,
+  });
+};
+
+const handleFileUploadActivo = async (e, idTipoDocumentacion) => {
+
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const input = e.target;
+  const reader = new FileReader();
+
+  reader.onload = async (event) => {
+    try {
+      const base64 = String(event.target.result || '').split(',')[1] || '';
+
+      const idRegistroPersonal =
+        aspirante?.IdRegistroPersonal ||
+        aspirante?.idRegistroPersonal ||
+        aspirante?.id_registro_personal ||
+        aspirante?.id;
+
+      const response = await subirDocumentosActivos({
+        idRegistroPersonal,
+        documentos: [
+          {
+            IdTipoDocumentacion: idTipoDocumentacion,
+            Nombre: file.name,
+            Formato: file.type || 'application/pdf',
+            DocumentoCargado: base64,
+          },
+        ],
+      });
+
+      if (!response.ok) throw new Error('No fue posible cargar el documento activo');
+
+      toast({ title: 'Documento activo cargado correctamente' });
+      await recargarDocumentosActivos();
+
+      if (input) input.value = '';
+    } catch (error) {
+      console.error('Error cargando documento activo:', error);
+      toast({
+        title: 'Error al cargar documento activo',
+        variant: 'destructive',
+      });
+
+      if (input) input.value = '';
+    }
+  };
+
+  reader.readAsDataURL(file);
+};
+
+const eliminarDocumentoActivoFront = async (idDocumento) => {
+  
+  const confirmar = window.confirm('¿Seguro que deseas eliminar este documento activo?');
+  if (!confirmar) return;
+
+  try {
+    const response = await eliminarDocumentoActivo(idDocumento);
+
+    if (!response.ok) throw new Error('No fue posible eliminar el documento activo');
+
+    toast({ title: 'Documento activo eliminado correctamente' });
+    await recargarDocumentosActivos();
+  } catch (error) {
+    console.error('Error eliminando documento activo:', error);
+    toast({
+      title: 'Error al eliminar documento activo',
+      variant: 'destructive',
+    });
+  }
+};
+
+ const renderCarpetaActivos = () => (
+  <div className="py-4">
+    {loading ? (
+      <div className="py-14 text-center text-gray-500">
+        Cargando documentos activos...
       </div>
+    ) : (
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-h-[55vh] overflow-y-auto pr-2">
+        {documentos.map((grupo) => {
+          const docsGrupo = Array.isArray(grupo.documentos) ? grupo.documentos : [];
+          const hasFile = docsGrupo.length > 0;
 
-      <h3 className="text-xl font-bold text-gray-800">
-        Documentos Activos
-      </h3>
+          return (
+            <div
+              key={grupo.IdTipoDocumentacion}
+              className="border-2 border-emerald-200 rounded-2xl p-6 bg-white/90 shadow-lg flex flex-col justify-between h-full w-full hover:shadow-2xl transition-shadow duration-200"
+            >
+              <div>
+                <h4 className="font-bold text-emerald-900 mb-3 text-base leading-tight tracking-wide">
+                  {grupo.tipo_documento}
+                </h4>
 
-      <p className="text-sm text-gray-500 mt-2 max-w-md">
-        Actualmente no hay documentos activos configurados para este trabajador.
-      </p>
+                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-4 border shadow-sm ${hasFile ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-red-100 text-red-700 border-red-300'}`}>
+                  {hasFile ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                  {hasFile ? `${docsGrupo.length} documento(s)` : 'Sin archivos'}
+                </div>
+              </div>
 
-      <p className="text-xs text-gray-400 mt-3">
-        Esta carpeta queda preparada para consultar documentos activos cuando se defina el flujo correspondiente.
-      </p>
-    </div>
-  );
+              <div className="space-y-3">
+                <div className="relative">
+                  <input
+                    type="file"
+                    id={`file-activo-${grupo.IdTipoDocumentacion}-${aspirante.id}`}
+                    className="hidden"
+                    onChange={(e) => handleFileUploadActivo(e, grupo.IdTipoDocumentacion)}
+                    accept=".pdf,image/*"
+                  />
+
+                  <label
+                    htmlFor={`file-activo-${grupo.IdTipoDocumentacion}-${aspirante.id}`}
+                    className="cursor-pointer flex items-center justify-center w-full px-3 py-2 border-2 border-emerald-300 shadow-sm text-sm font-semibold rounded-xl text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                  >
+                    <Upload className="w-4 h-4 mr-2" /> Adjuntar documento
+                  </label>
+                </div>
+
+                {hasFile ? (
+                  <div className="space-y-2">
+                    {docsGrupo.map((doc) => (
+                      <div
+                        key={doc.IdDocumento}
+                        className="flex items-center gap-2 border border-gray-200 bg-gray-50 rounded-lg px-3 py-2"
+                      >
+                        <span className="flex-1 text-sm font-semibold text-gray-700 truncate">
+                          {doc.Nombre || 'Documento activo'}
+                        </span>
+
+                        <button
+                          type="button"
+                          title="Ver"
+                          className="text-blue-700 hover:text-blue-900"
+                          onClick={() => verDocumentoActivo(doc)}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          type="button"
+                          title="Descargar"
+                          className="text-emerald-700 hover:text-emerald-900"
+                          onClick={() => descargarDocumentoActivo(doc)}
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          type="button"
+                          title="Eliminar"
+                          className="text-red-700 hover:text-red-900"
+                          onClick={() => eliminarDocumentoActivoFront(doc.IdDocumento)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500 italic">
+                    Sin documentos adjuntos
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    )}
+  </div>
+);
 
   const renderCarpetaRetiro = () => (
     <div className="py-4">
