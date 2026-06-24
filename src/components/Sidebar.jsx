@@ -44,7 +44,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     icon: WalletCards,
     roles: ['Administrador', 'Super Administrador', 'Nómina', 'Nomina'],
     children: [
-      { to: '/nomina-retiros', label: 'Nómina Retiros', roles: ['Administrador', 'Super Administrador', 'Nómina', 'Nomina'] },
+      { to: '/nomina-retiros', label: 'Retiros', roles: ['Administrador', 'Super Administrador', 'Nómina', 'Nomina'] },
     ],
   },
 ];
