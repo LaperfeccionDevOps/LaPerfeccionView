@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { UserPlus, Users, UserCheck, Calendar, Briefcase, LogOut, LayoutDashboard, Menu, Shield, ChevronDown, ChevronRight, ShieldAlert, FolderOpen } from 'lucide-react';
+import { UserPlus, Users, UserCheck, Calendar, Briefcase, LogOut, LayoutDashboard, Menu, Shield, ChevronDown, ChevronRight, ShieldAlert, FolderOpen, WalletCards } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
@@ -36,10 +36,19 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { to: '/archivos', label: 'Carpeta Digital', roles: ['Administrador', 'Super Administrador', 'Contratación', 'Operaciones'] },
       { to: '/indicadores-contratacion', label: 'Indicadores', roles: ['Administrador', 'Contratación'] },
       { to: '/relaciones-laborales', label: 'Relaciones Laborales', roles: ['Administrador', 'Relaciones Laborales', 'Talento Humano'] },
-{ to: '/indicadores-rrll', label: 'Indicadores', roles: ['Administrador', 'Relaciones Laborales', 'Talento Humano'] },
+      { to: '/indicadores-rrll', label: 'Indicadores', roles: ['Administrador', 'Relaciones Laborales', 'Talento Humano'] },
+    ],
+  },
+  {
+    label: 'Nómina',
+    icon: WalletCards,
+    roles: ['Administrador', 'Super Administrador', 'Nómina', 'Nomina'],
+    children: [
+      { to: '/nomina-retiros', label: 'Nómina Retiros', roles: ['Administrador', 'Super Administrador', 'Nómina', 'Nomina'] },
     ],
   },
 ];
+
 
   // Filter items based on user role
       const navItems = allNavItems
