@@ -371,6 +371,51 @@ const NominaRetirosView = () => {
     );
   };
 
+
+  const descargarExcelNomina = async () => {
+    setProcesando(true);
+    setMensajeAccion('');
+    setErrorCarga('');
+
+    try {
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(`${API_BASE_URL}/nomina-retiros/reporte-excel`, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(errorText || 'No fue posible descargar el reporte Excel.');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      const fecha = new Date().toISOString().slice(0, 10).replaceAll('-', '');
+      const link = document.createElement('a');
+
+      link.href = url;
+      link.download = `Reporte_Nomina_Retiros_${fecha}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      window.URL.revokeObjectURL(url);
+
+      setMensajeAccion('Reporte Excel descargado correctamente.');
+    } catch (error) {
+      console.error('Error descargando reporte Excel de nómina:', error);
+      setErrorCarga(error.message || 'Error descargando reporte Excel.');
+    } finally {
+      setProcesando(false);
+    }
+  };
+
   const totalAbiertos = retiros.filter((r) => r.estado === 30).length;
   const totalNomina = retiros.filter((r) => r.estado === 32).length;
   const totalRetirados = retiros.filter((r) => r.estado === 35).length;
@@ -446,17 +491,31 @@ const NominaRetirosView = () => {
       <div className="bg-white rounded-2xl shadow-md border p-6">
         <label className="text-sm font-semibold text-gray-700">Buscar trabajador</label>
 
-        <div className="flex flex-col md:flex-row gap-3 mt-2">
+        <div className="flex flex-col lg:flex-row gap-3 mt-2">
           <Input
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Buscar por identificación, nombre o cliente"
+            className="flex-1"
           />
 
-          <Button type="button" onClick={cargarRetiros} disabled={cargando || procesando}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${cargando ? 'animate-spin' : ''}`} />
-            Actualizar
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button type="button" onClick={cargarRetiros} disabled={cargando || procesando}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${cargando ? 'animate-spin' : ''}`} />
+              Actualizar
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={descargarExcelNomina}
+              disabled={procesando}
+              className="border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Descargar Excel
+            </Button>
+          </div>
         </div>
 
         {mensajeAccion && <p className="text-sm text-emerald-700 mt-3">{mensajeAccion}</p>}
