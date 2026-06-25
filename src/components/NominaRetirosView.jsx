@@ -231,10 +231,30 @@ const NominaRetirosView = () => {
 
     const data = await response.json().catch(() => ({}));
 
-    if (!response.ok || !data.success) {
-      throw new Error(data?.detail || data?.message || 'No fue posible procesar la acción.');
-    }
+  if (!response.ok || !data.success) {
 
+  const detalle = data?.detail;
+
+  if (
+    detalle &&
+    typeof detalle === 'object' &&
+    Array.isArray(detalle.documentos_faltantes)
+  ) {
+
+    const lista = detalle.documentos_faltantes.join('\n• ');
+
+    throw new Error(
+      `No es posible finalizar el retiro.\n\nFaltan los siguientes documentos obligatorios:\n\n• ${lista}`
+    );
+  }
+
+  throw new Error(
+    data?.detail?.message ||
+    data?.detail ||
+    data?.message ||
+    'No fue posible procesar la acción.'
+  );
+}
     setMensajeAccion(data.message || 'Acción realizada correctamente.');
     setMostrarModalPagoLiquidacion(false);
     await cargarRetiros();
@@ -1149,6 +1169,17 @@ const NominaRetirosView = () => {
               <p className="text-xs text-red-600 mt-2">
                 Debes seleccionar una fecha para finalizar el retiro.
               </p>
+            )}
+
+            {errorCarga && (
+              <div className="mt-4 bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
+                <div className="font-bold mb-1">
+                  No se puede finalizar el retiro
+                </div>
+                <p className="whitespace-pre-line">
+                  {errorCarga}
+                </p>
+              </div>
             )}
 
             <div className="flex justify-end gap-3 mt-6">
