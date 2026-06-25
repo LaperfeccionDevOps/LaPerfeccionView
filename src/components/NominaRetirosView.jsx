@@ -6,7 +6,6 @@ import {
   Eye,
   Lock,
   WalletCards,
-  UploadCloud,
   Building2,
   User,
   RefreshCw,
@@ -20,6 +19,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '';
+
+const indicadoresIniciales = {
+  totales: {
+    abiertos: 0,
+    cerrados: 0,
+    retirados: 0,
+    total: 0,
+  },
+  distribucionEstados: [],
+  retirosPorMes: [],
+};
 
 const mapRetiroApi = (item) => ({
   id: item.IdRetiroLaboral,
@@ -45,15 +55,46 @@ const NominaRetirosView = () => {
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [retiros, setRetiros] = useState([]);
+  const [indicadores, setIndicadores] = useState(indicadoresIniciales);
   const [retiroSeleccionado, setRetiroSeleccionado] = useState(null);
 
   const [documentosRetiro, setDocumentosRetiro] = useState([]);
   const [cargandoDocumentosRetiro, setCargandoDocumentosRetiro] = useState(false);
 
   const [cargando, setCargando] = useState(false);
+  const [cargandoIndicadores, setCargandoIndicadores] = useState(false);
   const [procesando, setProcesando] = useState(false);
   const [errorCarga, setErrorCarga] = useState('');
   const [mensajeAccion, setMensajeAccion] = useState('');
+
+  const cargarIndicadores = async () => {
+    setCargandoIndicadores(true);
+
+    try {
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(`${API_BASE_URL}/nomina-retiros/indicadores`, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data?.detail || data?.message || 'No fue posible consultar los indicadores.');
+      }
+
+      setIndicadores(data.data || indicadoresIniciales);
+    } catch (error) {
+      console.error('Error cargando indicadores de nómina retiros:', error);
+      setIndicadores(indicadoresIniciales);
+    } finally {
+      setCargandoIndicadores(false);
+    }
+  };
 
   const cargarRetiros = async () => {
     setCargando(true);
@@ -83,6 +124,8 @@ const NominaRetirosView = () => {
         const actualizado = lista.find((r) => r.id === retiroSeleccionado.id);
         setRetiroSeleccionado(actualizado || null);
       }
+
+      await cargarIndicadores();
     } catch (error) {
       console.error('Error cargando retiros de nómina:', error);
       setErrorCarga(error.message || 'Error consultando retiros de nómina.');
@@ -334,16 +377,13 @@ const NominaRetirosView = () => {
     try {
       const token = localStorage.getItem('token');
 
-      const response = await fetch(
-        `${API_BASE_URL}/rrll/adjuntos/${doc.IdRetiroLaboralAdjunto}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Accept: 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/rrll/adjuntos/${doc.IdRetiroLaboralAdjunto}`, {
+        method: 'DELETE',
+        headers: {
+          Accept: 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
 
       const data = await response.json().catch(() => ({}));
 
@@ -370,7 +410,6 @@ const NominaRetirosView = () => {
       nombre.includes('LIQUIDACION DE CONTRATO')
     );
   };
-
 
   const descargarExcelNomina = async () => {
     setProcesando(true);
@@ -416,9 +455,10 @@ const NominaRetirosView = () => {
     }
   };
 
-  const totalAbiertos = retiros.filter((r) => r.estado === 30).length;
-  const totalNomina = retiros.filter((r) => r.estado === 32).length;
-  const totalRetirados = retiros.filter((r) => r.estado === 35).length;
+  const totalGeneral = indicadores?.totales?.total || 0;
+  const totalAbiertos = indicadores?.totales?.abiertos || 0;
+  const totalNomina = indicadores?.totales?.cerrados || 0;
+  const totalRetirados = indicadores?.totales?.retirados || 0;
 
   const retirosFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
@@ -471,20 +511,33 @@ const NominaRetirosView = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white border rounded-2xl p-5 shadow-sm">
-          <p className="text-xs text-gray-500 font-semibold">Abiertos RRLL</p>
-          <p className="text-3xl font-bold text-yellow-700 mt-1">{totalAbiertos}</p>
+          <p className="text-xs text-gray-500 font-semibold">Total Retiros</p>
+          <p className="text-3xl font-bold text-gray-800 mt-1">
+            {cargandoIndicadores ? '...' : totalGeneral}
+          </p>
         </div>
 
         <div className="bg-white border rounded-2xl p-5 shadow-sm">
-          <p className="text-xs text-gray-500 font-semibold">Enviados a Nómina</p>
-          <p className="text-3xl font-bold text-emerald-700 mt-1">{totalNomina}</p>
+          <p className="text-xs text-gray-500 font-semibold">Abiertos RRLL</p>
+          <p className="text-3xl font-bold text-yellow-700 mt-1">
+            {cargandoIndicadores ? '...' : totalAbiertos}
+          </p>
+        </div>
+
+        <div className="bg-white border rounded-2xl p-5 shadow-sm">
+          <p className="text-xs text-gray-500 font-semibold">Cerrados</p>
+          <p className="text-3xl font-bold text-emerald-700 mt-1">
+            {cargandoIndicadores ? '...' : totalNomina}
+          </p>
         </div>
 
         <div className="bg-white border rounded-2xl p-5 shadow-sm">
           <p className="text-xs text-gray-500 font-semibold">Retirados</p>
-          <p className="text-3xl font-bold text-gray-700 mt-1">{totalRetirados}</p>
+          <p className="text-3xl font-bold text-gray-700 mt-1">
+            {cargandoIndicadores ? '...' : totalRetirados}
+          </p>
         </div>
       </div>
 
@@ -791,20 +844,20 @@ const NominaRetirosView = () => {
 
                             {!hasFile && editableNomina && puedeGestionar && (
                               <>
-                               <input
-                                id={`archivo-nomina-${doc.IdTipoDocumentoRetiro}`}
-                                type="file"
-                                accept=".pdf,image/*,.doc,.docx"
-                                disabled={procesando}
-                                onChange={(e) => {
+                                <input
+                                  id={`archivo-nomina-${doc.IdTipoDocumentoRetiro}`}
+                                  type="file"
+                                  accept=".pdf,image/*,.doc,.docx"
+                                  disabled={procesando}
+                                  onChange={(e) => {
                                     const archivo = e.target.files?.[0] || null;
                                     handleSubirDocumentoNomina(doc.IdTipoDocumentoRetiro, archivo);
-                                }}
-                                className="w-full border rounded-lg p-3 text-sm disabled:bg-gray-100 disabled:text-gray-500"
+                                  }}
+                                  className="w-full border rounded-lg p-3 text-sm disabled:bg-gray-100 disabled:text-gray-500"
                                 />
 
                                 <p className="text-xs text-gray-500 italic">
-                                Selecciona el archivo y se adjuntará automáticamente.
+                                  Selecciona el archivo y se adjuntará automáticamente.
                                 </p>
                               </>
                             )}

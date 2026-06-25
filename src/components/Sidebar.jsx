@@ -40,13 +40,14 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     ],
   },
   {
-    label: 'Nómina',
-    icon: WalletCards,
-    roles: ['Administrador', 'Super Administrador', 'Nómina', 'Nomina'],
-    children: [
-      { to: '/nomina-retiros', label: 'Retiros', roles: ['Administrador', 'Super Administrador', 'Nómina', 'Nomina'] },
-    ],
-  },
+  label: 'Nómina',
+  icon: WalletCards,
+  roles: ['Administrador', 'Super Administrador', 'Nómina', 'Nomina'],
+  children: [
+    { to: '/nomina-retiros', label: 'Retiros', roles: ['Administrador', 'Super Administrador', 'Nómina', 'Nomina'] },
+    { to: '/indicadores-nomina', label: 'Indicadores', roles: ['Administrador', 'Super Administrador', 'Nómina', 'Nomina'] },
+  ],
+},
 ];
 
 

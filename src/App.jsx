@@ -19,6 +19,7 @@ import IndicadoresContratacionView from './components/IndicadoresContratacionVie
 import IndicadoresSeleccionView from './components/IndicadoresSeleccionView';
 import IndicadoresRRLLView from './components/IndicadoresRRLLView';
 import NominaRetirosView from '@/components/NominaRetirosView';
+import IndicadoresNominaView from '@/components/IndicadoresNominaView';
 
 const RoleBasedRedirect = () => {
   const { user } = useAuth();
@@ -83,6 +84,7 @@ function App() {
           <Route path="relaciones-laborales" element={<RelacionesLaboralesView />} />
           <Route path="nomina-retiros" element={<NominaRetirosView />} />
           <Route path="indicadores-rrll" element={<IndicadoresRRLLView />} />
+          <Route path="indicadores-nomina" element={<IndicadoresNominaView />} />
 
           <Route path="admin/crear-usuario" element={<CreateUserForm />} />
           <Route path="admin/actualizar-usuario" element={<UpdateUserView />} />
