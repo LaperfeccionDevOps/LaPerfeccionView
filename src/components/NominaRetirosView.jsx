@@ -42,12 +42,16 @@ const mapRetiroApi = (item) => ({
   fechaProceso: item.FechaProceso || '',
   fechaCierre: item.FechaCierre || '',
   fechaEnvioNomina: item.FechaEnvioNomina || '',
+  fechaPagoLiquidacion: item.FechaPagoLiquidacion || '',
   estado: Number(item.IdEstadoProceso),
   estadoTexto: item.EstadoProceso || item.EstadoCasoRRLL || 'Sin estado',
   estadoCasoRRLL: item.EstadoCasoRRLL || '',
   motivo: item.MotivoRetiro || '',
   tipificacion: item.TipificacionRetiro || '',
   observacionRRLL: item.ObservacionRetiro || item.ObservacionGeneral || '',
+  observacionNomina: item.ObservacionNomina || '',
+  usuarioObservacionNomina: item.UsuarioObservacionNomina || '',
+  fechaObservacionNomina: item.FechaObservacionNomina || '',
   puedeGestionarNomina: Boolean(item.PuedeGestionarNomina),
 });
 
@@ -66,6 +70,10 @@ const NominaRetirosView = () => {
   const [procesando, setProcesando] = useState(false);
   const [errorCarga, setErrorCarga] = useState('');
   const [mensajeAccion, setMensajeAccion] = useState('');
+  const [editandoObservacionNomina, setEditandoObservacionNomina] = useState(false);
+  const [textoObservacionNomina, setTextoObservacionNomina] = useState('');
+  const [mostrarModalPagoLiquidacion, setMostrarModalPagoLiquidacion] = useState(false);
+  const [fechaPagoLiquidacion, setFechaPagoLiquidacion] = useState('');
 
   const cargarIndicadores = async () => {
     setCargandoIndicadores(true);
@@ -184,51 +192,59 @@ const NominaRetirosView = () => {
     setDocumentosRetiro([]);
     setMensajeAccion('');
     setErrorCarga('');
+    setEditandoObservacionNomina(false);
+    setTextoObservacionNomina('');
+    setMostrarModalPagoLiquidacion(false);
+    setFechaPagoLiquidacion('');
   };
 
   const ejecutarAccionNomina = async (accion) => {
-    if (!retiroSeleccionado?.idRetiroLaboral) return;
+  if (!retiroSeleccionado?.idRetiroLaboral) return;
 
-    const confirmar =
-      accion === 'finalizar'
-        ? window.confirm('¿Seguro que deseas finalizar este retiro? El trabajador pasará a estado Retirado.')
-        : window.confirm('¿Seguro que deseas devolver este retiro a Relaciones Laborales?');
+  if (accion === 'devolver') {
+  const confirmar = window.confirm('¿Seguro que deseas devolver este retiro a Relaciones Laborales?');
+  if (!confirmar) return;
+}
 
-    if (!confirmar) return;
+  setProcesando(true);
+  setMensajeAccion('');
+  setErrorCarga('');
 
-    setProcesando(true);
-    setMensajeAccion('');
-    setErrorCarga('');
+  try {
+    const token = localStorage.getItem('token');
 
-    try {
-      const token = localStorage.getItem('token');
-
-      const response = await fetch(
-        `${API_BASE_URL}/nomina-retiros/${retiroSeleccionado.idRetiroLaboral}/${accion}`,
-        {
-          method: 'PUT',
-          headers: {
-            Accept: 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        }
-      );
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok || !data.success) {
-        throw new Error(data?.detail || data?.message || 'No fue posible procesar la acción.');
+    const response = await fetch(
+      `${API_BASE_URL}/nomina-retiros/${retiroSeleccionado.idRetiroLaboral}/${accion}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body:
+          accion === 'finalizar'
+            ? JSON.stringify({ fecha_pago_liquidacion: fechaPagoLiquidacion })
+            : undefined,
       }
+    );
 
-      setMensajeAccion(data.message || 'Acción realizada correctamente.');
-      await cargarRetiros();
-    } catch (error) {
-      console.error(`Error al ${accion} retiro:`, error);
-      setErrorCarga(error.message || 'Error procesando acción de nómina.');
-    } finally {
-      setProcesando(false);
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || !data.success) {
+      throw new Error(data?.detail || data?.message || 'No fue posible procesar la acción.');
     }
-  };
+
+    setMensajeAccion(data.message || 'Acción realizada correctamente.');
+    setMostrarModalPagoLiquidacion(false);
+    await cargarRetiros();
+  } catch (error) {
+    console.error(`Error al ${accion} retiro:`, error);
+    setErrorCarga(error.message || 'Error procesando acción de nómina.');
+  } finally {
+    setProcesando(false);
+  }
+};
 
   const handleSubirDocumentoNomina = async (idTipoDocumentoRetiro, archivo) => {
     if (!retiroSeleccionado?.idRetiroLaboral) {
@@ -455,6 +471,75 @@ const NominaRetirosView = () => {
     }
   };
 
+  const guardarObservacionNomina = async () => {
+    if (!retiroSeleccionado?.idRetiroLaboral) return;
+
+    setProcesando(true);
+    setMensajeAccion('');
+    setErrorCarga('');
+
+    try {
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(
+        `${API_BASE_URL}/nomina-retiros/${retiroSeleccionado.idRetiroLaboral}/observacion-nomina`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            observacion_nomina: textoObservacionNomina,
+          }),
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.success) {
+        throw new Error(data?.detail || data?.message || 'No fue posible guardar la observación de nómina.');
+      }
+
+      const observacionGuardada =
+        data?.data?.ObservacionNomina ??
+        data?.data?.observacionNomina ??
+        textoObservacionNomina;
+
+      const usuarioGuardado =
+        data?.data?.UsuarioObservacionNomina ??
+        data?.data?.usuarioObservacionNomina ??
+        retiroSeleccionado?.usuarioObservacionNomina ??
+        '';
+
+      const fechaGuardada =
+        data?.data?.FechaObservacionNomina ??
+        data?.data?.fechaObservacionNomina ??
+        retiroSeleccionado?.fechaObservacionNomina ??
+        '';
+
+      setMensajeAccion(data?.message || 'Observación de nómina guardada correctamente.');
+      setEditandoObservacionNomina(false);
+
+      setRetiroSeleccionado((prev) => ({
+        ...prev,
+        observacionNomina: observacionGuardada,
+        usuarioObservacionNomina: usuarioGuardado,
+        fechaObservacionNomina: fechaGuardada,
+      }));
+
+      setTextoObservacionNomina(observacionGuardada);
+
+      await cargarRetiros();
+    } catch (error) {
+      console.error('Error guardando observación de nómina:', error);
+      setErrorCarga(error.message || 'Error guardando observación de nómina.');
+    } finally {
+      setProcesando(false);
+    }
+  };
+
   const totalGeneral = indicadores?.totales?.total || 0;
   const totalAbiertos = indicadores?.totales?.abiertos || 0;
   const totalNomina = indicadores?.totales?.cerrados || 0;
@@ -583,10 +668,6 @@ const NominaRetirosView = () => {
           </p>
 
           <div className="flex flex-wrap gap-2 mt-3">
-            <Button type="button" variant={getFiltroButtonVariant('todos')} size="sm" onClick={() => setFiltroEstado('todos')}>
-              Todos
-            </Button>
-
             <Button type="button" variant={getFiltroButtonVariant('abiertos')} size="sm" onClick={() => setFiltroEstado('abiertos')}>
               Abiertos
             </Button>
@@ -607,6 +688,7 @@ const NominaRetirosView = () => {
               <th className="text-left p-4 min-w-[150px]">Identificación</th>
               <th className="text-left p-4 min-w-[260px]">Trabajador</th>
               <th className="text-left p-4 min-w-[150px]">Estado</th>
+              <th className="text-left p-4 min-w-[190px]">Fecha pago liquidación</th>
               <th className="text-center p-4 min-w-[120px]">Acción</th>
             </tr>
           </thead>
@@ -614,7 +696,7 @@ const NominaRetirosView = () => {
           <tbody>
             {cargando && (
               <tr>
-                <td colSpan="4" className="p-10 text-center text-gray-500">
+                <td colSpan="5" className="p-10 text-center text-gray-500">
                   Consultando retiros...
                 </td>
               </tr>
@@ -629,22 +711,35 @@ const NominaRetirosView = () => {
                 </td>
 
                 <td className="p-4">
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getEstadoBadge(r.estado)}`}>
-                    {r.estadoTexto}
-                  </span>
-                </td>
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getEstadoBadge(r.estado)}`}>
+                  {r.estadoTexto}
+                </span>
+              </td>
 
-                <td className="p-4 text-center">
+              <td className="p-4 whitespace-nowrap">
+                {r.fechaPagoLiquidacion
+                  ? new Date(`${r.fechaPagoLiquidacion}T00:00:00`).toLocaleDateString('es-CO', {
+                      timeZone: 'America/Bogota',
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                    })
+                  : 'Sin fecha'}
+              </td>
+
+              <td className="p-4 text-center">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      setRetiroSeleccionado(r);
-                      setDocumentosRetiro([]);
-                      setMensajeAccion('');
-                      setErrorCarga('');
-                      cargarDocumentosRetiro(r);
+                    setRetiroSeleccionado(r);
+                    setTextoObservacionNomina(r.observacionNomina || '');
+                    setEditandoObservacionNomina(false);
+                    setDocumentosRetiro([]);
+                    setMensajeAccion('');
+                    setErrorCarga('');
+                    cargarDocumentosRetiro(r);
                     }}
                   >
                     <Eye className="w-4 h-4 mr-1" />
@@ -656,7 +751,7 @@ const NominaRetirosView = () => {
 
             {!cargando && retirosFiltrados.length === 0 && (
               <tr>
-                <td colSpan="4" className="p-10 text-center text-gray-500">
+                <td colSpan="5" className="p-10 text-center text-gray-500">
                   <FileText className="w-10 h-10 mx-auto mb-3 text-gray-400" />
                   No hay retiros para el filtro seleccionado.
                 </td>
@@ -748,6 +843,92 @@ const NominaRetirosView = () => {
                       </p>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-sm text-emerald-900">
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 font-bold text-emerald-700 mb-3">
+                      <FileText className="w-5 h-5" />
+                      Observaciones Nómina
+                    </div>
+
+                    {editandoObservacionNomina ? (
+                      <textarea
+                        value={textoObservacionNomina}
+                        onChange={(e) => setTextoObservacionNomina(e.target.value)}
+                        rows={3}
+                        className="w-full border border-emerald-200 rounded-xl p-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                        placeholder="Escribe aquí la observación de nómina..."
+                        disabled={procesando}
+                      />
+                    ) : (
+                      <p className="text-gray-900 whitespace-pre-wrap">
+                        {retiroSeleccionado.observacionNomina || 'Sin observaciones de nómina registradas.'}
+                      </p>
+                    )}
+
+                    {(retiroSeleccionado.usuarioObservacionNomina || retiroSeleccionado.fechaObservacionNomina) && (
+                      <p className="text-xs text-gray-500 mt-3">
+                        Registrado por {retiroSeleccionado.usuarioObservacionNomina || 'Nómina'}
+                        {retiroSeleccionado.fechaObservacionNomina
+                      ? ` • ${new Date(retiroSeleccionado.fechaObservacionNomina).toLocaleString('es-CO', {
+                          timeZone: 'America/Bogota',
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true,
+                        })}`
+                      : ''}
+                      </p>
+                    )}
+                  </div>
+
+                  {puedeGestionar && (
+                    <div className="flex gap-2 justify-end">
+                      {editandoObservacionNomina ? (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={procesando}
+                            onClick={guardarObservacionNomina}
+                          >
+                            Guardar
+                          </Button>
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={procesando}
+                            onClick={() => {
+                              setTextoObservacionNomina(retiroSeleccionado.observacionNomina || '');
+                              setEditandoObservacionNomina(false);
+                            }}
+                          >
+                            Cancelar
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="border-emerald-500 text-emerald-700 hover:bg-emerald-100"
+                          onClick={() => {
+                            setTextoObservacionNomina(retiroSeleccionado.observacionNomina || '');
+                            setEditandoObservacionNomina(true);
+                          }}
+                        >
+                          Editar
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -915,12 +1096,79 @@ const NominaRetirosView = () => {
                 <Button
                   type="button"
                   disabled={!puedeGestionar || procesando}
-                  onClick={() => ejecutarAccionNomina('finalizar')}
+                  onClick={() => {
+                  setFechaPagoLiquidacion(retiroSeleccionado.fechaPagoLiquidacion || '');
+                  setMostrarModalPagoLiquidacion(true);
+                }}
                 >
                   <CheckCircle2 className="w-4 h-4 mr-2" />
                   {procesando ? 'Procesando...' : 'Finalizar retiro'}
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+           )}
+
+      {mostrarModalPagoLiquidacion && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border p-6">
+            <div className="flex items-start justify-between gap-4 mb-5">
+              <div>
+                <h3 className="text-xl font-bold text-gray-800">
+                  Fecha de pago liquidación
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Selecciona la fecha en la que se pagará la liquidación del trabajador.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setMostrarModalPagoLiquidacion(false)}
+                className="w-9 h-9 rounded-full border flex items-center justify-center hover:bg-gray-100"
+                disabled={procesando}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <label className="text-sm font-semibold text-gray-700">
+              Fecha de pago
+            </label>
+
+            <input
+              type="date"
+              value={fechaPagoLiquidacion}
+              onChange={(e) => setFechaPagoLiquidacion(e.target.value)}
+              disabled={procesando}
+              className="w-full mt-2 border rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
+            />
+
+            {!fechaPagoLiquidacion && (
+              <p className="text-xs text-red-600 mt-2">
+                Debes seleccionar una fecha para finalizar el retiro.
+              </p>
+            )}
+
+            <div className="flex justify-end gap-3 mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={procesando}
+                onClick={() => setMostrarModalPagoLiquidacion(false)}
+              >
+                Cancelar
+              </Button>
+
+              <Button
+                type="button"
+                disabled={procesando || !fechaPagoLiquidacion}
+                onClick={() => ejecutarAccionNomina('finalizar')}
+              >
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                {procesando ? 'Finalizando...' : 'Confirmar finalización'}
+              </Button>
             </div>
           </div>
         </div>
