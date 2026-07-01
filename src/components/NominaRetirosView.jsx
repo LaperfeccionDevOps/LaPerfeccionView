@@ -13,6 +13,7 @@ import {
   Download,
   Trash2,
   AlertCircle,
+   Clock,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,23 @@ const indicadoresIniciales = {
   },
   distribucionEstados: [],
   retirosPorMes: [],
+};
+
+const formatearFechaHoraColombia = (valor) => {
+  if (!valor) return 'Pendiente';
+
+  const fecha = new Date(valor);
+  if (Number.isNaN(fecha.getTime())) return valor;
+
+  return fecha.toLocaleString('es-CO', {
+    timeZone: 'America/Bogota',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
 };
 
 const mapRetiroApi = (item) => ({
@@ -53,6 +71,16 @@ const mapRetiroApi = (item) => ({
   usuarioObservacionNomina: item.UsuarioObservacionNomina || '',
   fechaObservacionNomina: item.FechaObservacionNomina || '',
   puedeGestionarNomina: Boolean(item.PuedeGestionarNomina),
+  fechaPazYSalvo: item.FechaPazYSalvo || '',
+
+diasRetiroPazYSalvo:
+  item.DiasRetiroPazYSalvo ?? null,
+
+diasPazYSalvoCierreRRLL:
+  item.DiasPazYSalvoCierreRRLL ?? null,
+
+diasCierreRRLLNomina:
+  item.DiasCierreRRLLNomina ?? null,
 });
 
 const NominaRetirosView = () => {
@@ -865,6 +893,48 @@ const NominaRetirosView = () => {
                   </div>
                 </div>
               </div>
+
+              <div className="border rounded-2xl p-5 bg-white">
+              <div className="flex items-center gap-2 text-blue-700 font-bold mb-4">
+                <Clock className="w-5 h-5" />
+                Tiempos del proceso de este trabajador
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
+                  <p className="text-blue-800 font-bold">Retiro → Paz y Salvo</p>
+                  <p className="text-3xl font-black text-blue-900 mt-2">
+                    {retiroSeleccionado.diasRetiroPazYSalvo ?? '—'}
+                  </p>
+                  <p className="text-xs text-blue-700 mt-1">días</p>
+                  <p className="text-xs text-gray-500 mt-3">
+                    Paz y Salvo: {formatearFechaHoraColombia(retiroSeleccionado.fechaPazYSalvo)}
+                  </p>
+                </div>
+
+                <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
+                  <p className="text-emerald-800 font-bold">Paz y Salvo → Cierre RRLL</p>
+                  <p className="text-3xl font-black text-emerald-900 mt-2">
+                    {retiroSeleccionado.diasPazYSalvoCierreRRLL ?? '—'}
+                  </p>
+                  <p className="text-xs text-emerald-700 mt-1">días</p>
+                  <p className="text-xs text-gray-500 mt-3">
+                    Cierre RRLL: {formatearFechaHoraColombia(retiroSeleccionado.fechaCierre)}
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4">
+                  <p className="text-gray-800 font-bold">Cierre RRLL → Finalización Nómina</p>
+                  <p className="text-3xl font-black text-gray-900 mt-2">
+                    {retiroSeleccionado.diasCierreRRLLNomina ?? '—'}
+                  </p>
+                  <p className="text-xs text-gray-700 mt-1">días</p>
+                  <p className="text-xs text-gray-500 mt-3">
+                    Finalización: {formatearFechaHoraColombia(retiroSeleccionado.fechaEnvioNomina)}
+                  </p>
+                </div>
+              </div>
+            </div>
 
               <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-sm text-emerald-900">
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">

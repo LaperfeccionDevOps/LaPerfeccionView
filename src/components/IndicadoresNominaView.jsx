@@ -6,6 +6,9 @@ import {
   CheckCircle2,
   Clock,
   PieChart,
+  Timer,
+  Workflow,
+  WalletCards,
 } from 'lucide-react';
 import {
   BarChart,
@@ -30,18 +33,29 @@ const coloresEstado = {
   Retirado: '#334155',
 };
 
-const IndicadoresNominaView = () => {
-  const [indicadores, setIndicadores] = useState({
-    totales: {
-      abiertos: 0,
-      cerrados: 0,
-      retirados: 0,
-      total: 0,
-    },
-    distribucionEstados: [],
-    retirosPorMes: [],
-  });
+const indicadoresIniciales = {
+  totales: {
+    abiertos: 0,
+    cerrados: 0,
+    retirados: 0,
+    total: 0,
+  },
+  promedios: {
+    operaciones: 0,
+    rrll: 0,
+    nomina: 0,
+  },
+  distribucionEstados: [],
+  retirosPorMes: [],
+};
 
+const formatearDias = (valor) => {
+  const numero = Number(valor || 0);
+  return `${numero.toFixed(2).replace('.', ',')} días`;
+};
+
+const IndicadoresNominaView = () => {
+  const [indicadores, setIndicadores] = useState(indicadoresIniciales);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
 
@@ -66,7 +80,18 @@ const IndicadoresNominaView = () => {
         throw new Error(data?.detail || data?.message || 'No fue posible consultar indicadores.');
       }
 
-      setIndicadores(data.data);
+      setIndicadores({
+        ...indicadoresIniciales,
+        ...(data.data || {}),
+        totales: {
+          ...indicadoresIniciales.totales,
+          ...(data.data?.totales || {}),
+        },
+        promedios: {
+          ...indicadoresIniciales.promedios,
+          ...(data.data?.promedios || {}),
+        },
+      });
     } catch (err) {
       console.error('Error cargando indicadores de nómina:', err);
       setError(err.message || 'Error cargando indicadores de nómina.');
@@ -83,6 +108,10 @@ const IndicadoresNominaView = () => {
   const abiertos = indicadores?.totales?.abiertos || 0;
   const cerrados = indicadores?.totales?.cerrados || 0;
   const retirados = indicadores?.totales?.retirados || 0;
+
+  const promedioOperaciones = indicadores?.promedios?.operaciones || 0;
+  const promedioRRLL = indicadores?.promedios?.rrll || 0;
+  const promedioNomina = indicadores?.promedios?.nomina || 0;
 
   const dataEstados = useMemo(() => {
     return (indicadores?.distribucionEstados || []).map((item) => ({
@@ -138,7 +167,7 @@ const IndicadoresNominaView = () => {
           <div className="flex justify-between items-center">
             <div>
               <p className="text-sm text-gray-500 font-semibold">Total retiros</p>
-              <p className="text-4xl font-black text-gray-900 mt-2">{total}</p>
+              <p className="text-4xl font-black text-gray-900 mt-2">{cargando ? '...' : total}</p>
             </div>
             <div className="bg-emerald-50 text-emerald-700 rounded-2xl p-4">
               <Users className="w-7 h-7" />
@@ -150,7 +179,7 @@ const IndicadoresNominaView = () => {
           <div className="flex justify-between items-center">
             <div>
               <p className="text-sm text-gray-500 font-semibold">Abiertos RRLL</p>
-              <p className="text-4xl font-black text-yellow-700 mt-2">{abiertos}</p>
+              <p className="text-4xl font-black text-yellow-700 mt-2">{cargando ? '...' : abiertos}</p>
             </div>
             <div className="bg-yellow-50 text-yellow-700 rounded-2xl p-4">
               <Clock className="w-7 h-7" />
@@ -162,7 +191,7 @@ const IndicadoresNominaView = () => {
           <div className="flex justify-between items-center">
             <div>
               <p className="text-sm text-gray-500 font-semibold">Cerrados</p>
-              <p className="text-4xl font-black text-emerald-700 mt-2">{cerrados}</p>
+              <p className="text-4xl font-black text-emerald-700 mt-2">{cargando ? '...' : cerrados}</p>
             </div>
             <div className="bg-emerald-50 text-emerald-700 rounded-2xl p-4">
               <CheckCircle2 className="w-7 h-7" />
@@ -174,10 +203,71 @@ const IndicadoresNominaView = () => {
           <div className="flex justify-between items-center">
             <div>
               <p className="text-sm text-gray-500 font-semibold">Retirados</p>
-              <p className="text-4xl font-black text-gray-700 mt-2">{retirados}</p>
+              <p className="text-4xl font-black text-gray-700 mt-2">{cargando ? '...' : retirados}</p>
             </div>
             <div className="bg-gray-100 text-gray-700 rounded-2xl p-4">
               <CheckCircle2 className="w-7 h-7" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-3xl shadow-md border p-6">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="bg-blue-50 text-blue-700 rounded-2xl p-3">
+            <Timer className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Tiempos promedio del proceso</h2>
+            <p className="text-sm text-gray-500">
+              Promedios calculados con las fechas registradas en Relaciones Laborales y Nómina.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="rounded-2xl border bg-blue-50 p-6">
+            <div className="flex justify-between items-start gap-3">
+              <div>
+                <p className="text-sm font-bold text-blue-800">Retiro → Operaciones</p>
+                <p className="text-4xl font-black text-blue-900 mt-3">
+                  {cargando ? '...' : formatearDias(promedioOperaciones)}
+                </p>
+                <p className="text-xs text-blue-700 mt-3">
+                  Desde la fecha de retiro hasta el envío a operaciones.
+                </p>
+              </div>
+              <Workflow className="w-8 h-8 text-blue-700" />
+            </div>
+          </div>
+
+          <div className="rounded-2xl border bg-emerald-50 p-6">
+            <div className="flex justify-between items-start gap-3">
+              <div>
+                <p className="text-sm font-bold text-emerald-800">Operaciones → Cierre RRLL</p>
+                <p className="text-4xl font-black text-emerald-900 mt-3">
+                  {cargando ? '...' : formatearDias(promedioRRLL)}
+                </p>
+                <p className="text-xs text-emerald-700 mt-3">
+                  Desde operaciones hasta el cierre del proceso en RRLL.
+                </p>
+              </div>
+              <CheckCircle2 className="w-8 h-8 text-emerald-700" />
+            </div>
+          </div>
+
+          <div className="rounded-2xl border bg-gray-50 p-6">
+            <div className="flex justify-between items-start gap-3">
+              <div>
+                <p className="text-sm font-bold text-gray-700">Cierre RRLL → Nómina</p>
+                <p className="text-4xl font-black text-gray-900 mt-3">
+                  {cargando ? '...' : formatearDias(promedioNomina)}
+                </p>
+                <p className="text-xs text-gray-600 mt-3">
+                  Desde el cierre de RRLL hasta la gestión registrada por Nómina.
+                </p>
+              </div>
+              <WalletCards className="w-8 h-8 text-gray-700" />
             </div>
           </div>
         </div>
