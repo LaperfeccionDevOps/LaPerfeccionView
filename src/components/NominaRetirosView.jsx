@@ -176,9 +176,9 @@ const NominaRetirosView = () => {
   }, []);
 
   const cargarDocumentosRetiro = async (retiro) => {
-    const idRegistroPersonal = retiro?.idRegistroPersonal || retiro?.IdRegistroPersonal;
+    const idRetiroLaboral = retiro?.idRetiroLaboral || retiro?.IdRetiroLaboral;
 
-    if (!idRegistroPersonal) {
+    if (!idRetiroLaboral) {
       setDocumentosRetiro([]);
       return;
     }
@@ -189,7 +189,7 @@ const NominaRetirosView = () => {
       const token = localStorage.getItem('token');
 
       const response = await fetch(
-        `${API_BASE_URL}/retiros-laborales/carpeta-digital/${idRegistroPersonal}/documentos`,
+        `${API_BASE_URL}/nomina-retiros/${idRetiroLaboral}/adjuntos`,
         {
           method: 'GET',
           headers: {
@@ -201,11 +201,13 @@ const NominaRetirosView = () => {
 
       const data = await response.json().catch(() => ({}));
 
-      if (!response.ok) {
+      if (!response.ok || !data.success) {
         throw new Error(data?.detail || data?.message || 'No fue posible consultar documentos de retiro.');
       }
 
-      setDocumentosRetiro(Array.isArray(data?.data) ? data.data : []);
+      const documentos = Array.isArray(data?.data) ? data.data : [];
+
+      setDocumentosRetiro(documentos);
     } catch (error) {
       console.error('Error cargando documentos de retiro:', error);
       setDocumentosRetiro([]);
