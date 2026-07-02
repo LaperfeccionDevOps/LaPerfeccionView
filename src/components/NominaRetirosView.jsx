@@ -477,6 +477,24 @@ const NominaRetirosView = () => {
     );
   };
 
+  const descargarCertificadoLaboral = (retiro) => {
+  if (!retiro?.idRetiroLaboral) return;
+
+  window.open(
+    `${API_BASE_URL}/nomina-comunicaciones/${retiro.idRetiroLaboral}/certificado-laboral/descargar`,
+    '_blank'
+  );
+};
+
+const descargarCartaCesantias = (retiro) => {
+  if (!retiro?.idRetiroLaboral) return;
+
+  window.open(
+    `${API_BASE_URL}/nomina-comunicaciones/${retiro.idRetiroLaboral}/carta-cesantias/descargar`,
+    '_blank'
+  );
+};
+
   const descargarExcelNomina = async () => {
     setProcesando(true);
     setMensajeAccion('');
@@ -738,6 +756,7 @@ const NominaRetirosView = () => {
               <th className="text-left p-4 min-w-[150px]">Identificación</th>
               <th className="text-left p-4 min-w-[260px]">Trabajador</th>
               <th className="text-left p-4 min-w-[150px]">Estado</th>
+              <th className="text-center p-4 min-w-[300px]">Comunicaciones</th>
               <th className="text-left p-4 min-w-[190px]">Fecha pago liquidación</th>
               <th className="text-center p-4 min-w-[120px]">Acción</th>
             </tr>
@@ -746,7 +765,7 @@ const NominaRetirosView = () => {
           <tbody>
             {cargando && (
               <tr>
-                <td colSpan="5" className="p-10 text-center text-gray-500">
+                <td colSpan="6" className="p-10 text-center text-gray-500">
                   Consultando retiros...
                 </td>
               </tr>
@@ -765,6 +784,46 @@ const NominaRetirosView = () => {
                   {r.estadoTexto}
                 </span>
               </td>
+
+       <td className="p-4">
+          <div className="flex items-center justify-center gap-1.5">
+            <button
+              type="button"
+              title="Enviar certificado laboral"
+              className="w-8 h-8 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center justify-center text-sm"
+            >
+              ✉️
+            </button>
+
+            <button
+              type="button"
+              title="Descargar certificado laboral"
+              onClick={() => descargarCertificadoLaboral(r)}
+              className="w-8 h-8 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center justify-center text-sm"
+            >
+              ⬇️
+            </button>
+
+            <span className="w-px h-6 bg-gray-300 mx-1" />
+
+            <button
+              type="button"
+              title="Enviar carta de cesantías"
+              className="w-8 h-8 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center justify-center text-sm"
+            >
+              💰
+            </button>
+
+            <button
+              type="button"
+              title="Descargar carta de cesantías"
+              onClick={() => descargarCartaCesantias(r)}
+              className="w-8 h-8 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center justify-center text-sm"
+            >
+              ⬇️
+            </button>
+          </div>
+        </td>
 
               <td className="p-4 whitespace-nowrap">
                 {r.fechaPagoLiquidacion
@@ -801,7 +860,7 @@ const NominaRetirosView = () => {
 
             {!cargando && retirosFiltrados.length === 0 && (
               <tr>
-                <td colSpan="5" className="p-10 text-center text-gray-500">
+                <td colSpan="6" className="p-10 text-center text-gray-500">
                   <FileText className="w-10 h-10 mx-auto mb-3 text-gray-400" />
                   No hay retiros para el filtro seleccionado.
                 </td>
