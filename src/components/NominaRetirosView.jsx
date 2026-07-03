@@ -85,7 +85,8 @@ diasCierreRRLLNomina:
 
 const NominaRetirosView = () => {
   const [busqueda, setBusqueda] = useState('');
-  const [filtroEstado, setFiltroEstado] = useState('todos');
+  const [busquedaIndicador, setBusquedaIndicador] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('abiertos');
   const [retiros, setRetiros] = useState([]);
   const [indicadores, setIndicadores] = useState(indicadoresIniciales);
   const [retiroSeleccionado, setRetiroSeleccionado] = useState(null);
@@ -495,6 +496,76 @@ const descargarCartaCesantias = (retiro) => {
   );
 };
 
+const enviarCertificadoLaboral = async (retiro) => {
+  if (!retiro?.idRetiroLaboral) return;
+
+  setProcesando(true);
+  setMensajeAccion('');
+  setErrorCarga('');
+
+  try {
+    const token = localStorage.getItem('token');
+
+    const response = await fetch(
+      `${API_BASE_URL}/nomina-comunicaciones/${retiro.idRetiroLaboral}/certificado-laboral/enviar-correo`,
+      {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      }
+    );
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || !data.success) {
+      throw new Error(data?.detail || data?.message || 'No fue posible enviar el certificado laboral.');
+    }
+
+    setMensajeAccion(data.message || 'Certificado laboral enviado correctamente.');
+  } catch (error) {
+    setErrorCarga(error.message || 'Error enviando certificado laboral.');
+  } finally {
+    setProcesando(false);
+  }
+};
+
+const enviarCartaCesantias = async (retiro) => {
+  if (!retiro?.idRetiroLaboral) return;
+
+  setProcesando(true);
+  setMensajeAccion('');
+  setErrorCarga('');
+
+  try {
+    const token = localStorage.getItem('token');
+
+    const response = await fetch(
+      `${API_BASE_URL}/nomina-comunicaciones/${retiro.idRetiroLaboral}/carta-cesantias/enviar-correo`,
+      {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      }
+    );
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || !data.success) {
+      throw new Error(data?.detail || data?.message || 'No fue posible enviar la carta de cesantías.');
+    }
+
+    setMensajeAccion(data.message || 'Carta de cesantías enviada correctamente.');
+  } catch (error) {
+    setErrorCarga(error.message || 'Error enviando carta de cesantías.');
+  } finally {
+    setProcesando(false);
+  }
+};
+
   const descargarExcelNomina = async () => {
     setProcesando(true);
     setMensajeAccion('');
@@ -613,25 +684,54 @@ const descargarCartaCesantias = (retiro) => {
   const totalNomina = indicadores?.totales?.cerrados || 0;
   const totalRetirados = indicadores?.totales?.retirados || 0;
 
-  const retirosFiltrados = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
+const grupoEstadoRetiro = (r) => {
+  const estadoId = Number(r.estado);
+  const texto = String(r.estadoTexto || r.estadoCasoRRLL || '').toLowerCase();
 
-    return retiros.filter((r) => {
-      const coincideBusqueda =
-        !q ||
-        String(r.identificacion || '').toLowerCase().includes(q) ||
-        String(r.nombre || '').toLowerCase().includes(q) ||
-        String(r.cliente || '').toLowerCase().includes(q);
+  if (estadoId === 35 || texto.includes('retirado')) return 'retirados';
 
-      const coincideEstado =
-        filtroEstado === 'todos' ||
-        (filtroEstado === 'abiertos' && r.estado === 30) ||
-        (filtroEstado === 'nomina' && r.estado === 32) ||
-        (filtroEstado === 'retirados' && r.estado === 35);
+  if (
+    estadoId === 32 ||
+    texto.includes('enviado a nómina') ||
+    texto.includes('enviado a nomina') ||
+    texto.includes('cerrado')
+  ) {
+    return 'nomina';
+  }
 
-      return coincideBusqueda && coincideEstado;
-    });
-  }, [busqueda, retiros, filtroEstado]);
+  return 'abiertos';
+};
+
+const retirosFiltrados = useMemo(() => {
+  const q = busqueda.trim().toLowerCase();
+
+  return retiros.filter((r) => {
+    const coincideBusqueda =
+      !q ||
+      String(r.identificacion || '').toLowerCase().includes(q) ||
+      String(r.nombre || '').toLowerCase().includes(q) ||
+      String(r.cliente || '').toLowerCase().includes(q);
+
+    const coincideEstado = grupoEstadoRetiro(r) === filtroEstado;
+
+      if (q) {
+        return coincideBusqueda;
+      }
+
+      return coincideEstado;
+        });
+}, [busqueda, retiros, filtroEstado]);
+
+const retiroIndicador = useMemo(() => {
+  const q = busquedaIndicador.trim().toLowerCase();
+
+  if (!q) return null;
+
+  return retiros.find((r) =>
+    String(r.identificacion || '').toLowerCase().includes(q) ||
+    String(r.nombre || '').toLowerCase().includes(q)
+  ) || null;
+}, [busquedaIndicador, retiros]);
 
   const puedeGestionar =
     retiroSeleccionado?.puedeGestionarNomina === true ||
@@ -693,6 +793,84 @@ const descargarCartaCesantias = (retiro) => {
           </p>
         </div>
       </div>
+
+      <div className="bg-white rounded-2xl shadow-md border p-6">
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h2 className="text-lg font-bold text-gray-800">
+            Seguimiento individual del retiro
+          </h2>
+          <p className="text-sm text-gray-500">
+            Consulta los tiempos del proceso para un trabajador específico.
+          </p>
+        </div>
+      </div>
+
+      <Input
+        value={busquedaIndicador}
+        onChange={(e) => setBusquedaIndicador(e.target.value)}
+        placeholder="Buscar por identificación o nombre..."
+        className="mb-6"
+      />
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
+          <p className="text-sm font-semibold text-blue-700">
+            Retiro → Paz y Salvo
+          </p>
+
+          <p className="text-4xl font-black text-blue-900 mt-3">
+            {retiroIndicador?.diasRetiroPazYSalvo ?? 0}
+          </p>
+
+          <p className="text-xs text-blue-700 mt-2">
+            días
+          </p>
+        </div>
+
+        <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5">
+          <p className="text-sm font-semibold text-emerald-700">
+            Paz y Salvo → Cierre RRLL
+          </p>
+
+          <p className="text-4xl font-black text-emerald-900 mt-3">
+            {retiroIndicador?.diasPazYSalvoCierreRRLL ?? 0}
+          </p>
+
+          <p className="text-xs text-emerald-700 mt-2">
+            días
+          </p>
+        </div>
+
+        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5">
+          <p className="text-sm font-semibold text-gray-700">
+            Cierre RRLL → Nómina
+          </p>
+
+          <p className="text-4xl font-black text-gray-900 mt-3">
+            {retiroIndicador?.diasCierreRRLLNomina ?? 0}
+          </p>
+
+          <p className="text-xs text-gray-700 mt-2">
+            días
+          </p>
+        </div>
+
+      </div>
+
+      {retiroIndicador && (
+        <div className="mt-5 p-4 rounded-xl bg-gray-50 border">
+          <p className="font-bold text-gray-800">
+            {retiroIndicador.nombre}
+          </p>
+
+          <p className="text-sm text-gray-500">
+            {retiroIndicador.identificacion}
+          </p>
+        </div>
+      )}
+    </div>
 
       <div className="bg-white rounded-2xl shadow-md border p-6">
         <label className="text-sm font-semibold text-gray-700">Buscar trabajador</label>
@@ -781,49 +959,57 @@ const descargarCartaCesantias = (retiro) => {
 
                 <td className="p-4">
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getEstadoBadge(r.estado)}`}>
-                  {r.estadoTexto}
+                  {grupoEstadoRetiro(r) === 'nomina'
+                    ? 'Cerrado'
+                    : grupoEstadoRetiro(r) === 'retirados'
+                      ? 'Retirado'
+                      : 'Abierto'}
                 </span>
               </td>
 
-       <td className="p-4">
-          <div className="flex items-center justify-center gap-1.5">
-            <button
-              type="button"
-              title="Enviar certificado laboral"
-              className="w-8 h-8 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center justify-center text-sm"
-            >
-              ✉️
-            </button>
+            <td className="p-4">
+            <div className="flex flex-row items-center justify-center gap-1.5 whitespace-nowrap">
+              <button
+                type="button"
+                title="Enviar certificado laboral"
+                onClick={() => enviarCertificadoLaboral(r)}
+                disabled={procesando}
+                className="w-8 h-8 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center justify-center text-sm disabled:opacity-50"
+              >
+                ✉️
+              </button>
 
-            <button
-              type="button"
-              title="Descargar certificado laboral"
-              onClick={() => descargarCertificadoLaboral(r)}
-              className="w-8 h-8 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center justify-center text-sm"
-            >
-              ⬇️
-            </button>
+              <button
+                type="button"
+                title="Descargar certificado laboral"
+                onClick={() => descargarCertificadoLaboral(r)}
+                className="w-8 h-8 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center justify-center text-sm"
+              >
+                ⬇️
+              </button>
 
-            <span className="w-px h-6 bg-gray-300 mx-1" />
+              <span className="w-px h-6 bg-gray-300 mx-1" />
 
-            <button
-              type="button"
-              title="Enviar carta de cesantías"
-              className="w-8 h-8 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center justify-center text-sm"
-            >
-              💰
-            </button>
+              <button
+                type="button"
+                title="Enviar carta de cesantías"
+                onClick={() => enviarCartaCesantias(r)}
+                disabled={procesando}
+                className="w-8 h-8 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center justify-center text-sm disabled:opacity-50"
+              >
+                💰
+              </button>
 
-            <button
-              type="button"
-              title="Descargar carta de cesantías"
-              onClick={() => descargarCartaCesantias(r)}
-              className="w-8 h-8 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center justify-center text-sm"
-            >
-              ⬇️
-            </button>
-          </div>
-        </td>
+              <button
+                type="button"
+                title="Descargar carta de cesantías"
+                onClick={() => descargarCartaCesantias(r)}
+                className="w-8 h-8 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center justify-center text-sm"
+              >
+                ⬇️
+              </button>
+            </div>
+          </td>
 
               <td className="p-4 whitespace-nowrap">
                 {r.fechaPagoLiquidacion
@@ -919,7 +1105,11 @@ const descargarCartaCesantias = (retiro) => {
                     <div>
                       <p className="text-gray-500 font-semibold">Estado</p>
                       <span className={`inline-flex mt-1 px-3 py-1 rounded-full text-xs font-semibold ${getEstadoBadge(retiroSeleccionado.estado)}`}>
-                        {retiroSeleccionado.estadoTexto}
+                        {grupoEstadoRetiro(retiroSeleccionado) === 'nomina'
+                          ? 'Cerrado'
+                          : grupoEstadoRetiro(retiroSeleccionado) === 'retirados'
+                            ? 'Retirado'
+                            : 'Abierto'}
                       </span>
                     </div>
 
