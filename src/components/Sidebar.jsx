@@ -27,13 +27,13 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   {
     label: 'Talento Humano',
     icon: Users,
-    roles: ['Administrador', 'Super Administrador', 'Aspirante', 'Selección', 'Contratación', 'Relaciones Laborales', 'Talento Humano', 'Operaciones', 'Bienestar'],
+    roles: ['Administrador', 'Super Administrador', 'Aspirante', 'Selección', 'Contratación', 'Relaciones Laborales', 'Talento Humano', 'Operaciones', 'Bienestar', 'HSE'],
     children: [
       { to: '/aspirantes', label: 'Registro Aspirante', roles: ['Administrador', 'Aspirante'] },
       { to: '/seleccion', label: 'Selección', roles: ['Administrador', 'Selección'] },
       { to: '/indicadores-seleccion', label: 'Indicadores', roles: ['Administrador', 'Selección'] },
       { to: '/contratacion', label: 'Contratación', roles: ['Administrador', 'Contratación'] },
-      { to: '/archivos', label: user?.role === 'Bienestar' ? 'Bienestar' : 'Carpeta Digital', roles: ['Administrador', 'Super Administrador', 'Contratación', 'Operaciones', 'Bienestar'] },
+      { to: '/archivos', label: user?.role === 'Bienestar' ? 'Bienestar' : user?.role === 'HSE' ? 'HSE' : 'Carpeta Digital', roles: ['Administrador', 'Super Administrador', 'Contratación', 'Operaciones', 'Bienestar', 'HSE'] },
       { to: '/indicadores-contratacion', label: 'Indicadores', roles: ['Administrador', 'Contratación'] },
       { to: '/relaciones-laborales', label: 'Relaciones Laborales', roles: ['Administrador', 'Relaciones Laborales', 'Talento Humano'] },
 { to: '/indicadores-rrll', label: 'Indicadores', roles: ['Administrador', 'Relaciones Laborales', 'Talento Humano'] },

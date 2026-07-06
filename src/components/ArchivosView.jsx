@@ -122,6 +122,7 @@ const ArchivosView = () => {
   const { user } = useAuth();
   const isOperaciones = user?.role === 'Operaciones';
   const isBienestar = user?.role === 'Bienestar';
+  const isHSE = user?.role === 'HSE';
 
   const [filteredAspirantes, setFilteredAspirantes] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -362,15 +363,21 @@ const ArchivosView = () => {
             </div>
 
             <div>
-             <h1 className="text-2xl font-bold text-gray-800">
-              {isBienestar ? 'Gestión de Bienestar' : 'Gestión de Archivos'}
-            </h1>
+            <h1 className="text-2xl font-bold text-gray-800">
+                {isBienestar
+                  ? 'Gestión de Bienestar'
+                  : isHSE
+                    ? 'Gestión HSE'
+                    : 'Gestión de Archivos'}
+              </h1>
 
-            <p className="text-sm text-gray-500">
-              {isBienestar
-                ? 'Carga y administra documentos de bienestar de los colaboradores.'
-                : 'Repositorio digital de expedientes de colaboradores.'}
-            </p>
+              <p className="text-sm text-gray-500">
+                {isBienestar
+                  ? 'Carga y administra documentos de bienestar de los colaboradores.'
+                  : isHSE
+                    ? 'Carga y administra documentos HSE de los colaboradores.'
+                    : 'Repositorio digital de expedientes de colaboradores.'}
+              </p>
             </div>
           </div>
 
@@ -503,6 +510,19 @@ const ArchivosView = () => {
             <FolderOpen className="w-6 h-6" />
             <span className="text-[11px] font-semibold text-gray-600">
               Bienestar
+            </span>
+          </button>
+
+          ) : isHSE ? (
+          <button
+            type="button"
+            title="Documentos HSE"
+            onClick={() => openDocumentosTrabajador(aspirante, 'hse')}
+            className="flex flex-col items-center gap-1 text-emerald-600 hover:scale-105 transition-transform"
+          >
+            <FolderOpen className="w-6 h-6" />
+            <span className="text-[11px] font-semibold text-gray-600">
+              HSE
             </span>
           </button>
         ) : (

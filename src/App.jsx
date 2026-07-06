@@ -44,6 +44,7 @@ const RoleBasedRedirect = () => {
 
     case 'Operaciones':
     case 'Bienestar':
+    case 'HSE':
       return <Navigate to="/archivos" replace />;
 
     default:

@@ -43,6 +43,7 @@ const DocumentUploadModal = ({
   const esCarpetaRetiro = tipoCarpeta === 'retiro';
   const esCarpetaOperaciones = tipoCarpeta === 'operaciones';
   const esCarpetaBienestar = tipoCarpeta === 'bienestar';
+  const esCarpetaHSE = tipoCarpeta === 'hse';
 
 const tituloModal = esCarpetaActivos
   ? 'Documentos Activos'
@@ -50,8 +51,10 @@ const tituloModal = esCarpetaActivos
     ? 'Documentos de Retiro'
     : esCarpetaOperaciones
       ? 'Documentos Operaciones'
-      : esCarpetaBienestar
-        ? 'Documentos Bienestar'
+     : esCarpetaBienestar
+      ? 'Documentos Bienestar'
+      : esCarpetaHSE
+        ? 'Documentos HSE'
         : 'Documentos del Aspirante';
 
   const descripcionVacia = esCarpetaActivos
@@ -94,7 +97,7 @@ const tituloModal = esCarpetaActivos
       return;
     }
 
-  if (esCarpetaActivos || esCarpetaBienestar) {
+  if (esCarpetaActivos || esCarpetaBienestar || esCarpetaHSE) {
   setLoading(true);
   setTab('ingreso');
 
@@ -113,7 +116,7 @@ const tituloModal = esCarpetaActivos
   return;
 }
 
-   if (!esCarpetaIngreso && !esCarpetaOperaciones && !esCarpetaBienestar) {
+   if (!esCarpetaIngreso && !esCarpetaOperaciones && !esCarpetaBienestar && !esCarpetaHSE) {
       setDocumentos([]);
       setTab('ingreso');
       return;
@@ -162,7 +165,7 @@ const tituloModal = esCarpetaActivos
         setDocumentos(docs);
       })
       .finally(() => setLoading(false));
- }, [aspirante, esCarpetaIngreso, esCarpetaActivos, esCarpetaRetiro, esCarpetaOperaciones, esCarpetaBienestar, API_BASE]);
+}, [aspirante, esCarpetaIngreso, esCarpetaActivos, esCarpetaRetiro, esCarpetaOperaciones, esCarpetaBienestar, esCarpetaHSE, API_BASE]);
 
   if (!aspirante) return null;
 
@@ -788,7 +791,7 @@ const eliminarDocumentoActivoFront = async (idDocumento) => {
               </div>
 
               <div className="space-y-3">
-              {String(grupo.IdTipoDocumentacion) !== '91' && (
+              {!['91', '90'].includes(String(grupo.IdTipoDocumentacion)) && (
                   <div className="relative">
                     <input
                       type="file"
@@ -835,7 +838,7 @@ const eliminarDocumentoActivoFront = async (idDocumento) => {
                           <Download className="w-4 h-4" />
                         </button>
 
-                      {String(grupo.IdTipoDocumentacion) !== '91' && (
+                      {!['91', '90'].includes(String(grupo.IdTipoDocumentacion)) && (
                           <button
                             type="button"
                             title="Eliminar"
@@ -949,6 +952,92 @@ const renderCarpetaBienestar = () => {
   );
 };
 
+const renderCarpetaHSE = () => {
+  const grupoHSE = Array.isArray(documentos)
+    ? documentos.find((grupo) => String(grupo.IdTipoDocumentacion) === '90')
+    : null;
+
+  const docsGrupo = Array.isArray(grupoHSE?.documentos)
+    ? grupoHSE.documentos
+    : [];
+
+  const hasFile = docsGrupo.length > 0;
+
+  return (
+    <div className="py-4">
+      {loading ? (
+        <div className="py-14 text-center text-gray-500">
+          Cargando documentos HSE...
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 max-h-[55vh] overflow-y-auto pr-2">
+          <div className="border-2 border-emerald-200 rounded-2xl p-6 bg-white/90 shadow-lg flex flex-col justify-between h-full w-full hover:shadow-2xl transition-shadow duration-200">
+            <div>
+              <h4 className="font-bold text-emerald-900 mb-3 text-base leading-tight tracking-wide">
+                HSE
+              </h4>
+
+              <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-4 border shadow-sm ${hasFile ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-red-100 text-red-700 border-red-300'}`}>
+                {hasFile ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                {hasFile ? `${docsGrupo.length} documento(s)` : 'Sin archivos'}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="relative">
+                <input
+                  type="file"
+                  id={`file-hse-90-${aspirante.id}`}
+                  className="hidden"
+                  onChange={(e) => handleFileUploadActivo(e, 90)}
+                  accept=".pdf,image/*,.doc,.docx"
+                />
+
+                <label
+                  htmlFor={`file-hse-90-${aspirante.id}`}
+                  className="cursor-pointer flex items-center justify-center w-full px-3 py-2 border-2 border-emerald-300 shadow-sm text-sm font-semibold rounded-xl text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                >
+                  <Upload className="w-4 h-4 mr-2" /> Adjuntar documento
+                </label>
+              </div>
+
+              {hasFile ? (
+                <div className="space-y-2">
+                  {docsGrupo.map((doc) => (
+                    <div
+                      key={doc.IdDocumento}
+                      className="flex items-center gap-2 border border-gray-200 bg-gray-50 rounded-lg px-3 py-2"
+                    >
+                      <span className="flex-1 text-sm font-semibold text-gray-700 truncate">
+                        {doc.Nombre || 'Documento HSE'}
+                      </span>
+
+                      <button type="button" title="Ver" className="text-blue-700 hover:text-blue-900" onClick={() => verDocumentoActivo(doc)}>
+                        <Eye className="w-4 h-4" />
+                      </button>
+
+                      <button type="button" title="Descargar" className="text-emerald-700 hover:text-emerald-900" onClick={() => descargarDocumentoActivo(doc)}>
+                        <Download className="w-4 h-4" />
+                      </button>
+
+                      <button type="button" title="Eliminar" className="text-red-700 hover:text-red-900" onClick={() => eliminarDocumentoActivoFront(doc.IdDocumento)}>
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500 italic">
+                  Sin documentos adjuntos
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
   const renderCarpetaRetiro = () => (
     <div className="py-4">
@@ -1097,6 +1186,7 @@ const renderCarpetaBienestar = () => {
           <div className="px-8 pb-2 pt-2">
             {esCarpetaActivos && renderCarpetaActivos()}
             {esCarpetaBienestar && renderCarpetaBienestar()}
+            {esCarpetaHSE && renderCarpetaHSE()}
 
             {esCarpetaRetiro && renderCarpetaRetiro()}
 
