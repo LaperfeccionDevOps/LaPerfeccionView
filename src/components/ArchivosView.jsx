@@ -79,6 +79,7 @@ const documentosOperaciones = [
   { id: 65, label: 'Carnet de la empresa' },
   { id: 30, label: 'Certificado EPS' },
   { id: 26, label: 'Certificado ARL' },
+  { id: 36, label: 'Entrega de dotación' },
   { id: 41, label: 'Vacunación COVID' },
   { id: 35, label: 'Vacunación tétano Hepatitis' },
   { id: 6, label: 'Consulta Antecedentes Policía' },
@@ -120,6 +121,8 @@ const ArchivosView = () => {
 
   const { user } = useAuth();
   const isOperaciones = user?.role === 'Operaciones';
+  const isBienestar = user?.role === 'Bienestar';
+  const isHSE = user?.role === 'HSE';
 
   const [filteredAspirantes, setFilteredAspirantes] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -360,9 +363,20 @@ const ArchivosView = () => {
             </div>
 
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">Gestión de Archivos</h1>
+            <h1 className="text-2xl font-bold text-gray-800">
+                {isBienestar
+                  ? 'Gestión de Bienestar'
+                  : isHSE
+                    ? 'Gestión HSE'
+                    : 'Gestión de Archivos'}
+              </h1>
+
               <p className="text-sm text-gray-500">
-                Repositorio digital de expedientes de colaboradores.
+                {isBienestar
+                  ? 'Carga y administra documentos de bienestar de los colaboradores.'
+                  : isHSE
+                    ? 'Carga y administra documentos HSE de los colaboradores.'
+                    : 'Repositorio digital de expedientes de colaboradores.'}
               </p>
             </div>
           </div>
@@ -473,20 +487,45 @@ const ArchivosView = () => {
                         </td>
 
                        <td className="p-4 text-center">
-  <div className="flex gap-5 justify-center items-center">
-    {isOperaciones ? (
-      <button
-        type="button"
-        title="Documentos Operaciones"
-        onClick={() => openDocumentosTrabajador(aspirante, 'operaciones')}
-        className="flex flex-col items-center gap-1 text-emerald-600 hover:scale-105 transition-transform"
-      >
-        <FolderOpen className="w-6 h-6" />
-        <span className="text-[11px] font-semibold text-gray-600">
-          Operaciones
-        </span>
-      </button>
-    ) : (
+        <div className="flex gap-5 justify-center items-center">
+         {isOperaciones ? (
+          <button
+            type="button"
+            title="Documentos Operaciones"
+            onClick={() => openDocumentosTrabajador(aspirante, 'operaciones')}
+            className="flex flex-col items-center gap-1 text-emerald-600 hover:scale-105 transition-transform"
+          >
+            <FolderOpen className="w-6 h-6" />
+            <span className="text-[11px] font-semibold text-gray-600">
+              Operaciones
+            </span>
+          </button>
+        ) : isBienestar ? (
+          <button
+            type="button"
+            title="Documentos Bienestar"
+            onClick={() => openDocumentosTrabajador(aspirante, 'bienestar')}
+            className="flex flex-col items-center gap-1 text-emerald-600 hover:scale-105 transition-transform"
+          >
+            <FolderOpen className="w-6 h-6" />
+            <span className="text-[11px] font-semibold text-gray-600">
+              Bienestar
+            </span>
+          </button>
+
+          ) : isHSE ? (
+          <button
+            type="button"
+            title="Documentos HSE"
+            onClick={() => openDocumentosTrabajador(aspirante, 'hse')}
+            className="flex flex-col items-center gap-1 text-emerald-600 hover:scale-105 transition-transform"
+          >
+            <FolderOpen className="w-6 h-6" />
+            <span className="text-[11px] font-semibold text-gray-600">
+              HSE
+            </span>
+          </button>
+        ) : (
       <>
         <button
           type="button"
@@ -600,7 +639,7 @@ const ArchivosView = () => {
         docTypeConfigSeguridad={modalConfigs.seguridad}
         docTypeConfigContratacion={modalConfigs.contratacion}
         tipoCarpeta={modalState.carpeta}
-        soloLectura={modalState.carpeta !== 'retiro'}
+        soloLectura={modalState.carpeta === 'operaciones'}
       />
     </motion.div>
   );
