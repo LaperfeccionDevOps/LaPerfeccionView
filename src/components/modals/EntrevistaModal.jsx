@@ -942,14 +942,16 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
                     value={formData.entrevistadoPor}
                     onValueChange={(v) => handleChange('entrevistadoPor', v)}
                   >
-                    <SelectTrigger><SelectValue placeholder="Seleccionar entrevistador" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Usuario Actual">Usuario Actual</SelectItem>
-                      <SelectItem value="YURLEIVIS CORREA">YURLEIVIS CORREA</SelectItem>
-                      <SelectItem value="LIZETH DELGADO">LIZETH DELGADO</SelectItem>
-                      <SelectItem value="YENNY CUESTO">YENNY CUESTO</SelectItem>
-                       <SelectItem value="YENNY CUESTO">NATALIA GUTIERREZ</SelectItem>
-                    </SelectContent>
+                   <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar entrevistador" />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    <SelectItem value="Usuario Actual">Usuario Actual</SelectItem>
+                    <SelectItem value="YURLEIVIS CORREA">YURLEIVIS CORREA</SelectItem>
+                    <SelectItem value="YENNY CUESTO">YENNY CUESTO</SelectItem>
+                    <SelectItem value="NATALIA GUTIERREZ">NATALIA GUTIERREZ</SelectItem>
+                  </SelectContent>
                   </Select>
                 </div>
 
