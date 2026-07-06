@@ -948,6 +948,7 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
                       <SelectItem value="YURLEIVIS CORREA">YURLEIVIS CORREA</SelectItem>
                       <SelectItem value="LIZETH DELGADO">LIZETH DELGADO</SelectItem>
                       <SelectItem value="YENNY CUESTO">YENNY CUESTO</SelectItem>
+                      <SelectItem value="YENNY CUESTO">NATALIA GUTIERREZ</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
