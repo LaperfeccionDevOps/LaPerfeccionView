@@ -18,6 +18,8 @@ import EntrevistaRetiroPage from '@/pages/EntrevistaRetiroPage';
 import IndicadoresContratacionView from './components/IndicadoresContratacionView';
 import IndicadoresSeleccionView from './components/IndicadoresSeleccionView';
 import IndicadoresRRLLView from './components/IndicadoresRRLLView';
+import NominaRetirosView from '@/components/NominaRetirosView';
+import IndicadoresNominaView from '@/components/IndicadoresNominaView';
 
 const RoleBasedRedirect = () => {
   const { user } = useAuth();
@@ -46,6 +48,10 @@ const RoleBasedRedirect = () => {
     case 'Bienestar':
     case 'HSE':
       return <Navigate to="/archivos" replace />;
+
+    case 'Nómina':
+    case 'Nomina':
+      return <Navigate to="/nomina-retiros" replace />;
 
     default:
       return <Navigate to="/seleccion" replace />;
@@ -78,7 +84,9 @@ function App() {
           <Route path="archivos" element={<ArchivosView />} />
           <Route path="indicadores-contratacion" element={<IndicadoresContratacionView />} />
           <Route path="relaciones-laborales" element={<RelacionesLaboralesView />} />
+          <Route path="nomina-retiros" element={<NominaRetirosView />} />
           <Route path="indicadores-rrll" element={<IndicadoresRRLLView />} />
+          <Route path="indicadores-nomina" element={<IndicadoresNominaView />} />
 
           <Route path="admin/crear-usuario" element={<CreateUserForm />} />
           <Route path="admin/actualizar-usuario" element={<UpdateUserView />} />

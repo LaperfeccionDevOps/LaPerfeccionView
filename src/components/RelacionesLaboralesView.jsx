@@ -832,7 +832,7 @@ const [mensajeEntrevista, setMensajeEntrevista] = useState({
   const [estadoProceso, setEstadoProceso] = useState("ABIERTO"); // ABIERTO | CERRADO
   
   const [ownerProceso, setOwnerProceso] = useState("RRLL"); // RRLL | NOMINA
-  const [estadoSeleccionado, setEstadoSeleccionado] = useState("ABIERTO");
+  const [estadoSeleccionado, setEstadoSeleccionado] = useState("ENVIADO_NOMINA");
 
   // ✅ Tipificación retiro (pendiente lista)
   const [tipificacionRetiro, setTipificacionRetiro] = useState("");
@@ -1082,20 +1082,19 @@ const getMotivoValueById = (idMotivo) => {
         ""
     ).toUpperCase();
 
-    if (
-      estadoRecuperadoBusqueda === "CERRADO" ||
-      estadoRecuperadoBusqueda === "ABIERTO"
-    ) {
-      setEstadoProceso(estadoRecuperadoBusqueda);
-      setEstadoSeleccionado(estadoRecuperadoBusqueda);
-      setOwnerProceso(
-        estadoRecuperadoBusqueda === "CERRADO" ? "NOMINA" : "RRLL"
-      );
-    } else {
-      setEstadoProceso("ABIERTO");
-      setEstadoSeleccionado("ABIERTO");
-      setOwnerProceso("RRLL");
-    }
+  if (estadoRecuperadoBusqueda === "ENVIADO_NOMINA") {
+  setEstadoProceso("ENVIADO_NOMINA");
+  setEstadoSeleccionado("CERRADO");
+  setOwnerProceso("NOMINA");
+} else if (estadoRecuperadoBusqueda === "CERRADO") {
+  setEstadoProceso("CERRADO");
+  setEstadoSeleccionado("CERRADO");
+  setOwnerProceso("NOMINA");
+} else {
+  setEstadoProceso("ABIERTO");
+  setEstadoSeleccionado("ABIERTO");
+  setOwnerProceso("RRLL");
+}
 
     const fechaFinalFromBackend =
       toDateInput(retiroObj?.FechaRetiro) ||
@@ -1735,7 +1734,10 @@ const cargarAdjuntosDesdeBackend = async (idRetiroLaboral) => {
   }
 };
 
-const retiroBloqueado = estadoProceso === "CERRADO";
+const retiroBloqueado =
+  estadoProceso === "ENVIADO_NOMINA" ||
+  estadoProceso === "CERRADO" ||
+  ownerProceso === "NOMINA";
 
 const motivoActualEsPersistido =
   !form.idRetiroLaboral ||
@@ -2194,17 +2196,17 @@ const handleActualizarEstadoProceso = async () => {
 
     setLoadingActualizar(true);
 
-    const estadoCasoRRLL = estadoSeleccionado;
-    const idEstadoProceso = estadoSeleccionado === "CERRADO" ? 31 : 30;
+    const esEnvioNomina = estadoSeleccionado === "CERRADO";
+
+    const estadoCasoRRLL = esEnvioNomina ? "ENVIADO_NOMINA" : "ABIERTO";
+    const idEstadoProceso = esEnvioNomina ? 32 : 30;
+    const fechaActual = new Date().toISOString();
 
     const payload = {
       EstadoCasoRRLL: estadoCasoRRLL,
       IdEstadoProceso: idEstadoProceso,
-      FechaCierre:
-        estadoSeleccionado === "CERRADO"
-          ? new Date().toISOString()
-          : null,
-      FechaEnvioNomina: null,
+      FechaCierre: esEnvioNomina ? fechaActual : null,
+      FechaEnvioNomina: esEnvioNomina ? fechaActual : null,
       UsuarioActualizacion: "RRLL",
     };
 
@@ -2229,7 +2231,7 @@ const handleActualizarEstadoProceso = async () => {
 
     if (data?.success) {
       setEstadoProceso(estadoCasoRRLL);
-      setOwnerProceso(estadoCasoRRLL === "CERRADO" ? "NOMINA" : "RRLL");
+      setOwnerProceso(estadoCasoRRLL === "ENVIADO_NOMINA" ? "NOMINA" : "RRLL");
       setMsgActualizar("✅ Estado del proceso actualizado correctamente.");
     } else {
       setMsgActualizar("No fue posible actualizar el estado del proceso.");
@@ -3517,8 +3519,7 @@ if (step === "retiros_docs") {
                   </SelectTrigger>
 
                   <SelectContent className="max-h-60 overflow-y-auto">
-                    <SelectItem value="ABIERTO">ABIERTO</SelectItem>
-                    <SelectItem value="CERRADO">CERRADO</SelectItem>
+                   <SelectItem value="CERRADO">ENVIAR A NÓMINA</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
