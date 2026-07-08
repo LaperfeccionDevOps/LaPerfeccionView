@@ -85,6 +85,7 @@ function App() {
           <Route path="nomina-retiros" element={<NominaRetirosView />} />
           <Route path="indicadores-rrll" element={<IndicadoresRRLLView />} />
           <Route path="indicadores-nomina" element={<IndicadoresNominaView />} />
+          <Route path="nomina-carpeta-digital" element={<ArchivosView />} />
 
           <Route path="admin/crear-usuario" element={<CreateUserForm />} />
           <Route path="admin/actualizar-usuario" element={<UpdateUserView />} />

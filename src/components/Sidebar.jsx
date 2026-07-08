@@ -46,6 +46,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   children: [
     { to: '/nomina-retiros', label: 'Retiros', roles: ['Administrador', 'Super Administrador', 'Nómina', 'Nomina'] },
     { to: '/indicadores-nomina', label: 'Indicadores', roles: ['Administrador', 'Super Administrador', 'Nómina', 'Nomina'] },
+    { to: '/nomina-carpeta-digital', label: 'Carpeta Digital', roles: ['Administrador', 'Super Administrador', 'Nómina', 'Nomina'] },
   ],
 },
 ];
