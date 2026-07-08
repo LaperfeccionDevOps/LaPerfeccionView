@@ -3,6 +3,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import ProcesosDisciplinariosView from "@/pages/ProcesosDisciplinariosView";
 import {
   Select,
   SelectContent,
@@ -2242,6 +2243,14 @@ const handleActualizarEstadoProceso = async () => {
   }
 };
 
+if (step === "procesos_disciplinarios") {
+  return (
+    <ProcesosDisciplinariosView
+      onBack={() => setStep("inicio")}
+    />
+  );
+}
+
   // --------------------------
   // VISTA INICIAL
   // --------------------------
@@ -2273,9 +2282,7 @@ const handleActualizarEstadoProceso = async () => {
             </button>
 
             <button
-              onClick={() =>
-                alert("Pendiente: Procesos disciplinarios (lo hacemos después)")
-              }
+              onClick={() => setStep("procesos_disciplinarios")}
               className="text-left bg-white rounded-xl border border-gray-200 p-4 hover:border-gray-300 hover:shadow-sm transition"
             >
               <p className="font-bold text-gray-800">Procesos disciplinarios</p>
