@@ -2,17 +2,68 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import CierreProcesoDisciplinarioView from "@/pages/CierreProcesoDisciplinarioView";
+import { crearDescargoProcesoDisciplinario } from "@/services/descargoProcesoDisciplinarioService";
 
-export default function DescargosProcesoDisciplinarioView({ onBack }) {
-      const [vista, setVista] = useState("descargos");
+export default function DescargosProcesoDisciplinarioView({
+  onBack,
+  proceso,
+  trabajador,
+}) {
+  const [vista, setVista] = useState("descargos");
+  const [fechaDescargo, setFechaDescargo] = useState("");
+  const [horaDescargo, setHoraDescargo] = useState("");
+  const [descargoTrabajador, setDescargoTrabajador] = useState("");
+  const [manifestacionSupervisor, setManifestacionSupervisor] = useState("");
+  const [observaciones, setObservaciones] = useState("");
+  const [responsableDescargo, setResponsableDescargo] = useState("");
+  const [loadingGuardar, setLoadingGuardar] = useState(false);
+  const [mensaje, setMensaje] = useState("");
+
+  const handleContinuar = async () => {
+    try {
+      setLoadingGuardar(true);
+      setMensaje("");
+
+      if (!proceso?.IdProcesoDisciplinario) {
+        setMensaje("No existe un proceso disciplinario asociado.");
+        return;
+      }
+
+      if (!descargoTrabajador) {
+        setMensaje("Debe registrar la manifestación del trabajador para continuar.");
+        return;
+      }
+
+      const payload = {
+        IdProcesoDisciplinario: proceso.IdProcesoDisciplinario,
+        FechaDescargo: fechaDescargo || null,
+        HoraDescargo: horaDescargo || null,
+        DescargoTrabajador: descargoTrabajador,
+        Observaciones: `Manifestación del supervisor:\n${manifestacionSupervisor}\n\nObservaciones de Relaciones Laborales:\n${observaciones}`,
+        ResponsableDescargo: responsableDescargo || "rrll",
+      };
+
+      await crearDescargoProcesoDisciplinario(payload);
+
+      setVista("cierre");
+    } catch (error) {
+      console.error(error);
+      setMensaje("No se pudo guardar el descargo del proceso disciplinario.");
+    } finally {
+      setLoadingGuardar(false);
+    }
+  };
 
   if (vista === "cierre") {
     return (
       <CierreProcesoDisciplinarioView
         onBack={() => setVista("descargos")}
+        proceso={proceso}
+        trabajador={trabajador}
       />
     );
   }
+
   return (
     <div className="p-6">
       <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
@@ -69,18 +120,52 @@ export default function DescargosProcesoDisciplinarioView({ onBack }) {
             Información del trabajador
           </h3>
 
-          <div className="rounded-xl border-2 border-dashed border-emerald-300 bg-white p-10 text-center">
-            <div className="text-4xl mb-4">👤</div>
+          {trabajador ? (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 rounded-xl bg-white p-5 border border-emerald-200">
+              <div>
+                <p className="text-xs text-gray-500">Nombre</p>
+                <p className="font-semibold text-gray-800">
+                  {trabajador.NombreCompleto || "—"}
+                </p>
+              </div>
 
-            <h4 className="text-xl font-bold text-gray-800">
-              Información pendiente de cargar
-            </h4>
+              <div>
+                <p className="text-xs text-gray-500">Documento</p>
+                <p className="font-semibold text-gray-800">
+                  {trabajador.TipoDocumento} {trabajador.NumeroDocumento}
+                </p>
+              </div>
 
-            <p className="text-gray-500 mt-2">
-              Los datos del trabajador serán cargados automáticamente desde el
-              expediente disciplinario.
-            </p>
-          </div>
+              <div>
+                <p className="text-xs text-gray-500">Cargo</p>
+                <p className="font-semibold text-gray-800">
+                  {trabajador.Cargo || "—"}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-500">Proceso</p>
+                <p className="font-semibold text-gray-800">
+                  {proceso?.IdProcesoDisciplinario
+                    ? `#${proceso.IdProcesoDisciplinario}`
+                    : "—"}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border-2 border-dashed border-emerald-300 bg-white p-10 text-center">
+              <div className="text-4xl mb-4">👤</div>
+
+              <h4 className="text-xl font-bold text-gray-800">
+                Información pendiente de cargar
+              </h4>
+
+              <p className="text-gray-500 mt-2">
+                Los datos del trabajador serán cargados automáticamente desde el
+                expediente disciplinario.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
@@ -101,7 +186,7 @@ export default function DescargosProcesoDisciplinarioView({ onBack }) {
                 key={item}
                 className="flex items-center gap-3 rounded-lg border p-4 bg-gray-50"
               >
-                <input type="checkbox" disabled />
+                <input type="checkbox" />
                 <span className="font-medium text-gray-700">{item}</span>
               </label>
             ))}
@@ -116,13 +201,50 @@ export default function DescargosProcesoDisciplinarioView({ onBack }) {
           <div className="space-y-5">
             <div>
               <label className="text-sm font-medium">
+                Fecha de descargos
+              </label>
+
+              <Input
+                type="date"
+                value={fechaDescargo}
+                onChange={(e) => setFechaDescargo(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">
+                Hora de descargos
+              </label>
+
+              <Input
+                type="time"
+                value={horaDescargo}
+                onChange={(e) => setHoraDescargo(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">
+                Responsable de descargos
+              </label>
+
+              <Input
+                value={responsableDescargo}
+                onChange={(e) => setResponsableDescargo(e.target.value)}
+                placeholder="Nombre del responsable de RRLL"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">
                 Manifestación del trabajador
               </label>
 
               <textarea
-                className="w-full border rounded-lg p-3 min-h-[140px] bg-gray-100 resize-none"
-                disabled
+                className="w-full border rounded-lg p-3 min-h-[140px] resize-none"
                 placeholder="Aquí se registrará lo manifestado por el trabajador durante la diligencia..."
+                value={descargoTrabajador}
+                onChange={(e) => setDescargoTrabajador(e.target.value)}
               />
             </div>
 
@@ -132,9 +254,10 @@ export default function DescargosProcesoDisciplinarioView({ onBack }) {
               </label>
 
               <textarea
-                className="w-full border rounded-lg p-3 min-h-[120px] bg-gray-100 resize-none"
-                disabled
+                className="w-full border rounded-lg p-3 min-h-[120px] resize-none"
                 placeholder="Aquí se registrará la intervención del supervisor o responsable que reporta..."
+                value={manifestacionSupervisor}
+                onChange={(e) => setManifestacionSupervisor(e.target.value)}
               />
             </div>
 
@@ -144,9 +267,10 @@ export default function DescargosProcesoDisciplinarioView({ onBack }) {
               </label>
 
               <textarea
-                className="w-full border rounded-lg p-3 min-h-[120px] bg-gray-100 resize-none"
-                disabled
+                className="w-full border rounded-lg p-3 min-h-[120px] resize-none"
                 placeholder="Observaciones internas de RRLL..."
+                value={observaciones}
+                onChange={(e) => setObservaciones(e.target.value)}
               />
             </div>
           </div>
@@ -204,6 +328,12 @@ export default function DescargosProcesoDisciplinarioView({ onBack }) {
             diligencia finalice, el sistema permitirá generar el documento para
             firma y archivo.
           </p>
+
+          {mensaje && (
+            <p className="text-sm font-semibold text-red-600 mt-3">
+              {mensaje}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col md:flex-row justify-between gap-3">
@@ -218,9 +348,10 @@ export default function DescargosProcesoDisciplinarioView({ onBack }) {
 
            <Button
             className="bg-emerald-700 hover:bg-emerald-800"
-            onClick={() => setVista("cierre")}
+            onClick={handleContinuar}
+            disabled={loadingGuardar}
             >
-            Continuar →
+            {loadingGuardar ? "Guardando..." : "Continuar →"}
             </Button>
           </div>
         </div>

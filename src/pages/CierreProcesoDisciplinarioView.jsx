@@ -1,8 +1,58 @@
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { crearCierreProcesoDisciplinario } from "@/services/cierreProcesoDisciplinarioService";
 
-export default function CierreProcesoDisciplinarioView({ onBack }) {
+export default function CierreProcesoDisciplinarioView({
+  onBack,
+  proceso,
+  trabajador,
+}) {
+  const [fechaCierre, setFechaCierre] = useState("");
+  const [tipoCierre, setTipoCierre] = useState("");
+  const [medidaDisciplinaria, setMedidaDisciplinaria] = useState("");
+  const [conclusionRRLL, setConclusionRRLL] = useState("");
+  const [responsableCierre, setResponsableCierre] = useState("");
+  const [loadingGuardar, setLoadingGuardar] = useState(false);
+  const [mensaje, setMensaje] = useState("");
+  const [finalizado, setFinalizado] = useState(false);
+
+  const handleFinalizar = async () => {
+    try {
+      setLoadingGuardar(true);
+      setMensaje("");
+
+      if (!proceso?.IdProcesoDisciplinario) {
+        setMensaje("No existe un proceso disciplinario asociado.");
+        return;
+      }
+
+      if (!tipoCierre || !medidaDisciplinaria || !conclusionRRLL) {
+        setMensaje("Complete tipo de cierre, medida disciplinaria y conclusión para finalizar.");
+        return;
+      }
+
+      const payload = {
+        IdProcesoDisciplinario: proceso.IdProcesoDisciplinario,
+        FechaCierre: fechaCierre || null,
+        TipoCierre: tipoCierre,
+        MedidaDisciplinaria: medidaDisciplinaria,
+        ConclusionRRLL: conclusionRRLL,
+        ResponsableCierre: responsableCierre || "rrll",
+      };
+
+      await crearCierreProcesoDisciplinario(payload);
+
+      setFinalizado(true);
+      setMensaje("Proceso disciplinario cerrado correctamente.");
+    } catch (error) {
+      console.error(error);
+      setMensaje("No se pudo cerrar el proceso disciplinario.");
+    } finally {
+      setLoadingGuardar(false);
+    }
+  };
+
   return (
     <div className="p-6">
       <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
@@ -52,18 +102,52 @@ export default function CierreProcesoDisciplinarioView({ onBack }) {
             Resumen del expediente
           </h3>
 
-          <div className="rounded-xl border-2 border-dashed border-emerald-300 bg-white p-10 text-center">
-            <div className="text-4xl mb-4">📁</div>
+          {trabajador ? (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 rounded-xl bg-white p-5 border border-emerald-200">
+              <div>
+                <p className="text-xs text-gray-500">Nombre</p>
+                <p className="font-semibold text-gray-800">
+                  {trabajador.NombreCompleto || "—"}
+                </p>
+              </div>
 
-            <h4 className="text-xl font-bold text-gray-800">
-              Expediente pendiente de cargar
-            </h4>
+              <div>
+                <p className="text-xs text-gray-500">Documento</p>
+                <p className="font-semibold text-gray-800">
+                  {trabajador.TipoDocumento} {trabajador.NumeroDocumento}
+                </p>
+              </div>
 
-            <p className="text-gray-500 mt-2">
-              Aquí se mostrará el resumen del trabajador, citación, descargos,
-              evidencias y estado actual del proceso.
-            </p>
-          </div>
+              <div>
+                <p className="text-xs text-gray-500">Cargo</p>
+                <p className="font-semibold text-gray-800">
+                  {trabajador.Cargo || "—"}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-500">Proceso</p>
+                <p className="font-semibold text-gray-800">
+                  {proceso?.IdProcesoDisciplinario
+                    ? `#${proceso.IdProcesoDisciplinario}`
+                    : "—"}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border-2 border-dashed border-emerald-300 bg-white p-10 text-center">
+              <div className="text-4xl mb-4">📁</div>
+
+              <h4 className="text-xl font-bold text-gray-800">
+                Expediente pendiente de cargar
+              </h4>
+
+              <p className="text-gray-500 mt-2">
+                Aquí se mostrará el resumen del trabajador, citación, descargos,
+                evidencias y estado actual del proceso.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
@@ -76,28 +160,48 @@ export default function CierreProcesoDisciplinarioView({ onBack }) {
               <label className="text-sm font-medium">
                 Tipo de cierre
               </label>
-              <Input placeholder="Seleccione el tipo de cierre" disabled />
+              <Input
+                placeholder="Seleccione el tipo de cierre"
+                value={tipoCierre}
+                onChange={(e) => setTipoCierre(e.target.value)}
+                disabled={finalizado}
+              />
             </div>
 
             <div>
               <label className="text-sm font-medium">
                 Fecha de cierre
               </label>
-              <Input disabled />
+              <Input
+                type="date"
+                value={fechaCierre}
+                onChange={(e) => setFechaCierre(e.target.value)}
+                disabled={finalizado}
+              />
             </div>
 
             <div>
               <label className="text-sm font-medium">
                 Responsable de cierre
               </label>
-              <Input disabled />
+              <Input
+                value={responsableCierre}
+                onChange={(e) => setResponsableCierre(e.target.value)}
+                placeholder="Nombre del responsable de RRLL"
+                disabled={finalizado}
+              />
             </div>
 
             <div>
               <label className="text-sm font-medium">
                 Medida disciplinaria
               </label>
-              <Input placeholder="Llamado / Suspensión / Terminación / Sin sanción" disabled />
+              <Input
+                placeholder="Llamado / Suspensión / Terminación / Sin sanción"
+                value={medidaDisciplinaria}
+                onChange={(e) => setMedidaDisciplinaria(e.target.value)}
+                disabled={finalizado}
+              />
             </div>
           </div>
         </div>
@@ -108,9 +212,11 @@ export default function CierreProcesoDisciplinarioView({ onBack }) {
           </h3>
 
           <textarea
-            className="w-full border rounded-lg p-3 min-h-[150px] bg-gray-100 resize-none"
-            disabled
+            className="w-full border rounded-lg p-3 min-h-[150px] resize-none"
             placeholder="Conclusión final del proceso disciplinario..."
+            value={conclusionRRLL}
+            onChange={(e) => setConclusionRRLL(e.target.value)}
+            disabled={finalizado}
           />
         </div>
 
@@ -173,9 +279,20 @@ export default function CierreProcesoDisciplinarioView({ onBack }) {
           </h3>
 
           <p className="text-sm text-gray-600 mt-2">
-            El proceso disciplinario aún no ha sido cerrado. Complete la revisión
-            y genere el documento final para finalizar el expediente.
+            {finalizado
+              ? "El proceso disciplinario fue cerrado correctamente."
+              : "El proceso disciplinario aún no ha sido cerrado. Complete la revisión y genere el documento final para finalizar el expediente."}
           </p>
+
+          {mensaje && (
+            <p
+              className={`text-sm font-semibold mt-3 ${
+                finalizado ? "text-emerald-700" : "text-red-600"
+              }`}
+            >
+              {mensaje}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col md:flex-row justify-between gap-3">
@@ -188,8 +305,16 @@ export default function CierreProcesoDisciplinarioView({ onBack }) {
               Guardar borrador
             </Button>
 
-            <Button className="bg-emerald-700 hover:bg-emerald-800" disabled>
-              Finalizar proceso
+            <Button
+              className="bg-emerald-700 hover:bg-emerald-800"
+              onClick={handleFinalizar}
+              disabled={loadingGuardar || finalizado}
+            >
+              {loadingGuardar
+                ? "Finalizando..."
+                : finalizado
+                  ? "Proceso finalizado"
+                  : "Finalizar proceso"}
             </Button>
           </div>
         </div>

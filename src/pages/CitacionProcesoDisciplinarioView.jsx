@@ -2,14 +2,63 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import DescargosProcesoDisciplinarioView from "@/pages/DescargosProcesoDisciplinarioView";
+import { crearCitacionProcesoDisciplinario } from "@/services/citacionProcesoDisciplinarioService";
 
-export default function CitacionProcesoDisciplinarioView({ onBack }) {
+export default function CitacionProcesoDisciplinarioView({
+  onBack,
+  proceso,
+  trabajador,
+}) {
   const [vista, setVista] = useState("citacion");
+  const [fechaCitacion, setFechaCitacion] = useState("");
+  const [horaCitacion, setHoraCitacion] = useState("");
+  const [lugarCitacion, setLugarCitacion] = useState("");
+  const [motivoCitacion, setMotivoCitacion] = useState("");
+  const [relatoHechos, setRelatoHechos] = useState("");
+  const [observaciones, setObservaciones] = useState("");
+  const [loadingGuardar, setLoadingGuardar] = useState(false);
+  const [mensaje, setMensaje] = useState("");
+
+  const handleContinuar = async () => {
+    try {
+      setLoadingGuardar(true);
+      setMensaje("");
+
+      if (!proceso?.IdProcesoDisciplinario) {
+        setMensaje("No existe un proceso disciplinario asociado.");
+        return;
+      }
+
+      if (!fechaCitacion || !horaCitacion || !lugarCitacion || !motivoCitacion || !relatoHechos) {
+        setMensaje("Complete la fecha, hora, lugar, tipo de falta y relato de los hechos para continuar.");
+        return;
+      }
+
+     const payload = {
+      IdProcesoDisciplinario: proceso.IdProcesoDisciplinario,
+      FechaCitacion: fechaCitacion,
+      HoraCitacion: horaCitacion,
+      LugarCitacion: lugarCitacion,
+      MotivoCitacion: `${motivoCitacion}\n\nRelato de los hechos:\n${relatoHechos}\n\nObservaciones:\n${observaciones}`,
+    };
+
+      await crearCitacionProcesoDisciplinario(payload);
+
+      setVista("descargos");
+    } catch (error) {
+      console.error(error);
+      setMensaje("No se pudo guardar la citación del proceso disciplinario.");
+    } finally {
+      setLoadingGuardar(false);
+    }
+  };
 
   if (vista === "descargos") {
     return (
       <DescargosProcesoDisciplinarioView
         onBack={() => setVista("citacion")}
+        proceso={proceso}
+        trabajador={trabajador}
       />
     );
   }
@@ -110,26 +159,83 @@ export default function CitacionProcesoDisciplinarioView({ onBack }) {
             Información del trabajador
           </h3>
 
-          <div className="rounded-xl border-2 border-dashed border-emerald-300 bg-white p-10">
+        {trabajador ? (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 rounded-xl bg-white p-5 border border-emerald-200">
+          <div>
+            <p className="text-xs text-gray-500">Nombre</p>
+            <p className="font-semibold text-gray-800">
+              {trabajador.NombreCompleto || "—"}
+            </p>
+          </div>
 
-            <div className="flex flex-col items-center justify-center text-center">
+          <div>
+            <p className="text-xs text-gray-500">Documento</p>
+            <p className="font-semibold text-gray-800">
+              {trabajador.TipoDocumento} {trabajador.NumeroDocumento}
+            </p>
+          </div>
 
-              <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center text-4xl mb-5">
-                👤
-              </div>
+          <div>
+            <p className="text-xs text-gray-500">Cargo</p>
+            <p className="font-semibold text-gray-800">
+              {trabajador.Cargo || "—"}
+            </p>
+          </div>
 
-              <h4 className="text-xl font-bold text-gray-800">
-                No hay un trabajador seleccionado
-              </h4>
+          <div>
+            <p className="text-xs text-gray-500">Cliente</p>
+            <p className="font-semibold text-gray-800">
+              {trabajador.ClienteNombre || "—"}
+            </p>
+          </div>
 
-              <p className="text-gray-500 mt-2 max-w-xl">
-                Esta información será cargada automáticamente cuando el
-                trabajador sea seleccionado en el paso anterior.
-              </p>
+          <div>
+            <p className="text-xs text-gray-500">Sede</p>
+            <p className="font-semibold text-gray-800">
+              {trabajador.Sede || "—"}
+            </p>
+          </div>
 
+          <div>
+            <p className="text-xs text-gray-500">Fecha ingreso</p>
+            <p className="font-semibold text-gray-800">
+              {trabajador.FechaIngreso || "—"}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs text-gray-500">Estado</p>
+            <p className="font-semibold text-gray-800">
+              {trabajador.Estado || "—"}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs text-gray-500">Proceso</p>
+            <p className="font-semibold text-gray-800">
+              {proceso?.IdProcesoDisciplinario
+                ? `#${proceso.IdProcesoDisciplinario}`
+                : "—"}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-xl border-2 border-dashed border-emerald-300 bg-white p-10">
+          <div className="flex flex-col items-center justify-center text-center">
+            <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center text-4xl mb-5">
+              👤
             </div>
 
+            <h4 className="text-xl font-bold text-gray-800">
+              No hay un trabajador seleccionado
+            </h4>
+
+            <p className="text-gray-500 mt-2 max-w-xl">
+              Esta información será cargada automáticamente cuando el trabajador sea seleccionado en el paso anterior.
+            </p>
           </div>
+        </div>
+      )}
 
         </div>
 
@@ -151,21 +257,29 @@ export default function CitacionProcesoDisciplinarioView({ onBack }) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
-            <div>
+          <div>
               <label className="text-sm font-semibold text-gray-700">
-                    📅 Fecha de la citación
-               </label>
-
-              <Input disabled />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">
-                🕒 Hora de la citación
+                📅 Fecha de la citación
               </label>
 
-              <Input disabled />
+              <Input
+                type="date"
+                value={fechaCitacion}
+                onChange={(e) => setFechaCitacion(e.target.value)}
+              />
             </div>
+
+            <div>
+                <label className="text-sm font-medium">
+                  🕒 Hora de la citación
+                </label>
+
+                <Input
+                  type="time"
+                  value={horaCitacion}
+                  onChange={(e) => setHoraCitacion(e.target.value)}
+                />
+              </div>
 
             <div>
               <label className="text-sm font-medium">
@@ -180,7 +294,11 @@ export default function CitacionProcesoDisciplinarioView({ onBack }) {
                 📍 Lugar
               </label>
 
-              <Input disabled />
+              <Input
+                value={lugarCitacion}
+                onChange={(e) => setLugarCitacion(e.target.value)}
+                placeholder="Lugar de la citación"
+              />
             </div>
 
             <div>
@@ -237,7 +355,8 @@ export default function CitacionProcesoDisciplinarioView({ onBack }) {
 
               <Input
                 placeholder="Seleccione el motivo"
-                disabled
+                value={motivoCitacion}
+                onChange={(e) => setMotivoCitacion(e.target.value)}
               />
             </div>
 
@@ -247,9 +366,10 @@ export default function CitacionProcesoDisciplinarioView({ onBack }) {
               </label>
 
               <textarea
-                className="w-full border rounded-lg p-3 min-h-[120px] bg-gray-100 resize-none"
-                disabled
+                className="w-full border rounded-lg p-3 min-h-[120px] resize-none"
                 placeholder="Descripción de los hechos que originan la citación..."
+                value={relatoHechos}
+                onChange={(e) => setRelatoHechos(e.target.value)}
               />
             </div>
 
@@ -259,9 +379,10 @@ export default function CitacionProcesoDisciplinarioView({ onBack }) {
               </label>
 
               <textarea
-                className="w-full border rounded-lg p-3 min-h-[100px] bg-gray-100 resize-none"
-                disabled
+                className="w-full border rounded-lg p-3 min-h-[100px] resize-none"
                 placeholder="Observaciones adicionales..."
+                value={observaciones}
+                onChange={(e) => setObservaciones(e.target.value)}
               />
             </div>
 
@@ -393,6 +514,12 @@ export default function CitacionProcesoDisciplinarioView({ onBack }) {
             con el flujo disciplinario.
           </p>
 
+          {mensaje && (
+            <p className="text-sm font-semibold text-red-600 mt-3">
+              {mensaje}
+            </p>
+          )}
+
         </div>
 
         {/* ===========================
@@ -419,9 +546,10 @@ export default function CitacionProcesoDisciplinarioView({ onBack }) {
 
             <Button
             className="bg-emerald-700 hover:bg-emerald-800"
-            onClick={() => setVista("descargos")}
+            onClick={handleContinuar}
+            disabled={loadingGuardar}
             >
-            Continuar →
+            {loadingGuardar ? "Guardando..." : "Continuar →"}
             </Button>
 
           </div>
