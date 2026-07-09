@@ -8,12 +8,14 @@ import {
   obtenerHistorialDisciplinarioTrabajador,
 } from "@/services/procesosDisciplinariosService";
 
-const API_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
+const API_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
 
 export default function IniciarProcesoDisciplinarioView({ onBack }) {
   const [vista, setVista] = useState("inicio");
   const [numeroDocumento, setNumeroDocumento] = useState("");
   const [trabajador, setTrabajador] = useState(null);
+  const [resultadosBusqueda, setResultadosBusqueda] = useState([]);
   const [historial, setHistorial] = useState([]);
   const [loadingBuscar, setLoadingBuscar] = useState(false);
   const [loadingCrear, setLoadingCrear] = useState(false);
@@ -32,14 +34,14 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
   }
 
   if (vista === "detalle") {
-  return (
-    <ProcesoDisciplinarioDetalleView
-      onBack={() => setVista("inicio")}
-      proceso={procesoDetalle}
-      trabajador={trabajador}
-    />
-  );
-}
+    return (
+      <ProcesoDisciplinarioDetalleView
+        onBack={() => setVista("inicio")}
+        proceso={procesoDetalle}
+        trabajador={trabajador}
+      />
+    );
+  }
 
   const getTipoDocumentoById = (idTipo) => {
     const map = {
@@ -52,37 +54,12 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
     return map[Number(idTipo)] || "CC";
   };
 
-  const buscarTrabajador = async () => {
+  const cargarDetalleTrabajador = async (item) => {
     try {
       setMensaje("");
-      setTrabajador(null);
-      setHistorial([]);
 
-      const numero = String(numeroDocumento || "").trim();
-
-      if (!numero) {
-        setMensaje("Debe ingresar el número de documento.");
-        return;
-      }
-
-      setLoadingBuscar(true);
-
-      const resTipo = await fetch(
-        `${API_URL}/rrll/trabajador/por-numero?numero_documento=${encodeURIComponent(
-          numero
-        )}`,
-        {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        }
-      );
-
-      if (!resTipo.ok) {
-        throw new Error("No se encontró el trabajador con ese documento.");
-      }
-
-      const dataTipo = await resTipo.json();
-      const tipoDocumento = getTipoDocumentoById(dataTipo?.IdTipoIdentificacion);
+      const tipoDocumento = getTipoDocumentoById(item?.IdTipoIdentificacion);
+      const numero = item?.NumeroDocumento;
 
       const resDetalle = await fetch(
         `${API_URL}/rrll/trabajador/detalle?tipo_documento=${encodeURIComponent(
@@ -102,9 +79,10 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
 
       const trabajadorFinal = {
         IdRegistroPersonal:
-          dataDetalle?.IdRegistroPersonal || dataTipo?.IdRegistroPersonal,
+          dataDetalle?.IdRegistroPersonal || item?.IdRegistroPersonal,
         NombreCompleto:
           dataDetalle?.NombreCompleto ||
+          item?.NombreCompleto ||
           `${dataDetalle?.Nombres || ""} ${dataDetalle?.Apellidos || ""}`.trim(),
         NumeroDocumento: dataDetalle?.NumeroDocumento || numero,
         TipoDocumento: tipoDocumento,
@@ -113,22 +91,73 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
         Sede: dataDetalle?.Sede || "—",
         Estado: dataDetalle?.Estado || dataDetalle?.EstadoProceso || "—",
         Supervisor: dataDetalle?.Supervisor || "—",
-        FechaIngreso: dataDetalle?.FechaInicio || dataDetalle?.FechaIngreso || "—",
+        FechaIngreso:
+          dataDetalle?.FechaInicio || dataDetalle?.FechaIngreso || "—",
       };
 
       setTrabajador(trabajadorFinal);
+      setResultadosBusqueda([]);
 
       if (trabajadorFinal.IdRegistroPersonal) {
         try {
-          const historial = await obtenerHistorialDisciplinarioTrabajador(
+          const historialData = await obtenerHistorialDisciplinarioTrabajador(
             trabajadorFinal.IdRegistroPersonal
           );
 
-          setHistorial(Array.isArray(historial) ? historial : []);
+          setHistorial(Array.isArray(historialData) ? historialData : []);
         } catch {
           setHistorial([]);
         }
       }
+    } catch (error) {
+      setMensaje(error?.message || "No se pudo cargar el trabajador.");
+    }
+  };
+
+  const buscarTrabajador = async () => {
+    try {
+      setMensaje("");
+      setTrabajador(null);
+      setHistorial([]);
+      setResultadosBusqueda([]);
+
+      const texto = String(numeroDocumento || "").trim();
+
+      if (!texto) {
+        setMensaje("Debe ingresar el número de documento o nombre del trabajador.");
+        return;
+      }
+
+      setLoadingBuscar(true);
+
+      const response = await fetch(
+        `${API_URL}/rrll/trabajador/buscar?texto=${encodeURIComponent(
+          texto
+        )}&limite=20`,
+        {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("No se encontraron trabajadores con ese criterio.");
+      }
+
+      const data = await response.json();
+      const resultados = Array.isArray(data) ? data : [];
+
+      if (resultados.length === 0) {
+        setMensaje("No se encontraron trabajadores con ese criterio.");
+        return;
+      }
+
+      if (resultados.length === 1) {
+        await cargarDetalleTrabajador(resultados[0]);
+        return;
+      }
+
+      setResultadosBusqueda(resultados);
     } catch (error) {
       setMensaje(error?.message || "No se pudo buscar el trabajador.");
     } finally {
@@ -142,6 +171,22 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
 
       if (!trabajador?.IdRegistroPersonal) {
         setMensaje("Debe seleccionar un trabajador antes de continuar.");
+        return;
+      }
+
+      const procesoActivo = historial.find(
+        (item) => item.EstadoProceso !== "CERRADO"
+      );
+
+      if (procesoActivo) {
+        setProcesoCreado({
+          IdProcesoDisciplinario: procesoActivo.IdProcesoDisciplinario,
+          IdRegistroPersonal: procesoActivo.IdRegistroPersonal,
+          EstadoProceso: procesoActivo.EstadoProceso,
+          OrigenProceso: procesoActivo.OrigenProceso,
+        });
+
+        setVista("citacion");
         return;
       }
 
@@ -163,22 +208,22 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
     }
   };
 
- const abrirProcesoExistente = (item) => {
-  if (item.EstadoProceso === "CERRADO") {
-    setProcesoDetalle(item);
-    setVista("detalle");
-    return;
-  }
+  const abrirProcesoExistente = (item) => {
+    if (item.EstadoProceso === "CERRADO") {
+      setProcesoDetalle(item);
+      setVista("detalle");
+      return;
+    }
 
-  setProcesoCreado({
-    IdProcesoDisciplinario: item.IdProcesoDisciplinario,
-    IdRegistroPersonal: item.IdRegistroPersonal,
-    EstadoProceso: item.EstadoProceso,
-    OrigenProceso: item.OrigenProceso,
-  });
+    setProcesoCreado({
+      IdProcesoDisciplinario: item.IdProcesoDisciplinario,
+      IdRegistroPersonal: item.IdRegistroPersonal,
+      EstadoProceso: item.EstadoProceso,
+      OrigenProceso: item.OrigenProceso,
+    });
 
-  setVista("citacion");
-};
+    setVista("citacion");
+  };
 
   return (
     <div className="p-6">
@@ -232,14 +277,19 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
             </h3>
 
             <p className="text-sm text-gray-500 mb-4">
-              Busque por número de documento.
+              Busque por número de documento o nombre completo.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
               <Input
-                placeholder="Digite el número de documento del trabajador"
+                placeholder="Digite documento, nombres o apellidos del trabajador"
                 value={numeroDocumento}
                 onChange={(e) => setNumeroDocumento(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    buscarTrabajador();
+                  }
+                }}
               />
 
               <Button
@@ -259,6 +309,57 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
             )}
           </div>
 
+          {resultadosBusqueda.length > 0 && (
+            <div className="rounded-xl border border-gray-200 bg-white p-5">
+              <h3 className="font-bold text-gray-800 mb-4">
+                Coincidencias encontradas
+              </h3>
+
+              <div className="overflow-x-auto rounded-xl border border-gray-200">
+                <table className="min-w-full">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">
+                        Nombre
+                      </th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">
+                        Documento
+                      </th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold">
+                        Acción
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {resultadosBusqueda.map((item) => (
+                      <tr key={item.IdRegistroPersonal} className="border-t">
+                        <td className="px-4 py-3 text-sm font-semibold">
+                          {item.NombreCompleto || "—"}
+                        </td>
+
+                        <td className="px-4 py-3 text-sm">
+                          {getTipoDocumentoById(item.IdTipoIdentificacion)}{" "}
+                          {item.NumeroDocumento}
+                        </td>
+
+                        <td className="px-4 py-3 text-center">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => cargarDetalleTrabajador(item)}
+                          >
+                            Seleccionar
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
             <h3 className="font-bold text-emerald-800 mb-4">
               Información del trabajador
@@ -276,8 +377,9 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
                   </h4>
 
                   <p className="text-gray-500 mt-2 max-w-xl">
-                    Utilice el buscador ubicado en la parte superior para localizar
-                    el trabajador con el que desea iniciar el proceso disciplinario.
+                    Utilice el buscador ubicado en la parte superior para
+                    localizar el trabajador con el que desea iniciar el proceso
+                    disciplinario.
                   </p>
                 </div>
               </div>
@@ -351,14 +453,30 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
               <table className="min-w-full">
                 <thead className="bg-gray-100">
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Proceso</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Fecha</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Estado</th>
-                    <th className="px-4 py-3 text-center text-sm font-semibold">Citación</th>
-                    <th className="px-4 py-3 text-center text-sm font-semibold">Descargos</th>
-                    <th className="px-4 py-3 text-center text-sm font-semibold">Cierre</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Medida</th>
-                    <th className="px-4 py-3 text-center text-sm font-semibold">Acción</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">
+                      Proceso
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">
+                      Fecha
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">
+                      Estado
+                    </th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold">
+                      Citación
+                    </th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold">
+                      Descargos
+                    </th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold">
+                      Cierre
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">
+                      Medida
+                    </th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold">
+                      Acción
+                    </th>
                   </tr>
                 </thead>
 
@@ -371,7 +489,10 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
                     </tr>
                   ) : (
                     historial.map((item) => (
-                      <tr key={item.IdProcesoDisciplinario} className="border-t">
+                      <tr
+                        key={item.IdProcesoDisciplinario}
+                        className="border-t"
+                      >
                         <td className="px-4 py-3 text-sm font-semibold">
                           #{item.IdProcesoDisciplinario}
                         </td>

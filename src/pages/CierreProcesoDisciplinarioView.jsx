@@ -1,7 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { crearCierreProcesoDisciplinario } from "@/services/cierreProcesoDisciplinarioService";
+import {
+  crearCierreProcesoDisciplinario,
+  obtenerCierrePorProceso,
+  actualizarCierreProcesoDisciplinario,
+} from "@/services/cierreProcesoDisciplinarioService";
 
 export default function CierreProcesoDisciplinarioView({
   onBack,
@@ -16,6 +20,33 @@ export default function CierreProcesoDisciplinarioView({
   const [loadingGuardar, setLoadingGuardar] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [finalizado, setFinalizado] = useState(false);
+  const [cierreExistente, setCierreExistente] = useState(null);
+
+  useEffect(() => {
+  async function cargarCierreExistente() {
+    if (!proceso?.IdProcesoDisciplinario) return;
+
+    try {
+      const data = await obtenerCierrePorProceso(
+        proceso.IdProcesoDisciplinario
+      );
+
+      if (!data) return;
+
+      setCierreExistente(data);
+      setFechaCierre(data.FechaCierre || "");
+      setTipoCierre(data.TipoCierre || "");
+      setMedidaDisciplinaria(data.MedidaDisciplinaria || "");
+      setConclusionRRLL(data.ConclusionRRLL || "");
+      setResponsableCierre(data.ResponsableCierre || "");
+      setFinalizado(true);
+    } catch (error) {
+      setCierreExistente(null);
+    }
+  }
+
+  cargarCierreExistente();
+}, [proceso]);
 
   const handleFinalizar = async () => {
     try {
@@ -41,7 +72,15 @@ export default function CierreProcesoDisciplinarioView({
         ResponsableCierre: responsableCierre || "rrll",
       };
 
-      await crearCierreProcesoDisciplinario(payload);
+    if (cierreExistente?.IdCierreProcesoDisciplinario) {
+      await actualizarCierreProcesoDisciplinario(
+        cierreExistente.IdCierreProcesoDisciplinario,
+        payload
+      );
+    } else {
+      const nuevoCierre = await crearCierreProcesoDisciplinario(payload);
+      setCierreExistente(nuevoCierre);
+    }
 
       setFinalizado(true);
       setMensaje("Proceso disciplinario cerrado correctamente.");

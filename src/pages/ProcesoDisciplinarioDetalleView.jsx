@@ -13,21 +13,27 @@ export default function ProcesoDisciplinarioDetalleView({
   trabajador,
 }) {
   const [expediente, setExpediente] = useState(null);
+  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [tipoDocumento, setTipoDocumento] = useState("citacion");
+  const [observacion, setObservacion] = useState("");
+  const [archivo, setArchivo] = useState(null);
+  const [cargandoDocumento, setCargandoDocumento] = useState(false);
+  const [mensajeDocumento, setMensajeDocumento] = useState("");
+
+  async function cargarExpediente() {
+    if (!proceso?.IdProcesoDisciplinario) return;
+
+    try {
+      const data = await obtenerExpedienteDisciplinario(
+        proceso.IdProcesoDisciplinario
+      );
+      setExpediente(data);
+    } catch (error) {
+      console.error(error);
+    }
+  }
 
   useEffect(() => {
-    async function cargarExpediente() {
-      if (!proceso?.IdProcesoDisciplinario) return;
-
-      try {
-        const data = await obtenerExpedienteDisciplinario(
-          proceso.IdProcesoDisciplinario
-        );
-        setExpediente(data);
-      } catch (error) {
-        console.error(error);
-      }
-    }
-
     cargarExpediente();
   }, [proceso]);
 
@@ -66,6 +72,49 @@ export default function ProcesoDisciplinarioDetalleView({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const subirDocumento = async () => {
+    if (!archivo) {
+      setMensajeDocumento("Debe seleccionar un archivo.");
+      return;
+    }
+
+    try {
+      setCargandoDocumento(true);
+      setMensajeDocumento("");
+
+      const formData = new FormData();
+      formData.append("IdProcesoDisciplinario", procesoExp.IdProcesoDisciplinario);
+      formData.append("TipoDocumento", tipoDocumento);
+      formData.append("Observacion", observacion);
+      formData.append("archivo", archivo);
+
+      const response = await fetch(
+        `${API_URL}/documento-proceso-disciplinario/upload`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("No se pudo cargar el documento.");
+      }
+
+      setArchivo(null);
+      setObservacion("");
+      setTipoDocumento("citacion");
+      setMostrarFormulario(false);
+      setMensajeDocumento("Documento cargado correctamente.");
+
+      await cargarExpediente();
+    } catch (error) {
+      console.error(error);
+      setMensajeDocumento("No se pudo cargar el documento.");
+    } finally {
+      setCargandoDocumento(false);
+    }
   };
 
   return (
@@ -230,9 +279,78 @@ export default function ProcesoDisciplinarioDetalleView({
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
-          <h3 className="text-lg font-bold text-gray-800 mb-5">
-            Documentos del expediente
-          </h3>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
+            <h3 className="text-lg font-bold text-gray-800">
+              Documentos del expediente
+            </h3>
+
+           {!cerrado && (
+            <Button
+                type="button"
+                className="bg-emerald-700 hover:bg-emerald-800"
+                onClick={() => setMostrarFormulario(!mostrarFormulario)}
+            >
+                {mostrarFormulario ? "Cancelar carga" : "Adjuntar evidencia o soporte"}
+            </Button>
+            )}
+          </div>
+
+          {mostrarFormulario && !cerrado && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 mb-5">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm font-semibold">Tipo de documento</label>
+                  <select
+                    className="w-full mt-1 border rounded-lg p-3 bg-white"
+                    value={tipoDocumento}
+                    onChange={(e) => setTipoDocumento(e.target.value)}
+                  >
+                    <option value="citacion">Citación</option>
+                    <option value="acta_descargos">Acta de descargos</option>
+                    <option value="cierre">Documento de cierre</option>
+                    <option value="evidencia">Evidencia</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-semibold">Observación</label>
+                  <input
+                    className="w-full mt-1 border rounded-lg p-3"
+                    value={observacion}
+                    onChange={(e) => setObservacion(e.target.value)}
+                    placeholder="Observación del documento"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-semibold">Archivo</label>
+                  <input
+                    type="file"
+                    className="w-full mt-1 border rounded-lg p-2 bg-white"
+                    onChange={(e) => setArchivo(e.target.files?.[0] || null)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end mt-4">
+                <Button
+                  type="button"
+                  className="bg-emerald-700 hover:bg-emerald-800"
+                  onClick={subirDocumento}
+                  disabled={cargandoDocumento}
+                >
+                  {cargandoDocumento ? "Cargando..." : "Guardar documento"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {mensajeDocumento && (
+            <p className="text-sm text-emerald-700 font-semibold mb-4">
+              {mensajeDocumento}
+            </p>
+          )}
 
           <div className="overflow-x-auto rounded-xl border border-gray-200">
             <table className="min-w-full">
@@ -313,11 +431,27 @@ export default function ProcesoDisciplinarioDetalleView({
           </Button>
 
           <div className="flex gap-3">
-            <Button variant="outline" disabled>
+            <Button
+              variant="outline"
+              onClick={() =>
+                window.open(
+                  `${API_URL}/procesos-disciplinarios/${procesoExp?.IdProcesoDisciplinario}/pdf`,
+                  "_blank"
+                )
+              }
+            >
               Descargar PDF
             </Button>
 
-            <Button className="bg-emerald-700 hover:bg-emerald-800" disabled>
+            <Button
+              className="bg-emerald-700 hover:bg-emerald-800"
+              onClick={() =>
+                window.open(
+                  `${API_URL}/procesos-disciplinarios/${procesoExp?.IdProcesoDisciplinario}/pdf`,
+                  "_blank"
+                )
+              }
+            >
               Generar expediente disciplinario
             </Button>
           </div>

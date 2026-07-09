@@ -1,8 +1,17 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import CierreProcesoDisciplinarioView from "@/pages/CierreProcesoDisciplinarioView";
-import { crearDescargoProcesoDisciplinario } from "@/services/descargoProcesoDisciplinarioService";
+import {
+  crearDescargoProcesoDisciplinario,
+  obtenerDescargoPorProceso,
+  actualizarDescargoProcesoDisciplinario,
+} from "@/services/descargoProcesoDisciplinarioService";
+
+const API_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
+
+const FILE_BASE_URL = API_URL.replace("/api", "");
 
 export default function DescargosProcesoDisciplinarioView({
   onBack,
@@ -18,6 +27,150 @@ export default function DescargosProcesoDisciplinarioView({
   const [responsableDescargo, setResponsableDescargo] = useState("");
   const [loadingGuardar, setLoadingGuardar] = useState(false);
   const [mensaje, setMensaje] = useState("");
+  const [descargoExistente, setDescargoExistente] = useState(null);
+
+  const [documentos, setDocumentos] = useState([]);
+  const [mostrarFormularioDocumento, setMostrarFormularioDocumento] = useState(false);
+  const [tipoDocumento, setTipoDocumento] = useState("descargos");
+  const [observacionDocumento, setObservacionDocumento] = useState("");
+  const [archivoDocumento, setArchivoDocumento] = useState(null);
+  const [loadingDocumento, setLoadingDocumento] = useState(false);
+  const [mensajeDocumento, setMensajeDocumento] = useState("");
+
+  const cargarDocumentos = async () => {
+    if (!proceso?.IdProcesoDisciplinario) return;
+
+    try {
+      const response = await fetch(
+        `${API_URL}/documento-proceso-disciplinario/proceso/${proceso.IdProcesoDisciplinario}`
+      );
+
+      if (!response.ok) {
+        throw new Error("No se pudieron consultar los documentos.");
+      }
+
+      const data = await response.json();
+      setDocumentos(data || []);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  useEffect(() => {
+    cargarDocumentos();
+  }, [proceso]);
+
+  useEffect(() => {
+  async function cargarDescargoExistente() {
+    if (!proceso?.IdProcesoDisciplinario) return;
+
+    try {
+      const data = await obtenerDescargoPorProceso(
+        proceso.IdProcesoDisciplinario
+      );
+
+      if (!data) return;
+
+      setDescargoExistente(data);
+      setFechaDescargo(data.FechaDescargo || "");
+      setHoraDescargo(
+        data.HoraDescargo ? String(data.HoraDescargo).slice(0, 5) : ""
+      );
+      setDescargoTrabajador(data.DescargoTrabajador || "");
+      setResponsableDescargo(data.ResponsableDescargo || "");
+
+      const textoObservaciones = data.Observaciones || "";
+      const partes = textoObservaciones.split(
+        "Observaciones de Relaciones Laborales:"
+      );
+
+      const supervisor = partes[0]
+        ?.replace("Manifestación del supervisor:", "")
+        ?.trim();
+
+      const rrll = partes[1]?.trim();
+
+      setManifestacionSupervisor(supervisor || "");
+      setObservaciones(rrll || "");
+    } catch (error) {
+      setDescargoExistente(null);
+    }
+  }
+
+  cargarDescargoExistente();
+}, [proceso]);
+
+  const obtenerUrlDocumento = (rutaArchivo) => {
+    if (!rutaArchivo) return "";
+    const rutaLimpia = String(rutaArchivo).replaceAll("\\", "/");
+    return `${FILE_BASE_URL}/${rutaLimpia}`;
+  };
+
+  const abrirDocumento = (rutaArchivo) => {
+    const url = obtenerUrlDocumento(rutaArchivo);
+    if (!url) return;
+    window.open(url, "_blank");
+  };
+
+  const descargarDocumento = (rutaArchivo, nombreArchivo) => {
+    const url = obtenerUrlDocumento(rutaArchivo);
+    if (!url) return;
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = nombreArchivo || "documento";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleSubirDocumento = async () => {
+    if (!proceso?.IdProcesoDisciplinario) {
+      setMensajeDocumento("No existe un proceso disciplinario asociado.");
+      return;
+    }
+
+    if (!archivoDocumento) {
+      setMensajeDocumento("Debe seleccionar un archivo.");
+      return;
+    }
+
+    try {
+      setLoadingDocumento(true);
+      setMensajeDocumento("");
+
+      const formData = new FormData();
+      formData.append("IdProcesoDisciplinario", proceso.IdProcesoDisciplinario);
+      formData.append("TipoDocumento", tipoDocumento);
+      formData.append("Observacion", observacionDocumento);
+      formData.append("archivo", archivoDocumento);
+
+      const response = await fetch(
+        `${API_URL}/documento-proceso-disciplinario/upload`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("No se pudo cargar el documento.");
+      }
+
+      setArchivoDocumento(null);
+      setObservacionDocumento("");
+      setTipoDocumento("descargos");
+      setMostrarFormularioDocumento(false);
+      setMensajeDocumento("Documento cargado correctamente.");
+
+      await cargarDocumentos();
+    } catch (error) {
+      console.error(error);
+      setMensajeDocumento("No se pudo cargar el documento.");
+    } finally {
+      setLoadingDocumento(false);
+    }
+  };
 
   const handleContinuar = async () => {
     try {
@@ -43,7 +196,15 @@ export default function DescargosProcesoDisciplinarioView({
         ResponsableDescargo: responsableDescargo || "rrll",
       };
 
-      await crearDescargoProcesoDisciplinario(payload);
+      if (descargoExistente?.IdDescargoProcesoDisciplinario) {
+      await actualizarDescargoProcesoDisciplinario(
+        descargoExistente.IdDescargoProcesoDisciplinario,
+        payload
+      );
+    } else {
+      const nuevoDescargo = await crearDescargoProcesoDisciplinario(payload);
+      setDescargoExistente(nuevoDescargo);
+    }
 
       setVista("cierre");
     } catch (error) {
@@ -200,10 +361,7 @@ export default function DescargosProcesoDisciplinarioView({
 
           <div className="space-y-5">
             <div>
-              <label className="text-sm font-medium">
-                Fecha de descargos
-              </label>
-
+              <label className="text-sm font-medium">Fecha de descargos</label>
               <Input
                 type="date"
                 value={fechaDescargo}
@@ -212,10 +370,7 @@ export default function DescargosProcesoDisciplinarioView({
             </div>
 
             <div>
-              <label className="text-sm font-medium">
-                Hora de descargos
-              </label>
-
+              <label className="text-sm font-medium">Hora de descargos</label>
               <Input
                 type="time"
                 value={horaDescargo}
@@ -227,7 +382,6 @@ export default function DescargosProcesoDisciplinarioView({
               <label className="text-sm font-medium">
                 Responsable de descargos
               </label>
-
               <Input
                 value={responsableDescargo}
                 onChange={(e) => setResponsableDescargo(e.target.value)}
@@ -239,7 +393,6 @@ export default function DescargosProcesoDisciplinarioView({
               <label className="text-sm font-medium">
                 Manifestación del trabajador
               </label>
-
               <textarea
                 className="w-full border rounded-lg p-3 min-h-[140px] resize-none"
                 placeholder="Aquí se registrará lo manifestado por el trabajador durante la diligencia..."
@@ -252,7 +405,6 @@ export default function DescargosProcesoDisciplinarioView({
               <label className="text-sm font-medium">
                 Manifestación del supervisor
               </label>
-
               <textarea
                 className="w-full border rounded-lg p-3 min-h-[120px] resize-none"
                 placeholder="Aquí se registrará la intervención del supervisor o responsable que reporta..."
@@ -265,7 +417,6 @@ export default function DescargosProcesoDisciplinarioView({
               <label className="text-sm font-medium">
                 Observaciones de Relaciones Laborales
               </label>
-
               <textarea
                 className="w-full border rounded-lg p-3 min-h-[120px] resize-none"
                 placeholder="Observaciones internas de RRLL..."
@@ -277,9 +428,82 @@ export default function DescargosProcesoDisciplinarioView({
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
-          <h3 className="text-lg font-bold text-gray-800 mb-5">
-            Documentos aportados en descargos
-          </h3>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
+            <h3 className="text-lg font-bold text-gray-800">
+              Documentos aportados en descargos
+            </h3>
+
+            <Button
+              className="bg-emerald-700 hover:bg-emerald-800"
+              type="button"
+              onClick={() =>
+                setMostrarFormularioDocumento(!mostrarFormularioDocumento)
+              }
+            >
+              {mostrarFormularioDocumento
+                ? "Cancelar carga"
+                : "Adjuntar documento"}
+            </Button>
+          </div>
+
+          {mostrarFormularioDocumento && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 mb-5">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm font-semibold">
+                    Tipo de documento
+                  </label>
+                  <select
+                    className="w-full mt-1 border rounded-lg p-3 bg-white"
+                    value={tipoDocumento}
+                    onChange={(e) => setTipoDocumento(e.target.value)}
+                  >
+                    <option value="descargos">Descargos</option>
+                    <option value="acta_firmada">Acta firmada</option>
+                    <option value="evidencia">Evidencia</option>
+                    <option value="soporte">Soporte</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-semibold">Observación</label>
+                  <Input
+                    value={observacionDocumento}
+                    onChange={(e) => setObservacionDocumento(e.target.value)}
+                    placeholder="Observación del documento"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-semibold">Archivo</label>
+                  <Input
+                    type="file"
+                    onChange={(e) =>
+                      setArchivoDocumento(e.target.files?.[0] || null)
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end mt-4">
+                <Button
+                  type="button"
+                  className="bg-emerald-700 hover:bg-emerald-800"
+                  onClick={handleSubirDocumento}
+                  disabled={loadingDocumento}
+                >
+                  {loadingDocumento ? "Cargando..." : "Guardar documento"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {mensajeDocumento && (
+            <p className="text-sm font-semibold text-emerald-700 mb-4">
+              {mensajeDocumento}
+            </p>
+          )}
 
           <div className="overflow-x-auto rounded-xl border border-gray-200">
             <table className="min-w-full">
@@ -301,21 +525,56 @@ export default function DescargosProcesoDisciplinarioView({
               </thead>
 
               <tbody>
-                <tr>
-                  <td colSpan={4} className="text-center text-gray-500 py-12">
-                    No existen documentos aportados durante la diligencia.
-                  </td>
-                </tr>
+                {documentos.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="text-center text-gray-500 py-12">
+                      No existen documentos aportados durante la diligencia.
+                    </td>
+                  </tr>
+                ) : (
+                  documentos.map((doc) => (
+                    <tr key={doc.IdDocumentoProcesoDisciplinario} className="border-t">
+                      <td className="px-4 py-3 text-sm font-semibold">
+                        {doc.NombreArchivo || "Documento"}
+                      </td>
+
+                      <td className="px-4 py-3 text-sm">
+                        {doc.TipoDocumento || "—"}
+                      </td>
+
+                      <td className="px-4 py-3 text-sm">
+                        {doc.FechaCreacion
+                          ? String(doc.FechaCreacion).slice(0, 10)
+                          : "—"}
+                      </td>
+
+                      <td className="px-4 py-3 text-center text-sm">
+                        <div className="flex justify-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => abrirDocumento(doc.RutaArchivo)}
+                          >
+                            Ver
+                          </Button>
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() =>
+                              descargarDocumento(doc.RutaArchivo, doc.NombreArchivo)
+                            }
+                          >
+                            Descargar
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
-
-          <Button
-            className="mt-5 bg-emerald-700 hover:bg-emerald-800"
-            disabled
-          >
-            Adjuntar documento
-          </Button>
         </div>
 
         <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-5 mb-6">
@@ -346,12 +605,12 @@ export default function DescargosProcesoDisciplinarioView({
               Guardar borrador
             </Button>
 
-           <Button
-            className="bg-emerald-700 hover:bg-emerald-800"
-            onClick={handleContinuar}
-            disabled={loadingGuardar}
+            <Button
+              className="bg-emerald-700 hover:bg-emerald-800"
+              onClick={handleContinuar}
+              disabled={loadingGuardar}
             >
-            {loadingGuardar ? "Guardando..." : "Continuar →"}
+              {loadingGuardar ? "Guardando..." : "Continuar →"}
             </Button>
           </div>
         </div>
