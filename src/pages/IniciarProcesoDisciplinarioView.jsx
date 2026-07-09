@@ -2,9 +2,10 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import CitacionProcesoDisciplinarioView from "@/pages/CitacionProcesoDisciplinarioView";
+import ProcesoDisciplinarioDetalleView from "@/pages/ProcesoDisciplinarioDetalleView";
 import {
   crearProcesoDisciplinario,
-  listarProcesosPorTrabajador,
+  obtenerHistorialDisciplinarioTrabajador,
 } from "@/services/procesosDisciplinariosService";
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
@@ -18,6 +19,7 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
   const [loadingCrear, setLoadingCrear] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [procesoCreado, setProcesoCreado] = useState(null);
+  const [procesoDetalle, setProcesoDetalle] = useState(null);
 
   if (vista === "citacion") {
     return (
@@ -28,6 +30,16 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
       />
     );
   }
+
+  if (vista === "detalle") {
+  return (
+    <ProcesoDisciplinarioDetalleView
+      onBack={() => setVista("inicio")}
+      proceso={procesoDetalle}
+      trabajador={trabajador}
+    />
+  );
+}
 
   const getTipoDocumentoById = (idTipo) => {
     const map = {
@@ -108,10 +120,11 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
 
       if (trabajadorFinal.IdRegistroPersonal) {
         try {
-          const procesos = await listarProcesosPorTrabajador(
+          const historial = await obtenerHistorialDisciplinarioTrabajador(
             trabajadorFinal.IdRegistroPersonal
           );
-          setHistorial(Array.isArray(procesos) ? procesos : []);
+
+          setHistorial(Array.isArray(historial) ? historial : []);
         } catch {
           setHistorial([]);
         }
@@ -149,6 +162,23 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
       setLoadingCrear(false);
     }
   };
+
+ const abrirProcesoExistente = (item) => {
+  if (item.EstadoProceso === "CERRADO") {
+    setProcesoDetalle(item);
+    setVista("detalle");
+    return;
+  }
+
+  setProcesoCreado({
+    IdProcesoDisciplinario: item.IdProcesoDisciplinario,
+    IdRegistroPersonal: item.IdRegistroPersonal,
+    EstadoProceso: item.EstadoProceso,
+    OrigenProceso: item.OrigenProceso,
+  });
+
+  setVista("citacion");
+};
 
   return (
     <div className="p-6">
@@ -321,44 +351,31 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
               <table className="min-w-full">
                 <thead className="bg-gray-100">
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">
-                      Fecha
-                    </th>
-
-                    <th className="px-4 py-3 text-left text-sm font-semibold">
-                      Tipo
-                    </th>
-
-                    <th className="px-4 py-3 text-left text-sm font-semibold">
-                      Estado
-                    </th>
-
-                    <th className="px-4 py-3 text-left text-sm font-semibold">
-                      Responsable
-                    </th>
-
-                    <th className="px-4 py-3 text-center text-sm font-semibold">
-                      Acciones
-                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Proceso</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Fecha</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Estado</th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold">Citación</th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold">Descargos</th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold">Cierre</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Medida</th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold">Acción</th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {historial.length === 0 ? (
                     <tr>
-                      <td
-                        colSpan={5}
-                        className="text-center text-gray-500 py-12"
-                      >
+                      <td colSpan={8} className="text-center text-gray-500 py-12">
                         No existen procesos disciplinarios para mostrar.
                       </td>
                     </tr>
                   ) : (
                     historial.map((item) => (
-                      <tr
-                        key={item.IdProcesoDisciplinario}
-                        className="border-t"
-                      >
+                      <tr key={item.IdProcesoDisciplinario} className="border-t">
+                        <td className="px-4 py-3 text-sm font-semibold">
+                          #{item.IdProcesoDisciplinario}
+                        </td>
+
                         <td className="px-4 py-3 text-sm">
                           {item.FechaCreacion
                             ? String(item.FechaCreacion).slice(0, 10)
@@ -366,19 +383,42 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
                         </td>
 
                         <td className="px-4 py-3 text-sm">
-                          {item.OrigenProceso || "Proceso disciplinario"}
-                        </td>
-
-                        <td className="px-4 py-3 text-sm">
-                          {item.EstadoProceso || "—"}
-                        </td>
-
-                        <td className="px-4 py-3 text-sm">
-                          {item.UsuarioActualizacion || "—"}
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-bold ${
+                              item.EstadoProceso === "CERRADO"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-yellow-100 text-yellow-700"
+                            }`}
+                          >
+                            {item.EstadoProceso || "—"}
+                          </span>
                         </td>
 
                         <td className="px-4 py-3 text-center text-sm">
-                          —
+                          {item.TieneCitacion ? "Sí" : "No"}
+                        </td>
+
+                        <td className="px-4 py-3 text-center text-sm">
+                          {item.TieneDescargo ? "Sí" : "No"}
+                        </td>
+
+                        <td className="px-4 py-3 text-center text-sm">
+                          {item.TieneCierre ? "Sí" : "No"}
+                        </td>
+
+                        <td className="px-4 py-3 text-sm">
+                          {item.MedidaDisciplinaria || "—"}
+                        </td>
+
+                        <td className="px-4 py-3 text-center text-sm">
+                          <Button
+                            variant="outline"
+                            onClick={() => abrirProcesoExistente(item)}
+                          >
+                            {item.EstadoProceso === "CERRADO"
+                              ? "Ver expediente"
+                              : "Continuar"}
+                          </Button>
                         </td>
                       </tr>
                     ))
