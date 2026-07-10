@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import CitacionProcesoDisciplinarioView from "@/pages/CitacionProcesoDisciplinarioView";
@@ -11,7 +11,10 @@ import {
 const API_URL =
   import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
 
-export default function IniciarProcesoDisciplinarioView({ onBack }) {
+    export default function IniciarProcesoDisciplinarioView({
+    onBack,
+    idProcesoDesdeAgenda = null,
+    }) {
   const [vista, setVista] = useState("inicio");
   const [numeroDocumento, setNumeroDocumento] = useState("");
   const [trabajador, setTrabajador] = useState(null);
@@ -22,6 +25,230 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
   const [mensaje, setMensaje] = useState("");
   const [procesoCreado, setProcesoCreado] = useState(null);
   const [procesoDetalle, setProcesoDetalle] = useState(null);
+  const [loadingProcesoAgenda, setLoadingProcesoAgenda] = useState(false);
+
+  useEffect(() => {
+  if (!idProcesoDesdeAgenda) return;
+
+  const cargarProcesoDesdeAgenda = async () => {
+    try {
+      setLoadingProcesoAgenda(true);
+      setMensaje("");
+      setResultadosBusqueda([]);
+
+      // 1. Consultar los eventos enriquecidos de la agenda
+      const respuestaAgenda = await fetch(
+        `${API_URL}/agenda-disciplinaria/calendario/listado`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (!respuestaAgenda.ok) {
+        throw new Error(
+          "No se pudo consultar la información de la agenda disciplinaria."
+        );
+      }
+
+      const dataAgenda = await respuestaAgenda.json();
+      const eventos = Array.isArray(dataAgenda?.eventos)
+        ? dataAgenda.eventos
+        : [];
+
+      // 2. Buscar el evento correspondiente al proceso seleccionado
+      const eventoAgenda = eventos.find(
+        (evento) =>
+          Number(evento?.IdProcesoDisciplinario) ===
+          Number(idProcesoDesdeAgenda)
+      );
+
+      if (!eventoAgenda) {
+        throw new Error(
+          `No se encontró información para el proceso disciplinario ${idProcesoDesdeAgenda}.`
+        );
+      }
+
+      const numeroIdentificacion = String(
+        eventoAgenda?.NumeroIdentificacion || ""
+      ).trim();
+
+      if (!numeroIdentificacion) {
+        throw new Error(
+          "El evento de agenda no contiene el número de identificación del trabajador."
+        );
+      }
+
+      setNumeroDocumento(numeroIdentificacion);
+
+      // 3. Buscar el trabajador usando su número de identificación
+      const respuestaBusqueda = await fetch(
+        `${API_URL}/rrll/trabajador/buscar?texto=${encodeURIComponent(
+          numeroIdentificacion
+        )}&limite=20`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (!respuestaBusqueda.ok) {
+        throw new Error(
+          "No se pudo localizar el trabajador asociado al proceso."
+        );
+      }
+
+      const resultados = await respuestaBusqueda.json();
+      const listaTrabajadores = Array.isArray(resultados) ? resultados : [];
+
+      const trabajadorEncontrado =
+        listaTrabajadores.find(
+          (item) =>
+            Number(item?.IdRegistroPersonal) ===
+            Number(eventoAgenda?.IdRegistroPersonal)
+        ) || listaTrabajadores[0];
+
+      if (!trabajadorEncontrado) {
+        throw new Error(
+          "No se encontró el trabajador asociado al evento de agenda."
+        );
+      }
+
+      const tiposDocumento = {
+        1: "CC",
+        2: "CE",
+        3: "PPT",
+        4: "TI",
+      };
+
+      const tipoDocumento =
+        tiposDocumento[Number(trabajadorEncontrado?.IdTipoIdentificacion)] ||
+        "CC";
+
+      // 4. Consultar el detalle completo del trabajador
+      const respuestaDetalle = await fetch(
+        `${API_URL}/rrll/trabajador/detalle?tipo_documento=${encodeURIComponent(
+          tipoDocumento
+        )}&numero_documento=${encodeURIComponent(numeroIdentificacion)}`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (!respuestaDetalle.ok) {
+        throw new Error(
+          "No se pudo consultar el detalle completo del trabajador."
+        );
+      }
+
+      const dataDetalle = await respuestaDetalle.json();
+
+      const trabajadorFinal = {
+        IdRegistroPersonal:
+          dataDetalle?.IdRegistroPersonal ||
+          eventoAgenda?.IdRegistroPersonal ||
+          trabajadorEncontrado?.IdRegistroPersonal,
+
+        NombreCompleto:
+          dataDetalle?.NombreCompleto ||
+          eventoAgenda?.NombreCompleto ||
+          trabajadorEncontrado?.NombreCompleto ||
+          `${dataDetalle?.Nombres || ""} ${
+            dataDetalle?.Apellidos || ""
+          }`.trim(),
+
+        NumeroDocumento:
+          dataDetalle?.NumeroDocumento ||
+          eventoAgenda?.NumeroIdentificacion ||
+          numeroIdentificacion,
+
+        TipoDocumento: tipoDocumento,
+        Cargo: dataDetalle?.Cargo || "—",
+
+        ClienteNombre:
+          dataDetalle?.ClienteNombre || dataDetalle?.Cliente || "—",
+
+        Sede: dataDetalle?.Sede || "—",
+
+        Estado:
+          dataDetalle?.Estado || dataDetalle?.EstadoProceso || "—",
+
+        Supervisor: dataDetalle?.Supervisor || "—",
+
+        FechaIngreso:
+          dataDetalle?.FechaInicio || dataDetalle?.FechaIngreso || "—",
+      };
+
+      setTrabajador(trabajadorFinal);
+
+      // 5. Consultar el historial disciplinario
+      let historialData = [];
+
+      try {
+        historialData = await obtenerHistorialDisciplinarioTrabajador(
+          trabajadorFinal.IdRegistroPersonal
+        );
+      } catch {
+        historialData = [];
+      }
+
+      const historialFinal = Array.isArray(historialData)
+        ? historialData
+        : [];
+
+      setHistorial(historialFinal);
+
+      const procesoSeleccionado = historialFinal.find(
+        (item) =>
+          Number(item?.IdProcesoDisciplinario) ===
+          Number(idProcesoDesdeAgenda)
+      );
+
+      // 6. Dejar preparado el proceso que llegó desde la agenda
+    const procesoDesdeAgenda = {
+        IdProcesoDisciplinario: Number(idProcesoDesdeAgenda),
+        IdRegistroPersonal: trabajadorFinal.IdRegistroPersonal,
+        EstadoProceso: procesoSeleccionado?.EstadoProceso || "INICIADO",
+        OrigenProceso: procesoSeleccionado?.OrigenProceso || "RRLL",
+        FechaCreacion: procesoSeleccionado?.FechaCreacion || null,
+        TieneCitacion: procesoSeleccionado?.TieneCitacion || false,
+        TieneDescargo: procesoSeleccionado?.TieneDescargo || false,
+        TieneCierre: procesoSeleccionado?.TieneCierre || false,
+        MedidaDisciplinaria:
+            procesoSeleccionado?.MedidaDisciplinaria || null,
+        };
+
+        if (procesoDesdeAgenda.EstadoProceso === "CERRADO") {
+        setProcesoDetalle(procesoDesdeAgenda);
+        setVista("detalle");
+        return;
+        }
+
+setProcesoCreado(procesoDesdeAgenda);
+    } catch (error) {
+      console.error(
+        "Error cargando proceso desde Agenda Disciplinaria:",
+        error
+      );
+
+      setMensaje(
+        error?.message ||
+          "No se pudo cargar el proceso seleccionado desde la agenda."
+      );
+    } finally {
+      setLoadingProcesoAgenda(false);
+    }
+  };
+
+  cargarProcesoDesdeAgenda();
+}, [idProcesoDesdeAgenda]);
 
   if (vista === "citacion") {
     return (
@@ -165,48 +392,103 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
     }
   };
 
+  const marcarAgendaEnCurso = async (idProceso) => {
+  if (!idProceso) {
+    throw new Error(
+      "No se encontró el proceso disciplinario que se debe iniciar."
+    );
+  }
+
+  const response = await fetch(
+    `${API_URL}/agenda-disciplinaria/proceso/${idProceso}/iniciar`,
+    {
+      method: "PUT",
+      headers: {
+        Accept: "application/json",
+      },
+    }
+  );
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      data?.detail ||
+        "No se pudo cambiar el evento de la agenda al estado EN_CURSO."
+    );
+  }
+
+  return data;
+};
+
   const iniciarProceso = async () => {
-    try {
-      setMensaje("");
+  try {
+    setMensaje("");
 
-      if (!trabajador?.IdRegistroPersonal) {
-        setMensaje("Debe seleccionar un trabajador antes de continuar.");
-        return;
-      }
+    if (!trabajador?.IdRegistroPersonal) {
+      setMensaje("Debe seleccionar un trabajador antes de continuar.");
+      return;
+    }
 
-      const procesoActivo = historial.find(
-        (item) => item.EstadoProceso !== "CERRADO"
-      );
+    if (
+    idProcesoDesdeAgenda &&
+    procesoCreado?.EstadoProceso === "CERRADO"
+    ) {
+    setMensaje(
+        "Este proceso ya está cerrado y solo puede consultarse."
+    );
+    return;
+    }
 
-      if (procesoActivo) {
-        setProcesoCreado({
-          IdProcesoDisciplinario: procesoActivo.IdProcesoDisciplinario,
-          IdRegistroPersonal: procesoActivo.IdRegistroPersonal,
-          EstadoProceso: procesoActivo.EstadoProceso,
-          OrigenProceso: procesoActivo.OrigenProceso,
-        });
+     // Si el proceso llegó desde Agenda, marcarlo EN_CURSO
+    // y continuar exactamente con ese expediente.
+    if (idProcesoDesdeAgenda && procesoCreado?.IdProcesoDisciplinario) {
+    setLoadingCrear(true);
 
-        setVista("citacion");
-        return;
-      }
+    await marcarAgendaEnCurso(
+        procesoCreado.IdProcesoDisciplinario
+    );
 
-      setLoadingCrear(true);
+    setVista("citacion");
+    return;
+    }
 
-      const nuevoProceso = await crearProcesoDisciplinario({
-        IdRegistroPersonal: trabajador.IdRegistroPersonal,
-        EstadoProceso: "INICIADO",
-        OrigenProceso: "RRLL",
-        UsuarioActualizacion: "rrll",
+    // Flujo normal cuando se entra manualmente desde Procesos Disciplinarios.
+    const procesoActivo = historial.find(
+      (item) => item.EstadoProceso !== "CERRADO"
+    );
+
+    if (procesoActivo) {
+      setProcesoCreado({
+        IdProcesoDisciplinario: procesoActivo.IdProcesoDisciplinario,
+        IdRegistroPersonal: procesoActivo.IdRegistroPersonal,
+        EstadoProceso: procesoActivo.EstadoProceso,
+        OrigenProceso: procesoActivo.OrigenProceso,
       });
 
-      setProcesoCreado(nuevoProceso);
       setVista("citacion");
-    } catch (error) {
-      setMensaje(error?.message || "No se pudo iniciar el proceso disciplinario.");
-    } finally {
-      setLoadingCrear(false);
+      return;
     }
-  };
+
+    setLoadingCrear(true);
+
+    const nuevoProceso = await crearProcesoDisciplinario({
+      IdRegistroPersonal: trabajador.IdRegistroPersonal,
+      EstadoProceso: "INICIADO",
+      OrigenProceso: "RRLL",
+      UsuarioActualizacion: "rrll",
+    });
+
+    setProcesoCreado(nuevoProceso);
+    setVista("citacion");
+  } catch (error) {
+    setMensaje(
+      error?.message || "No se pudo continuar con el proceso disciplinario."
+    );
+  } finally {
+    setLoadingCrear(false);
+  }
+};
 
   const abrirProcesoExistente = (item) => {
     if (item.EstadoProceso === "CERRADO") {
@@ -296,9 +578,13 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
                 type="button"
                 className="bg-emerald-700 hover:bg-emerald-800"
                 onClick={buscarTrabajador}
-                disabled={loadingBuscar}
+                disabled={loadingBuscar || loadingProcesoAgenda}
               >
-                {loadingBuscar ? "Buscando..." : "Buscar"}
+                {loadingProcesoAgenda
+                ? "Cargando desde agenda..."
+                : loadingBuscar
+                ? "Buscando..."
+                : "Buscar"}
               </Button>
             </div>
 
@@ -559,9 +845,13 @@ export default function IniciarProcesoDisciplinarioView({ onBack }) {
             type="button"
             className="bg-emerald-700 hover:bg-emerald-800 text-white"
             onClick={iniciarProceso}
-            disabled={!trabajador || loadingCrear}
+            disabled={!trabajador || loadingCrear || loadingProcesoAgenda}
           >
-            {loadingCrear ? "Iniciando..." : "Continuar"}
+            {loadingProcesoAgenda
+                ? "Cargando proceso..."
+                : loadingCrear
+                ? "Iniciando..."
+                : "Continuar"}
           </Button>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ProcesosDisciplinariosView from "@/pages/ProcesosDisciplinariosView";
+import AgendaDisciplinariaView from "@/pages/AgendaDisciplinariaView";
 import {
   Select,
   SelectContent,
@@ -616,6 +617,7 @@ async function downloadBackendAdjunto(apiBase, file) {
   const API_BASE_ENTREVISTA = API_BASE.replace(/\/api$/, "");
 
   const [step, setStep] = useState("inicio");
+  const [idProcesoAgenda, setIdProcesoAgenda] = useState(null);
 
   const [fechaInicioExcel, setFechaInicioExcel] = useState("");
   const [fechaFinExcel, setFechaFinExcel] = useState("");
@@ -2246,7 +2248,26 @@ const handleActualizarEstadoProceso = async () => {
 if (step === "procesos_disciplinarios") {
   return (
     <ProcesosDisciplinariosView
-      onBack={() => setStep("inicio")}
+      onBack={() => {
+        setIdProcesoAgenda(null);
+        setStep("inicio");
+      }}
+      idProcesoDesdeAgenda={idProcesoAgenda}
+    />
+  );
+}
+
+if (step === "agenda_disciplinaria") {
+  return (
+    <AgendaDisciplinariaView
+      onVolver={() => {
+        setIdProcesoAgenda(null);
+        setStep("inicio");
+      }}
+      onAbrirProceso={(idProceso) => {
+        setIdProcesoAgenda(idProceso);
+        setStep("procesos_disciplinarios");
+      }}
     />
   );
 }
@@ -2290,6 +2311,16 @@ if (step === "procesos_disciplinarios") {
                 Citación, descargos, actas y compromisos…
               </p>
             </button>
+
+            <button
+            onClick={() => setStep("agenda_disciplinaria")}
+            className="text-left bg-white rounded-xl border border-blue-200 p-4 hover:border-blue-300 hover:shadow-sm transition"
+          >
+            <p className="font-bold text-blue-700">Agenda Disciplinaria</p>
+            <p className="text-xs text-gray-500">
+              Consulta de citaciones, descargos y seguimientos programados.
+            </p>
+          </button>
           </div>
 
           <div className="mt-6 rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">

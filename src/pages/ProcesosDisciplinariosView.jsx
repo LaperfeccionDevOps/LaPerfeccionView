@@ -2,16 +2,23 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import IniciarProcesoDisciplinarioView from "@/pages/IniciarProcesoDisciplinarioView";
 
-export default function ProcesosDisciplinariosView({ onBack }) {
-    const [vista, setVista] = useState("inicio");
-
-if (vista === "iniciar") {
-  return (
-    <IniciarProcesoDisciplinarioView
-      onBack={() => setVista("inicio")}
-    />
+export default function ProcesosDisciplinariosView({
+  onBack,
+  idProcesoDesdeAgenda = null,
+}) {
+  const [vista, setVista] = useState(
+    idProcesoDesdeAgenda ? "iniciar" : "inicio"
   );
-}
+
+  if (vista === "iniciar") {
+    return (
+      <IniciarProcesoDisciplinarioView
+        onBack={() => setVista("inicio")}
+        idProcesoDesdeAgenda={idProcesoDesdeAgenda}
+      />
+    );
+  }
+
   return (
     <div className="p-6">
       <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
@@ -60,13 +67,13 @@ if (vista === "iniciar") {
         </div>
 
         <div className="flex flex-col md:flex-row gap-3 mt-6">
-         <Button
+          <Button
             type="button"
             className="bg-emerald-700 hover:bg-emerald-800 text-white"
             onClick={() => setVista("iniciar")}
-            >
+          >
             Iniciar Proceso Disciplinario
-            </Button>
+          </Button>
 
           <Button type="button" variant="outline" onClick={onBack}>
             Volver a RRLL
