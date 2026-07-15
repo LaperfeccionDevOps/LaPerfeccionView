@@ -332,6 +332,30 @@ const ArchivosView = () => {
   const totalPages = Math.ceil(sortedData.length / itemsPerPage);
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
+  const getNombreCompleto = (aspirante) =>
+    `${aspirante?.nombres || ''} ${aspirante?.apellidos || ''}`.trim().toUpperCase();
+
+  const getIdentificacion = (aspirante) =>
+    aspirante?.cedula ||
+    aspirante?.identificacion ||
+    aspirante?.NumeroIdentificacion ||
+    aspirante?.numeroIdentificacion ||
+    aspirante?.documento ||
+    'Sin identificación';
+
+  const getCargo = (aspirante) =>
+    aspirante?.nombreCargo ||
+    aspirante?.NombreCargo ||
+    aspirante?.descripcionCargo ||
+    aspirante?.DescripcionCargo ||
+    aspirante?.cargoNombre ||
+    aspirante?.CargoNombre ||
+    aspirante?.NombreTipoCargo ||
+    aspirante?.DescripcionTipoCargo ||
+    aspirante?.cargo ||
+    aspirante?.Cargo ||
+    'No asignado';
+
   const SortIcon = ({ columnKey }) => {
     if (sortConfig.key !== columnKey) {
       return <ArrowUpDown className="w-4 h-4 ml-2 text-gray-500 opacity-50" />;
@@ -353,9 +377,17 @@ const ArchivosView = () => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
+      className={cn(
+        'space-y-6',
+        isOperaciones && 'w-full max-w-full min-w-0 overflow-x-hidden'
+      )}
     >
-      <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
+      <div
+        className={cn(
+          'bg-white rounded-2xl shadow-xl border-t-4 border-emerald-600',
+          isOperaciones ? 'w-full max-w-full min-w-0 overflow-hidden p-4 sm:p-6 lg:p-8' : 'p-8'
+        )}
+      >
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
@@ -364,19 +396,23 @@ const ArchivosView = () => {
 
             <div>
             <h1 className="text-2xl font-bold text-gray-800">
-                {isBienestar
-                  ? 'Gestión de Bienestar'
-                  : isHSE
-                    ? 'Gestión HSE'
-                    : 'Gestión de Archivos'}
+                {isOperaciones
+                  ? 'Gestión de Operaciones'
+                  : isBienestar
+                    ? 'Gestión de Bienestar'
+                    : isHSE
+                      ? 'Gestión HSE'
+                      : 'Gestión de Archivos'}
               </h1>
 
               <p className="text-sm text-gray-500">
-                {isBienestar
-                  ? 'Carga y administra documentos de bienestar de los colaboradores.'
-                  : isHSE
-                    ? 'Carga y administra documentos HSE de los colaboradores.'
-                    : 'Repositorio digital de expedientes de colaboradores.'}
+                {isOperaciones
+                  ? 'Consulta la carpeta digital de los colaboradores desde celular o computador.'
+                  : isBienestar
+                    ? 'Carga y administra documentos de bienestar de los colaboradores.'
+                    : isHSE
+                      ? 'Carga y administra documentos HSE de los colaboradores.'
+                      : 'Repositorio digital de expedientes de colaboradores.'}
               </p>
             </div>
           </div>
@@ -395,7 +431,103 @@ const ArchivosView = () => {
           </div>
         </div>
 
-        <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+        {isOperaciones && (
+          <div className="space-y-3 md:hidden">
+            {currentItems.length > 0 ? (
+              currentItems.map((aspirante) => (
+                <motion.article
+                  key={aspirante.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="w-full min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
+                >
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h2 className="break-words text-base font-bold leading-snug text-gray-900">
+                        {getNombreCompleto(aspirante) || 'SIN NOMBRE'}
+                      </h2>
+                      <p className="mt-1 break-all text-xs text-gray-500">
+                        {(aspirante.correo || 'SIN CORREO').toUpperCase()}
+                      </p>
+                    </div>
+
+                    <span
+                      className={cn(
+                        'shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide',
+                        getEstadoInfo(aspirante.estado).color
+                          .replace('text-', 'bg-')
+                          .replace('700', '100 text-')
+                          .replace('600', '700 border-')
+                      )}
+                    >
+                      {getEstadoInfo(aspirante.estado).label}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-1 gap-3 text-sm">
+                    <div className="min-w-0 rounded-xl bg-gray-50 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Identificación</p>
+                      <p className="mt-1 break-words font-mono font-semibold text-gray-800">
+                        {getIdentificacion(aspirante)}
+                      </p>
+                    </div>
+
+                    <div className="min-w-0 rounded-xl bg-gray-50 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Cargo</p>
+                      <p className="mt-1 break-words font-medium text-gray-800">{getCargo(aspirante)}</p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => openDocumentosTrabajador(aspirante, 'operaciones')}
+                    className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                  >
+                    <FolderOpen className="h-5 w-5" />
+                    Ver documentos de Operaciones
+                  </button>
+                </motion.article>
+              ))
+            ) : (
+              <div className="flex flex-col items-center rounded-2xl border border-gray-200 bg-white px-4 py-12 text-center text-gray-500">
+                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+                  <Search className="h-8 w-8 text-gray-400" />
+                </div>
+                <p className="text-lg font-medium">
+                  {searchTerm.trim() ? 'No se encontraron registros' : 'Busca un trabajador'}
+                </p>
+                <p className="mt-1 text-sm">
+                  {searchTerm.trim()
+                    ? 'No se encontró ningún colaborador con ese criterio.'
+                    : 'Ingresa el nombre o número de identificación para consultar la carpeta digital.'}
+                </p>
+              </div>
+            )}
+
+            {totalPages > 1 && (
+              <div className="flex w-full items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-3">
+                <div className="min-w-0 text-xs text-gray-500">
+                  {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, sortedData.length)} de {sortedData.length}
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => paginate(currentPage - 1)} disabled={currentPage === 1}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => paginate(currentPage + 1)} disabled={currentPage === totalPages}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div
+          className={cn(
+            'rounded-xl border border-gray-200 overflow-hidden shadow-sm',
+            isOperaciones && 'hidden md:block'
+          )}
+        >
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>

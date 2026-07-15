@@ -14,11 +14,18 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
-const Sidebar = ({ isOpen, toggleSidebar }) => {
+const Sidebar = ({
+  isOpen,
+  toggleSidebar,
+  closeMobileSidebar,
+}) => {
   const { logout, user } = useAuth();
   const [openSubmenus, setOpenSubmenus] = useState({});
 
   const rolUsuario = user?.role || "";
+
+  const isOperaciones =
+    rolUsuario === "Operaciones";
 
   const esSuperAdministrador =
     rolUsuario === "Super Administrador";
@@ -195,11 +202,27 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     }));
   };
 
+  const handleNavigation = () => {
+    if (
+      isOperaciones &&
+      typeof closeMobileSidebar === "function"
+    ) {
+      closeMobileSidebar();
+    }
+  };
+
   return (
     <aside
       className={cn(
-        "fixed z-30 flex h-full flex-col overflow-hidden border-r border-emerald-800 bg-emerald-900 font-sans shadow-2xl transition-all duration-300 ease-in-out",
-        isOpen ? "w-72" : "w-20"
+        "fixed left-0 top-0 z-30 flex h-full flex-col overflow-hidden border-r border-emerald-800 bg-emerald-900 font-sans shadow-2xl transition-all duration-300 ease-in-out",
+
+        isOperaciones
+          ? isOpen
+            ? "w-72 translate-x-0 md:w-72"
+            : "-translate-x-full w-72 md:w-20 md:translate-x-0"
+          : isOpen
+            ? "w-72 translate-x-0"
+            : "w-20 translate-x-0"
       )}
     >
       <div
@@ -236,7 +259,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           className="rounded-lg text-emerald-300 transition-colors hover:bg-emerald-800 hover:text-white"
           title={
             isOpen
-              ? "Colapsar menú"
+              ? "Cerrar menú"
               : "Expandir menú"
           }
         >
@@ -300,6 +323,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                       <NavLink
                         key={child.to}
                         to={child.to}
+                        onClick={handleNavigation}
                         className={({ isActive }) =>
                           cn(
                             "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200",
@@ -319,6 +343,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             ) : (
               <NavLink
                 to={item.to}
+                onClick={handleNavigation}
                 className={({ isActive }) =>
                   cn(
                     "group relative flex items-center gap-3 overflow-hidden rounded-xl px-3 py-3 transition-all duration-300",
