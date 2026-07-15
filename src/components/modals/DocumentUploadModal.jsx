@@ -959,15 +959,49 @@ const eliminarDocumentoActivoFront = async (idDocumento) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[850px] border-0 shadow-2xl rounded-3xl p-0">
+      <DialogContent
+          className={
+            esCarpetaOperaciones
+              ? 'w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] max-h-[calc(100vh-1rem)] overflow-hidden rounded-2xl border-0 p-0 shadow-2xl sm:max-w-[850px] sm:rounded-3xl'
+              : 'rounded-3xl border-0 p-0 shadow-2xl sm:max-w-[850px]'
+          }
+        >
         <div className="rounded-t-3xl bg-gradient-to-br from-yellow-50 via-white to-emerald-50 px-0 pt-0 pb-0">
-          <div className="px-8 pt-8 pb-4 border-b border-emerald-100">
+          <div
+              className={
+                esCarpetaOperaciones
+                  ? 'border-b border-emerald-100 px-4 pb-3 pt-5 sm:px-8 sm:pb-4 sm:pt-8'
+                  : 'border-b border-emerald-100 px-8 pb-4 pt-8'
+              }
+            >
             <DialogHeader>
-              <DialogTitle className="text-3xl font-extrabold flex items-center gap-4 text-emerald-700 drop-shadow-sm">
-                <Folder className={`w-10 h-10 ${colorIcono}`} /> {tituloModal}
+           <DialogTitle
+                className={
+                  esCarpetaOperaciones
+                    ? 'flex min-w-0 items-center gap-3 break-words pr-6 text-xl font-extrabold leading-tight text-emerald-700 drop-shadow-sm sm:gap-4 sm:text-3xl'
+                    : 'flex items-center gap-4 text-3xl font-extrabold text-emerald-700 drop-shadow-sm'
+                }
+              >
+                <Folder
+                  className={
+                    esCarpetaOperaciones
+                      ? `h-7 w-7 shrink-0 sm:h-10 sm:w-10 ${colorIcono}`
+                      : `h-10 w-10 ${colorIcono}`
+                  }
+                />
+
+                <span className="min-w-0 break-words">
+                  {tituloModal}
+                </span>
               </DialogTitle>
 
-              <DialogDescription className="text-lg text-gray-600 mt-2">
+             <DialogDescription
+                  className={
+                    esCarpetaOperaciones
+                      ? 'mt-2 break-words pr-4 text-sm leading-relaxed text-gray-600 sm:text-lg'
+                      : 'mt-2 text-lg text-gray-600'
+                  }
+                >
                 Gestiona la documentación para{' '}
                 <span className="font-semibold text-emerald-800">
                   {aspirante.nombres} {aspirante.apellidos}
@@ -1000,13 +1034,19 @@ const eliminarDocumentoActivoFront = async (idDocumento) => {
             )}
           </div>
 
-          <div className="px-8 pb-2 pt-2">
+          <div
+              className={
+                esCarpetaOperaciones
+                  ? 'min-w-0 overflow-hidden px-3 pb-2 pt-2 sm:px-8'
+                  : 'px-8 pb-2 pt-2'
+              }
+            >
             {esCarpetaActivos && renderCarpetaActivos()}
 
             {esCarpetaRetiro && renderCarpetaRetiro()}
 
             {esCarpetaOperaciones && (
-  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-4 max-h-[50vh] overflow-y-auto pr-2">
+  <div className="grid min-w-0 grid-cols-1 gap-3 overflow-y-auto overflow-x-hidden py-3 pr-0 sm:grid-cols-2 sm:gap-6 sm:py-4 sm:pr-2 max-h-[calc(100vh-17rem)] sm:max-h-[50vh]">
     {[
       { id: 3, label: 'Hoja de vida' },
       { id: 4, label: 'Documento de identidad' },
@@ -1029,13 +1069,13 @@ const eliminarDocumentoActivoFront = async (idDocumento) => {
       return (
         <div
           key={req.id}
-          className="border-2 border-emerald-200 rounded-2xl p-6 bg-white/90 shadow-lg flex flex-col justify-between h-full group w-full hover:shadow-2xl transition-shadow duration-200"
+          className="group flex h-full w-full min-w-0 flex-col justify-between overflow-hidden rounded-2xl border-2 border-emerald-200 bg-white/90 p-4 shadow-lg transition-shadow duration-200 hover:shadow-2xl sm:p-6"
         >
           <div>
-            <h4 className="font-bold text-emerald-900 mb-3 text-base leading-tight min-h-[40px] tracking-wide flex items-center gap-2">
-              <span className="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
-              {req.label}
-            </h4>
+          <h4 className="mb-3 flex min-w-0 items-start gap-2 break-words text-sm font-bold leading-tight tracking-wide text-emerald-900 sm:min-h-[40px] sm:text-base">
+            <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full bg-emerald-400"></span>
+            {req.label}
+          </h4>
 
             <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-4 border shadow-sm ${hasFile ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-red-100 text-red-700 border-red-300'}`}>
               {hasFile ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
@@ -1050,7 +1090,7 @@ const eliminarDocumentoActivoFront = async (idDocumento) => {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="text-blue-700 border-blue-300 hover:bg-blue-100 px-3 h-auto w-full font-semibold"
+                  className="min-h-11 w-full border-blue-300 px-3 font-semibold text-blue-700 hover:bg-blue-100"
                   onClick={() => verDocumento(doc)}
                 >
                   <Eye className="w-4 h-4 mr-2" /> Ver
@@ -1060,7 +1100,7 @@ const eliminarDocumentoActivoFront = async (idDocumento) => {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="text-emerald-700 border-emerald-300 hover:bg-emerald-100 px-3 h-auto w-full font-semibold"
+                 className="min-h-11 w-full border-emerald-300 px-3 font-semibold text-emerald-700 hover:bg-emerald-100"
                   onClick={() => descargarDocumento(doc)}
                 >
                   <Download className="w-4 h-4 mr-2" /> Descargar
@@ -1068,9 +1108,9 @@ const eliminarDocumentoActivoFront = async (idDocumento) => {
               </div>
             )}
 
-            <p className="text-xs text-gray-500 truncate h-4 italic">
-              {hasFile ? doc.Nombre : 'Sin archivo'}
-            </p>
+           <p className="min-w-0 break-all text-xs italic leading-relaxed text-gray-500">
+            {hasFile ? doc.Nombre : 'Sin archivo'}
+          </p>
           </div>
         </div>
       );
@@ -1388,11 +1428,21 @@ const eliminarDocumentoActivoFront = async (idDocumento) => {
           </div>
         </div>
 
-        <DialogFooter className="bg-gradient-to-r from-emerald-50 to-yellow-50 rounded-b-3xl px-8 py-4 border-t border-emerald-100 flex justify-end">
+        <DialogFooter
+              className={
+                esCarpetaOperaciones
+                  ? 'flex shrink-0 justify-end rounded-b-2xl border-t border-emerald-100 bg-gradient-to-r from-emerald-50 to-yellow-50 px-3 py-3 sm:rounded-b-3xl sm:px-8 sm:py-4'
+                  : 'flex justify-end rounded-b-3xl border-t border-emerald-100 bg-gradient-to-r from-emerald-50 to-yellow-50 px-8 py-4'
+              }
+            >
           <Button
             variant="outline"
             onClick={onClose}
-            className="rounded-xl px-8 py-2 text-lg font-semibold border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-700 shadow-sm"
+            className={
+            esCarpetaOperaciones
+              ? 'min-h-11 w-full rounded-xl border-emerald-300 bg-white px-6 py-2 text-base font-semibold text-emerald-700 shadow-sm hover:bg-emerald-50 sm:w-auto sm:px-8 sm:text-lg'
+              : 'rounded-xl border-emerald-300 bg-white px-8 py-2 text-lg font-semibold text-emerald-700 shadow-sm hover:bg-emerald-50'
+          }
           >
             Cerrar
           </Button>
