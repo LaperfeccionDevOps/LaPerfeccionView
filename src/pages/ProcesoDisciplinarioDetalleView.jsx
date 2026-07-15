@@ -88,6 +88,18 @@ export default function ProcesoDisciplinarioDetalleView({
     document.body.removeChild(link);
   };
 
+  const verExpedientePDF = () => {
+    const idProceso =
+      procesoExp?.IdProcesoDisciplinario;
+
+    if (!idProceso) return;
+
+    window.open(
+      `${API_URL}/procesos-disciplinarios/${idProceso}/pdf`,
+      "_blank"
+    );
+  };
+
   const subirDocumento = async () => {
     if (cerrado) {
       setMensajeDocumento(
@@ -683,27 +695,13 @@ export default function ProcesoDisciplinarioDetalleView({
 
           <div className="flex flex-col sm:flex-row gap-3">
             <Button
-              variant="outline"
-              onClick={() =>
-                window.open(
-                  `${API_URL}/procesos-disciplinarios/${procesoExp?.IdProcesoDisciplinario}/pdf`,
-                  "_blank"
-                )
-              }
-            >
-              Descargar PDF
-            </Button>
-
-            <Button
               className="bg-emerald-700 hover:bg-emerald-800"
-              onClick={() =>
-                window.open(
-                  `${API_URL}/procesos-disciplinarios/${procesoExp?.IdProcesoDisciplinario}/pdf`,
-                  "_blank"
-                )
+              onClick={verExpedientePDF}
+              disabled={
+                !procesoExp?.IdProcesoDisciplinario
               }
             >
-              Generar expediente disciplinario
+              Ver expediente disciplinario
             </Button>
           </div>
         </div>

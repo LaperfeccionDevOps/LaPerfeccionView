@@ -6,7 +6,17 @@ import {
   crearDescargoProcesoDisciplinario,
   obtenerDescargoPorProceso,
   actualizarDescargoProcesoDisciplinario,
+  guardarBorradorDescargoProcesoDisciplinario,
 } from "@/services/descargoProcesoDisciplinarioService";
+
+import {
+  obtenerAsistentesPorProceso,
+  guardarBorradorAsistentes,
+} from "@/services/asistenteDescargoProcesoDisciplinarioService";
+
+import {
+  obtenerCitacionPorProceso,
+} from "@/services/citacionProcesoDisciplinarioService";
 
 const API_URL =
   import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
@@ -28,6 +38,7 @@ export default function DescargosProcesoDisciplinarioView({
   const [loadingGuardar, setLoadingGuardar] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [descargoExistente, setDescargoExistente] = useState(null);
+  const [citacionExistente, setCitacionExistente] = useState(null);
 
   const [documentos, setDocumentos] = useState([]);
   const [mostrarFormularioDocumento, setMostrarFormularioDocumento] = useState(false);
@@ -36,6 +47,13 @@ export default function DescargosProcesoDisciplinarioView({
   const [archivoDocumento, setArchivoDocumento] = useState(null);
   const [loadingDocumento, setLoadingDocumento] = useState(false);
   const [mensajeDocumento, setMensajeDocumento] = useState("");
+
+  const [asistentes, setAsistentes] = useState([]);
+
+  const [guardandoAsistentes, setGuardandoAsistentes] =
+    useState(false);
+  const [guardandoBorrador, setGuardandoBorrador] =
+    useState(false);
 
   const cargarDocumentos = async () => {
     if (!proceso?.IdProcesoDisciplinario) return;
@@ -56,9 +74,176 @@ export default function DescargosProcesoDisciplinarioView({
     }
   };
 
+  const cargarAsistentes = async () => {
+  if (!proceso?.IdProcesoDisciplinario) {
+    return;
+  }
+
+  try {
+    const respuesta =
+      await obtenerAsistentesPorProceso(
+        proceso.IdProcesoDisciplinario
+      );
+
+    setAsistentes(
+      Array.isArray(respuesta)
+        ? respuesta
+        : []
+    );
+  } catch (error) {
+    console.error(
+      "Error cargando asistentes",
+      error
+    );
+  }
+};
+
+const obtenerAsistente = (tipo) => {
+  return (
+    asistentes.find(
+      (a) => a.TipoAsistente === tipo
+    ) || {
+      TipoAsistente: tipo,
+      NombreAsistente: "",
+      Asistio: false,
+    }
+  );
+};
+
+const actualizarAsistente = (
+  tipo,
+  campo,
+  valor
+) => {
+  setAsistentes((actuales) => {
+    const copia = [...actuales];
+
+    const indice = copia.findIndex(
+      (a) => a.TipoAsistente === tipo
+    );
+
+    if (indice >= 0) {
+      copia[indice] = {
+        ...copia[indice],
+        [campo]: valor,
+      };
+    } else {
+      copia.push({
+        TipoAsistente: tipo,
+        NombreAsistente: "",
+        Asistio: false,
+        [campo]: valor,
+      });
+    }
+
+    return copia;
+  });
+};
+
   useEffect(() => {
     cargarDocumentos();
+    cargarAsistentes();
   }, [proceso]);
+
+  useEffect(() => {
+  async function cargarCitacionExistente() {
+    if (!proceso?.IdProcesoDisciplinario) {
+      return;
+    }
+
+    try {
+      const citacion =
+        await obtenerCitacionPorProceso(
+          proceso.IdProcesoDisciplinario
+        );
+
+      if (!citacion) {
+        setCitacionExistente(null);
+        return;
+      }
+
+      setCitacionExistente(citacion);
+
+      setFechaDescargo((valorActual) =>
+        valorActual ||
+        citacion.FechaCitacion ||
+        ""
+      );
+
+      setHoraDescargo((valorActual) =>
+        valorActual ||
+        (
+          citacion.HoraCitacion
+            ? String(
+                citacion.HoraCitacion
+              ).slice(0, 5)
+            : ""
+        )
+      );
+
+      setManifestacionSupervisor(
+        (valorActual) =>
+          valorActual ||
+          citacion.ManifestacionSupervisor ||
+          ""
+      );
+
+      setAsistentes((actuales) => {
+        const supervisorReporta =
+          String(
+            citacion.SupervisorReporta || ""
+          ).trim();
+
+        if (!supervisorReporta) {
+          return actuales;
+        }
+
+        const copia = [...actuales];
+
+        const indice = copia.findIndex(
+          (asistente) =>
+            asistente.TipoAsistente ===
+            "SUPERVISOR_REPORTA"
+        );
+
+        if (indice >= 0) {
+          if (
+            copia[indice].NombreAsistente
+          ) {
+            return copia;
+          }
+
+          copia[indice] = {
+            ...copia[indice],
+            NombreAsistente:
+              supervisorReporta,
+          };
+
+          return copia;
+        }
+
+        copia.push({
+          TipoAsistente:
+            "SUPERVISOR_REPORTA",
+          NombreAsistente:
+            supervisorReporta,
+          Asistio: false,
+        });
+
+        return copia;
+      });
+    } catch (error) {
+      console.error(
+        "Error cargando la citación:",
+        error
+      );
+
+      setCitacionExistente(null);
+    }
+  }
+
+  cargarCitacionExistente();
+}, [proceso]);
 
   useEffect(() => {
   async function cargarDescargoExistente() {
@@ -91,7 +276,11 @@ export default function DescargosProcesoDisciplinarioView({
       const rrll = partes[1]?.trim();
 
       setManifestacionSupervisor(supervisor || "");
-      setObservaciones(rrll || "");
+      setObservaciones(
+        data.ObservacionesRRLL ||
+        rrll ||
+        ""
+      );
     } catch (error) {
       setDescargoExistente(null);
     }
@@ -172,44 +361,213 @@ export default function DescargosProcesoDisciplinarioView({
     }
   };
 
+  const construirPayloadDescargo = (
+    estadoBorrador
+  ) => ({
+    IdProcesoDisciplinario:
+      proceso.IdProcesoDisciplinario,
+    FechaDescargo: fechaDescargo || null,
+    HoraDescargo: horaDescargo || null,
+    DescargoTrabajador:
+      descargoTrabajador || null,
+    Observaciones:
+      `Manifestación del supervisor:\n${manifestacionSupervisor}` +
+      `\n\nObservaciones de Relaciones Laborales:\n${observaciones}`,
+    ObservacionesRRLL:
+      observaciones || null,
+    ResponsableDescargo:
+      responsableDescargo || null,
+    EstadoBorrador: estadoBorrador,
+    UsuarioActualizacion: "yeny",
+  });
+
+  const handleGuardarAsistentes = async (
+    idDescargoOverride = null,
+    mostrarMensaje = true
+  ) => {
+    if (!proceso?.IdProcesoDisciplinario) {
+      setMensaje(
+        "No existe un proceso disciplinario asociado."
+      );
+      return false;
+    }
+
+    try {
+      setGuardandoAsistentes(true);
+
+      if (mostrarMensaje) {
+        setMensaje("");
+      }
+
+      const asistentesParaGuardar =
+        asistentes
+          .filter(
+            (asistente) =>
+              asistente.Asistio === true
+          )
+          .map((asistente) => ({
+            TipoAsistente:
+              asistente.TipoAsistente,
+            NombreAsistente:
+              asistente.NombreAsistente || "",
+            Asistio: true,
+          }));
+
+      const respuesta =
+        await guardarBorradorAsistentes({
+          IdProcesoDisciplinario:
+            proceso.IdProcesoDisciplinario,
+          IdDescargoProcesoDisciplinario:
+            idDescargoOverride ||
+            descargoExistente
+              ?.IdDescargoProcesoDisciplinario ||
+            null,
+          UsuarioActualizacion: "yeny",
+          Asistentes:
+            asistentesParaGuardar,
+        });
+
+      setAsistentes(
+        Array.isArray(respuesta)
+          ? respuesta
+          : []
+      );
+
+      if (mostrarMensaje) {
+        setMensaje(
+          "Borrador de asistentes guardado correctamente."
+        );
+      }
+
+      return true;
+    } catch (error) {
+      console.error(
+        "Error guardando asistentes:",
+        error
+      );
+
+      setMensaje(
+        error?.message ||
+        "No se pudo guardar el borrador de asistentes."
+      );
+
+      return false;
+    } finally {
+      setGuardandoAsistentes(false);
+    }
+  };
+
+  const handleGuardarBorradorCompleto = async () => {
+    if (!proceso?.IdProcesoDisciplinario) {
+      setMensaje(
+        "No existe un proceso disciplinario asociado."
+      );
+      return;
+    }
+
+    try {
+      setGuardandoBorrador(true);
+      setMensaje("");
+
+      const borrador =
+        await guardarBorradorDescargoProcesoDisciplinario(
+          construirPayloadDescargo(true)
+        );
+
+      setDescargoExistente(borrador);
+
+      const asistentesGuardados =
+        await handleGuardarAsistentes(
+          borrador
+            ?.IdDescargoProcesoDisciplinario ||
+          null,
+          false
+        );
+
+      if (!asistentesGuardados) {
+        return;
+      }
+
+      setMensaje(
+        "Borrador del descargo y asistentes guardado correctamente."
+      );
+    } catch (error) {
+      console.error(
+        "Error guardando borrador completo:",
+        error
+      );
+
+      setMensaje(
+        error?.message ||
+        "No se pudo guardar el borrador del descargo."
+      );
+    } finally {
+      setGuardandoBorrador(false);
+    }
+  };
+
   const handleContinuar = async () => {
     try {
       setLoadingGuardar(true);
       setMensaje("");
 
       if (!proceso?.IdProcesoDisciplinario) {
-        setMensaje("No existe un proceso disciplinario asociado.");
+        setMensaje(
+          "No existe un proceso disciplinario asociado."
+        );
         return;
       }
 
-      if (!descargoTrabajador) {
-        setMensaje("Debe registrar la manifestación del trabajador para continuar.");
+      if (!descargoTrabajador.trim()) {
+        setMensaje(
+          "Debe registrar la manifestación del trabajador para continuar."
+        );
         return;
       }
 
-      const payload = {
-        IdProcesoDisciplinario: proceso.IdProcesoDisciplinario,
-        FechaDescargo: fechaDescargo || null,
-        HoraDescargo: horaDescargo || null,
-        DescargoTrabajador: descargoTrabajador,
-        Observaciones: `Manifestación del supervisor:\n${manifestacionSupervisor}\n\nObservaciones de Relaciones Laborales:\n${observaciones}`,
-        ResponsableDescargo: responsableDescargo || "rrll",
-      };
+      const payload =
+        construirPayloadDescargo(false);
 
-      if (descargoExistente?.IdDescargoProcesoDisciplinario) {
-      await actualizarDescargoProcesoDisciplinario(
-        descargoExistente.IdDescargoProcesoDisciplinario,
-        payload
-      );
-    } else {
-      const nuevoDescargo = await crearDescargoProcesoDisciplinario(payload);
-      setDescargoExistente(nuevoDescargo);
-    }
+      let descargoGuardado;
+
+      if (
+        descargoExistente
+          ?.IdDescargoProcesoDisciplinario
+      ) {
+        descargoGuardado =
+          await actualizarDescargoProcesoDisciplinario(
+            descargoExistente
+              .IdDescargoProcesoDisciplinario,
+            payload
+          );
+      } else {
+        descargoGuardado =
+          await crearDescargoProcesoDisciplinario(
+            payload
+          );
+      }
+
+      setDescargoExistente(descargoGuardado);
+
+      const asistentesGuardados =
+        await handleGuardarAsistentes(
+          descargoGuardado
+            ?.IdDescargoProcesoDisciplinario ||
+          null,
+          false
+        );
+
+      if (!asistentesGuardados) {
+        return;
+      }
 
       setVista("cierre");
     } catch (error) {
       console.error(error);
-      setMensaje("No se pudo guardar el descargo del proceso disciplinario.");
+      setMensaje(
+        error?.message ||
+        "No se pudo guardar el descargo del proceso disciplinario."
+      );
     } finally {
       setLoadingGuardar(false);
     }
@@ -329,29 +687,258 @@ export default function DescargosProcesoDisciplinarioView({
           )}
         </div>
 
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-6 mb-6">
+        <div className="mb-5">
+          <p className="text-sm font-semibold text-blue-700">
+            Información recibida desde Operaciones
+          </p>
+
+          <h3 className="text-lg font-bold text-gray-800">
+            Datos de la citación y novedad reportada
+          </h3>
+
+          <p className="mt-1 text-sm text-gray-600">
+            Esta información fue registrada por Operaciones y se muestra
+            únicamente para consulta de Relaciones Laborales.
+          </p>
+        </div>
+
+        {citacionExistente ? (
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="rounded-lg border border-blue-200 bg-white p-4">
+                <p className="text-xs font-semibold uppercase text-gray-500">
+                  Cliente
+                </p>
+
+                <p className="mt-1 font-semibold text-gray-800">
+                  {citacionExistente.Cliente || "—"}
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-blue-200 bg-white p-4">
+                <p className="text-xs font-semibold uppercase text-gray-500">
+                  Sede
+                </p>
+
+                <p className="mt-1 font-semibold text-gray-800">
+                  {citacionExistente.Sede || "—"}
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-blue-200 bg-white p-4">
+                <p className="text-xs font-semibold uppercase text-gray-500">
+                  Supervisor que reporta
+                </p>
+
+                <p className="mt-1 font-semibold text-gray-800">
+                  {citacionExistente.SupervisorReporta || "—"}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+              <div className="rounded-lg border border-blue-200 bg-white p-4">
+                <p className="text-xs font-semibold uppercase text-gray-500">
+                  Fecha
+                </p>
+
+                <p className="mt-1 font-semibold text-gray-800">
+                  {citacionExistente.FechaCitacion || "—"}
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-blue-200 bg-white p-4">
+                <p className="text-xs font-semibold uppercase text-gray-500">
+                  Hora
+                </p>
+
+                <p className="mt-1 font-semibold text-gray-800">
+                  {citacionExistente.HoraCitacion
+                    ? String(citacionExistente.HoraCitacion).slice(0, 5)
+                    : "—"}
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-blue-200 bg-white p-4">
+                <p className="text-xs font-semibold uppercase text-gray-500">
+                  Lugar
+                </p>
+
+                <p className="mt-1 font-semibold text-gray-800">
+                  {citacionExistente.LugarCitacion || "—"}
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-blue-200 bg-white p-4">
+                <p className="text-xs font-semibold uppercase text-gray-500">
+                  Modalidad
+                </p>
+
+                <p className="mt-1 font-semibold text-gray-800">
+                  {citacionExistente.Modalidad || "—"}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-blue-200 bg-white p-4">
+              <p className="text-xs font-semibold uppercase text-gray-500">
+                Motivo de la citación
+              </p>
+
+              <p className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
+                {citacionExistente.MotivoCitacion || "—"}
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-blue-200 bg-white p-4">
+              <p className="text-xs font-semibold uppercase text-gray-500">
+                Relato de los hechos
+              </p>
+
+              <p className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
+                {citacionExistente.RelatoHechos || "—"}
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-blue-200 bg-white p-4">
+              <p className="text-xs font-semibold uppercase text-gray-500">
+                Observación de Operaciones
+              </p>
+
+              <p className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
+                {citacionExistente.ObservacionOperaciones || "—"}
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-blue-200 bg-white p-4">
+              <p className="text-xs font-semibold uppercase text-gray-500">
+                Manifestación del supervisor
+              </p>
+
+              <p className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
+                {citacionExistente.ManifestacionSupervisor || "—"}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-xl border-2 border-dashed border-blue-300 bg-white p-8 text-center">
+            <p className="font-semibold text-gray-700">
+              No existe información registrada desde Operaciones.
+            </p>
+
+            <p className="mt-2 text-sm text-gray-500">
+              Los datos aparecerán automáticamente cuando Operaciones
+              programe y complete la citación.
+            </p>
+          </div>
+        )}
+      </div>
+
         <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
           <h3 className="text-lg font-bold text-gray-800 mb-5">
             Asistentes a la diligencia
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[
-              "Trabajador citado",
-              "Responsable de RRLL",
-              "Supervisor que reporta",
-              "Testigo 1",
-              "Testigo 2",
-              "Otro asistente",
-            ].map((item) => (
-              <label
-                key={item}
-                className="flex items-center gap-3 rounded-lg border p-4 bg-gray-50"
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[
+            {
+              tipo: "TRABAJADOR_CITADO",
+              etiqueta: "Trabajador citado",
+              nombreInicial:
+                trabajador?.NombreCompleto || "",
+            },
+            {
+              tipo: "RESPONSABLE_RRLL",
+              etiqueta: "Responsable de RRLL",
+              nombreInicial: "YENY CUESTO",
+            },
+            {
+              tipo: "SUPERVISOR_REPORTA",
+              etiqueta: "Supervisor que reporta",
+              nombreInicial: "",
+            },
+            {
+              tipo: "TESTIGO_1",
+              etiqueta: "Testigo 1",
+              nombreInicial: "",
+            },
+            {
+              tipo: "TESTIGO_2",
+              etiqueta: "Testigo 2",
+              nombreInicial: "",
+            },
+            {
+              tipo: "OTRO",
+              etiqueta: "Otro asistente",
+              nombreInicial: "",
+            },
+          ].map((item) => {
+            const asistenteActual =
+              obtenerAsistente(item.tipo);
+
+            const nombreActual =
+              asistenteActual.NombreAsistente ||
+              item.nombreInicial;
+
+            return (
+              <div
+                key={item.tipo}
+                className="rounded-lg border bg-gray-50 p-4"
               >
-                <input type="checkbox" />
-                <span className="font-medium text-gray-700">{item}</span>
-              </label>
-            ))}
-          </div>
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={
+                      asistenteActual.Asistio === true
+                    }
+                   onChange={(e) => {
+                      const marcado = e.target.checked;
+
+                      actualizarAsistente(
+                        item.tipo,
+                        "Asistio",
+                        marcado
+                      );
+
+                      if (
+                        marcado &&
+                        !asistenteActual.NombreAsistente &&
+                        item.nombreInicial
+                      ) {
+                        actualizarAsistente(
+                          item.tipo,
+                          "NombreAsistente",
+                          item.nombreInicial
+                        );
+                      }
+                    }}
+                    />
+
+                  <span className="font-medium text-gray-700">
+                    {item.etiqueta}
+                  </span>
+                </label>
+
+                <Input
+                  className="mt-3 bg-white"
+                  value={nombreActual}
+                  onChange={(e) =>
+                    actualizarAsistente(
+                      item.tipo,
+                      "NombreAsistente",
+                      e.target.value
+                    )
+                  }
+                  placeholder={`Nombre de ${item.etiqueta.toLowerCase()}`}
+                  disabled={
+                    asistenteActual.Asistio !== true
+                  }
+                />
+              </div>
+            );
+          })}
+        </div>
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
@@ -362,10 +949,11 @@ export default function DescargosProcesoDisciplinarioView({
           <div className="space-y-5">
             <div>
               <label className="text-sm font-medium">Fecha de descargos</label>
-              <Input
+             <Input
                 type="date"
                 value={fechaDescargo}
-                onChange={(e) => setFechaDescargo(e.target.value)}
+                readOnly
+                className="bg-gray-100 cursor-not-allowed"
               />
             </div>
 
@@ -374,7 +962,8 @@ export default function DescargosProcesoDisciplinarioView({
               <Input
                 type="time"
                 value={horaDescargo}
-                onChange={(e) => setHoraDescargo(e.target.value)}
+                readOnly
+                className="bg-gray-100 cursor-not-allowed"
               />
             </div>
 
@@ -406,10 +995,10 @@ export default function DescargosProcesoDisciplinarioView({
                 Manifestación del supervisor
               </label>
               <textarea
-                className="w-full border rounded-lg p-3 min-h-[120px] resize-none"
-                placeholder="Aquí se registrará la intervención del supervisor o responsable que reporta..."
+                className="w-full border rounded-lg p-3 min-h-[120px] resize-none bg-gray-100 cursor-not-allowed"
+                placeholder="La manifestación registrada por Operaciones aparecerá aquí."
                 value={manifestacionSupervisor}
-                onChange={(e) => setManifestacionSupervisor(e.target.value)}
+                readOnly
               />
             </div>
 
@@ -588,8 +1177,14 @@ export default function DescargosProcesoDisciplinarioView({
             firma y archivo.
           </p>
 
-          {mensaje && (
-            <p className="text-sm font-semibold text-red-600 mt-3">
+        {mensaje && (
+            <p
+              className={`text-sm font-semibold mt-3 ${
+                mensaje.toLowerCase().includes("correctamente")
+                  ? "text-emerald-700"
+                  : "text-red-600"
+              }`}
+            >
               {mensaje}
             </p>
           )}
@@ -601,8 +1196,20 @@ export default function DescargosProcesoDisciplinarioView({
           </Button>
 
           <div className="flex gap-3">
-            <Button variant="outline" disabled>
-              Guardar borrador
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleGuardarBorradorCompleto}
+              disabled={
+                guardandoBorrador ||
+                guardandoAsistentes ||
+                loadingGuardar
+              }
+            >
+              {guardandoBorrador ||
+              guardandoAsistentes
+                ? "Guardando..."
+                : "Guardar borrador"}
             </Button>
 
             <Button
