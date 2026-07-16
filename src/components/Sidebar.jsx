@@ -125,6 +125,11 @@ const Sidebar = ({
           ],
         },
         {
+          to: "/operaciones/procesos-disciplinarios",
+          label: "Procesos Disciplinarios",
+          roles: ["Operaciones"],
+        },
+        {
           to: "/indicadores-contratacion",
           label: "Indicadores",
           roles: ["Administrador", "Contratación"],

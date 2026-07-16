@@ -1,20 +1,28 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet';
+
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
+
 import LoginPage from '@/pages/LoginPage';
 import HomePage from '@/pages/HomePage';
+import EntrevistaRetiroPage from '@/pages/EntrevistaRetiroPage';
+import OperacionesProcesosDisciplinariosView from '@/pages/OperacionesProcesosDisciplinariosView';
+import IniciarProcesoOperacionesView from '@/pages/IniciarProcesoOperacionesView';
+
+
 import AspiranteView from '@/components/AspiranteView';
 import ContratacionView from '@/components/ContratacionView';
 import SeleccionView from '@/components/SeleccionView';
 import SeguimientoView from '@/components/SeguimientoView';
 import RelacionesLaboralesView from '@/components/RelacionesLaboralesView';
 import ArchivosView from '@/components/ArchivosView';
+import RevisionProcesoOperacionesView from '@/pages/RevisionProcesoOperacionesView';
 import CreateUserForm from '@/components/admin/CreateUserForm';
 import UpdateUserView from '@/components/admin/UpdateUserView';
-import EntrevistaRetiroPage from '@/pages/EntrevistaRetiroPage';
+
 import IndicadoresContratacionView from './components/IndicadoresContratacionView';
 import IndicadoresSeleccionView from './components/IndicadoresSeleccionView';
 import IndicadoresRRLLView from './components/IndicadoresRRLLView';
@@ -22,7 +30,9 @@ import IndicadoresRRLLView from './components/IndicadoresRRLLView';
 const RoleBasedRedirect = () => {
   const { user } = useAuth();
 
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
 
   switch (user.role) {
     case 'Aspirante':
@@ -56,7 +66,10 @@ function App() {
   return (
     <AuthProvider>
       <Helmet>
-        <title>Portal de Recursos Humanos - Empresa de Aseo</title>
+        <title>
+          Portal de Recursos Humanos - Empresa de Aseo
+        </title>
+
         <meta
           name="description"
           content="Sistema de gestión de recursos humanos para empresa de aseo."
@@ -64,27 +77,109 @@ function App() {
       </Helmet>
 
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/entrevista-retiro" element={<EntrevistaRetiroPage />} />
-        <Route path="/entrevista-retiro-publica" element={<EntrevistaRetiroPage />} />
+        <Route
+          path="/login"
+          element={<LoginPage />}
+        />
 
-        <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>}>
-          <Route index element={<RoleBasedRedirect />} />
-          <Route path="aspirantes" element={<AspiranteView />} />
-          <Route path="seleccion" element={<SeleccionView />} />
-          <Route path="indicadores-seleccion" element={<IndicadoresSeleccionView />} />
-          <Route path="seguimiento" element={<SeguimientoView />} />
-          <Route path="contratacion" element={<ContratacionView />} />
-          <Route path="archivos" element={<ArchivosView />} />
-          <Route path="indicadores-contratacion" element={<IndicadoresContratacionView />} />
-          <Route path="relaciones-laborales" element={<RelacionesLaboralesView />} />
-          <Route path="indicadores-rrll" element={<IndicadoresRRLLView />} />
+        <Route
+          path="/entrevista-retiro"
+          element={<EntrevistaRetiroPage />}
+        />
 
-          <Route path="admin/crear-usuario" element={<CreateUserForm />} />
-          <Route path="admin/actualizar-usuario" element={<UpdateUserView />} />
+        <Route
+          path="/entrevista-retiro-publica"
+          element={<EntrevistaRetiroPage />}
+        />
+
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <HomePage />
+            </ProtectedRoute>
+          }
+        >
+          <Route
+            index
+            element={<RoleBasedRedirect />}
+          />
+
+          <Route
+            path="aspirantes"
+            element={<AspiranteView />}
+          />
+
+          <Route
+            path="seleccion"
+            element={<SeleccionView />}
+          />
+
+          <Route
+            path="indicadores-seleccion"
+            element={<IndicadoresSeleccionView />}
+          />
+
+          <Route
+            path="seguimiento"
+            element={<SeguimientoView />}
+          />
+
+          <Route
+            path="contratacion"
+            element={<ContratacionView />}
+          />
+
+          <Route
+            path="archivos"
+            element={<ArchivosView />}
+          />
+
+          <Route
+            path="operaciones/procesos-disciplinarios"
+            element={<OperacionesProcesosDisciplinariosView />}
+          />
+
+          <Route
+            path="operaciones/procesos-disciplinarios/iniciar"
+            element={<IniciarProcesoOperacionesView />}
+          />
+
+          <Route
+            path="operaciones/procesos-disciplinarios/revision"
+            element={<RevisionProcesoOperacionesView />}
+          />
+
+          <Route
+            path="indicadores-contratacion"
+            element={<IndicadoresContratacionView />}
+          />
+
+          <Route
+            path="relaciones-laborales"
+            element={<RelacionesLaboralesView />}
+          />
+
+          <Route
+            path="indicadores-rrll"
+            element={<IndicadoresRRLLView />}
+          />
+
+          <Route
+            path="admin/crear-usuario"
+            element={<CreateUserForm />}
+          />
+
+          <Route
+            path="admin/actualizar-usuario"
+            element={<UpdateUserView />}
+          />
         </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="*"
+          element={<Navigate to="/" replace />}
+        />
       </Routes>
 
       <Toaster />

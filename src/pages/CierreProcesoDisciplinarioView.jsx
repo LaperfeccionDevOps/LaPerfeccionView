@@ -1,35 +1,80 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
 import {
-  crearCierreProcesoDisciplinario,
-  obtenerCierrePorProceso,
   actualizarCierreProcesoDisciplinario,
+  crearCierreProcesoDisciplinario,
+  finalizarCierreProcesoDisciplinario,
+  obtenerCierrePorProceso,
 } from "@/services/cierreProcesoDisciplinarioService";
 
-
-const LIMITES = {
-  tipoCierre: 150,
-  medidaDisciplinaria: 500,
-  conclusionRRLL: 4000,
-  responsableCierre: 150,
-};
+import {
+  obtenerAsistentesPorProceso,
+} from "@/services/asistenteDescargoProcesoDisciplinarioService";
 
 
-const SUGERENCIAS_TIPO_CIERRE = [
-  "Con medida disciplinaria",
-  "Sin medida disciplinaria",
-  "Archivo del proceso",
+const TIPOS_CIERRE = [
+  {
+    value: "CON_MEDIDA_DISCIPLINARIA",
+    label: "Con medida disciplinaria",
+  },
+  {
+    value: "SIN_MEDIDA_DISCIPLINARIA",
+    label: "Sin medida disciplinaria",
+  },
+  {
+    value: "ARCHIVO_DEL_PROCESO",
+    label: "Archivo del proceso",
+  },
 ];
 
 
-const SUGERENCIAS_MEDIDA = [
+const MEDIDAS_SUGERIDAS = [
   "Llamado de atención verbal",
   "Llamado de atención escrito",
   "Suspensión",
   "Terminación del contrato",
-  "Sin medida disciplinaria",
 ];
+
+
+function limpiarTexto(valor) {
+  return String(
+    valor || ""
+  ).trim();
+}
+
+
+function fechaActualColombia() {
+  const partes = new Intl.DateTimeFormat(
+    "en-CA",
+    {
+      timeZone: "America/Bogota",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }
+  ).formatToParts(
+    new Date()
+  );
+
+  const valores = {};
+
+  for (const parte of partes) {
+    valores[parte.type] = parte.value;
+  }
+
+  return [
+    valores.year,
+    valores.month,
+    valores.day,
+  ].join("-");
+}
 
 
 function obtenerMensajeError(error) {
@@ -46,27 +91,20 @@ function obtenerMensajeError(error) {
     return detail.mensaje;
   }
 
-  if (Array.isArray(detail) && detail.length > 0) {
-    const primerError = detail[0];
-
-    if (primerError?.msg) {
-      return String(primerError.msg).replace(
-        /^Value error,\s*/i,
-        ""
-      );
-    }
+  if (
+    Array.isArray(detail) &&
+    detail.length > 0
+  ) {
+    return (
+      detail[0]?.msg ||
+      "No se pudo procesar la solicitud."
+    );
   }
 
-  if (error?.message) {
-    return error.message;
-  }
-
-  return "No se pudo cerrar el proceso disciplinario.";
-}
-
-
-function limpiarTexto(valor) {
-  return String(valor || "").trim();
+  return (
+    error?.message ||
+    "No se pudo procesar la solicitud."
+  );
 }
 
 
@@ -75,279 +113,403 @@ export default function CierreProcesoDisciplinarioView({
   proceso,
   trabajador,
 }) {
-  const [fechaCierre, setFechaCierre] = useState("");
-  const [tipoCierre, setTipoCierre] = useState("");
-  const [
-    medidaDisciplinaria,
-    setMedidaDisciplinaria,
-  ] = useState("");
-  const [conclusionRRLL, setConclusionRRLL] =
-    useState("");
-  const [
-    responsableCierre,
-    setResponsableCierre,
-  ] = useState("");
-
-  const [loadingGuardar, setLoadingGuardar] =
-    useState(false);
-  const [loadingCierre, setLoadingCierre] =
-    useState(true);
-
-  const [mensaje, setMensaje] = useState("");
-  const [tipoMensaje, setTipoMensaje] =
-    useState("");
-
-  const [finalizado, setFinalizado] =
-    useState(false);
   const [
     cierreExistente,
     setCierreExistente,
   ] = useState(null);
 
+  const [
+    fechaCierre,
+    setFechaCierre,
+  ] = useState(
+    fechaActualColombia()
+  );
+
+  const [
+    tipoCierre,
+    setTipoCierre,
+  ] = useState("");
+
+  const [
+    medidaDisciplinaria,
+    setMedidaDisciplinaria,
+  ] = useState("");
+
+  const [
+    conclusionRRLL,
+    setConclusionRRLL,
+  ] = useState("");
+
+  const [
+    responsableCierre,
+    setResponsableCierre,
+  ] = useState("");
+
+  const [
+    loadingInicial,
+    setLoadingInicial,
+  ] = useState(true);
+
+  const [
+    loadingResponsable,
+    setLoadingResponsable,
+  ] = useState(true);
+
+  const [
+    guardando,
+    setGuardando,
+  ] = useState(false);
+
+  const [
+    finalizado,
+    setFinalizado,
+  ] = useState(
+    String(
+      proceso?.EstadoProceso || ""
+    ).toUpperCase() === "CERRADO"
+  );
+
+  const [
+    mensaje,
+    setMensaje,
+  ] = useState("");
+
+  const [
+    tipoMensaje,
+    setTipoMensaje,
+  ] = useState("");
+
+
+  const requiereMedida =
+    tipoCierre ===
+    "CON_MEDIDA_DISCIPLINARIA";
+
 
   useEffect(() => {
-    async function cargarCierreExistente() {
-      if (!proceso?.IdProcesoDisciplinario) {
-        setLoadingCierre(false);
+    async function cargar() {
+      if (
+        !proceso?.IdProcesoDisciplinario
+      ) {
+        setLoadingInicial(false);
+        setLoadingResponsable(false);
         return;
       }
 
       try {
-        setLoadingCierre(true);
+        setLoadingInicial(true);
+        setLoadingResponsable(true);
+        setMensaje("");
+        setTipoMensaje("");
 
-        const data = await obtenerCierrePorProceso(
-          proceso.IdProcesoDisciplinario
-        );
+        const [
+          dataCierre,
+          dataAsistentes,
+        ] = await Promise.all([
+          obtenerCierrePorProceso(
+            proceso.IdProcesoDisciplinario
+          ),
+          obtenerAsistentesPorProceso(
+            proceso.IdProcesoDisciplinario
+          ),
+        ]);
 
-        if (!data) {
-          setCierreExistente(null);
-          setFinalizado(false);
-          return;
+        const listaAsistentes =
+          Array.isArray(dataAsistentes)
+            ? dataAsistentes
+            : [];
+
+        const responsableRRLL =
+          listaAsistentes.find(
+            (asistente) =>
+              String(
+                asistente?.TipoAsistente || ""
+              )
+                .trim()
+                .toUpperCase() ===
+                "RESPONSABLE_RRLL" &&
+              asistente?.Asistio === true
+          );
+
+        const nombreResponsable =
+          limpiarTexto(
+            responsableRRLL?.NombreAsistente
+          );
+
+        if (dataCierre) {
+          setCierreExistente(
+            dataCierre
+          );
+
+          setFechaCierre(
+            dataCierre.FechaCierre ||
+            fechaActualColombia()
+          );
+
+          setTipoCierre(
+            dataCierre.TipoCierre || ""
+          );
+
+          setMedidaDisciplinaria(
+            dataCierre.MedidaDisciplinaria ||
+            ""
+          );
+
+          setConclusionRRLL(
+            dataCierre.ConclusionRRLL ||
+            ""
+          );
+
+          setResponsableCierre(
+            dataCierre.ResponsableCierre ||
+            nombreResponsable
+          );
+        } else {
+          setResponsableCierre(
+            nombreResponsable
+          );
         }
-
-        setCierreExistente(data);
-        setFechaCierre(data.FechaCierre || "");
-        setTipoCierre(data.TipoCierre || "");
-        setMedidaDisciplinaria(
-          data.MedidaDisciplinaria || ""
-        );
-        setConclusionRRLL(
-          data.ConclusionRRLL || ""
-        );
-        setResponsableCierre(
-          data.ResponsableCierre || ""
-        );
-        setFinalizado(true);
       } catch (error) {
-        /*
-         * Cuando el proceso todavía no tiene cierre,
-         * el servicio puede responder 404.
-         * En ese caso se deja el formulario disponible.
-         */
-        setCierreExistente(null);
-        setFinalizado(false);
+        setTipoMensaje("error");
+        setMensaje(
+          obtenerMensajeError(error)
+        );
       } finally {
-        setLoadingCierre(false);
+        setLoadingInicial(false);
+        setLoadingResponsable(false);
       }
     }
 
-    cargarCierreExistente();
-  }, [proceso?.IdProcesoDisciplinario]);
-
-
-  const erroresFormulario = useMemo(() => {
-    const errores = {};
-
-    const tipoCierreLimpio =
-      limpiarTexto(tipoCierre);
-
-    const medidaLimpia =
-      limpiarTexto(medidaDisciplinaria);
-
-    const conclusionLimpia =
-      limpiarTexto(conclusionRRLL);
-
-    const responsableLimpio =
-      limpiarTexto(responsableCierre);
-
-    if (!tipoCierreLimpio) {
-      errores.tipoCierre =
-        "El tipo de cierre es obligatorio.";
-    } else if (tipoCierreLimpio.length < 3) {
-      errores.tipoCierre =
-        "El tipo de cierre debe tener mínimo 3 caracteres.";
-    }
-
-    if (!medidaLimpia) {
-      errores.medidaDisciplinaria =
-        "La medida disciplinaria es obligatoria.";
-    } else if (medidaLimpia.length < 3) {
-      errores.medidaDisciplinaria =
-        "La medida disciplinaria debe tener mínimo 3 caracteres.";
-    }
-
-    if (!conclusionLimpia) {
-      errores.conclusionRRLL =
-        "La conclusión de Relaciones Laborales es obligatoria.";
-    } else if (conclusionLimpia.length < 3) {
-      errores.conclusionRRLL =
-        "La conclusión debe tener mínimo 3 caracteres.";
-    }
-
-    if (!responsableLimpio) {
-      errores.responsableCierre =
-        "El responsable del cierre es obligatorio.";
-    } else if (responsableLimpio.length < 3) {
-      errores.responsableCierre =
-        "El responsable debe tener mínimo 3 caracteres.";
-    }
-
-    return errores;
+    cargar();
   }, [
-    tipoCierre,
-    medidaDisciplinaria,
-    conclusionRRLL,
-    responsableCierre,
+    proceso?.IdProcesoDisciplinario,
   ]);
 
 
-  const formularioValido =
-    Object.keys(erroresFormulario).length === 0;
+  const errores = useMemo(() => {
+    const resultado = {};
 
-
-  const seleccionarTipoCierre = (valor) => {
-    if (finalizado) return;
-
-    setTipoCierre(valor);
-    setMensaje("");
-    setTipoMensaje("");
-  };
-
-
-  const seleccionarMedida = (valor) => {
-    if (finalizado) return;
-
-    setMedidaDisciplinaria(valor);
-    setMensaje("");
-    setTipoMensaje("");
-  };
-
-
-  const handleFinalizar = async () => {
-    if (loadingGuardar || finalizado) {
-      return;
+    if (!tipoCierre) {
+      resultado.tipoCierre =
+        "Seleccione el tipo de cierre.";
     }
 
-    setMensaje("");
-    setTipoMensaje("");
+    if (!fechaCierre) {
+      resultado.fechaCierre =
+        "La fecha de cierre es obligatoria.";
+    }
 
-    if (!proceso?.IdProcesoDisciplinario) {
-      setMensaje(
+    if (
+      !limpiarTexto(
+        responsableCierre
+      )
+    ) {
+      resultado.responsableCierre =
+        "Debe existir un Responsable de RRLL marcado como asistente en el Paso 3.";
+    }
+
+    if (
+      !limpiarTexto(
+        conclusionRRLL
+      )
+    ) {
+      resultado.conclusionRRLL =
+        "La conclusión de Relaciones Laborales es obligatoria.";
+    }
+
+    if (
+      requiereMedida &&
+      !limpiarTexto(
+        medidaDisciplinaria
+      )
+    ) {
+      resultado.medidaDisciplinaria =
+        "Debe registrar la medida disciplinaria.";
+    }
+
+    return resultado;
+  }, [
+    conclusionRRLL,
+    fechaCierre,
+    medidaDisciplinaria,
+    requiereMedida,
+    responsableCierre,
+    tipoCierre,
+  ]);
+
+
+  const construirPayload = () => ({
+    IdProcesoDisciplinario:
+      proceso.IdProcesoDisciplinario,
+
+    FechaCierre:
+      fechaCierre || null,
+
+    TipoCierre:
+      tipoCierre || null,
+
+    MedidaDisciplinaria:
+      requiereMedida
+        ? limpiarTexto(
+            medidaDisciplinaria
+          ) || null
+        : "Sin medida disciplinaria",
+
+    ConclusionRRLL:
+      limpiarTexto(
+        conclusionRRLL
+      ) || null,
+
+    ResponsableCierre:
+      limpiarTexto(
+        responsableCierre
+      ) || null,
+  });
+
+
+  const guardarBorrador = async (
+    mostrarMensaje = true
+  ) => {
+    if (
+      !proceso?.IdProcesoDisciplinario
+    ) {
+      throw new Error(
         "No existe un proceso disciplinario asociado."
       );
-      setTipoMensaje("error");
-      return;
     }
 
-    if (!formularioValido) {
-      const primerError =
-        Object.values(erroresFormulario)[0];
+    const payload =
+      construirPayload();
 
+    let guardado;
+
+    if (
+      cierreExistente
+        ?.IdCierreProcesoDisciplinario
+    ) {
+      guardado =
+        await actualizarCierreProcesoDisciplinario(
+          cierreExistente
+            .IdCierreProcesoDisciplinario,
+          payload
+        );
+    } else {
+      guardado =
+        await crearCierreProcesoDisciplinario(
+          payload
+        );
+    }
+
+    setCierreExistente(
+      guardado
+    );
+
+    if (mostrarMensaje) {
+      setTipoMensaje("exito");
       setMensaje(
-        primerError ||
-          "Complete todos los campos obligatorios."
+        "Borrador del cierre guardado correctamente."
       );
-      setTipoMensaje("error");
-      return;
     }
 
-    const payload = {
-      IdProcesoDisciplinario:
-        proceso.IdProcesoDisciplinario,
+    return guardado;
+  };
 
-      FechaCierre:
-        fechaCierre || null,
 
-      TipoCierre:
-        limpiarTexto(tipoCierre),
+  const handleGuardarBorrador =
+    async () => {
+      if (
+        guardando ||
+        finalizado
+      ) {
+        return;
+      }
 
-      MedidaDisciplinaria:
-        limpiarTexto(medidaDisciplinaria),
+      try {
+        setGuardando(true);
+        setMensaje("");
+        setTipoMensaje("");
 
-      ConclusionRRLL:
-        limpiarTexto(conclusionRRLL),
-
-      ResponsableCierre:
-        limpiarTexto(responsableCierre),
+        await guardarBorrador(
+          true
+        );
+      } catch (error) {
+        setTipoMensaje("error");
+        setMensaje(
+          obtenerMensajeError(error)
+        );
+      } finally {
+        setGuardando(false);
+      }
     };
 
-    try {
-      setLoadingGuardar(true);
+
+  const handleFinalizar =
+    async () => {
+      if (
+        guardando ||
+        finalizado
+      ) {
+        return;
+      }
 
       if (
-        cierreExistente
-          ?.IdCierreProcesoDisciplinario
+        Object.keys(
+          errores
+        ).length > 0
       ) {
-        /*
-         * Se conserva esta alternativa por compatibilidad.
-         * El backend bloqueará la actualización cuando
-         * el proceso ya se encuentre cerrado.
-         */
-        const cierreActualizado =
-          await actualizarCierreProcesoDisciplinario(
-            cierreExistente
-              .IdCierreProcesoDisciplinario,
-            payload
+        setTipoMensaje("error");
+        setMensaje(
+          Object.values(
+            errores
+          )[0]
+        );
+        return;
+      }
+
+      try {
+        setGuardando(true);
+        setMensaje("");
+        setTipoMensaje("");
+
+        const borrador =
+          await guardarBorrador(
+            false
+          );
+
+        const cierreFinal =
+          await finalizarCierreProcesoDisciplinario(
+            borrador
+              .IdCierreProcesoDisciplinario
           );
 
         setCierreExistente(
-          cierreActualizado || cierreExistente
+          cierreFinal
         );
-      } else {
-        const nuevoCierre =
-          await crearCierreProcesoDisciplinario(
-            payload
-          );
 
-        setCierreExistente(nuevoCierre);
+        setFinalizado(true);
+        setTipoMensaje("exito");
+        setMensaje(
+          "El proceso disciplinario fue cerrado correctamente."
+        );
+      } catch (error) {
+        setTipoMensaje("error");
+        setMensaje(
+          obtenerMensajeError(error)
+        );
+      } finally {
+        setGuardando(false);
       }
-
-      setTipoCierre(payload.TipoCierre);
-      setMedidaDisciplinaria(
-        payload.MedidaDisciplinaria
-      );
-      setConclusionRRLL(
-        payload.ConclusionRRLL
-      );
-      setResponsableCierre(
-        payload.ResponsableCierre
-      );
-
-      setFinalizado(true);
-      setTipoMensaje("exito");
-      setMensaje(
-        "El proceso disciplinario fue cerrado correctamente."
-      );
-    } catch (error) {
-      console.error(
-        "Error al cerrar el proceso disciplinario:",
-        error
-      );
-
-      setTipoMensaje("error");
-      setMensaje(obtenerMensajeError(error));
-    } finally {
-      setLoadingGuardar(false);
-    }
-  };
+    };
 
 
-  if (loadingCierre) {
+  if (
+    loadingInicial ||
+    loadingResponsable
+  ) {
     return (
       <div className="p-6">
-        <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
+        <div className="rounded-2xl border-t-4 border-emerald-600 bg-white p-8 shadow-xl">
           <p className="text-center text-gray-600">
-            Consultando información del cierre...
+            Consultando información del cierre.
           </p>
         </div>
       </div>
@@ -357,9 +519,9 @@ export default function CierreProcesoDisciplinarioView({
 
   return (
     <div className="p-6">
-      <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
+      <div className="rounded-2xl border-t-4 border-emerald-600 bg-white p-8 shadow-xl">
         <div className="mb-6">
-          <p className="text-sm text-emerald-700 font-semibold">
+          <p className="text-sm font-semibold text-emerald-700">
             Relaciones Laborales
           </p>
 
@@ -368,12 +530,11 @@ export default function CierreProcesoDisciplinarioView({
           </h2>
 
           <p className="text-sm text-gray-500">
-            Paso 4 de 4: decisión final y generación
-            del documento de cierre.
+            Paso 4 de 4: decisión final del expediente disciplinario.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-8">
+        <div className="mb-8 grid grid-cols-1 gap-3 md:grid-cols-4">
           {[
             "Iniciar",
             "Citación",
@@ -384,8 +545,8 @@ export default function CierreProcesoDisciplinarioView({
               key={item}
               className={`rounded-xl border p-4 ${
                 index < 3
-                  ? "bg-emerald-50 border-emerald-300"
-                  : "bg-blue-50 border-blue-300"
+                  ? "border-emerald-300 bg-emerald-50"
+                  : "border-blue-300 bg-blue-50"
               }`}
             >
               <p className="text-xs font-semibold">
@@ -399,25 +560,23 @@ export default function CierreProcesoDisciplinarioView({
           ))}
         </div>
 
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 mb-6">
+        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-5">
           <h3 className="font-bold text-blue-800">
             Decisión final del proceso
           </h3>
 
-          <p className="text-sm text-gray-600 mt-2">
-            Relaciones Laborales revisa la diligencia
-            de descargos, define la medida final y
-            registra la conclusión del expediente.
+          <p className="mt-2 text-sm text-gray-600">
+            Relaciones Laborales registra el resultado, la medida aplicable y la conclusión final.
           </p>
         </div>
 
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 mb-6">
-          <h3 className="font-bold text-emerald-800 mb-4">
+        <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+          <h3 className="mb-4 font-bold text-emerald-800">
             Resumen del expediente
           </h3>
 
           {trabajador ? (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 rounded-xl bg-white p-5 border border-emerald-200">
+            <div className="grid grid-cols-1 gap-4 rounded-xl border border-emerald-200 bg-white p-5 md:grid-cols-4">
               <div>
                 <p className="text-xs text-gray-500">
                   Nombre
@@ -460,104 +619,81 @@ export default function CierreProcesoDisciplinarioView({
                 </p>
 
                 <p className="font-semibold text-gray-800">
-                  {proceso?.IdProcesoDisciplinario
+                  {proceso
+                    ?.IdProcesoDisciplinario
                     ? `#${proceso.IdProcesoDisciplinario}`
                     : "—"}
                 </p>
               </div>
             </div>
           ) : (
-            <div className="rounded-xl border-2 border-dashed border-emerald-300 bg-white p-10 text-center">
-              <h4 className="text-xl font-bold text-gray-800">
-                Expediente pendiente de cargar
-              </h4>
-
-              <p className="text-gray-500 mt-2">
-                Aquí se mostrará el resumen del
-                trabajador y del proceso disciplinario.
+            <div className="rounded-xl border-2 border-dashed border-emerald-300 bg-white p-8 text-center">
+              <p className="font-semibold text-gray-700">
+                No fue posible cargar el resumen del expediente.
               </p>
             </div>
           )}
         </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
-          <h3 className="text-lg font-bold text-gray-800 mb-2">
+        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6">
+          <h3 className="mb-5 text-lg font-bold text-gray-800">
             Resultado del proceso
           </h3>
 
-          <p className="text-sm text-gray-500 mb-5">
-            Los campos continúan siendo de escritura
-            libre. Las opciones rápidas son solamente
-            sugerencias.
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <div>
-              <label className="text-sm font-medium text-gray-800">
-                Tipo de cierre
-                <span className="text-red-600">
-                  {" "}
-                  *
-                </span>
+              <label className="mb-2 block text-sm font-semibold text-gray-800">
+                Tipo de cierre *
               </label>
 
-              <Input
-                placeholder="Escriba el tipo de cierre"
-                value={tipoCierre}
-                maxLength={LIMITES.tipoCierre}
-                onChange={(event) => {
-                  setTipoCierre(event.target.value);
-                  setMensaje("");
-                  setTipoMensaje("");
-                }}
-                disabled={finalizado}
-                className={
-                  !finalizado &&
-                  erroresFormulario.tipoCierre
-                    ? "border-red-400"
-                    : ""
-                }
-              />
+              <div className="grid grid-cols-1 gap-2">
+                {TIPOS_CIERRE.map(
+                  (opcion) => (
+                    <button
+                      key={opcion.value}
+                      type="button"
+                      disabled={finalizado}
+                      onClick={() => {
+                        setTipoCierre(
+                          opcion.value
+                        );
 
-              <div className="flex justify-between gap-3 mt-1">
-                <p className="text-xs text-red-600">
-                  {!finalizado
-                    ? erroresFormulario.tipoCierre ||
-                      ""
-                    : ""}
-                </p>
+                        if (
+                          opcion.value !==
+                          "CON_MEDIDA_DISCIPLINARIA"
+                        ) {
+                          setMedidaDisciplinaria(
+                            ""
+                          );
+                        }
 
-                <p className="text-xs text-gray-500 whitespace-nowrap">
-                  {tipoCierre.length}/
-                  {LIMITES.tipoCierre}
-                </p>
+                        setMensaje("");
+                        setTipoMensaje("");
+                      }}
+                      className={`rounded-xl border px-4 py-3 text-left text-sm font-semibold transition ${
+                        tipoCierre ===
+                        opcion.value
+                          ? "border-emerald-500 bg-emerald-50 text-emerald-800"
+                          : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                      } disabled:cursor-not-allowed disabled:opacity-70`}
+                    >
+                      {opcion.label}
+                    </button>
+                  )
+                )}
               </div>
 
-              {!finalizado && (
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {SUGERENCIAS_TIPO_CIERRE.map(
-                    (sugerencia) => (
-                      <button
-                        key={sugerencia}
-                        type="button"
-                        onClick={() =>
-                          seleccionarTipoCierre(
-                            sugerencia
-                          )
-                        }
-                        className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-100"
-                      >
-                        {sugerencia}
-                      </button>
-                    )
-                  )}
-                </div>
-              )}
+              {!finalizado &&
+                errores.tipoCierre && (
+                  <p className="mt-2 text-xs text-red-600">
+                    {errores.tipoCierre}
+                  </p>
+                )}
             </div>
 
             <div>
-              <label className="text-sm font-medium text-gray-800">
-                Fecha de cierre
+              <label className="mb-2 block text-sm font-semibold text-gray-800">
+                Fecha de cierre *
               </label>
 
               <Input
@@ -570,150 +706,110 @@ export default function CierreProcesoDisciplinarioView({
                 }
                 disabled={finalizado}
               />
-            </div>
 
-            <div>
-              <label className="text-sm font-medium text-gray-800">
-                Responsable de cierre
-                <span className="text-red-600">
-                  {" "}
-                  *
-                </span>
+              {!finalizado &&
+                errores.fechaCierre && (
+                  <p className="mt-2 text-xs text-red-600">
+                    {errores.fechaCierre}
+                  </p>
+                )}
+
+              <label className="mb-2 mt-5 block text-sm font-semibold text-gray-800">
+                Responsable del cierre
               </label>
 
               <Input
                 value={responsableCierre}
-                maxLength={
-                  LIMITES.responsableCierre
-                }
-                onChange={(event) => {
-                  setResponsableCierre(
-                    event.target.value
-                  );
-                  setMensaje("");
-                  setTipoMensaje("");
-                }}
-                placeholder="Nombre del responsable de RRLL"
-                disabled={finalizado}
-                className={
-                  !finalizado &&
-                  erroresFormulario
-                    .responsableCierre
-                    ? "border-red-400"
-                    : ""
-                }
+                disabled
+                placeholder="Sin responsable de RRLL registrado"
+                className="bg-gray-50"
               />
 
-              <div className="flex justify-between gap-3 mt-1">
-                <p className="text-xs text-red-600">
-                  {!finalizado
-                    ? erroresFormulario
-                        .responsableCierre || ""
-                    : ""}
-                </p>
+              <p className="mt-2 text-xs text-gray-500">
+                Este nombre se toma automáticamente del asistente
+                marcado como Responsable de RRLL en el Paso 3.
+              </p>
 
-                <p className="text-xs text-gray-500 whitespace-nowrap">
-                  {responsableCierre.length}/
-                  {LIMITES.responsableCierre}
-                </p>
-              </div>
+              {!finalizado &&
+                errores.responsableCierre && (
+                  <p className="mt-2 text-xs text-red-600">
+                    {errores.responsableCierre}
+                  </p>
+                )}
             </div>
 
-            <div>
-              <label className="text-sm font-medium text-gray-800">
-                Medida disciplinaria
-                <span className="text-red-600">
-                  {" "}
-                  *
-                </span>
-              </label>
+            {requiereMedida && (
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm font-semibold text-gray-800">
+                  Medida disciplinaria *
+                </label>
 
-              <textarea
-                className={`w-full border rounded-lg p-3 min-h-[105px] resize-y ${
-                  !finalizado &&
-                  erroresFormulario
-                    .medidaDisciplinaria
-                    ? "border-red-400"
-                    : ""
-                }`}
-                placeholder="Describa libremente la medida disciplinaria"
-                value={medidaDisciplinaria}
-                maxLength={
-                  LIMITES.medidaDisciplinaria
-                }
-                onChange={(event) => {
-                  setMedidaDisciplinaria(
-                    event.target.value
-                  );
-                  setMensaje("");
-                  setTipoMensaje("");
-                }}
-                disabled={finalizado}
-              />
+                <textarea
+                  value={
+                    medidaDisciplinaria
+                  }
+                  maxLength={500}
+                  disabled={finalizado}
+                  onChange={(event) => {
+                    setMedidaDisciplinaria(
+                      event.target.value
+                    );
+                    setMensaje("");
+                    setTipoMensaje("");
+                  }}
+                  placeholder="Describa la medida disciplinaria aplicada."
+                  className="min-h-[120px] w-full resize-y rounded-xl border border-gray-200 bg-white p-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-gray-50"
+                />
 
-              <div className="flex justify-between gap-3 mt-1">
-                <p className="text-xs text-red-600">
-                  {!finalizado
-                    ? erroresFormulario
-                        .medidaDisciplinaria || ""
-                    : ""}
-                </p>
-
-                <p className="text-xs text-gray-500 whitespace-nowrap">
-                  {medidaDisciplinaria.length}/
-                  {LIMITES.medidaDisciplinaria}
-                </p>
-              </div>
-
-              {!finalizado && (
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {SUGERENCIAS_MEDIDA.map(
-                    (sugerencia) => (
-                      <button
-                        key={sugerencia}
-                        type="button"
-                        onClick={() =>
-                          seleccionarMedida(
-                            sugerencia
-                          )
-                        }
-                        className="rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100"
-                      >
-                        {sugerencia}
-                      </button>
-                    )
+                {!finalizado &&
+                  errores
+                    .medidaDisciplinaria && (
+                    <p className="mt-2 text-xs text-red-600">
+                      {
+                        errores
+                          .medidaDisciplinaria
+                      }
+                    </p>
                   )}
-                </div>
-              )}
-            </div>
+
+                {!finalizado && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {MEDIDAS_SUGERIDAS.map(
+                      (medida) => (
+                        <button
+                          key={medida}
+                          type="button"
+                          onClick={() =>
+                            setMedidaDisciplinaria(
+                              medida
+                            )
+                          }
+                          className="rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100"
+                        >
+                          {medida}
+                        </button>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
-          <h3 className="text-lg font-bold text-gray-800 mb-2">
-            Conclusión de Relaciones Laborales
-            <span className="text-red-600">
-              {" "}
-              *
-            </span>
+        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6">
+          <h3 className="mb-2 text-lg font-bold text-gray-800">
+            Conclusión de Relaciones Laborales *
           </h3>
 
-          <p className="text-sm text-gray-500 mb-4">
-            Registre la decisión final, la valoración
-            de los hechos y las consideraciones de
-            Relaciones Laborales.
+          <p className="mb-4 text-sm text-gray-500">
+            Registre la decisión final, la valoración de los hechos y las consideraciones de Relaciones Laborales.
           </p>
 
           <textarea
-            className={`w-full border rounded-lg p-3 min-h-[180px] resize-y ${
-              !finalizado &&
-              erroresFormulario.conclusionRRLL
-                ? "border-red-400"
-                : ""
-            }`}
-            placeholder="Escriba la conclusión final del proceso disciplinario"
             value={conclusionRRLL}
-            maxLength={LIMITES.conclusionRRLL}
+            maxLength={4000}
+            disabled={finalizado}
             onChange={(event) => {
               setConclusionRRLL(
                 event.target.value
@@ -721,91 +817,49 @@ export default function CierreProcesoDisciplinarioView({
               setMensaje("");
               setTipoMensaje("");
             }}
-            disabled={finalizado}
+            placeholder="Escriba la conclusión final del proceso disciplinario."
+            className="min-h-[180px] w-full resize-y rounded-xl border border-gray-200 bg-white p-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-gray-50"
           />
 
-          <div className="flex justify-between gap-3 mt-1">
+          <div className="mt-1 flex justify-between gap-3">
             <p className="text-xs text-red-600">
               {!finalizado
-                ? erroresFormulario.conclusionRRLL ||
+                ? errores.conclusionRRLL ||
                   ""
                 : ""}
             </p>
 
-            <p className="text-xs text-gray-500 whitespace-nowrap">
-              {conclusionRRLL.length}/
-              {LIMITES.conclusionRRLL}
+            <p className="whitespace-nowrap text-xs text-gray-500">
+              {conclusionRRLL.length}/4000
             </p>
           </div>
         </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
-          <h3 className="text-lg font-bold text-gray-800 mb-5">
+        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6">
+          <h3 className="mb-4 text-lg font-bold text-gray-800">
             Documento de cierre
           </h3>
 
-          <div className="border-2 border-dashed rounded-xl p-10 text-center bg-gray-50">
+          <div className="rounded-xl border-2 border-dashed bg-gray-50 p-8 text-center">
             <h4 className="font-bold text-gray-700">
-              Documento de cierre pendiente
+              Documento pendiente de integración
             </h4>
 
-            <p className="text-gray-500 mt-2">
-              El documento final será generado según
-              la decisión registrada por Relaciones
-              Laborales.
+            <p className="mt-2 text-sm text-gray-500">
+              La generación del documento final se habilitará cuando se integre el servicio PDF del cierre.
             </p>
 
             <Button
               className="mt-5 bg-emerald-700 hover:bg-emerald-800"
               disabled
             >
-              Generar documento
+              Generar documento próximamente
             </Button>
           </div>
         </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
-          <h3 className="text-lg font-bold text-gray-800 mb-5">
-            Firma y archivo
-          </h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <div className="rounded-lg border p-4">
-              <h4 className="font-semibold">
-                Firma del trabajador
-              </h4>
-
-              <p className="text-sm text-gray-500 mt-2">
-                Pendiente de firma del colaborador.
-              </p>
-            </div>
-
-            <div className="rounded-lg border p-4">
-              <h4 className="font-semibold">
-                Firma de la empresa
-              </h4>
-
-              <p className="text-sm text-gray-500 mt-2">
-                Pendiente de firma del responsable
-                autorizado.
-              </p>
-            </div>
-
-            <div className="rounded-lg border p-4">
-              <h4 className="font-semibold">
-                Archivo final
-              </h4>
-
-              <p className="text-sm text-gray-500 mt-2">
-                Pendiente de guardar en la carpeta del
-                trabajador.
-              </p>
-            </div>
-          </div>
-        </div>
-
         <div
-          className={`rounded-xl border p-5 mb-6 ${
+          className={`mb-6 rounded-xl border p-5 ${
             finalizado
               ? "border-emerald-200 bg-emerald-50"
               : "border-yellow-200 bg-yellow-50"
@@ -821,15 +875,15 @@ export default function CierreProcesoDisciplinarioView({
             Estado del cierre
           </h3>
 
-          <p className="text-sm text-gray-600 mt-2">
+          <p className="mt-2 text-sm text-gray-600">
             {finalizado
               ? "El proceso se encuentra cerrado y disponible únicamente para consulta."
-              : "Complete los campos obligatorios para finalizar el expediente."}
+              : "Puede guardar un borrador o finalizar el proceso cuando la información esté completa."}
           </p>
 
           {mensaje && (
             <p
-              className={`text-sm font-semibold mt-3 ${
+              className={`mt-3 text-sm font-semibold ${
                 tipoMensaje === "exito"
                   ? "text-emerald-700"
                   : "text-red-600"
@@ -840,7 +894,7 @@ export default function CierreProcesoDisciplinarioView({
           )}
         </div>
 
-        <div className="flex flex-col md:flex-row justify-between gap-3">
+        <div className="flex flex-col justify-between gap-3 md:flex-row">
           <Button
             variant="outline"
             onClick={onBack}
@@ -849,21 +903,36 @@ export default function CierreProcesoDisciplinarioView({
           </Button>
 
           <div className="flex gap-3">
-            <Button variant="outline" disabled>
-              Guardar borrador
+            <Button
+              variant="outline"
+              disabled={
+                guardando ||
+                finalizado
+              }
+              onClick={
+                handleGuardarBorrador
+              }
+            >
+              {guardando
+                ? "Guardando..."
+                : "Guardar borrador"}
             </Button>
 
             <Button
               className="bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60"
-              onClick={handleFinalizar}
               disabled={
-                loadingGuardar ||
+                guardando ||
                 finalizado ||
-                !formularioValido
+                Object.keys(
+                  errores
+                ).length > 0
+              }
+              onClick={
+                handleFinalizar
               }
             >
-              {loadingGuardar
-                ? "Finalizando..."
+              {guardando
+                ? "Procesando..."
                 : finalizado
                   ? "Proceso finalizado"
                   : "Finalizar proceso"}

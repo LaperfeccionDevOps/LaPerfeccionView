@@ -41,6 +41,7 @@ export default function DescargosProcesoDisciplinarioView({
   const [citacionExistente, setCitacionExistente] = useState(null);
 
   const [documentos, setDocumentos] = useState([]);
+  const [evidenciasOperaciones, setEvidenciasOperaciones] = useState([]);
   const [mostrarFormularioDocumento, setMostrarFormularioDocumento] = useState(false);
   const [tipoDocumento, setTipoDocumento] = useState("descargos");
   const [observacionDocumento, setObservacionDocumento] = useState("");
@@ -68,7 +69,28 @@ export default function DescargosProcesoDisciplinarioView({
       }
 
       const data = await response.json();
-      setDocumentos(data || []);
+      const listaDocumentos = Array.isArray(data) ? data : [];
+
+      const esEvidenciaOperaciones = (documento) => {
+        const tipo = String(
+          documento?.TipoDocumento || ""
+        )
+          .trim()
+          .toUpperCase();
+
+        return tipo === "EVIDENCIA_OPERACIONES";
+      };
+
+      setEvidenciasOperaciones(
+        listaDocumentos.filter(esEvidenciaOperaciones)
+      );
+
+      setDocumentos(
+        listaDocumentos.filter(
+          (documento) =>
+            !esEvidenciaOperaciones(documento)
+        )
+      );
     } catch (error) {
       console.error(error);
     }
@@ -184,6 +206,7 @@ const actualizarAsistente = (
       setManifestacionSupervisor(
         (valorActual) =>
           valorActual ||
+          citacion.ObservacionOperaciones ||
           citacion.ManifestacionSupervisor ||
           ""
       );
@@ -270,6 +293,7 @@ const actualizarAsistente = (
       );
 
       const supervisor = partes[0]
+        ?.replace("Observaciones gestor(a):", "")
         ?.replace("Manifestación del supervisor:", "")
         ?.trim();
 
@@ -371,7 +395,7 @@ const actualizarAsistente = (
     DescargoTrabajador:
       descargoTrabajador || null,
     Observaciones:
-      `Manifestación del supervisor:\n${manifestacionSupervisor}` +
+      `Observaciones gestor(a):\n${manifestacionSupervisor}` +
       `\n\nObservaciones de Relaciones Laborales:\n${observaciones}`,
     ObservacionesRRLL:
       observaciones || null,
@@ -583,6 +607,174 @@ const actualizarAsistente = (
     );
   }
 
+  const TIPOS_FALTA_LABEL = {
+  INCUMPLIMIENTO_FUNCIONES: "Incumplimiento de funciones",
+  AUSENCIA_INJUSTIFICADA: "Ausencia injustificada",
+  RETARDO_INJUSTIFICADO: "Retardo injustificado",
+  DESOBEDIENCIA: "Desobediencia de instrucciones",
+  COMPORTAMIENTO_INADECUADO: "Comportamiento inadecuado",
+  INCUMPLIMIENTO_REGLAMENTO: "Incumplimiento del reglamento",
+  OTRO: "Otro",
+};
+
+function formatearTipoFalta(valor) {
+  const codigo = String(valor || "")
+    .trim()
+    .toUpperCase();
+
+  if (!codigo) {
+    return "—";
+  }
+
+  return (
+    TIPOS_FALTA_LABEL[codigo] ||
+    codigo
+      .replaceAll("_", " ")
+      .toLowerCase()
+      .replace(/^./, (letra) => letra.toUpperCase())
+  );
+}
+
+function formatearModalidad(valor) {
+  const codigo = String(valor || "")
+    .trim()
+    .toUpperCase();
+
+  const modalidades = {
+    PRESENCIAL: "Presencial",
+    VIRTUAL: "Virtual",
+  };
+
+  return modalidades[codigo] || valor || "—";
+}
+
+function formatearFechaColombiana(valor) {
+  if (!valor) {
+    return "—";
+  }
+
+  const fecha = String(valor).slice(0, 10);
+  const partes = fecha.split("-");
+
+  if (partes.length !== 3) {
+    return fecha;
+  }
+
+  return `${partes[2]}/${partes[1]}/${partes[0]}`;
+}
+
+function formatearTipoDocumento(valor) {
+  const codigo = String(valor || "")
+    .trim()
+    .toLowerCase();
+
+  const tiposDocumento = {
+    descargos: "Descargos",
+    acta_firmada: "Acta firmada",
+    evidencia: "Evidencia",
+    soporte: "Soporte",
+    otro: "Otro",
+    evidencia_operaciones: "Evidencia de Operaciones",
+  };
+
+  return tiposDocumento[codigo] || valor || "—";
+}
+
+  const separarInformacionLegacy = () => {
+    const textoCompleto = String(
+      citacionExistente?.MotivoCitacion || ""
+    ).trim();
+
+    if (!textoCompleto) {
+      return {
+        motivo: "",
+        relato: "",
+        observacionesGestor: "",
+      };
+    }
+
+    const marcadorRelato = /relato de los hechos\s*:/i;
+    const marcadorObservaciones = /observaciones\s*:/i;
+
+    const coincidenciaRelato =
+      textoCompleto.match(marcadorRelato);
+
+    const coincidenciaObservaciones =
+      textoCompleto.match(marcadorObservaciones);
+
+    const indiceRelato =
+      coincidenciaRelato?.index ?? -1;
+
+    const indiceObservaciones =
+      coincidenciaObservaciones?.index ?? -1;
+
+    let motivo = textoCompleto;
+    let relato = "";
+    let observacionesGestor = "";
+
+    if (indiceRelato >= 0) {
+      motivo = textoCompleto
+        .slice(0, indiceRelato)
+        .trim();
+
+      const inicioRelato =
+        indiceRelato +
+        coincidenciaRelato[0].length;
+
+      const finRelato =
+        indiceObservaciones > indiceRelato
+          ? indiceObservaciones
+          : textoCompleto.length;
+
+      relato = textoCompleto
+        .slice(inicioRelato, finRelato)
+        .trim();
+    }
+
+    if (indiceObservaciones >= 0) {
+      const inicioObservaciones =
+        indiceObservaciones +
+        coincidenciaObservaciones[0].length;
+
+      observacionesGestor = textoCompleto
+        .slice(inicioObservaciones)
+        .trim();
+
+      if (
+        indiceRelato < 0 &&
+        indiceObservaciones >= 0
+      ) {
+        motivo = textoCompleto
+          .slice(0, indiceObservaciones)
+          .trim();
+      }
+    }
+
+    return {
+      motivo,
+      relato,
+      observacionesGestor,
+    };
+  };
+
+  const informacionLegacy =
+    separarInformacionLegacy();
+
+ const motivoCitacionMostrar = formatearTipoFalta(
+  informacionLegacy.motivo
+);
+
+  const relatoHechosMostrar =
+    citacionExistente?.RelatoHechos ||
+    informacionLegacy.relato ||
+    "—";
+
+  const observacionesGestorMostrar =
+    citacionExistente?.ObservacionOperaciones ||
+    citacionExistente?.ManifestacionSupervisor ||
+    informacionLegacy.observacionesGestor ||
+    "—";
+
   return (
     <div className="p-6">
       <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
@@ -705,7 +897,7 @@ const actualizarAsistente = (
 
         {citacionExistente ? (
           <div className="space-y-5">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="rounded-lg border border-blue-200 bg-white p-4">
                 <p className="text-xs font-semibold uppercase text-gray-500">
                   Cliente
@@ -718,17 +910,7 @@ const actualizarAsistente = (
 
               <div className="rounded-lg border border-blue-200 bg-white p-4">
                 <p className="text-xs font-semibold uppercase text-gray-500">
-                  Sede
-                </p>
-
-                <p className="mt-1 font-semibold text-gray-800">
-                  {citacionExistente.Sede || "—"}
-                </p>
-              </div>
-
-              <div className="rounded-lg border border-blue-200 bg-white p-4">
-                <p className="text-xs font-semibold uppercase text-gray-500">
-                  Supervisor que reporta
+                  Gestor(a) que reporta
                 </p>
 
                 <p className="mt-1 font-semibold text-gray-800">
@@ -744,7 +926,9 @@ const actualizarAsistente = (
                 </p>
 
                 <p className="mt-1 font-semibold text-gray-800">
-                  {citacionExistente.FechaCitacion || "—"}
+                  {formatearFechaColombiana(
+                    citacionExistente.FechaCitacion
+                  )}
                 </p>
               </div>
 
@@ -776,7 +960,9 @@ const actualizarAsistente = (
                 </p>
 
                 <p className="mt-1 font-semibold text-gray-800">
-                  {citacionExistente.Modalidad || "—"}
+                  {formatearModalidad(
+                    citacionExistente.Modalidad
+                  )}
                 </p>
               </div>
             </div>
@@ -787,7 +973,7 @@ const actualizarAsistente = (
               </p>
 
               <p className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
-                {citacionExistente.MotivoCitacion || "—"}
+                {motivoCitacionMostrar}
               </p>
             </div>
 
@@ -797,29 +983,20 @@ const actualizarAsistente = (
               </p>
 
               <p className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
-                {citacionExistente.RelatoHechos || "—"}
+                {relatoHechosMostrar}
               </p>
             </div>
 
             <div className="rounded-lg border border-blue-200 bg-white p-4">
               <p className="text-xs font-semibold uppercase text-gray-500">
-                Observación de Operaciones
+                Observaciones gestor(a)
               </p>
 
               <p className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
-                {citacionExistente.ObservacionOperaciones || "—"}
+                {observacionesGestorMostrar}
               </p>
             </div>
 
-            <div className="rounded-lg border border-blue-200 bg-white p-4">
-              <p className="text-xs font-semibold uppercase text-gray-500">
-                Manifestación del supervisor
-              </p>
-
-              <p className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
-                {citacionExistente.ManifestacionSupervisor || "—"}
-              </p>
-            </div>
           </div>
         ) : (
           <div className="rounded-xl border-2 border-dashed border-blue-300 bg-white p-8 text-center">
@@ -834,6 +1011,95 @@ const actualizarAsistente = (
           </div>
         )}
       </div>
+
+        <div className="rounded-xl border border-purple-200 bg-purple-50 p-6 mb-6">
+          <div className="mb-5">
+            <p className="text-sm font-semibold text-purple-700">
+              Información recibida desde Operaciones
+            </p>
+
+            <h3 className="text-lg font-bold text-gray-800">
+              Evidencias aportadas por Operaciones
+            </h3>
+
+            <p className="mt-1 text-sm text-gray-600">
+              Estos documentos fueron adjuntados por el gestor(a) y se muestran
+              únicamente para consulta de Relaciones Laborales.
+            </p>
+          </div>
+
+          {evidenciasOperaciones.length === 0 ? (
+            <div className="rounded-xl border-2 border-dashed border-purple-200 bg-white p-8 text-center">
+              <p className="font-semibold text-gray-700">
+                No existen evidencias aportadas por Operaciones.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-purple-200 bg-white">
+              <table className="min-w-full">
+                <thead className="bg-purple-100">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">
+                      Documento
+                    </th>
+
+                    <th className="px-4 py-3 text-left text-sm font-semibold">
+                      Fecha
+                    </th>
+
+                    <th className="px-4 py-3 text-center text-sm font-semibold">
+                      Acciones
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {evidenciasOperaciones.map((doc) => (
+                    <tr
+                      key={doc.IdDocumentoProcesoDisciplinario}
+                      className="border-t"
+                    >
+                      <td className="px-4 py-3 text-sm font-semibold">
+                        {doc.NombreArchivo || "Evidencia"}
+                      </td>
+
+                      <td className="px-4 py-3 text-sm">
+                        {formatearFechaColombiana(
+                          doc.FechaCreacion
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3 text-center text-sm">
+                        <div className="flex justify-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => abrirDocumento(doc.RutaArchivo)}
+                          >
+                            Ver
+                          </Button>
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() =>
+                              descargarDocumento(
+                                doc.RutaArchivo,
+                                doc.NombreArchivo
+                              )
+                            }
+                          >
+                            Descargar
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
 
         <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
           <h3 className="text-lg font-bold text-gray-800 mb-5">
@@ -855,7 +1121,7 @@ const actualizarAsistente = (
             },
             {
               tipo: "SUPERVISOR_REPORTA",
-              etiqueta: "Supervisor que reporta",
+              etiqueta: "Gestor(a) que reporta",
               nombreInicial: "",
             },
             {
@@ -992,11 +1258,11 @@ const actualizarAsistente = (
 
             <div>
               <label className="text-sm font-medium">
-                Manifestación del supervisor
+                Observaciones gestor(a)
               </label>
               <textarea
                 className="w-full border rounded-lg p-3 min-h-[120px] resize-none bg-gray-100 cursor-not-allowed"
-                placeholder="La manifestación registrada por Operaciones aparecerá aquí."
+                placeholder="Las observaciones registradas por el gestor(a) en Operaciones aparecerán aquí."
                 value={manifestacionSupervisor}
                 readOnly
               />
@@ -1018,9 +1284,15 @@ const actualizarAsistente = (
 
         <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
-            <h3 className="text-lg font-bold text-gray-800">
-              Documentos aportados en descargos
-            </h3>
+            <div>
+              <h3 className="text-lg font-bold text-gray-800">
+                Documentos aportados en descargos
+              </h3>
+
+              <p className="mt-1 text-sm text-gray-500">
+                Documentos adjuntados manualmente por Relaciones Laborales durante la diligencia.
+              </p>
+            </div>
 
             <Button
               className="bg-emerald-700 hover:bg-emerald-800"
@@ -1117,7 +1389,7 @@ const actualizarAsistente = (
                 {documentos.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="text-center text-gray-500 py-12">
-                      No existen documentos aportados durante la diligencia.
+                      No existen documentos aportados por Relaciones Laborales durante la diligencia.
                     </td>
                   </tr>
                 ) : (
@@ -1128,13 +1400,15 @@ const actualizarAsistente = (
                       </td>
 
                       <td className="px-4 py-3 text-sm">
-                        {doc.TipoDocumento || "—"}
+                        {formatearTipoDocumento(
+                          doc.TipoDocumento
+                        )}
                       </td>
 
                       <td className="px-4 py-3 text-sm">
-                        {doc.FechaCreacion
-                          ? String(doc.FechaCreacion).slice(0, 10)
-                          : "—"}
+                        {formatearFechaColombiana(
+                          doc.FechaCreacion
+                        )}
                       </td>
 
                       <td className="px-4 py-3 text-center text-sm">
