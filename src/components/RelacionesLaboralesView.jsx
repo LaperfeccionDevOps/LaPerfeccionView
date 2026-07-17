@@ -622,6 +622,7 @@ async function downloadBackendAdjunto(apiBase, file) {
   // ✅ filtros
   const [filtroTipoDocumento, setFiltroTipoDocumento] = useState("CC");
   const [filtroDocumento, setFiltroDocumento] = useState("");
+  const [resultadosBusqueda, setResultadosBusqueda] = useState([]);
 
   // ✅ estados UX
   const [loadingBuscar, setLoadingBuscar] = useState(false);
@@ -965,16 +966,19 @@ const getMotivoValueById = (idMotivo) => {
     });
   }, [form.motivoRetiro, EXCLUIR_ENTREVISTA_POR_MOTIVO]);
 
-  // ✅ BOTÓN BUSCAR: pega al backend y recarga cabecera
-  const handleBuscar = async () => {
+  // BOTÓN BUSCAR: permite consultar por documento o por nombre.
+  // Cuando el nombre devuelve varias coincidencias, se muestran para seleccionar.
+  const handleBuscar = async (trabajadorSeleccionado = null) => {
   try {
     setErrorBuscar("");
     setMsgActualizar("");
 
-    const numero = (filtroDocumento || "").trim();
+    const criterioIngresado = String(
+      trabajadorSeleccionado?.NumeroDocumento || filtroDocumento || ""
+    ).trim();
 
-    if (!numero) {
-      setErrorBuscar("Debe escribir el número de documento.");
+    if (!criterioIngresado) {
+      setErrorBuscar("Debe escribir el número de documento o el nombre del trabajador.");
       return;
     }
 
@@ -985,13 +989,63 @@ const getMotivoValueById = (idMotivo) => {
 
     setLoadingBuscar(true);
 
-    // 1) detectar automáticamente el tipo real del trabajador
-    const trabajadorDetectado = await detectarTipoDocumentoPorNumero(numero);
+    const esDocumento = /^\d+$/.test(
+      criterioIngresado.replace(/[.\s-]/g, "")
+    );
+
+    // Si se escribió un nombre, primero obtenemos las coincidencias.
+    if (!trabajadorSeleccionado && !esDocumento) {
+      const urlBusqueda =
+        `${API_BASE}/rrll/trabajador/buscar` +
+        `?busqueda=${encodeURIComponent(criterioIngresado)}` +
+        `&limite=20`;
+
+      const respuestaBusqueda = await fetch(urlBusqueda, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+
+      const textoBusqueda = await respuestaBusqueda.text().catch(() => "");
+
+      if (!respuestaBusqueda.ok) {
+        throw new Error(
+          textoBusqueda ||
+            `Error buscando trabajadores (${respuestaBusqueda.status})`
+        );
+      }
+
+      const coincidencias = textoBusqueda ? JSON.parse(textoBusqueda) : [];
+
+      if (!Array.isArray(coincidencias) || coincidencias.length === 0) {
+        setResultadosBusqueda([]);
+        setErrorBuscar("No se encontraron trabajadores con ese nombre.");
+        return;
+      }
+
+      if (coincidencias.length > 1) {
+        setResultadosBusqueda(coincidencias);
+        return;
+      }
+
+      trabajadorSeleccionado = coincidencias[0];
+    }
+
+    const numero = String(
+      trabajadorSeleccionado?.NumeroDocumento || criterioIngresado
+    ).trim();
+
+    setFiltroDocumento(numero);
+    setResultadosBusqueda([]);
+
+    // Detectar automáticamente el tipo real del trabajador.
+    const trabajadorDetectado =
+      trabajadorSeleccionado ||
+      (await detectarTipoDocumentoPorNumero(numero));
+
     const tipoDetectado = getTipoDocumentoById(
       trabajadorDetectado?.IdTipoIdentificacion
     );
 
-    // 2) reflejarlo visualmente en el select
     setFiltroTipoDocumento(tipoDetectado);
 
     const tipo = tipoDetectado;
@@ -1226,7 +1280,7 @@ const getMotivoValueById = (idMotivo) => {
       e?.message?.includes("No se encontró")
         ? e.message
         : e?.message ||
-            "No se pudo cargar el trabajador. Verifica documento o el backend."
+            "No se pudo cargar el trabajador. Verifique el documento, el nombre o el backend."
     );
   } finally {
     setLoadingBuscar(false);
@@ -3604,19 +3658,33 @@ if (step === "retiros_docs") {
               </Select>
             </div>
 
-            <div className="md:col-span-4">
-              <Label className="text-xs text-gray-600">Número documento</Label>
+            <div className="md:col-span-6">
+              <Label className="text-xs text-gray-600">
+                Número de documento o nombre
+              </Label>
               <Input
                 value={filtroDocumento}
-                onChange={(e) => setFiltroDocumento(e.target.value)}
-                placeholder="Buscar por documento..."
+                onChange={(e) => {
+                  setFiltroDocumento(e.target.value);
+                  setResultadosBusqueda([]);
+                  setErrorBuscar("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !loadingBuscar) {
+                    handleBuscar();
+                  }
+                }}
+                placeholder="Ejemplo: 1023904040 o Juan Antonio Díaz"
                 className="bg-white"
               />
+              <p className="mt-1 text-[11px] text-gray-500">
+                Puede escribir el documento completo o una parte del nombre y los apellidos.
+              </p>
             </div>
 
             <div className="md:col-span-2">
               <Button
-                onClick={handleBuscar}
+                onClick={() => handleBuscar()}
                 className="w-full bg-emerald-600 hover:bg-emerald-700"
                 disabled={loadingBuscar}
               >
@@ -3626,7 +3694,44 @@ if (step === "retiros_docs") {
           </div>
 
           {errorBuscar ? (
-            <div className="mt-3 text-xs text-red-600">{errorBuscar}</div>
+            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {errorBuscar}
+            </div>
+          ) : null}
+
+          {resultadosBusqueda.length > 1 ? (
+            <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4">
+              <div className="mb-3">
+                <p className="font-semibold text-gray-800">
+                  Seleccione el trabajador
+                </p>
+                <p className="text-xs text-gray-500">
+                  Se encontraron {resultadosBusqueda.length} coincidencias.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                {resultadosBusqueda.map((trabajador) => (
+                  <button
+                    key={trabajador.IdRegistroPersonal}
+                    type="button"
+                    onClick={() => handleBuscar(trabajador)}
+                    className="rounded-xl border border-gray-200 bg-white p-3 text-left transition hover:border-emerald-500 hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <p className="font-semibold text-gray-800">
+                      {trabajador.NombreCompleto ||
+                        `${trabajador.Nombres || ""} ${trabajador.Apellidos || ""}`.trim()}
+                    </p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                      <span className="rounded-full bg-gray-100 px-2 py-1">
+                        {getTipoDocumentoById(trabajador.IdTipoIdentificacion)}
+                      </span>
+                      <span>{trabajador.NumeroDocumento}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
           ) : null}
         </div>
 
