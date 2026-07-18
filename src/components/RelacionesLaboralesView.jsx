@@ -3674,7 +3674,7 @@ if (step === "retiros_docs") {
                     handleBuscar();
                   }
                 }}
-                placeholder="Ejemplo: 1023904040 o Juan Antonio Díaz"
+                placeholder="Escriba el número de documento o nombre"
                 className="bg-white"
               />
               <p className="mt-1 text-[11px] text-gray-500">
