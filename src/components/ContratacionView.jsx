@@ -784,24 +784,30 @@ const RegistroContratacionModal = ({
               <p className="text-xs text-gray-500 mt-2">Campo manual (código numérico).</p>
             </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-2">
-                <ClipboardList className="w-4 h-4 text-blue-700" />
-                <Label className="text-sm font-semibold text-gray-800">Escalafón</Label>
-              </div>
-
-              <Select value={escalafon} onValueChange={setEscalafon}>
-                <SelectTrigger className="rounded-xl">
-                  <SelectValue placeholder="Selecciona escalafón" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="200">200</SelectItem>
-                  <SelectItem value="220">220</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <p className="text-xs text-gray-500 mt-2">Solo 200 o 220.</p>
+           <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2 mb-2">
+              <ClipboardList className="w-4 h-4 text-blue-700" />
+              <Label className="text-sm font-semibold text-gray-800">
+                Escalafón
+              </Label>
             </div>
+
+            <Select value={escalafon} onValueChange={setEscalafon}>
+              <SelectTrigger className="rounded-xl">
+                <SelectValue placeholder="Selecciona escalafón" />
+              </SelectTrigger>
+
+              <SelectContent>
+                <SelectItem value="200">200</SelectItem>
+                <SelectItem value="210">210</SelectItem>
+                <SelectItem value="220">220</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <p className="text-xs text-gray-500 mt-2">
+              Selecciona el escalafón correspondiente: 200, 210 o 220.
+            </p>
+          </div>
 
             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm md:col-span-1">
               <div className="flex items-center gap-2 mb-2">
