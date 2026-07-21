@@ -1,7 +1,10 @@
 import React from 'react';
 import { User } from 'lucide-react';
 
-const obtenerValor = (valor, valorAlterno = '—') => {
+const obtenerValor = (
+  valor,
+  valorAlterno = '—'
+) => {
   if (
     valor === null ||
     valor === undefined ||
@@ -11,6 +14,21 @@ const obtenerValor = (valor, valorAlterno = '—') => {
   }
 
   return valor;
+};
+
+const formatearFechaColombiana = (valor) => {
+  if (!valor) {
+    return '—';
+  }
+
+  const fechaTexto = String(valor).slice(0, 10);
+  const partes = fechaTexto.split('-');
+
+  if (partes.length !== 3) {
+    return fechaTexto;
+  }
+
+  return `${partes[2]}/${partes[1]}/${partes[0]}`;
 };
 
 const TrabajadorSeleccionadoCard = ({
@@ -50,18 +68,6 @@ const TrabajadorSeleccionadoCard = ({
     trabajador?.nombreCliente ||
     trabajador?.NombreCliente;
 
-  const sede =
-    trabajador?.Sede ||
-    trabajador?.sede ||
-    trabajador?.NombreSede ||
-    trabajador?.nombreSede;
-
-  const supervisor =
-    trabajador?.Supervisor ||
-    trabajador?.supervisor ||
-    trabajador?.NombreSupervisor ||
-    trabajador?.nombreSupervisor;
-
   const estado =
     trabajador?.Estado ||
     trabajador?.estado ||
@@ -70,9 +76,9 @@ const TrabajadorSeleccionadoCard = ({
 
   const fechaIngreso =
     trabajador?.FechaIngreso ||
-    trabajador?.FechaInicio ||
     trabajador?.fechaIngreso ||
-    trabajador?.fechaInicio;
+    trabajador?.FechaIngresoContrato ||
+    trabajador?.fechaIngresoContrato;
 
   const campos = [
     {
@@ -88,16 +94,10 @@ const TrabajadorSeleccionadoCard = ({
       value: obtenerValor(cliente),
     },
     {
-      label: 'Sede',
-      value: obtenerValor(sede),
-    },
-    {
-      label: 'Supervisor',
-      value: obtenerValor(supervisor),
-    },
-    {
       label: 'Fecha de ingreso',
-      value: obtenerValor(fechaIngreso),
+      value: formatearFechaColombiana(
+        fechaIngreso
+      ),
     },
     {
       label: 'Estado',
@@ -105,7 +105,9 @@ const TrabajadorSeleccionadoCard = ({
     },
     {
       label: 'Registro personal',
-      value: obtenerValor(idRegistroPersonal),
+      value: obtenerValor(
+        idRegistroPersonal
+      ),
     },
   ];
 
@@ -122,12 +124,17 @@ const TrabajadorSeleccionadoCard = ({
           </p>
 
           <h2 className="mt-1 break-words text-lg font-bold text-gray-900">
-            {obtenerValor(nombreCompleto).toUpperCase()}
+            {obtenerValor(
+              nombreCompleto
+            ).toUpperCase()}
           </h2>
 
-          <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
             {campos.map((campo) => (
-              <div key={campo.label} className="min-w-0">
+              <div
+                key={campo.label}
+                className="min-w-0"
+              >
                 <p className="text-xs font-semibold uppercase text-gray-500">
                   {campo.label}
                 </p>

@@ -197,107 +197,13 @@ function formatearFecha(fecha) {
   return `${partes[2]}/${partes[1]}/${partes[0]}`;
 }
 
-const TIPOS_FALTA_LABEL = {
-  INCUMPLIMIENTO_FUNCIONES:
-    "Incumplimiento de funciones",
-
-  AUSENCIA_INJUSTIFICADA:
-    "Ausencia injustificada",
-
-  RETARDO_INJUSTIFICADO:
-    "Retardo injustificado",
-
-  DESOBEDIENCIA:
-    "Desobediencia de instrucciones",
-
-  COMPORTAMIENTO_INADECUADO:
-    "Comportamiento inadecuado",
-
-  INCUMPLIMIENTO_REGLAMENTO:
-    "Incumplimiento del reglamento",
-
-  OTRO:
-    "Otro",
-};
-
-
-function formatearTipoFalta(valor) {
-  const codigo = String(valor || "")
-    .trim()
-    .toUpperCase();
-
-  if (!codigo) {
-    return "—";
-  }
-
-  return (
-    TIPOS_FALTA_LABEL[codigo] ||
-    codigo
-      .replaceAll("_", " ")
-      .toLocaleLowerCase()
-      .replace(
-        /^./,
-        (letra) => letra.toLocaleUpperCase()
-      )
-  );
-}
-
 
 function formatearHora(hora) {
   if (!hora) {
     return "—";
   }
 
-  const valor = String(hora).slice(0, 5);
-  const [horaTexto, minutosTexto] = valor.split(":");
-
-  const horaNumero = Number(horaTexto);
-  const minutos = minutosTexto || "00";
-
-  if (
-    Number.isNaN(horaNumero) ||
-    horaNumero < 0 ||
-    horaNumero > 23
-  ) {
-    return valor;
-  }
-
-  const periodo =
-    horaNumero >= 12
-      ? "p. m."
-      : "a. m.";
-
-  const horaDoce =
-    horaNumero % 12 || 12;
-
-  return `${horaDoce}:${minutos} ${periodo}`;
-}
-
-
-function formatearModalidad(valor) {
-  const codigo = String(valor || "")
-    .trim()
-    .toUpperCase();
-
-  const modalidades = {
-    PRESENCIAL: "Presencial",
-    VIRTUAL: "Virtual",
-  };
-
-  if (!codigo) {
-    return "—";
-  }
-
-  return (
-    modalidades[codigo] ||
-    codigo
-      .replaceAll("_", " ")
-      .toLocaleLowerCase()
-      .replace(
-        /^./,
-        (letra) => letra.toLocaleUpperCase()
-      )
-  );
+  return String(hora).slice(0, 5);
 }
 
 
@@ -841,16 +747,6 @@ export default function CitacionProcesoDisciplinarioView({
 
               <div>
                 <p className="text-xs text-gray-500">
-                  Estado
-                </p>
-
-                <p className="font-semibold text-gray-800">
-                  {trabajador.Estado || "—"}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-gray-500">
                   Proceso
                 </p>
 
@@ -908,7 +804,7 @@ export default function CitacionProcesoDisciplinarioView({
 
                 <div className="rounded-lg border border-blue-200 bg-white p-4">
                   <p className="text-xs font-semibold uppercase text-gray-500">
-                    Gestor(a) que reporta
+                    Líder que reporta
                   </p>
 
                   <p className="mt-1 font-semibold text-gray-800">
@@ -954,9 +850,7 @@ export default function CitacionProcesoDisciplinarioView({
                   </p>
 
                   <p className="mt-1 font-semibold text-gray-800">
-                    {formatearModalidad(
-                      modalidad
-                    )}
+                    {modalidad || "—"}
                   </p>
                 </div>
               </div>
@@ -968,7 +862,7 @@ export default function CitacionProcesoDisciplinarioView({
                   </p>
 
                   <p className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
-                    {formatearTipoFalta(motivoCitacion)}
+                    {motivoCitacion || "—"}
                   </p>
                 </div>
 
@@ -984,7 +878,7 @@ export default function CitacionProcesoDisciplinarioView({
 
                 <div className="rounded-lg border border-blue-200 bg-white p-4">
                   <p className="text-xs font-semibold uppercase text-gray-500">
-                    Observaciones gestor(a)
+                    Observaciones Líder
                   </p>
 
                   <p className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
@@ -994,23 +888,6 @@ export default function CitacionProcesoDisciplinarioView({
               </div>
             </>
           )}
-        </div>
-
-
-        {/* RESPONSABLE RRLL */}
-
-        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6">
-          <h3 className="text-lg font-bold text-gray-800">
-            Responsable de Relaciones Laborales
-          </h3>
-
-          <p className="mt-1 text-sm text-gray-500">
-            Usuario que realizará la revisión y continuará con la diligencia.
-          </p>
-
-          <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 font-semibold text-gray-800">
-            {responsableRRLL}
-          </div>
         </div>
 
 

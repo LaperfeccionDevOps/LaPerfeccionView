@@ -372,6 +372,14 @@ const OperacionesProcesosDisciplinariosView = () => {
       NumeroDocumento:
         obtenerIdentificacion(trabajador),
       Cargo: obtenerCargo(trabajador),
+      FechaIngreso:
+        trabajador?.FechaIngreso ||
+        trabajador?.fechaIngreso ||
+        trabajador?.FechaInicio ||
+        trabajador?.fechaInicio ||
+        trabajador?.FechaIngresoContrato ||
+        trabajador?.fechaIngresoContrato ||
+        null,
       Estado: 'CONTRATADO',
       IdEstadoProceso: 25,
     };

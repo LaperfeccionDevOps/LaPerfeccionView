@@ -11,6 +11,141 @@ import {
 const API_URL =
   import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
 
+const obtenerTokenAutenticacion = () => {
+  const almacenamientos = [
+    window.localStorage,
+    window.sessionStorage,
+  ];
+
+  const clavesDirectas = [
+    "token",
+    "access_token",
+    "accessToken",
+    "authToken",
+    "jwt",
+    "jwtToken",
+  ];
+
+  for (const almacenamiento of almacenamientos) {
+    for (const clave of clavesDirectas) {
+      const valor = almacenamiento.getItem(clave);
+
+      if (
+        valor &&
+        valor !== "null" &&
+        valor !== "undefined"
+      ) {
+        return valor.replace(/^"|"$/g, "");
+      }
+    }
+  }
+
+  const clavesObjetos = [
+    "auth",
+    "authData",
+    "user",
+    "session",
+    "userData",
+  ];
+
+  for (const almacenamiento of almacenamientos) {
+    for (const clave of clavesObjetos) {
+      const valor = almacenamiento.getItem(clave);
+
+      if (!valor) {
+        continue;
+      }
+
+      try {
+        const objeto = JSON.parse(valor);
+
+        const token =
+          objeto?.token ||
+          objeto?.access_token ||
+          objeto?.accessToken ||
+          objeto?.authToken ||
+          objeto?.jwt ||
+          objeto?.jwtToken ||
+          objeto?.user?.token ||
+          objeto?.user?.access_token;
+
+        if (token) {
+          return String(token);
+        }
+      } catch {
+        // La clave no contiene un objeto JSON válido.
+      }
+    }
+  }
+
+  return null;
+};
+
+const construirHeaders = () => {
+  const token = obtenerTokenAutenticacion();
+
+  return {
+    Accept: "application/json",
+    ...(token
+      ? {
+          Authorization: `Bearer ${token}`,
+        }
+      : {}),
+  };
+};
+
+const formatearFechaColombiana = (valor) => {
+  if (!valor || valor === "—") {
+    return "—";
+  }
+
+  const fechaTexto = String(valor).slice(0, 10);
+  const partes = fechaTexto.split("-");
+
+  if (partes.length !== 3) {
+    return fechaTexto;
+  }
+
+  return `${partes[2]}/${partes[1]}/${partes[0]}`;
+};
+
+const consultarLiderProceso = async (
+  idProcesoDisciplinario
+) => {
+  if (!idProcesoDisciplinario) {
+    return null;
+  }
+
+  try {
+    const respuesta = await fetch(
+      `${API_URL}/citacion-proceso-disciplinario/proceso/${idProcesoDisciplinario}`,
+      {
+        method: "GET",
+        headers: construirHeaders(),
+      }
+    );
+
+    if (!respuesta.ok) {
+      return null;
+    }
+
+    const citacion = await respuesta.json();
+
+    return (
+      citacion?.SupervisorReporta ||
+      citacion?.supervisorReporta ||
+      null
+    );
+  } catch (error) {
+    console.error(
+      "No se pudo consultar el líder reportado:",
+      error
+    );
+
+    return null;
+  }
+};
+
     export default function IniciarProcesoDisciplinarioView({
     onBack,
     idProcesoDesdeAgenda = null,
@@ -150,6 +285,11 @@ const API_URL =
 
       const dataDetalle = await respuestaDetalle.json();
 
+      const liderProceso =
+        await consultarLiderProceso(
+          idProcesoDesdeAgenda
+        );
+
       const trabajadorFinal = {
         IdRegistroPersonal:
           dataDetalle?.IdRegistroPersonal ||
@@ -175,15 +315,16 @@ const API_URL =
         ClienteNombre:
           dataDetalle?.ClienteNombre || dataDetalle?.Cliente || "—",
 
-        Sede: dataDetalle?.Sede || "—",
-
-        Estado:
-          dataDetalle?.Estado || dataDetalle?.EstadoProceso || "—",
-
-        Supervisor: dataDetalle?.Supervisor || "—",
+        Lider:
+          liderProceso ||
+          dataDetalle?.Lider ||
+          dataDetalle?.Supervisor ||
+          "—",
 
         FechaIngreso:
-          dataDetalle?.FechaInicio || dataDetalle?.FechaIngreso || "—",
+          dataDetalle?.FechaInicio ||
+          dataDetalle?.FechaIngreso ||
+          "—",
       };
 
       setTrabajador(trabajadorFinal);
@@ -315,11 +456,14 @@ setProcesoCreado(procesoDesdeAgenda);
         TipoDocumento: tipoDocumento,
         Cargo: dataDetalle?.Cargo || "—",
         ClienteNombre: dataDetalle?.ClienteNombre || dataDetalle?.Cliente || "—",
-        Sede: dataDetalle?.Sede || "—",
-        Estado: dataDetalle?.Estado || dataDetalle?.EstadoProceso || "—",
-        Supervisor: dataDetalle?.Supervisor || "—",
+        Lider:
+          dataDetalle?.Lider ||
+          dataDetalle?.Supervisor ||
+          "—",
         FechaIngreso:
-          dataDetalle?.FechaInicio || dataDetalle?.FechaIngreso || "—",
+          dataDetalle?.FechaInicio ||
+          dataDetalle?.FechaIngreso ||
+          "—",
       };
 
       setTrabajador(trabajadorFinal);
@@ -670,7 +814,7 @@ setProcesoCreado(procesoDesdeAgenda);
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 rounded-xl bg-white p-5 border border-emerald-200">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 rounded-xl bg-white p-5 border border-emerald-200">
                 <div>
                   <p className="text-xs text-gray-500">Nombre</p>
                   <p className="font-semibold text-gray-800">
@@ -700,30 +844,18 @@ setProcesoCreado(procesoDesdeAgenda);
                 </div>
 
                 <div>
-                  <p className="text-xs text-gray-500">Sede</p>
-                  <p className="font-semibold text-gray-800">
-                    {trabajador.Sede}
-                  </p>
-                </div>
-
-                <div>
                   <p className="text-xs text-gray-500">Fecha ingreso</p>
                   <p className="font-semibold text-gray-800">
-                    {trabajador.FechaIngreso}
+                    {formatearFechaColombiana(
+                      trabajador.FechaIngreso
+                    )}
                   </p>
                 </div>
 
                 <div>
-                  <p className="text-xs text-gray-500">Estado</p>
+                  <p className="text-xs text-gray-500">Líder</p>
                   <p className="font-semibold text-gray-800">
-                    {trabajador.Estado}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-xs text-gray-500">Supervisor</p>
-                  <p className="font-semibold text-gray-800">
-                    {trabajador.Supervisor}
+                    {trabajador.Lider || "—"}
                   </p>
                 </div>
               </div>
@@ -797,7 +929,9 @@ setProcesoCreado(procesoDesdeAgenda);
                                 : "bg-yellow-100 text-yellow-700"
                             }`}
                           >
-                            {item.EstadoProceso || "—"}
+                            {item.EstadoProceso
+                            ? String(item.EstadoProceso).replaceAll("_", " ")
+                            : "—"}
                           </span>
                         </td>
 

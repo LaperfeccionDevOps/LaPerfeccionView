@@ -168,6 +168,25 @@ const actualizarAsistente = (
   }, [proceso]);
 
   useEffect(() => {
+    const responsableGuardado =
+      asistentes.find(
+        (asistente) =>
+          asistente.TipoAsistente ===
+          "RESPONSABLE_RRLL"
+      );
+
+    const nombreResponsable = String(
+      responsableGuardado?.NombreAsistente || ""
+    ).trim();
+
+    if (nombreResponsable) {
+      setResponsableDescargo(
+        nombreResponsable
+      );
+    }
+  }, [asistentes]);
+
+  useEffect(() => {
   async function cargarCitacionExistente() {
     if (!proceso?.IdProcesoDisciplinario) {
       return;
@@ -230,16 +249,12 @@ const actualizarAsistente = (
         );
 
         if (indice >= 0) {
-          if (
-            copia[indice].NombreAsistente
-          ) {
-            return copia;
-          }
-
           copia[indice] = {
             ...copia[indice],
             NombreAsistente:
+              copia[indice].NombreAsistente ||
               supervisorReporta,
+            Asistio: true,
           };
 
           return copia;
@@ -250,7 +265,7 @@ const actualizarAsistente = (
             "SUPERVISOR_REPORTA",
           NombreAsistente:
             supervisorReporta,
-          Asistio: false,
+          Asistio: true,
         });
 
         return copia;
@@ -285,7 +300,14 @@ const actualizarAsistente = (
         data.HoraDescargo ? String(data.HoraDescargo).slice(0, 5) : ""
       );
       setDescargoTrabajador(data.DescargoTrabajador || "");
-      setResponsableDescargo(data.ResponsableDescargo || "");
+
+      const responsableGuardado = String(
+        data.ResponsableDescargo || ""
+      ).trim();
+
+      setResponsableDescargo(
+        responsableGuardado
+      );
 
       const textoObservaciones = data.Observaciones || "";
       const partes = textoObservaciones.split(
@@ -293,7 +315,7 @@ const actualizarAsistente = (
       );
 
       const supervisor = partes[0]
-        ?.replace("Observaciones gestor(a):", "")
+        ?.replace("Observaciones líder:", "")
         ?.replace("Manifestación del supervisor:", "")
         ?.trim();
 
@@ -395,7 +417,7 @@ const actualizarAsistente = (
     DescargoTrabajador:
       descargoTrabajador || null,
     Observaciones:
-      `Observaciones gestor(a):\n${manifestacionSupervisor}` +
+      `Observaciones líder:\n${manifestacionSupervisor}` +
       `\n\nObservaciones de Relaciones Laborales:\n${observaciones}`,
     ObservacionesRRLL:
       observaciones || null,
@@ -421,6 +443,24 @@ const actualizarAsistente = (
 
       if (mostrarMensaje) {
         setMensaje("");
+      }
+
+      const responsableRRLL =
+        obtenerAsistente(
+          "RESPONSABLE_RRLL"
+        );
+
+      if (
+        responsableRRLL.Asistio === true &&
+        !String(
+          responsableRRLL.NombreAsistente || ""
+        ).trim()
+      ) {
+        setMensaje(
+          "Debe seleccionar o escribir el nombre del responsable de RRLL."
+        );
+
+        return false;
       }
 
       const asistentesParaGuardar =
@@ -760,6 +800,14 @@ function formatearTipoDocumento(valor) {
   const informacionLegacy =
     separarInformacionLegacy();
 
+  const clienteMostrar =
+    citacionExistente?.Cliente ||
+    trabajador?.Cliente ||
+    trabajador?.ClienteNombre ||
+    trabajador?.NombreCliente ||
+    trabajador?.ClienteAsignado ||
+    "—";
+
  const motivoCitacionMostrar = formatearTipoFalta(
   informacionLegacy.motivo
 );
@@ -904,13 +952,13 @@ function formatearTipoDocumento(valor) {
                 </p>
 
                 <p className="mt-1 font-semibold text-gray-800">
-                  {citacionExistente.Cliente || "—"}
+                  {clienteMostrar}
                 </p>
               </div>
 
               <div className="rounded-lg border border-blue-200 bg-white p-4">
                 <p className="text-xs font-semibold uppercase text-gray-500">
-                  Gestor(a) que reporta
+                  Líder que reporta
                 </p>
 
                 <p className="mt-1 font-semibold text-gray-800">
@@ -989,7 +1037,7 @@ function formatearTipoDocumento(valor) {
 
             <div className="rounded-lg border border-blue-200 bg-white p-4">
               <p className="text-xs font-semibold uppercase text-gray-500">
-                Observaciones gestor(a)
+                Observaciones líder
               </p>
 
               <p className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
@@ -1023,7 +1071,7 @@ function formatearTipoDocumento(valor) {
             </h3>
 
             <p className="mt-1 text-sm text-gray-600">
-              Estos documentos fueron adjuntados por el gestor(a) y se muestran
+              Estos documentos fueron adjuntados por el líder y se muestran
               únicamente para consulta de Relaciones Laborales.
             </p>
           </div>
@@ -1121,8 +1169,9 @@ function formatearTipoDocumento(valor) {
             },
             {
               tipo: "SUPERVISOR_REPORTA",
-              etiqueta: "Gestor(a) que reporta",
-              nombreInicial: "",
+              etiqueta: "Líder que reporta",
+              nombreInicial:
+                citacionExistente?.SupervisorReporta || "",
             },
             {
               tipo: "TESTIGO_1",
@@ -1144,8 +1193,10 @@ function formatearTipoDocumento(valor) {
               obtenerAsistente(item.tipo);
 
             const nombreActual =
-              asistenteActual.NombreAsistente ||
-              item.nombreInicial;
+              item.tipo === "RESPONSABLE_RRLL"
+                ? asistenteActual.NombreAsistente
+                : asistenteActual.NombreAsistente ||
+                  item.nombreInicial;
 
             return (
               <div
@@ -1177,6 +1228,15 @@ function formatearTipoDocumento(valor) {
                           "NombreAsistente",
                           item.nombreInicial
                         );
+
+                        if (
+                          item.tipo ===
+                          "RESPONSABLE_RRLL"
+                        ) {
+                          setResponsableDescargo(
+                            item.nombreInicial
+                          );
+                        }
                       }
                     }}
                     />
@@ -1189,13 +1249,25 @@ function formatearTipoDocumento(valor) {
                 <Input
                   className="mt-3 bg-white"
                   value={nombreActual}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const nombre =
+                      e.target.value;
+
                     actualizarAsistente(
                       item.tipo,
                       "NombreAsistente",
-                      e.target.value
-                    )
-                  }
+                      nombre
+                    );
+
+                    if (
+                      item.tipo ===
+                      "RESPONSABLE_RRLL"
+                    ) {
+                      setResponsableDescargo(
+                        nombre
+                      );
+                    }
+                  }}
                   placeholder={`Nombre de ${item.etiqueta.toLowerCase()}`}
                   disabled={
                     asistenteActual.Asistio !== true
@@ -1239,8 +1311,9 @@ function formatearTipoDocumento(valor) {
               </label>
               <Input
                 value={responsableDescargo}
-                onChange={(e) => setResponsableDescargo(e.target.value)}
-                placeholder="Nombre del responsable de RRLL"
+                readOnly
+                className="bg-gray-100 cursor-not-allowed"
+                placeholder="Se completa con el responsable seleccionado arriba"
               />
             </div>
 
@@ -1258,11 +1331,11 @@ function formatearTipoDocumento(valor) {
 
             <div>
               <label className="text-sm font-medium">
-                Observaciones gestor(a)
+                Observaciones líder
               </label>
               <textarea
                 className="w-full border rounded-lg p-3 min-h-[120px] resize-none bg-gray-100 cursor-not-allowed"
-                placeholder="Las observaciones registradas por el gestor(a) en Operaciones aparecerán aquí."
+                placeholder="Las observaciones registradas por el líder en Operaciones aparecerán aquí."
                 value={manifestacionSupervisor}
                 readOnly
               />

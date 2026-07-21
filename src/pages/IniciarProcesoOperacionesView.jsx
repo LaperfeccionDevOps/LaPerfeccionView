@@ -266,6 +266,11 @@ const IniciarProcesoOperacionesView =
     const trabajador =
       location.state?.trabajador;
 
+      console.log('===== TRABAJADOR PASO 2 =====');
+      console.log(trabajador);
+      console.log('FechaIngreso =>', trabajador?.FechaIngreso);
+      console.log('=============================');
+
     const idRegistroPersonal =
       Number(
         location.state

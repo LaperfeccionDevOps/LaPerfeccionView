@@ -42,6 +42,36 @@ const ProgramacionCitacionCard = ({
       fechaMinimaPermitida
     );
 
+  const handleModalidadChange = (event) => {
+    const nuevaModalidad = event.target.value;
+
+    onChange(event);
+
+    if (nuevaModalidad === 'PRESENCIAL') {
+      onChange({
+        target: {
+          name: 'lugarCitacion',
+          value:
+            String(
+              formData.lugarCitacion || ''
+            ).trim() ||
+            'Sede principal Galán',
+        },
+      });
+
+      return;
+    }
+
+    if (nuevaModalidad === 'VIRTUAL') {
+      onChange({
+        target: {
+          name: 'lugarCitacion',
+          value: '',
+        },
+      });
+    }
+  };
+
   return (
     <section className="mt-6 min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
       <div className="flex min-w-0 items-start gap-3 border-b border-gray-100 pb-4">
@@ -191,7 +221,7 @@ const ProgramacionCitacionCard = ({
                     name="modalidad"
                     value="PRESENCIAL"
                     checked={esPresencial}
-                    onChange={onChange}
+                    onChange={handleModalidadChange}
                     className="h-4 w-4"
                   />
 
@@ -212,7 +242,7 @@ const ProgramacionCitacionCard = ({
                     name="modalidad"
                     value="VIRTUAL"
                     checked={esVirtual}
-                    onChange={onChange}
+                    onChange={handleModalidadChange}
                     className="h-4 w-4"
                   />
 
@@ -244,7 +274,7 @@ const ProgramacionCitacionCard = ({
                 placeholder={
                   esVirtual
                     ? 'Ejemplo: enlace de Google Meet o Teams'
-                    : 'Ejemplo: sede principal, oficina o cliente'
+                    : 'Sede principal Galán'
                 }
                 className="min-h-11 w-full"
               />
