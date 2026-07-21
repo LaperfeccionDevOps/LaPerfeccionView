@@ -43,7 +43,7 @@ export default function DescargosProcesoDisciplinarioView({
   const [documentos, setDocumentos] = useState([]);
   const [evidenciasOperaciones, setEvidenciasOperaciones] = useState([]);
   const [mostrarFormularioDocumento, setMostrarFormularioDocumento] = useState(false);
-  const [tipoDocumento, setTipoDocumento] = useState("descargos");
+  const [tipoDocumento, setTipoDocumento] = useState("PROCESO_DISCIPLINARIO");
   const [observacionDocumento, setObservacionDocumento] = useState("");
   const [archivoDocumento, setArchivoDocumento] = useState(null);
   const [loadingDocumento, setLoadingDocumento] = useState(false);
@@ -394,9 +394,9 @@ const actualizarAsistente = (
 
       setArchivoDocumento(null);
       setObservacionDocumento("");
-      setTipoDocumento("descargos");
+      setTipoDocumento("PROCESO_DISCIPLINARIO");
       setMostrarFormularioDocumento(false);
-      setMensajeDocumento("Documento cargado correctamente.");
+      setMensajeDocumento("Documento cargado correctamente en el expediente y la Carpeta Digital.");
 
       await cargarDocumentos();
     } catch (error) {
@@ -709,11 +709,13 @@ function formatearTipoDocumento(valor) {
     .toLowerCase();
 
   const tiposDocumento = {
+    proceso_disciplinario: "Procesos disciplinarios",
+    procesos_disciplinarios: "Procesos disciplinarios",
+    ausentismo: "Ausentismo",
+    llamado_atencion: "Llamados de atención",
+    llamados_atencion: "Llamados de atención",
     descargos: "Descargos",
-    acta_firmada: "Acta firmada",
-    evidencia: "Evidencia",
-    soporte: "Soporte",
-    otro: "Otro",
+    suspension: "Suspensión",
     evidencia_operaciones: "Evidencia de Operaciones",
   };
 
@@ -1392,11 +1394,21 @@ function formatearTipoDocumento(valor) {
                     value={tipoDocumento}
                     onChange={(e) => setTipoDocumento(e.target.value)}
                   >
-                    <option value="descargos">Descargos</option>
-                    <option value="acta_firmada">Acta firmada</option>
-                    <option value="evidencia">Evidencia</option>
-                    <option value="soporte">Soporte</option>
-                    <option value="otro">Otro</option>
+                    <option value="PROCESO_DISCIPLINARIO">
+                      Procesos disciplinarios
+                    </option>
+                    <option value="AUSENTISMO">
+                      Ausentismo
+                    </option>
+                    <option value="LLAMADO_ATENCION">
+                      Llamados de atención
+                    </option>
+                    <option value="DESCARGOS">
+                      Descargos
+                    </option>
+                    <option value="SUSPENSION">
+                      Suspensión
+                    </option>
                   </select>
                 </div>
 
