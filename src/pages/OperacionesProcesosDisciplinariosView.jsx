@@ -3,9 +3,12 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   ClipboardList,
+  Eye,
   FilePlus2,
+  FileText,
   Search,
   User,
+  X,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -96,6 +99,15 @@ const OperacionesProcesosDisciplinariosView = () => {
   const [mensaje, setMensaje] = useState('');
   const [busquedaRealizada, setBusquedaRealizada] =
     useState(false);
+  const [historiales, setHistoriales] = useState({});
+  const [loadingHistorial, setLoadingHistorial] =
+    useState({});
+  const [respuestaAbierta, setRespuestaAbierta] =
+    useState(null);
+  const [loadingRespuesta, setLoadingRespuesta] =
+    useState(false);
+  const [mensajeRespuesta, setMensajeRespuesta] =
+    useState("");
 
   const obtenerIdRegistroPersonal = (trabajador) =>
     trabajador?.IdRegistroPersonal ||
@@ -267,6 +279,185 @@ const OperacionesProcesosDisciplinariosView = () => {
     return [];
   };
 
+  const construirHeaders = () => {
+    const token = obtenerTokenAutenticacion();
+
+    return {
+      Accept: "application/json",
+      ...(token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : {}),
+    };
+  };
+
+  const formatearFecha = (valor) => {
+    if (!valor) {
+      return "—";
+    }
+
+    const fecha = String(valor).slice(0, 10);
+    const partes = fecha.split("-");
+
+    if (partes.length !== 3) {
+      return fecha;
+    }
+
+    return `${partes[2]}/${partes[1]}/${partes[0]}`;
+  };
+
+  const formatearTexto = (valor) => {
+    const texto = String(valor || "").trim();
+
+    if (!texto) {
+      return "—";
+    }
+
+    return texto
+      .replaceAll("_", " ")
+      .toLowerCase()
+      .replace(/(^|\s)\S/g, (letra) =>
+        letra.toUpperCase()
+      );
+  };
+
+  const cargarHistorialTrabajador = async (
+    idRegistroPersonal
+  ) => {
+    if (!idRegistroPersonal) {
+      return [];
+    }
+
+    setLoadingHistorial((actual) => ({
+      ...actual,
+      [idRegistroPersonal]: true,
+    }));
+
+    try {
+      const response = await fetch(
+        `${API_URL}/procesos-disciplinarios/trabajador/${idRegistroPersonal}/historial`,
+        {
+          method: "GET",
+          headers: construirHeaders(),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          "No se pudo consultar el historial disciplinario."
+        );
+      }
+
+      const data = await response.json();
+      const historial = Array.isArray(data)
+        ? data
+        : [];
+
+      setHistoriales((actual) => ({
+        ...actual,
+        [idRegistroPersonal]: historial,
+      }));
+
+      return historial;
+    } catch (error) {
+      console.error(
+        "Error consultando historial disciplinario:",
+        error
+      );
+
+      setHistoriales((actual) => ({
+        ...actual,
+        [idRegistroPersonal]: [],
+      }));
+
+      return [];
+    } finally {
+      setLoadingHistorial((actual) => ({
+        ...actual,
+        [idRegistroPersonal]: false,
+      }));
+    }
+  };
+
+  const abrirRespuestaRRLL = async (proceso) => {
+    const idProceso =
+      proceso?.IdProcesoDisciplinario;
+
+    if (!idProceso) {
+      return;
+    }
+
+    try {
+      setLoadingRespuesta(true);
+      setMensajeRespuesta("");
+      setRespuestaAbierta(null);
+
+      const response = await fetch(
+        `${API_URL}/procesos-disciplinarios/${idProceso}/expediente`,
+        {
+          method: "GET",
+          headers: construirHeaders(),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          "No se pudo consultar la respuesta de Relaciones Laborales."
+        );
+      }
+
+      const expediente = await response.json();
+
+      const documentosRRLL = (
+        Array.isArray(expediente?.Documentos)
+          ? expediente.Documentos
+          : []
+      ).filter((documento) => {
+        const tipo = String(
+          documento?.TipoDocumento || ""
+        )
+          .trim()
+          .toUpperCase();
+
+        return tipo !== "EVIDENCIA_OPERACIONES";
+      });
+
+      setRespuestaAbierta({
+        proceso,
+        expediente,
+        documentosRRLL,
+      });
+    } catch (error) {
+      console.error(
+        "Error consultando respuesta RRLL:",
+        error
+      );
+
+      setMensajeRespuesta(
+        error?.message ||
+          "No se pudo consultar la respuesta de Relaciones Laborales."
+      );
+    } finally {
+      setLoadingRespuesta(false);
+    }
+  };
+
+  const verDocumentoRRLL = (documento) => {
+    const idDocumento =
+      documento?.IdDocumentoProcesoDisciplinario;
+
+    if (!idDocumento) {
+      return;
+    }
+
+    window.open(
+      `${API_URL}/documento-proceso-disciplinario/${idDocumento}/archivo`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  };
+
   const handleBuscar = async () => {
     const criterio = searchTerm.trim();
 
@@ -274,6 +465,10 @@ const OperacionesProcesosDisciplinariosView = () => {
     setBusquedaRealizada(false);
     setSearchApplied('');
     setTrabajadores([]);
+    setHistoriales({});
+    setLoadingHistorial({});
+    setRespuestaAbierta(null);
+    setMensajeRespuesta("");
 
     if (!criterio) {
       setMensaje(
@@ -318,6 +513,14 @@ const OperacionesProcesosDisciplinariosView = () => {
       if (encontrados.length === 0) {
         setMensaje(
           'No se encontró un trabajador contratado con ese criterio en QA.'
+        );
+      } else {
+        await Promise.all(
+          encontrados.map((trabajador) =>
+            cargarHistorialTrabajador(
+              obtenerIdRegistroPersonal(trabajador)
+            )
+          )
         );
       }
     } catch (error) {
@@ -518,44 +721,200 @@ const OperacionesProcesosDisciplinariosView = () => {
                       idRegistroPersonal ||
                       obtenerIdentificacion(trabajador)
                     }
-                    className="flex min-w-0 flex-col gap-4 rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md sm:p-5 lg:flex-row lg:items-center lg:justify-between"
+                    className="min-w-0 overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm transition-shadow hover:shadow-md"
                   >
-                    <div className="flex min-w-0 items-start gap-3">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                        <User className="h-6 w-6" />
+                    <div className="flex min-w-0 flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                          <User className="h-6 w-6" />
+                        </div>
+
+                        <div className="min-w-0">
+                          <h3 className="break-words text-base font-bold text-gray-900 sm:text-lg">
+                            {nombreCompleto.toUpperCase()}
+                          </h3>
+
+                          <p className="mt-1 break-words text-sm text-gray-600">
+                            Documento:{' '}
+                            {obtenerIdentificacion(trabajador)}
+                          </p>
+
+                          <p className="mt-1 break-words text-sm text-gray-600">
+                            Cargo:{' '}
+                            {obtenerCargo(trabajador)}
+                          </p>
+
+                          <span className="mt-3 inline-flex rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
+                            CONTRATADO
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="min-w-0">
-                        <h3 className="break-words text-base font-bold text-gray-900 sm:text-lg">
-                          {nombreCompleto.toUpperCase()}
-                        </h3>
-
-                        <p className="mt-1 break-words text-sm text-gray-600">
-                          Documento:{' '}
-                          {obtenerIdentificacion(trabajador)}
-                        </p>
-
-                        <p className="mt-1 break-words text-sm text-gray-600">
-                          Cargo:{' '}
-                          {obtenerCargo(trabajador)}
-                        </p>
-
-                        <span className="mt-3 inline-flex rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
-                          CONTRATADO
-                        </span>
-                      </div>
+                      <Button
+                        type="button"
+                        onClick={() =>
+                          handleIniciarProceso(trabajador)
+                        }
+                        className="min-h-11 w-full rounded-xl bg-emerald-600 px-5 font-semibold text-white shadow-md hover:bg-emerald-700 lg:w-auto"
+                      >
+                        <FilePlus2 className="mr-2 h-5 w-5" />
+                        Iniciar nuevo proceso disciplinario
+                      </Button>
                     </div>
 
-                    <Button
-                      type="button"
-                      onClick={() =>
-                        handleIniciarProceso(trabajador)
-                      }
-                      className="min-h-11 w-full rounded-xl bg-emerald-600 px-5 font-semibold text-white shadow-md hover:bg-emerald-700 lg:w-auto"
-                    >
-                      <FilePlus2 className="mr-2 h-5 w-5" />
-                      Iniciar proceso disciplinario
-                    </Button>
+                    <div className="border-t border-gray-200 bg-gray-50/70 p-4 sm:p-5">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+                          <FileText className="h-5 w-5" />
+                        </div>
+
+                        <div>
+                          <h4 className="font-bold text-gray-900">
+                            Procesos disciplinarios anteriores
+                          </h4>
+
+                          <p className="mt-1 text-sm text-gray-500">
+                            Consulta el estado y la respuesta emitida por Relaciones Laborales.
+                          </p>
+                        </div>
+                      </div>
+
+                      {loadingHistorial[idRegistroPersonal] ? (
+                        <div className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-5 text-center text-sm text-gray-500">
+                          Consultando procesos anteriores...
+                        </div>
+                      ) : (
+                        <>
+                          {(historiales[idRegistroPersonal] || [])
+                            .length === 0 ? (
+                            <div className="mt-4 rounded-xl border border-dashed border-gray-300 bg-white px-4 py-6 text-center">
+                              <p className="font-semibold text-gray-700">
+                                No existen procesos anteriores visibles.
+                              </p>
+
+                              <p className="mt-1 text-sm text-gray-500">
+                                Cuando el proceso sea enviado a Relaciones Laborales aparecerá en esta sección.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="mt-4 space-y-3">
+                              {(historiales[idRegistroPersonal] || [])
+                                .map((proceso) => {
+                                  const respuestaDisponible =
+                                    proceso
+                                      ?.RespuestaRRLLDisponible ===
+                                    true;
+
+                                  return (
+                                    <div
+                                      key={
+                                        proceso
+                                          .IdProcesoDisciplinario
+                                      }
+                                      className="rounded-xl border border-gray-200 bg-white p-4"
+                                    >
+                                      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                                        <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                          <div>
+                                            <p className="text-xs font-semibold uppercase text-gray-500">
+                                              Proceso
+                                            </p>
+                                            <p className="mt-1 font-bold text-gray-900">
+                                              #
+                                              {
+                                                proceso
+                                                  .IdProcesoDisciplinario
+                                              }
+                                            </p>
+                                          </div>
+
+                                          <div>
+                                            <p className="text-xs font-semibold uppercase text-gray-500">
+                                              Citación
+                                            </p>
+                                            <p className="mt-1 text-sm font-semibold text-gray-800">
+                                              {formatearFecha(
+                                                proceso
+                                                  .FechaCitacion ||
+                                                  proceso
+                                                    .FechaCreacion
+                                              )}
+                                            </p>
+                                          </div>
+
+                                          <div>
+                                            <p className="text-xs font-semibold uppercase text-gray-500">
+                                              Estado
+                                            </p>
+                                            <p className="mt-1 text-sm font-semibold text-gray-800">
+                                              {formatearTexto(
+                                                proceso
+                                                  .EstadoProceso
+                                              )}
+                                            </p>
+                                          </div>
+
+                                          <div>
+                                            <p className="text-xs font-semibold uppercase text-gray-500">
+                                              Respuesta RRLL
+                                            </p>
+                                            <span
+                                              className={cn(
+                                                "mt-1 inline-flex rounded-full border px-2.5 py-1 text-xs font-bold",
+                                                respuestaDisponible
+                                                  ? "border-emerald-200 bg-emerald-100 text-emerald-700"
+                                                  : "border-amber-200 bg-amber-100 text-amber-800"
+                                              )}
+                                            >
+                                              {respuestaDisponible
+                                                ? "Disponible"
+                                                : "Pendiente"}
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        {respuestaDisponible && (
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            disabled={
+                                              loadingRespuesta
+                                            }
+                                            onClick={() =>
+                                              abrirRespuestaRRLL(
+                                                proceso
+                                              )
+                                            }
+                                            className="min-h-10 w-full rounded-xl border-blue-300 font-semibold text-blue-700 hover:bg-blue-50 lg:w-auto"
+                                          >
+                                            <Eye className="mr-2 h-4 w-4" />
+                                            Ver respuesta
+                                          </Button>
+                                        )}
+                                      </div>
+
+                                      {proceso
+                                        ?.MotivoCitacion && (
+                                        <div className="mt-3 border-t border-gray-100 pt-3">
+                                          <p className="text-xs font-semibold uppercase text-gray-500">
+                                            Motivo
+                                          </p>
+                                          <p className="mt-1 break-words text-sm text-gray-700">
+                                            {formatearTexto(
+                                              proceso
+                                                .MotivoCitacion
+                                            )}
+                                          </p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </article>
                 );
               })}
@@ -563,6 +922,156 @@ const OperacionesProcesosDisciplinariosView = () => {
           )}
         </div>
       </section>
+
+      {(respuestaAbierta ||
+        loadingRespuesta ||
+        mensajeRespuesta) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-6">
+          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-4 py-4 sm:px-6">
+              <div>
+                <p className="text-sm font-semibold text-blue-700">
+                  Relaciones Laborales
+                </p>
+
+                <h2 className="text-lg font-bold text-gray-900 sm:text-xl">
+                  Respuesta del proceso disciplinario
+                </h2>
+              </div>
+
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setRespuestaAbierta(null);
+                  setMensajeRespuesta("");
+                }}
+                className="h-10 w-10 rounded-full p-0"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+
+            <div className="p-4 sm:p-6">
+              {loadingRespuesta ? (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-12 text-center text-gray-600">
+                  Consultando respuesta de Relaciones Laborales...
+                </div>
+              ) : mensajeRespuesta ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm font-semibold text-red-700">
+                  {mensajeRespuesta}
+                </div>
+              ) : respuestaAbierta ? (
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                      <p className="text-xs font-semibold uppercase text-gray-500">
+                        Proceso
+                      </p>
+                      <p className="mt-1 font-bold text-gray-900">
+                        #
+                        {
+                          respuestaAbierta.proceso
+                            .IdProcesoDisciplinario
+                        }
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                      <p className="text-xs font-semibold uppercase text-gray-500">
+                        Tipo de cierre
+                      </p>
+                      <p className="mt-1 font-semibold text-gray-900">
+                        {formatearTexto(
+                          respuestaAbierta.expediente
+                            ?.Cierre?.TipoCierre
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                      <p className="text-xs font-semibold uppercase text-gray-500">
+                        Medida disciplinaria
+                      </p>
+                      <p className="mt-1 font-semibold text-gray-900">
+                        {formatearTexto(
+                          respuestaAbierta.expediente
+                            ?.Cierre
+                            ?.MedidaDisciplinaria
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-gray-900">
+                      Documentos emitidos por Relaciones Laborales
+                    </h3>
+
+                    <p className="mt-1 text-sm text-gray-500">
+                      Esta información es únicamente de consulta para Operaciones.
+                    </p>
+                  </div>
+
+                  {respuestaAbierta.documentosRRLL
+                    .length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center">
+                      <p className="font-semibold text-gray-700">
+                        No hay documentos disponibles.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {respuestaAbierta.documentosRRLL.map(
+                        (documento) => (
+                          <div
+                            key={
+                              documento
+                                .IdDocumentoProcesoDisciplinario
+                            }
+                            className="flex flex-col gap-3 rounded-xl border border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between"
+                          >
+                            <div className="min-w-0">
+                              <p className="break-words font-semibold text-gray-900">
+                                {documento.NombreArchivo ||
+                                  "Documento de Relaciones Laborales"}
+                              </p>
+
+                              <p className="mt-1 text-sm text-gray-500">
+                                {formatearTexto(
+                                  documento.TipoDocumento
+                                )}
+                                {" · "}
+                                {formatearFecha(
+                                  documento.FechaCreacion
+                                )}
+                              </p>
+                            </div>
+
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() =>
+                                verDocumentoRRLL(
+                                  documento
+                                )
+                              }
+                              className="w-full rounded-xl border-blue-300 font-semibold text-blue-700 hover:bg-blue-50 sm:w-auto"
+                            >
+                              <Eye className="mr-2 h-4 w-4" />
+                              Ver documento
+                            </Button>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 };
