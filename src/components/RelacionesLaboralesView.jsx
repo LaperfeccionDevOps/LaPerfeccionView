@@ -532,6 +532,25 @@ function toDateInput(value) {
   }
 }
 
+// Fecha calendario de Colombia sin convertir a UTC.
+// Evita que después de las 7:00 p. m. se guarde el día siguiente.
+function obtenerFechaColombia() {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const valores = Object.fromEntries(
+    partes
+      .filter((parte) => parte.type !== "literal")
+      .map((parte) => [parte.type, parte.value])
+  );
+
+  return `${valores.year}-${valores.month}-${valores.day}`;
+}
+
 // ✅ descarga local del archivo seleccionado (UI)
 function downloadLocalFile(file) {
   if (!file) return;
@@ -609,7 +628,48 @@ async function downloadBackendAdjunto(apiBase, file) {
   window.URL.revokeObjectURL(url);
 }
 
-  export default function RelacionesLaboralesView() {
+const DocCard = ({
+  idx,
+  title,
+  subtitle,
+  file,
+  displayFileName,
+  actions,
+  fileNode,
+  children,
+}) => (
+  <div className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5">
+    <div className="flex items-start justify-between gap-3 flex-wrap">
+      <div>
+        <p className="text-base font-bold text-slate-900">
+          {idx}. {title}
+        </p>
+        <p className="text-xs text-slate-500 mt-1">{subtitle}</p>
+      </div>
+      {actions}
+    </div>
+
+    <div className="mt-3">
+      {file ? (
+        <div className="text-xs text-emerald-700">
+          <b className="break-words">
+            {displayFileName ||
+              `Archivo: ${
+                file?.NombreArchivoOriginal || file?.name || "archivo"
+              }`}
+          </b>
+        </div>
+      ) : (
+        <div className="text-xs text-slate-500">Sin archivo</div>
+      )}
+    </div>
+
+    {fileNode ? <div className="mt-4">{fileNode}</div> : null}
+    {children ? <div className="mt-3">{children}</div> : null}
+  </div>
+);
+
+export default function RelacionesLaboralesView() {
   // ✅ lee tu .env (debe ser: http://localhost:8000/api)
   const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
   const API_BASE_ENTREVISTA = API_BASE.replace(/\/api$/, "");
@@ -738,6 +798,17 @@ async function downloadBackendAdjunto(apiBase, file) {
 
   const [entrevistaRetiroData, setEntrevistaRetiroData] = useState(null);
   const [loadingEntrevistaRetiro, setLoadingEntrevistaRetiro] = useState(false);
+
+  // Validación oficial del motivo de retiro por RRLL.
+  // La respuesta original del trabajador se consulta en modo solo lectura.
+  const [motivoRRLLData, setMotivoRRLLData] = useState(null);
+  const [descripcionRetiroRRLL, setDescripcionRetiroRRLL] = useState("");
+  const [loadingMotivoRRLL, setLoadingMotivoRRLL] = useState(false);
+  const [guardandoMotivoRRLL, setGuardandoMotivoRRLL] = useState(false);
+  const [mensajeMotivoRRLL, setMensajeMotivoRRLL] = useState({
+    tipo: "",
+    texto: "",
+  });
 
   const [qrEntrevistaInfo, setQrEntrevistaInfo] = useState({
   open: false,
@@ -1425,7 +1496,7 @@ const getMotivoValueById = (idMotivo) => {
               IdEstadoProceso: ESTADO_PROCESO_ID_MAP[estadoProceso] ?? 1,
               FechaProceso: form.fechaProceso
                 ? form.fechaProceso
-                : new Date().toISOString().slice(0, 10),
+                : obtenerFechaColombia(),
               UsuarioCreacion: "RRLL",
             }),
           });
@@ -1489,7 +1560,7 @@ const getMotivoValueById = (idMotivo) => {
                       FechaRetiro: form.fechaFinal ? form.fechaFinal : null,
                       // Puedes dejar fijo "ABIERTO" si así lo manejas:
                       EstadoCasoRRLL: "ABIERTO",
-                      FechaProceso: form.fechaProceso ? form.fechaProceso : new Date().toISOString().slice(0, 10),
+                      FechaProceso: form.fechaProceso ? form.fechaProceso : obtenerFechaColombia(),
                       UsuarioActualizacion: "RRLL",
                       ObservacionGeneral: null,
                     }),
@@ -1523,7 +1594,7 @@ const getMotivoValueById = (idMotivo) => {
                       IdCliente: Number(form.idCliente),
                       IdMotivoRetiro: Number(form.idMotivoRetiro),
                       FechaRetiro: form.fechaFinal ? form.fechaFinal : null,
-                      FechaProceso: form.fechaProceso ? form.fechaProceso : new Date().toISOString().slice(0, 10),
+                      FechaProceso: form.fechaProceso ? form.fechaProceso : obtenerFechaColombia(),
                       UsuarioActualizacion: "RRLL",
                       // EstadoCasoRRLL: "ABIERTO", // si aplica en tu modelo
                     }),
@@ -1602,7 +1673,7 @@ const getMotivoValueById = (idMotivo) => {
           IdEstadoProceso: ESTADO_PROCESO_ID_MAP[estadoProceso] ?? 1,
           FechaProceso: form.fechaProceso
             ? form.fechaProceso
-            : new Date().toISOString().slice(0, 10),
+            : obtenerFechaColombia(),
           UsuarioActualizacion: "RRLL",
         };
 
@@ -1882,8 +1953,12 @@ useEffect(() => {
 useEffect(() => {
   if (step === "retiros_docs" && form.idRetiroLaboral) {
     cargarEntrevistaRetiroDesdeBackend(form.idRetiroLaboral);
+    cargarMotivoRRLLDesdeBackend(form.idRetiroLaboral);
   } else {
     setEntrevistaRetiroData(null);
+    setMotivoRRLLData(null);
+    setDescripcionRetiroRRLL("");
+    setMensajeMotivoRRLL({ tipo: "", texto: "" });
   }
 }, [step, form.idRetiroLaboral]);
 
@@ -1967,6 +2042,137 @@ const descargarAdjuntoRetiroBackend = async (
   setTimeout(() => {
     window.URL.revokeObjectURL(url);
   }, 60000);
+};
+
+const consultarMotivoRRLLBackend = async (idRetiroLaboral) => {
+  const res = await fetch(
+    `${API_BASE}/rrll/retiro/${idRetiroLaboral}/motivo-rrll`,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+    }
+  );
+
+  if (res.status === 404) return null;
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(
+      data?.detail || "No se pudo consultar la validación oficial de RRLL."
+    );
+  }
+
+  return data;
+};
+
+const cargarMotivoRRLLDesdeBackend = async (idRetiroLaboral) => {
+  if (!idRetiroLaboral) {
+    setMotivoRRLLData(null);
+    setDescripcionRetiroRRLL("");
+    return;
+  }
+
+  try {
+    setLoadingMotivoRRLL(true);
+    setMensajeMotivoRRLL({ tipo: "", texto: "" });
+
+    const data = await consultarMotivoRRLLBackend(idRetiroLaboral);
+
+    setMotivoRRLLData(data);
+    setDescripcionRetiroRRLL(data?.DescripcionRetiroRRLL || "");
+  } catch (error) {
+    console.error("Error cargando validación oficial de RRLL:", error);
+    setMotivoRRLLData(null);
+    setDescripcionRetiroRRLL("");
+    setMensajeMotivoRRLL({
+      tipo: "error",
+      texto:
+        error?.message ||
+        "No se pudo cargar la validación oficial del motivo de retiro.",
+    });
+  } finally {
+    setLoadingMotivoRRLL(false);
+  }
+};
+
+const guardarMotivoRRLL = async () => {
+  try {
+    if (!form.idRetiroLaboral) {
+      throw new Error("No existe un retiro laboral para guardar la validación.");
+    }
+
+    const cabeceraEntrevista = entrevistaRetiroData?.cabecera || null;
+    const respuestasEntrevista = entrevistaRetiroData?.respuestas || [];
+    const entrevistaDiligenciada =
+      !!cabeceraEntrevista?.IdEntrevistaRetiro &&
+      respuestasEntrevista.length > 0;
+
+    if (!entrevistaDiligenciada) {
+      throw new Error(
+        "La entrevista aún no ha sido diligenciada por el trabajador."
+      );
+    }
+
+    if (retiroBloqueado) {
+      throw new Error(
+        "El retiro se encuentra bloqueado y no permite modificaciones."
+      );
+    }
+
+    const descripcion = String(descripcionRetiroRRLL || "").trim();
+
+    if (descripcion.length < 3) {
+      throw new Error(
+        "El motivo oficial validado por RRLL debe tener al menos 3 caracteres."
+      );
+    }
+
+    setGuardandoMotivoRRLL(true);
+    setMensajeMotivoRRLL({ tipo: "", texto: "" });
+
+    const res = await fetch(
+      `${API_BASE}/rrll/retiro/${form.idRetiroLaboral}/motivo-rrll`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          DescripcionRetiroRRLL: descripcion,
+          UsuarioValidacionRRLL: "RRLL",
+        }),
+      }
+    );
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(
+        data?.detail || "No se pudo guardar la validación oficial de RRLL."
+      );
+    }
+
+    setMotivoRRLLData(data);
+    setDescripcionRetiroRRLL(data?.DescripcionRetiroRRLL || descripcion);
+    setMensajeMotivoRRLL({
+      tipo: "exito",
+      texto: "La validación oficial de RRLL fue guardada correctamente.",
+    });
+  } catch (error) {
+    console.error("Error guardando validación oficial de RRLL:", error);
+    setMensajeMotivoRRLL({
+      tipo: "error",
+      texto:
+        error?.message ||
+        "No se pudo guardar la validación oficial del motivo de retiro.",
+    });
+  } finally {
+    setGuardandoMotivoRRLL(false);
+  }
 };
 
 const consultarEntrevistaRetiroBackend = async (idRetiroLaboral) => {
@@ -2421,35 +2627,6 @@ if (step === "retiros_docs") {
   console.log("entrevistaRespuestas =>", entrevistaRespuestas);
   console.log("tieneEntrevistaRetiro =>", tieneEntrevistaRetiro);
   console.log("form.idRetiroLaboral =>", form.idRetiroLaboral);
-
-    const DocCard = ({ idx, title, subtitle, file, displayFileName, actions, fileNode, children }) => (
-      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <p className="text-base font-bold text-slate-900">
-              {idx}. {title}
-            </p>
-            <p className="text-xs text-slate-500 mt-1">{subtitle}</p>
-          </div>
-          {actions}
-        </div>
-
-        <div className="mt-3">
-        {file ? (
-          <div className="text-xs text-emerald-700">
-          <b className="break-words">
-            {displayFileName || `Archivo: ${file?.NombreArchivoOriginal || file?.name || "archivo"}`}
-          </b>
-        </div>
-      ) : (
-        <div className="text-xs text-slate-500">Sin archivo</div>
-        )}
-      </div>
-
-        {fileNode ? <div className="mt-4">{fileNode}</div> : null}
-        {children ? <div className="mt-3">{children}</div> : null}
-      </div>
-    );
 
         return (
           <div className="p-6">
@@ -3199,10 +3376,149 @@ if (step === "retiros_docs") {
         </div>
       }
     >
-      <div className="text-xs text-slate-500">
-        {tieneEntrevistaRetiro
-          ? "La entrevista fue diligenciada por el trabajador y ya se encuentra disponible en PDF."
-          : "La entrevista aún no ha sido diligenciada por el trabajador. Genere el QR para que pueda responderla."}
+      <div className="space-y-5">
+        <div className="text-xs text-slate-500">
+          {tieneEntrevistaRetiro
+            ? "La entrevista fue diligenciada por el trabajador y ya se encuentra disponible en PDF."
+            : "La entrevista aún no ha sido diligenciada por el trabajador. Genere el QR para que pueda responderla."}
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-slate-800">
+                Validación del motivo de retiro por RRLL
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                La respuesta original del trabajador no se modifica. RRLL registra
+                una descripción oficial independiente.
+              </p>
+            </div>
+
+            <span
+              className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${
+                motivoRRLLData?.EstadoValidacionRRLL === "VALIDADO"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-amber-100 text-amber-700"
+              }`}
+            >
+              {motivoRRLLData?.EstadoValidacionRRLL || "PENDIENTE"}
+            </span>
+          </div>
+
+          {loadingMotivoRRLL ? (
+            <p className="mt-4 text-sm text-slate-500">
+              Cargando validación de RRLL...
+            </p>
+          ) : (
+            <div className="mt-4 grid grid-cols-1 gap-4">
+              <div>
+                <Label className="text-xs font-semibold text-slate-600">
+                  Respuesta original del trabajador
+                </Label>
+                <textarea
+                  value={motivoRRLLData?.DescripcionTrabajador || ""}
+                  readOnly
+                  rows={4}
+                  placeholder={
+                    tieneEntrevistaRetiro
+                      ? "La entrevista no contiene una respuesta para la descripción del retiro."
+                      : "La entrevista todavía no ha sido diligenciada."
+                  }
+                  className="mt-2 w-full resize-y rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 outline-none"
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs font-semibold text-slate-600">
+                  Motivo oficial validado por RRLL
+                </Label>
+                <textarea
+                  value={descripcionRetiroRRLL}
+                  onChange={(event) =>
+                    setDescripcionRetiroRRLL(event.target.value)
+                  }
+                  rows={4}
+                  maxLength={5000}
+                  disabled={
+                    !tieneEntrevistaRetiro ||
+                    retiroBloqueado ||
+                    guardandoMotivoRRLL
+                  }
+                  placeholder="Escriba el motivo oficial que RRLL dejará registrado."
+                  className={`mt-2 w-full resize-y rounded-xl border p-3 text-sm outline-none ${
+                    !tieneEntrevistaRetiro || retiroBloqueado
+                      ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500"
+                      : "border-slate-300 bg-white text-slate-800 focus:border-emerald-500"
+                  }`}
+                />
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs text-slate-400">
+                    {descripcionRetiroRRLL.length}/5000 caracteres
+                  </span>
+
+                  {!retiroBloqueado && (
+                    <Button
+                      type="button"
+                      onClick={guardarMotivoRRLL}
+                      disabled={
+                        !tieneEntrevistaRetiro ||
+                        guardandoMotivoRRLL ||
+                        descripcionRetiroRRLL.trim().length < 3
+                      }
+                      className="bg-emerald-600 text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {guardandoMotivoRRLL
+                        ? "Guardando..."
+                        : motivoRRLLData?.EstadoValidacionRRLL === "VALIDADO"
+                        ? "Actualizar validación"
+                        : "Guardar validación"}
+                    </Button>
+                  )}
+                </div>
+
+                {retiroBloqueado && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Esta validación quedó en modo solo lectura porque el proceso
+                    fue enviado a Nómina o se encuentra cerrado.
+                  </p>
+                )}
+              </div>
+
+              {motivoRRLLData?.EstadoValidacionRRLL === "VALIDADO" && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
+                  <p>
+                    <b>Validado por:</b>{" "}
+                    {motivoRRLLData?.UsuarioValidacionRRLL || "RRLL"}
+                  </p>
+                  {motivoRRLLData?.FechaValidacionRRLL && (
+                    <p className="mt-1">
+                      <b>Fecha:</b>{" "}
+                      {new Date(
+                        motivoRRLLData.FechaValidacionRRLL
+                      ).toLocaleString("es-CO", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {mensajeMotivoRRLL.texto && (
+                <div
+                  className={`rounded-xl border px-4 py-3 text-sm ${
+                    mensajeMotivoRRLL.tipo === "exito"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-red-200 bg-red-50 text-red-700"
+                  }`}
+                >
+                  {mensajeMotivoRRLL.texto}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </DocCard>
   );
