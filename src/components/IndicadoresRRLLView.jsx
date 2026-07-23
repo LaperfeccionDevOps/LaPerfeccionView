@@ -1,40 +1,36 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  ResponsiveContainer,
+  Bar,
+  BarChart,
+  CartesianGrid,
   Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts';
 import {
-  Users,
-  FolderOpen,
-  CheckCircle,
-  Clock,
-  FileWarning,
-  RefreshCw,
-  Filter,
-  CalendarDays,
-  FileText,
   AlertTriangle,
-  ClipboardList,
+  BarChart3,
+  CalendarDays,
+  CheckCircle2,
+  ClipboardCheck,
+  Clock3,
+  Filter,
+  FolderOpen,
+  RefreshCw,
+  Send,
+  TimerReset,
+  TrendingUp,
+  Users,
 } from 'lucide-react';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-
-const COLORS = [
-  '#059669',
-  '#ef4444',
-  '#f59e0b',
-  '#2563eb',
-  '#7c3aed',
-  '#14b8a6',
-  '#db2777',
-  '#64748b',
-  '#ea580c',
-  '#16a34a',
-];
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  '';
 
 const MESES = [
   { value: '', label: 'Todos los meses' },
@@ -52,273 +48,549 @@ const MESES = [
   { value: 12, label: 'Diciembre' },
 ];
 
+const numero = (valor) => {
+  const convertido = Number(valor);
+  return Number.isFinite(convertido) ? convertido : 0;
+};
+
+const entero = (valor) =>
+  new Intl.NumberFormat('es-CO', {
+    maximumFractionDigits: 0,
+  }).format(numero(valor));
+
+const decimal = (valor) =>
+  new Intl.NumberFormat('es-CO', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(numero(valor));
+
+const porcentaje = (valor) => `${decimal(valor)}%`;
+
+const fechaColombia = (valor) => {
+  if (!valor) return 'Sin fecha';
+
+  const texto = String(valor);
+  const coincidencia = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+  if (coincidencia) {
+    return `${coincidencia[3]}/${coincidencia[2]}/${coincidencia[1]}`;
+  }
+
+  const fecha = new Date(valor);
+  if (Number.isNaN(fecha.getTime())) return 'Sin fecha';
+
+  return new Intl.DateTimeFormat('es-CO', {
+    timeZone: 'America/Bogota',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(fecha);
+};
+
 const IndicadoresRRLLView = () => {
   const anioActual = new Date().getFullYear();
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const [anioSeleccionado, setAnioSeleccionado] = useState(anioActual);
-  const [mesSeleccionado, setMesSeleccionado] = useState('');
+  const [anio, setAnio] = useState(anioActual);
+  const [mes, setMes] = useState('');
+  const [cliente, setCliente] = useState('');
+  const [tipoPeriodo, setTipoPeriodo] = useState('gestion');
+  const [anioGrafica, setAnioGrafica] = useState(Math.max(2026, anioActual));
 
-  const [selectedEstado, setSelectedEstado] = useState(null);
-  const [selectedMotivo, setSelectedMotivo] = useState(null);
-  const [selectedTipificacion, setSelectedTipificacion] = useState(null);
-  const [selectedDocumento, setSelectedDocumento] = useState(null);
-
-  const anios = useMemo(() => {
-    const lista = [{ value: '', label: 'Todos los años' }];
-    for (let y = anioActual + 1; y >= anioActual - 5; y--) {
-      lista.push({ value: y, label: String(y) });
-    }
-    return lista;
-  }, [anioActual]);
-
-  const cargarIndicadores = async () => {
+  const cargarIndicadores = async (forzados = null) => {
     try {
       setLoading(true);
+      setError('');
+
+      const filtros = forzados || {
+        anio,
+        mes,
+        cliente,
+        tipoPeriodo,
+        anioGrafica,
+      };
 
       const params = new URLSearchParams();
-      if (anioSeleccionado) params.append('anio', anioSeleccionado);
-      if (mesSeleccionado) params.append('mes', mesSeleccionado);
+      params.append('anio', filtros.anio || anioActual);
+      params.append('tipo_periodo', filtros.tipoPeriodo || 'gestion');
+      params.append(
+        'anio_grafica',
+        filtros.anioGrafica || Math.max(2026, anioActual)
+      );
 
-      const url = `${API_BASE_URL}/retiros-laborales/dashboard-indicadores${
-        params.toString() ? `?${params.toString()}` : ''
-      }`;
+      if (filtros.mes) params.append('mes', filtros.mes);
+      if (filtros.cliente) params.append('id_cliente', filtros.cliente);
 
-      const resp = await fetch(url);
-      const json = await resp.json();
+      const token = localStorage.getItem('token');
 
-      if (!resp.ok || !json.success) {
-        throw new Error(json.detail || 'Error consultando indicadores RRLL');
+      const response = await fetch(
+        `${API_BASE_URL}/retiros-laborales/dashboard-indicadores?${params.toString()}`,
+        {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        }
+      );
+
+      const json = await response.json();
+
+      if (!response.ok || !json.success) {
+        throw new Error(
+          json?.detail ||
+            json?.message ||
+            'No fue posible consultar los indicadores RRLL.'
+        );
       }
 
-      setData(json.data);
-
-      setSelectedEstado(
-        json.data?.estados?.[0]
-          ? {
-              name: json.data.estados[0].estado,
-              value: Number(json.data.estados[0].cantidad || 0),
-            }
-          : null
-      );
-
-      setSelectedMotivo(
-        json.data?.motivos?.[0]
-          ? {
-              name: json.data.motivos[0].motivo,
-              value: Number(json.data.motivos[0].cantidad || 0),
-            }
-          : null
-      );
-
-      setSelectedTipificacion(
-        json.data?.tipificaciones?.[0]
-          ? {
-              name: json.data.tipificaciones[0].tipificacion,
-              value: Number(json.data.tipificaciones[0].cantidad || 0),
-            }
-          : null
-      );
-
-      setSelectedDocumento(
-        json.data?.documentos?.[0]
-          ? {
-              name: json.data.documentos[0].documento,
-              value: Number(json.data.documentos[0].cantidad || 0),
-            }
-          : null
-      );
-    } catch (error) {
-      console.error('[IndicadoresRRLLView]', error);
+      setData(json.data || null);
+    } catch (err) {
+      console.error('[IndicadoresRRLLView]', err);
+      setData(null);
+      setError(err.message || 'Error cargando indicadores RRLL.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    cargarIndicadores();
+    cargarIndicadores({
+      anio: anioActual,
+      mes: '',
+      cliente: '',
+      tipoPeriodo: 'gestion',
+      anioGrafica: Math.max(2026, anioActual),
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const intervalo = window.setInterval(() => {
+      cargarIndicadores({
+        anio,
+        mes,
+        cliente,
+        tipoPeriodo,
+        anioGrafica,
+      });
+    }, 60000);
+
+    return () => window.clearInterval(intervalo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anio, mes, cliente, tipoPeriodo, anioGrafica]);
+
+  const aniosGrafica = useMemo(() => {
+    const ultimoAnio = Math.max(2026, anioActual);
+    return Array.from(
+      { length: ultimoAnio - 2026 + 1 },
+      (_, index) => 2026 + index
+    ).reverse();
+  }, [anioActual]);
+
   const limpiarFiltros = () => {
-    setAnioSeleccionado('');
-    setMesSeleccionado('');
-    setTimeout(() => cargarIndicadores(), 0);
+    setAnio(anioActual);
+    setMes('');
+    setCliente('');
+    setTipoPeriodo('gestion');
+    setAnioGrafica(Math.max(2026, anioActual));
+
+    cargarIndicadores({
+      anio: anioActual,
+      mes: '',
+      cliente: '',
+      tipoPeriodo: 'gestion',
+      anioGrafica: Math.max(2026, anioActual),
+    });
   };
 
-  const toChart = (items, nameKey) =>
-    (items || [])
-      .filter((item) => Number(item.cantidad || 0) > 0)
-      .map((item) => ({
-        name: item[nameKey] || 'SIN DATO',
-        value: Number(item.cantidad || 0),
-      }));
-
-  const estadosChart = useMemo(() => toChart(data?.estados, 'estado'), [data]);
-  const motivosChart = useMemo(() => toChart(data?.motivos, 'motivo'), [data]);
-  const tipificacionesChart = useMemo(
-    () => toChart(data?.tipificaciones, 'tipificacion'),
-    [data]
-  );
-  const documentosChart = useMemo(
-    () => toChart(data?.documentos, 'documento'),
-    [data]
-  );
-
+  const filtros = data?.filtros || {};
   const totales = data?.totales || {};
+  const tiempo = data?.tiempo_gestion_rrll || {};
+
+  const anios = useMemo(() => {
+    const disponibles = (filtros.anios_disponibles || [])
+      .map(numero)
+      .filter((item) => item > 0);
+
+    return Array.from(new Set([anioActual, ...disponibles])).sort(
+      (a, b) => b - a
+    );
+  }, [filtros.anios_disponibles, anioActual]);
+
+  const clientes = filtros.clientes || [];
 
   const periodoTexto = useMemo(() => {
-    const mes = MESES.find((m) => String(m.value) === String(mesSeleccionado));
-    if (anioSeleccionado && mesSeleccionado) return `${mes?.label || ''} / ${anioSeleccionado}`;
-    if (anioSeleccionado) return `Año ${anioSeleccionado}`;
-    if (mesSeleccionado) return `${mes?.label || ''}`;
-    return 'Vista general';
-  }, [anioSeleccionado, mesSeleccionado]);
+    const mesTexto = MESES.find(
+      (item) => String(item.value) === String(mes)
+    )?.label;
 
-  const KpiCard = ({ title, value, icon: Icon }) => (
-    <div className="bg-white rounded-3xl shadow-lg border border-gray-100 p-6 hover:shadow-2xl transition-all">
-      <div className="flex justify-between items-start">
-        <div>
-          <p className="text-sm font-bold text-gray-500">{title}</p>
-          <h2 className="text-5xl font-black text-gray-900 mt-4">{value ?? 0}</h2>
+    const clienteTexto = clientes.find(
+      (item) => String(item.id_cliente) === String(cliente)
+    )?.cliente;
+
+    const partes = [
+      tipoPeriodo === 'gestion'
+        ? 'Actividad de RRLL'
+        : 'Último día laborado',
+      mesTexto,
+      anio,
+      clienteTexto,
+    ].filter(Boolean);
+
+    return partes.join(' · ');
+  }, [tipoPeriodo, mes, anio, cliente, clientes]);
+
+  const normalizar = (items, labelKey) =>
+    (items || [])
+      .map((item) => ({
+        ...item,
+        [labelKey]: item[labelKey] || 'SIN DATO',
+        cantidad: numero(item.cantidad),
+        porcentaje: numero(item.porcentaje),
+      }))
+      .sort((a, b) => b.cantidad - a.cantidad);
+
+  const sedes = useMemo(
+    () => normalizar(data?.sedes, 'sede'),
+    [data]
+  );
+  const motivos = useMemo(
+    () => normalizar(data?.motivos, 'motivo'),
+    [data]
+  );
+  const tipificaciones = useMemo(
+    () => normalizar(data?.tipificaciones, 'tipificacion'),
+    [data]
+  );
+
+  const motivosPorSede = useMemo(
+    () =>
+      (data?.motivos_por_sede || []).map((item) => ({
+        ...item,
+        etiqueta: `${item.sede || 'SIN SEDE REGISTRADA'} · ${
+          item.motivo || 'SIN MOTIVO'
+        }`,
+        cantidad: numero(item.cantidad),
+        porcentaje: numero(item.porcentaje_dentro_sede),
+      }))
+        .sort((a, b) => b.cantidad - a.cantidad),
+    [data]
+  );
+
+  const tipificacionesPorSede = useMemo(
+    () =>
+      (data?.tipificaciones_por_sede || []).map((item) => ({
+        ...item,
+        etiqueta: `${item.sede || 'SIN SEDE REGISTRADA'} · ${
+          item.tipificacion || 'SIN TIPIFICACIÓN'
+        }`,
+        cantidad: numero(item.cantidad),
+        porcentaje: numero(item.porcentaje_dentro_sede),
+      }))
+        .sort((a, b) => b.cantidad - a.cantidad),
+    [data]
+  );
+
+  const entrevistas = useMemo(
+    () =>
+      (data?.entrevistas || []).map((item) => ({
+        estado: item.estado,
+        cantidad: numero(item.cantidad),
+        porcentaje: numero(item.porcentaje),
+      })),
+    [data]
+  );
+
+  const gestionMensual = useMemo(
+    () =>
+      (data?.gestion_mensual || []).map((item) => ({
+        ...item,
+        procesos_iniciados: numero(item.procesos_iniciados),
+        enviados_nomina: numero(item.enviados_nomina),
+      })),
+    [data]
+  );
+
+  const Kpi = ({ title, value, detail, icon: Icon, accent = false }) => (
+    <article className="min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="flex min-w-0 items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="break-words text-sm font-bold text-gray-500">
+            {title}
+          </p>
+          <p
+            className={`mt-3 break-words text-4xl font-black ${
+              accent ? 'text-emerald-700' : 'text-gray-900'
+            }`}
+          >
+            {value}
+          </p>
+          <p className="mt-2 break-words text-xs text-gray-500">
+            {detail}
+          </p>
         </div>
-        <div className="w-16 h-16 rounded-2xl bg-emerald-50 flex items-center justify-center">
-          <Icon className="w-8 h-8 text-emerald-600" />
+
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50">
+          <Icon className="h-6 w-6 text-emerald-700" />
         </div>
+      </div>
+    </article>
+  );
+
+  const Encabezado = ({ title, subtitle, icon: Icon }) => (
+    <div className="mb-5 flex min-w-0 items-start gap-3">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50">
+        <Icon className="h-5 w-5 text-emerald-700" />
+      </div>
+      <div className="min-w-0">
+        <h2 className="break-words text-xl font-black text-gray-900">
+          {title}
+        </h2>
+        <p className="mt-1 break-words text-sm text-gray-500">
+          {subtitle}
+        </p>
       </div>
     </div>
   );
 
-  const DonutChart = ({ title, subtitle, dataChart, selected, setSelected, icon: Icon }) => (
-  <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-7">
-    <div className="flex items-start gap-4 mb-4">
-      <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center">
-        <Icon className="w-6 h-6 text-emerald-600" />
+  const TooltipDetalle = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+
+    const fila = payload[0]?.payload || {};
+
+    return (
+      <div className="max-w-[300px] rounded-xl border border-gray-200 bg-white p-3 shadow-lg">
+        <p className="break-words text-sm font-black text-gray-900">
+          {label || fila.etiqueta || 'Detalle'}
+        </p>
+
+        {payload.map((item) => (
+          <p
+            key={`${item.dataKey}-${item.name}`}
+            className="mt-1 text-sm text-gray-600"
+          >
+            {item.name}: <strong>{entero(item.value)}</strong>
+          </p>
+        ))}
+
+        {fila.porcentaje !== undefined ? (
+          <p className="mt-1 text-sm text-emerald-700">
+            Porcentaje: <strong>{porcentaje(fila.porcentaje)}</strong>
+          </p>
+        ) : null}
       </div>
-      <div>
-        <h2 className="text-2xl font-black text-gray-900">{title}</h2>
-        <p className="text-sm text-gray-500">{subtitle}</p>
+    );
+  };
+
+  const Tabla = ({
+    rows,
+    labelKey,
+    labelTitle,
+    percentageKey = 'porcentaje',
+  }) => (
+    <div className="mt-5 overflow-hidden rounded-xl border border-gray-200">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[540px] table-fixed text-left">
+          <thead className="bg-gray-900 text-white">
+            <tr>
+              <th className="w-[58%] px-4 py-3 text-xs font-black uppercase">
+                {labelTitle}
+              </th>
+              <th className="w-[21%] px-4 py-3 text-right text-xs font-black uppercase">
+                Cantidad
+              </th>
+              <th className="w-[21%] px-4 py-3 text-right text-xs font-black uppercase">
+                Porcentaje
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length ? (
+              rows.map((item, index) => (
+                <tr
+                  key={`${item[labelKey]}-${index}`}
+                  className="border-t border-gray-100"
+                >
+                  <td className="break-words px-4 py-3 text-sm font-bold text-gray-800">
+                    {item[labelKey]}
+                  </td>
+                  <td className="px-4 py-3 text-right text-sm text-gray-700">
+                    {entero(item.cantidad)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-sm font-black text-emerald-700">
+                    {porcentaje(item[percentageKey])}
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td
+                  colSpan="3"
+                  className="px-4 py-6 text-center text-sm font-bold text-gray-400"
+                >
+                  Sin información para los filtros seleccionados.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
+  );
 
-    {dataChart.length === 0 ? (
-      <div className="h-[260px] flex items-center justify-center text-gray-400 font-bold">
-        Sin datos para el periodo seleccionado
-      </div>
-    ) : (
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-center">
-        <div className="xl:col-span-2 h-[360px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-            <Pie
-                data={dataChart}
-                dataKey="value"
-                nameKey="name"
-                innerRadius={70}
-                outerRadius={100}
-                paddingAngle={4}
-                label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
-                labelLine={{ length: 18, length2: 16 }}
-                >
-                {dataChart.map((item, index) => (
-                  <Cell
-                    key={`${item.name}-${index}`}
-                    fill={COLORS[index % COLORS.length]}
-                    cursor="pointer"
-                    onMouseDown={(event) => {
-                      event?.preventDefault?.();
-                      event?.stopPropagation?.();
-                    }}
-                    onClick={(event) => {
-                      event?.preventDefault?.();
-                      event?.stopPropagation?.();
-                      setSelected({
-                        name: item.name,
-                        value: item.value,
-                      });
-                    }}
-                  />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value, name) => [`${value} registros`, name]} />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+  const Distribucion = ({
+    title,
+    subtitle,
+    icon,
+    rows,
+    labelKey,
+    labelTitle,
+    top = 10,
+  }) => {
+    const grafica = rows.slice(0, top);
 
-        <div className="rounded-3xl bg-gray-50 border border-gray-100 p-6 min-h-[230px]">
-          <p className="text-xs font-bold text-gray-500 uppercase">
-            Detalle seleccionado
-          </p>
-          <h3 className="text-xl font-black text-gray-900 mt-3 break-words">
-            {selected?.name || 'Sin selección'}
-          </h3>
-          <p className="text-5xl font-black text-emerald-600 mt-5">
-            {selected?.value || 0}
-          </p>
-          <p className="text-sm text-gray-500 mt-2">registros asociados</p>
-        </div>
-      </div>
-    )}
-  </div>
-);
-
-  if (loading) {
     return (
-      <div className="p-8 bg-white rounded-2xl shadow-xl">
-        <p className="font-bold text-gray-600">Cargando indicadores RRLL...</p>
+      <section className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <Encabezado title={title} subtitle={subtitle} icon={icon} />
+
+        {grafica.length ? (
+          <div className="h-[320px] w-full min-w-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={grafica}
+                layout="vertical"
+                barCategoryGap="55%"
+                margin={{ top: 8, right: 24, left: 8, bottom: 8 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  horizontal={false}
+                />
+                <XAxis
+                  type="number"
+                  allowDecimals={false}
+                  tick={{ fontSize: 11 }}
+                />
+                <YAxis
+                  type="category"
+                  dataKey={labelKey}
+                  width={135}
+                  tick={{ fontSize: 10 }}
+                  tickFormatter={(value) =>
+                    String(value).length > 22
+                      ? `${String(value).slice(0, 22)}…`
+                      : value
+                  }
+                />
+                <Tooltip content={<TooltipDetalle />} />
+                <Bar
+                  dataKey="cantidad"
+                  name="Cantidad"
+                  fill="#059669"
+                  maxBarSize={18}
+                  radius={[0, 5, 5, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-10 text-center text-sm font-bold text-gray-400">
+            Sin información para los filtros seleccionados.
+          </div>
+        )}
+
+        <Tabla
+          rows={rows.slice(0, top)}
+          labelKey={labelKey}
+          labelTitle={labelTitle}
+        />
+      </section>
+    );
+  };
+
+  if (loading && !data) {
+    return (
+      <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+        <div className="flex items-center gap-3 text-gray-700">
+          <RefreshCw className="h-5 w-5 animate-spin text-emerald-700" />
+          <p className="font-bold">Cargando indicadores RRLL...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
-      <div className="bg-white rounded-3xl shadow-xl p-8 border-t-4 border-emerald-600">
-        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-8">
-          <div className="flex items-center gap-5">
-            <div className="w-16 h-16 rounded-2xl bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-200">
-              <FolderOpen className="w-8 h-8 text-white" />
+    <div className="w-full min-w-0 space-y-6 overflow-x-hidden pb-8">
+      <header className="rounded-2xl border border-gray-200 border-t-4 border-t-emerald-600 bg-white p-5 shadow-sm sm:p-7">
+        <div className="flex min-w-0 flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-600">
+              <FolderOpen className="h-7 w-7 text-white" />
             </div>
 
-            <div>
-              <h1 className="text-4xl font-black text-gray-900">
+            <div className="min-w-0">
+              <h1 className="break-words text-2xl font-black text-gray-900 sm:text-3xl">
                 Indicadores RRLL - Retiros
               </h1>
-              <p className="text-gray-500 mt-1">
-                Dashboard visual del proceso de retiros laborales.
+              <p className="mt-1 break-words text-sm text-gray-500">
+                Estados, causas, sedes, entrevistas y tiempos reales del
+                proceso gestionado por Relaciones Laborales.
               </p>
-              <div className="inline-flex items-center gap-2 mt-3 px-4 py-1.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-sm border border-emerald-100">
-                <CalendarDays className="w-4 h-4" />
-                {periodoTexto}
+
+              <div className="mt-3 inline-flex max-w-full items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-sm font-bold text-emerald-800">
+                <CalendarDays className="h-4 w-4 shrink-0" />
+                <span className="truncate">{periodoTexto}</span>
               </div>
             </div>
           </div>
 
-          <div className="bg-gray-50 border border-gray-200 rounded-3xl p-4">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div>
-                <label className="block text-xs font-black text-gray-600 mb-1">Año</label>
+          <div className="w-full rounded-2xl border border-gray-200 bg-gray-50 p-3 xl:max-w-[980px]">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-12">
+              <label className="min-w-0 xl:col-span-3">
+                <span className="mb-1 block text-[11px] font-black text-gray-600">
+                  Analizar por
+                </span>
                 <select
-                  value={anioSeleccionado}
-                  onChange={(e) => setAnioSeleccionado(e.target.value)}
-                  className="w-full md:w-[210px] rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-bold text-gray-900"
+                  value={tipoPeriodo}
+                  onChange={(event) =>
+                    setTipoPeriodo(event.target.value)
+                  }
+                  className="h-10 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-xs font-bold text-gray-900"
+                >
+                  <option value="gestion">Actividad de RRLL</option>
+                  <option value="retiro">Último día laborado</option>
+                </select>
+              </label>
+
+              <label className="min-w-0 xl:col-span-2">
+                <span className="mb-1 block text-[11px] font-black text-gray-600">
+                  Año
+                </span>
+                <select
+                  value={anio}
+                  onChange={(event) => setAnio(event.target.value)}
+                  className="h-10 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-xs font-bold text-gray-900"
                 >
                   {anios.map((item) => (
-                    <option key={item.label} value={item.value}>
-                      {item.label}
+                    <option key={item} value={item}>
+                      {item}
                     </option>
                   ))}
                 </select>
-              </div>
+              </label>
 
-              <div>
-                <label className="block text-xs font-black text-gray-600 mb-1">Mes</label>
+              <label className="min-w-0 xl:col-span-2">
+                <span className="mb-1 block text-[11px] font-black text-gray-600">
+                  Mes
+                </span>
                 <select
-                  value={mesSeleccionado}
-                  onChange={(e) => setMesSeleccionado(e.target.value)}
-                  className="w-full md:w-[220px] rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-bold text-gray-900"
+                  value={mes}
+                  onChange={(event) => setMes(event.target.value)}
+                  className="h-10 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-xs font-bold text-gray-900"
                 >
                   {MESES.map((item) => (
                     <option key={item.label} value={item.value}>
@@ -326,125 +598,432 @@ const IndicadoresRRLLView = () => {
                     </option>
                   ))}
                 </select>
-              </div>
+              </label>
+
+              <label className="min-w-0 md:col-span-2 xl:col-span-5">
+                <span className="mb-1 block text-[11px] font-black text-gray-600">
+                  Sede / cliente
+                </span>
+                <select
+                  value={cliente}
+                  onChange={(event) => setCliente(event.target.value)}
+                  className="h-10 w-full min-w-0 rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-xs font-bold text-gray-900"
+                >
+                  <option value="">Todas las sedes</option>
+                  {clientes.map((item) => (
+                    <option
+                      key={item.id_cliente}
+                      value={item.id_cliente}
+                    >
+                      {item.cliente}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
               <button
                 type="button"
-                onClick={cargarIndicadores}
-                className="flex items-center justify-center gap-2 bg-emerald-600 text-white px-7 py-3 rounded-xl font-black hover:bg-emerald-700 transition mt-5 md:mt-5"
+                onClick={() => cargarIndicadores()}
+                disabled={loading}
+                className="flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-black text-white hover:bg-emerald-700 disabled:opacity-60 xl:col-span-6"
               >
-                <Filter className="w-5 h-5" />
+                {loading ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Filter className="h-4 w-4" />
+                )}
                 Filtrar
               </button>
 
               <button
                 type="button"
                 onClick={limpiarFiltros}
-                className="flex items-center justify-center gap-2 bg-gray-900 text-white px-7 py-3 rounded-xl font-black hover:bg-gray-800 transition mt-5 md:mt-5"
+                disabled={loading}
+                className="flex h-10 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-sm font-black text-white hover:bg-gray-800 disabled:opacity-60 xl:col-span-6"
               >
-                <RefreshCw className="w-5 h-5" />
+                <RefreshCw className="h-4 w-4" />
                 Limpiar
               </button>
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <KpiCard title="Total retiros registrados" value={totales.total_retiros} icon={Users} />
-        <KpiCard title="Retiros abiertos" value={totales.retiros_abiertos} icon={Clock} />
-        <KpiCard title="Retiros cerrados" value={totales.retiros_cerrados} icon={CheckCircle} />
-        <KpiCard title="Pendientes documentación" value={totales.pendientes_documentacion} icon={FileWarning} />
-      </div>
+      {error ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-800">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+            <div>
+              <p className="font-black">No fue posible cargar los indicadores.</p>
+              <p className="mt-1 text-sm">{error}</p>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
-      <DonutChart
-        title="Distribución por estado"
-        subtitle="Retiros abiertos y cerrados registrados."
-        dataChart={estadosChart}
-        selected={selectedEstado}
-        setSelected={setSelectedEstado}
-        icon={Clock}
-      />
+      <section className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <Kpi
+          title="Total procesos RRLL"
+          value={entero(totales.total_retiros)}
+          detail="Todos los procesos incluidos en el filtro."
+          icon={Users}
+        />
+        <Kpi
+          title="En gestión por RRLL"
+          value={entero(totales.en_gestion_rrll)}
+          detail="Todos los procesos con estado ABIERTO."
+          icon={Clock3}
+        />
+        <Kpi
+          title="Enviados a Nómina"
+          value={entero(totales.enviados_nomina)}
+          detail="Procesos con estado ENVIADO_NOMINA o CERRADO."
+          icon={Send}
+          accent
+        />
+        <Kpi
+          title="Entrevistas de retiro realizadas"
+          value={entero(totales.entrevistas_realizadas)}
+          detail="Procesos abiertos con entrevista de retiro en PDF."
+          icon={ClipboardCheck}
+          accent
+        />
+        <Kpi
+          title="Entrevistas de retiro pendientes"
+          value={entero(totales.entrevistas_pendientes)}
+          detail="Procesos abiertos que aún no tienen entrevista de retiro."
+          icon={ClipboardCheck}
+        />
+        <Kpi
+          title="Cobertura de entrevistas de retiro"
+          value={porcentaje(totales.porcentaje_entrevistas)}
+          detail={`${entero(
+            totales.entrevistas_realizadas
+          )} entrevistas realizadas de ${entero(
+            totales.en_gestion_rrll
+          )} procesos abiertos.`}
+          icon={TimerReset}
+          accent
+        />
+      </section>
 
-      <DonutChart
-        title="Motivos de retiro"
-        subtitle="Principales causas registradas en RRLL."
-        dataChart={motivosChart}
-        selected={selectedMotivo}
-        setSelected={setSelectedMotivo}
-        icon={AlertTriangle}
-      />
+      <section className="grid min-w-0 grid-cols-1 gap-6 2xl:grid-cols-2">
+        <Distribucion
+          title="Retiros por sede"
+          subtitle="Cantidad de procesos por sede o cliente y participación sobre el total filtrado."
+          icon={BarChart3}
+          rows={sedes}
+          labelKey="sede"
+          labelTitle="Sede / cliente"
+        />
+        <Distribucion
+          title="Motivos de retiro"
+          subtitle="Motivos generales registrados en los procesos incluidos."
+          icon={AlertTriangle}
+          rows={motivos}
+          labelKey="motivo"
+          labelTitle="Motivo"
+        />
+        <Distribucion
+          title="Tipificaciones de retiro"
+          subtitle="Causas específicas registradas por RRLL."
+          icon={ClipboardCheck}
+          rows={tipificaciones}
+          labelKey="tipificacion"
+          labelTitle="Tipificación"
+        />
 
-      <DonutChart
-        title="Tipificaciones de retiro"
-        subtitle="Clasificación detallada registrada al cierre o gestión del retiro."
-        dataChart={tipificacionesChart}
-        selected={selectedTipificacion}
-        setSelected={setSelectedTipificacion}
-        icon={ClipboardList}
-      />
+        <section className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <Encabezado
+              title="Evolución mensual de retiros"
+              subtitle="Cada línea representa el momento en que ocurrió una etapa del proceso."
+              icon={TrendingUp}
+            />
 
-      <DonutChart
-        title="Documentos de retiro"
-        subtitle="Documentos adjuntados dentro del proceso de retiro."
-        dataChart={documentosChart}
-        selected={selectedDocumento}
-        setSelected={setSelectedDocumento}
-        icon={FileText}
-      />
+            <label className="flex shrink-0 items-center gap-2 self-start rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+              <span className="text-xs font-black text-gray-600">Año</span>
+              <select
+                value={anioGrafica}
+                onChange={(event) => {
+                  const nuevoAnio = Number(event.target.value);
+                  setAnioGrafica(nuevoAnio);
+                  cargarIndicadores({
+                    anio,
+                    mes,
+                    cliente,
+                    tipoPeriodo,
+                    anioGrafica: nuevoAnio,
+                  });
+                }}
+                className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-black text-gray-900"
+              >
+                {aniosGrafica.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
 
-      <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-7">
-        <h2 className="text-2xl font-black text-gray-900">Retiros recientes</h2>
-        <p className="text-sm text-gray-500 mb-5">
-          Últimos 10 procesos según el filtro aplicado.
-        </p>
+          <div className="mb-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+            <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-blue-900">
+              <strong>Azul:</strong> cuando RRLL inició el proceso.
+            </div>
+            <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-emerald-900">
+              <strong>Verde:</strong> cuando RRLL envió el proceso a Nómina.
+            </div>
+          </div>
 
-        <div className="overflow-x-auto rounded-2xl border border-gray-200">
-          <table className="w-full text-left">
-            <thead className="bg-gray-900 text-white">
-              <tr>
-                <th className="p-4">Trabajador</th>
-                <th className="p-4">Identificación</th>
-                <th className="p-4">Motivo</th>
-                <th className="p-4">Tipificación</th>
-                <th className="p-4">Estado</th>
-                <th className="p-4">Fecha retiro</th>
-              </tr>
-            </thead>
+          <div className="h-[320px] w-full min-w-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={gestionMensual}
+                margin={{ top: 15, right: 20, left: 0, bottom: 45 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="mes"
+                  interval={0}
+                  angle={-22}
+                  textAnchor="end"
+                  height={70}
+                  tick={{ fontSize: 10 }}
+                />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                <Tooltip content={<TooltipDetalle />} />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="procesos_iniciados"
+                  name="Procesos iniciados"
+                  stroke="#2563eb"
+                  strokeWidth={1.25}
+                  dot={{ r: 2 }}
+                  activeDot={{ r: 5 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="enviados_nomina"
+                  name="Enviados a Nómina"
+                  stroke="#059669"
+                  strokeWidth={1.25}
+                  dot={{ r: 2 }}
+                  activeDot={{ r: 5 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
 
-            <tbody>
-              {(data?.retiros_recientes || []).length > 0 ? (
-                data.retiros_recientes.map((item) => (
-                  <tr key={item.IdRetiroLaboral} className="border-b hover:bg-emerald-50/40">
-                    <td className="p-4 font-bold">
-                      {`${item.Nombres || ''} ${item.Apellidos || ''}`.toUpperCase()}
-                    </td>
-                    <td className="p-4">{item.NumeroIdentificacion}</td>
-                    <td className="p-4">{item.motivo_retiro || 'Sin motivo'}</td>
-                    <td className="p-4">{item.tipificacion_retiro || 'Sin tipificación'}</td>
-                    <td className="p-4">
-                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
-                        {item.EstadoCasoRRLL || 'SIN ESTADO'}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      {item.FechaRetiro
-                        ? new Date(item.FechaRetiro).toLocaleDateString('es-CO')
-                        : 'Sin fecha'}
+          <div className="mt-5 overflow-hidden rounded-xl border border-gray-200">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[520px] text-left">
+                <thead className="bg-gray-900 text-white">
+                  <tr>
+                    <th className="px-4 py-3 text-xs font-black uppercase">
+                      Mes
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-black uppercase">
+                      Iniciados por RRLL
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-black uppercase">
+                      Enviados a Nómina
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {gestionMensual.map((item) => (
+                    <tr
+                      key={item.numero_mes}
+                      className="border-t border-gray-100"
+                    >
+                      <td className="px-4 py-3 text-sm font-bold text-gray-800">
+                        {item.mes}
+                      </td>
+                      <td className="px-4 py-3 text-right text-sm">
+                        {entero(item.procesos_iniciados)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-sm font-black text-emerald-700">
+                        {entero(item.enviados_nomina)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section className="grid min-w-0 grid-cols-1 gap-6 2xl:grid-cols-2">
+        <Distribucion
+          title="Motivos por sede"
+          subtitle="Motivos dentro de cada sede. El porcentaje se calcula contra el total de esa misma sede."
+          icon={BarChart3}
+          rows={motivosPorSede}
+          labelKey="etiqueta"
+          labelTitle="Sede · motivo"
+          top={12}
+        />
+        <Distribucion
+          title="Tipificaciones por sede"
+          subtitle="Tipificaciones dentro de cada sede. El porcentaje se calcula contra el total de esa misma sede."
+          icon={ClipboardCheck}
+          rows={tipificacionesPorSede}
+          labelKey="etiqueta"
+          labelTitle="Sede · tipificación"
+          top={12}
+        />
+      </section>
+
+      <section className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <Encabezado
+          title="Entrevistas de retiro"
+          subtitle="Cobertura calculada únicamente sobre los procesos abiertos incluidos en el filtro."
+          icon={ClipboardCheck}
+        />
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <article className="rounded-xl border border-gray-200 bg-gray-50 p-5">
+            <p className="text-sm font-black text-gray-600">
+              Total procesos abiertos
+            </p>
+            <p className="mt-2 text-4xl font-black text-gray-900">
+              {entero(totales.total_retiros)}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              Base de procesos abiertos para medir la cobertura.
+            </p>
+          </article>
+
+          <article className="rounded-xl border border-gray-200 bg-gray-50 p-5">
+            <p className="text-sm font-black text-gray-600">
+              Entrevistas de retiro realizadas
+            </p>
+            <p className="mt-2 text-4xl font-black text-emerald-700">
+              {entero(totales.entrevistas_realizadas)}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              Con PDF generado y disponible.
+            </p>
+          </article>
+
+          <article className="rounded-xl border border-gray-200 bg-gray-50 p-5">
+            <p className="text-sm font-black text-gray-600">
+              Cobertura de entrevistas
+            </p>
+            <p className="mt-2 text-4xl font-black text-emerald-700">
+              {porcentaje(totales.porcentaje_entrevistas)}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              {entero(totales.entrevistas_pendientes)} entrevistas de retiro pendientes.
+            </p>
+            <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-gray-200">
+              <div
+                className="h-full rounded-full bg-emerald-600"
+                style={{
+                  width: `${Math.min(
+                    100,
+                    Math.max(0, numero(totales.porcentaje_entrevistas))
+                  )}%`,
+                }}
+              />
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <Encabezado
+          title="Retiros recientes"
+          subtitle="Últimos 10 procesos que coinciden con año, mes, sede y tipo de análisis seleccionados."
+          icon={Users}
+        />
+
+        <div className="overflow-hidden rounded-xl border border-gray-200">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1160px] text-left">
+              <thead className="bg-gray-900 text-white">
+                <tr>
+                  <th className="px-4 py-3 text-xs font-black uppercase">
+                    Trabajador
+                  </th>
+                  <th className="px-4 py-3 text-xs font-black uppercase">
+                    Identificación
+                  </th>
+                  <th className="px-4 py-3 text-xs font-black uppercase">
+                    Sede
+                  </th>
+                  <th className="px-4 py-3 text-xs font-black uppercase">
+                    Motivo
+                  </th>
+                  <th className="px-4 py-3 text-xs font-black uppercase">
+                    Tipificación
+                  </th>
+                  <th className="px-4 py-3 text-xs font-black uppercase">
+                    Estado
+                  </th>
+                  <th className="px-4 py-3 text-xs font-black uppercase">
+                    Inicio del proceso RRLL
+                  </th>
+                  <th className="px-4 py-3 text-xs font-black uppercase">
+                    Envío a Nómina
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {(data?.retiros_recientes || []).length ? (
+                  data.retiros_recientes.map((item) => (
+                    <tr
+                      key={item.IdRetiroLaboral}
+                      className="border-t border-gray-100 align-top hover:bg-emerald-50/40"
+                    >
+                      <td className="px-4 py-3 text-sm font-bold text-gray-900">
+                        {`${item.Nombres || ''} ${
+                          item.Apellidos || ''
+                        }`.trim() || 'SIN NOMBRE'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        {item.NumeroIdentificacion || 'Sin identificación'}
+                      </td>
+                      <td className="max-w-[200px] break-words px-4 py-3 text-sm">
+                        {item.sede_cliente || 'SIN SEDE REGISTRADA'}
+                      </td>
+                      <td className="max-w-[230px] break-words px-4 py-3 text-sm">
+                        {item.motivo_retiro || 'SIN MOTIVO'}
+                      </td>
+                      <td className="max-w-[230px] break-words px-4 py-3 text-sm">
+                        {item.tipificacion_retiro || 'SIN TIPIFICACIÓN'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-800">
+                          {item.EstadoCasoRRLL || 'SIN ESTADO'}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-sm">
+                        {fechaColombia(item.FechaProceso)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-sm">
+                        {fechaColombia(item.FechaCierre)}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan="8"
+                      className="px-4 py-8 text-center text-sm font-bold text-gray-400"
+                    >
+                      Sin procesos para los filtros seleccionados.
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="6" className="p-8 text-center text-gray-400 font-bold">
-                    Sin retiros para el periodo seleccionado.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 };

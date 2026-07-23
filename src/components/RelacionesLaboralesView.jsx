@@ -518,15 +518,46 @@ function keyFromLabel(label) {
 function toDateInput(value) {
   if (!value) return "";
 
-  // Si ya viene como "YYYY-MM-DD"
-  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  /*
+   * Cuando el backend devuelve una fecha o timestamp ISO, conservamos
+   * directamente su fecha calendario original.
+   *
+   * Ejemplo:
+   * 2026-07-22T21:50:24.017-05:00 -> 2026-07-22
+   *
+   * No usamos toISOString(), porque convierte a UTC y después de las
+   * 7:00 p. m. de Colombia puede cambiarla al día siguiente.
+   */
+  if (typeof value === "string") {
+    const valor = value.trim();
+    const fechaIso = valor.match(/^(\d{4}-\d{2}-\d{2})(?:[T\s]|$)/);
+
+    if (fechaIso) {
+      return fechaIso[1];
+    }
+  }
 
   try {
-    const d = new Date(value);
-    if (isNaN(d.getTime())) return "";
+    const fecha = value instanceof Date ? value : new Date(value);
 
-    // toISOString => "YYYY-MM-DDTHH:mm:ss.sssZ"
-    return d.toISOString().slice(0, 10);
+    if (Number.isNaN(fecha.getTime())) {
+      return "";
+    }
+
+    const partes = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Bogota",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(fecha);
+
+    const valores = Object.fromEntries(
+      partes
+        .filter((parte) => parte.type !== "literal")
+        .map((parte) => [parte.type, parte.value])
+    );
+
+    return `${valores.year}-${valores.month}-${valores.day}`;
   } catch {
     return "";
   }
