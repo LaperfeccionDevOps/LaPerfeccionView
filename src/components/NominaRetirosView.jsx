@@ -49,6 +49,14 @@ const formatearFechaHoraColombia = (valor) => {
   });
 };
 
+const valorTiempoProceso = (valor) => {
+  return valor === null || valor === undefined ? '—' : valor;
+};
+
+const textoUnidadTiempo = (valor) => {
+  return valor === null || valor === undefined ? 'Sin datos' : 'días';
+};
+
 const mapRetiroApi = (item) => ({
   id: item.IdRetiroLaboral,
   idRetiroLaboral: item.IdRetiroLaboral,
@@ -474,7 +482,22 @@ const NominaRetirosView = () => {
     return (
       nombre.includes('RETIRO ARL') ||
       nombre.includes('LIQUIDACIÓN DE CONTRATO') ||
-      nombre.includes('LIQUIDACION DE CONTRATO')
+      nombre.includes('LIQUIDACION DE CONTRATO') ||
+      nombre.includes('SOPORTE NÓMINA') ||
+      nombre.includes('SOPORTE NOMINA') ||
+      nombre.includes('AUTORIZACIÓN DE DESCUENTO') ||
+      nombre.includes('AUTORIZACION DE DESCUENTO')
+    );
+  };
+
+  const esDocumentoNominaOpcional = (doc) => {
+    const nombre = String(doc?.NombreDocumento || '').toUpperCase();
+
+    return (
+      nombre.includes('SOPORTE NÓMINA') ||
+      nombre.includes('SOPORTE NOMINA') ||
+      nombre.includes('AUTORIZACIÓN DE DESCUENTO') ||
+      nombre.includes('AUTORIZACION DE DESCUENTO')
     );
   };
 
@@ -817,43 +840,52 @@ const retiroIndicador = useMemo(() => {
 
         <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
           <p className="text-sm font-semibold text-blue-700">
-            Retiro → Paz y Salvo
+            Último día laborado → Paz y Salvo cargado
           </p>
 
           <p className="text-4xl font-black text-blue-900 mt-3">
-            {retiroIndicador?.diasRetiroPazYSalvo ?? 0}
+            {valorTiempoProceso(retiroIndicador?.diasRetiroPazYSalvo)}
           </p>
 
           <p className="text-xs text-blue-700 mt-2">
-            días
+            {textoUnidadTiempo(retiroIndicador?.diasRetiroPazYSalvo)}
+          </p>
+          <p className="text-xs text-gray-500 mt-3">
+            Tiempo desde el último día laborado hasta la carga del Paz y Salvo.
           </p>
         </div>
 
         <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5">
           <p className="text-sm font-semibold text-emerald-700">
-            Paz y Salvo → Cierre RRLL
+            Paz y Salvo cargado → envío a Nómina
           </p>
 
           <p className="text-4xl font-black text-emerald-900 mt-3">
-            {retiroIndicador?.diasPazYSalvoCierreRRLL ?? 0}
+            {valorTiempoProceso(retiroIndicador?.diasPazYSalvoCierreRRLL)}
           </p>
 
           <p className="text-xs text-emerald-700 mt-2">
-            días
+            {textoUnidadTiempo(retiroIndicador?.diasPazYSalvoCierreRRLL)}
+          </p>
+          <p className="text-xs text-gray-500 mt-3">
+            Tiempo utilizado por RRLL para completar y remitir el proceso.
           </p>
         </div>
 
         <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5">
           <p className="text-sm font-semibold text-gray-700">
-            Cierre RRLL → Nómina
+            Envío a Nómina → retiro finalizado
           </p>
 
           <p className="text-4xl font-black text-gray-900 mt-3">
-            {retiroIndicador?.diasCierreRRLLNomina ?? 0}
+            {valorTiempoProceso(retiroIndicador?.diasCierreRRLLNomina)}
           </p>
 
           <p className="text-xs text-gray-700 mt-2">
-            días
+            {textoUnidadTiempo(retiroIndicador?.diasCierreRRLLNomina)}
+          </p>
+          <p className="text-xs text-gray-500 mt-3">
+            Tiempo utilizado por Nómina para finalizar el retiro.
           </p>
         </div>
 
@@ -1153,35 +1185,44 @@ const retiroIndicador = useMemo(() => {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
-                  <p className="text-blue-800 font-bold">Retiro → Paz y Salvo</p>
+                  <p className="text-blue-800 font-bold">Último día laborado → Paz y Salvo cargado</p>
                   <p className="text-3xl font-black text-blue-900 mt-2">
-                    {retiroSeleccionado.diasRetiroPazYSalvo ?? '—'}
+                    {valorTiempoProceso(retiroSeleccionado.diasRetiroPazYSalvo)}
                   </p>
-                  <p className="text-xs text-blue-700 mt-1">días</p>
+                  <p className="text-xs text-blue-700 mt-1">{textoUnidadTiempo(retiroSeleccionado.diasRetiroPazYSalvo)}</p>
                   <p className="text-xs text-gray-500 mt-3">
+                    Tiempo desde el último día laborado hasta la carga del Paz y Salvo.
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">
                     Paz y Salvo: {formatearFechaHoraColombia(retiroSeleccionado.fechaPazYSalvo)}
                   </p>
                 </div>
 
                 <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
-                  <p className="text-emerald-800 font-bold">Paz y Salvo → Cierre RRLL</p>
+                  <p className="text-emerald-800 font-bold">Paz y Salvo cargado → envío a Nómina</p>
                   <p className="text-3xl font-black text-emerald-900 mt-2">
-                    {retiroSeleccionado.diasPazYSalvoCierreRRLL ?? '—'}
+                    {valorTiempoProceso(retiroSeleccionado.diasPazYSalvoCierreRRLL)}
                   </p>
-                  <p className="text-xs text-emerald-700 mt-1">días</p>
+                  <p className="text-xs text-emerald-700 mt-1">{textoUnidadTiempo(retiroSeleccionado.diasPazYSalvoCierreRRLL)}</p>
                   <p className="text-xs text-gray-500 mt-3">
-                    Cierre RRLL: {formatearFechaHoraColombia(retiroSeleccionado.fechaCierre)}
+                    Tiempo utilizado por RRLL para completar y remitir el proceso.
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Envío a Nómina: {formatearFechaHoraColombia(retiroSeleccionado.fechaCierre)}
                   </p>
                 </div>
 
                 <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4">
-                  <p className="text-gray-800 font-bold">Cierre RRLL → Finalización Nómina</p>
+                  <p className="text-gray-800 font-bold">Envío a Nómina → retiro finalizado</p>
                   <p className="text-3xl font-black text-gray-900 mt-2">
-                    {retiroSeleccionado.diasCierreRRLLNomina ?? '—'}
+                    {valorTiempoProceso(retiroSeleccionado.diasCierreRRLLNomina)}
                   </p>
-                  <p className="text-xs text-gray-700 mt-1">días</p>
+                  <p className="text-xs text-gray-700 mt-1">{textoUnidadTiempo(retiroSeleccionado.diasCierreRRLLNomina)}</p>
                   <p className="text-xs text-gray-500 mt-3">
-                    Finalización: {formatearFechaHoraColombia(retiroSeleccionado.fechaEnvioNomina)}
+                    Tiempo utilizado por Nómina para finalizar el retiro.
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Retiro finalizado: {formatearFechaHoraColombia(retiroSeleccionado.fechaEnvioNomina)}
                   </p>
                 </div>
               </div>
@@ -1319,6 +1360,12 @@ const retiroIndicador = useMemo(() => {
                               {doc.NombreDocumento}
                             </h3>
 
+                            {esDocumentoNominaOpcional(doc) && (
+                              <span className="inline-flex mb-3 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-100">
+                                Opcional
+                              </span>
+                            )}
+
                             <span
                               className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold mb-4 ${
                                 hasFile
@@ -1379,7 +1426,9 @@ const retiroIndicador = useMemo(() => {
                                 />
 
                                 <p className="text-xs text-gray-500 italic">
-                                  Selecciona el archivo y se adjuntará automáticamente.
+                                  {esDocumentoNominaOpcional(doc)
+                                    ? 'Documento opcional. Selecciona el archivo y se adjuntará automáticamente.'
+                                    : 'Documento obligatorio. Selecciona el archivo y se adjuntará automáticamente.'}
                                 </p>
                               </>
                             )}
