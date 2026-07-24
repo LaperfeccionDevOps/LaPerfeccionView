@@ -401,6 +401,18 @@ const GRUPOS_SANGUINEOS = [
 ];
 
 
+const MOTIVOS_CIERRE_PREDEFINIDOS = [
+  'Desiste del Proceso',
+  'No Cumple Perfil',
+  'No asiste a Examenes Medicos',
+  'Exámenes No Aptos',
+  'Documentación Incompleta',
+  'Estudio de Seguridad',
+  'Reintegro No Aprobado',
+  'No asiste a Contratación',
+  'No supera prueba física',
+];
+
 const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   // Estado para loader al abrir modal
   const [loadingAspiranteDetalle, setLoadingAspiranteDetalle] = useState(false);
@@ -419,6 +431,10 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   const [nombreContacto, setNombreContacto] = useState(null);
   const [cargoExperiencia, setCargoExperiencia] = useState('');
   const [funcionesExperiencia, setFuncionesExperiencia] = useState('');
+
+  // Control exclusivo del motivo de cierre cuando el proceso queda RECHAZADO.
+  const [tipoMotivoCierre, setTipoMotivoCierre] = useState('');
+  const [motivoCierreOtro, setMotivoCierreOtro] = useState('');
 
   // ✅ Estado inicial seguro para evitar uncontrolled inputs
   const initialFormData = {
@@ -549,6 +565,21 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
          responseMotivoCierre?.data?.MotivoCierre ||
          responseMotivoCierre?.data?.motivoCierre ||
          '';
+
+         const motivoCierreEsPredefinido =
+           MOTIVOS_CIERRE_PREDEFINIDOS.includes(motivoCierreGuardado);
+
+         setTipoMotivoCierre(
+           motivoCierreGuardado
+             ? (motivoCierreEsPredefinido ? motivoCierreGuardado : 'OTRO')
+             : ''
+         );
+
+         setMotivoCierreOtro(
+           motivoCierreGuardado && !motivoCierreEsPredefinido
+             ? motivoCierreGuardado
+             : ''
+         );
 
         let asignacionCargoCliente = {};
         try {
@@ -1461,6 +1492,40 @@ console.log('campos completos:', campos);
     setLoadingAspiranteDetalle(true);
 
     const estadoInt = parseInt(formData.estadoProceso, 10);
+    const motivoCierreFinal = String(
+      formData?.entrevista?.[0]?.motivo ||
+      formData?.entrevista?.motivo ||
+      ''
+    ).trim();
+
+    if (estadoInt === 28) {
+      if (!tipoMotivoCierre) {
+        toast({
+          title: 'Motivo de cierre requerido',
+          description: 'Debe seleccionar el motivo por el cual se rechaza al candidato.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (tipoMotivoCierre === 'OTRO' && !motivoCierreOtro.trim()) {
+        toast({
+          title: 'Motivo de cierre requerido',
+          description: 'Debe escribir el motivo del rechazo.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (!motivoCierreFinal) {
+        toast({
+          title: 'Motivo de cierre requerido',
+          description: 'Debe registrar un motivo válido para rechazar al candidato.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
 
     const tieneCargoCompleto =
       formData?.asignacionCargo?.IdCargo !== undefined &&
@@ -1497,9 +1562,9 @@ console.log('campos completos:', campos);
       localStorage.getItem('usuario') || 'sistema'
     );
 
-      if (formData.estadoProceso == 28) {
+      if (estadoInt === 28) {
         const payload = {
-          MotivoCierre: formData?.entrevista?.[0]?.motivo || formData?.entrevista?.motivo || '',
+          MotivoCierre: motivoCierreFinal,
           Observaciones: '',
           UsuarioActualizacion: localStorage.getItem('usuario') || 'sistema',
         };
@@ -4635,21 +4700,57 @@ if (response && response.status === 201) {
                                  </Select>
                               </div>
                               {formData.estadoProceso?.toString() === '28' && (
-                                 <div>
-                                    <Label className="mb-2">Motivo (Cierre)</Label>
-                                    <Select value={formData.entrevista.motivo} onValueChange={(v) => handleInputChange('entrevista', 'motivo', v)}>
-                                       <SelectTrigger><SelectValue placeholder="Seleccionar motivo" /></SelectTrigger>
-                                       <SelectContent>
-                                          <SelectItem value="Desiste del Proceso">DESISTE DEL PROCESO</SelectItem>
-                                          <SelectItem value="No Cumple Perfil">NO CUMPLE PERFIL</SelectItem>
-                                          <SelectItem value="No asiste a Examenes Medicos">NO ASISTE A EXAMENES MEDICOS </SelectItem>
-                                          <SelectItem value="Exámenes No Aptos">EXÁMENES NO APTOS</SelectItem>
-                                          <SelectItem value="Documentación Incompleta">DOCUMENTACIÓN INCOMPLETA</SelectItem>
-                                          <SelectItem value="Estudio de Seguridad">ESTUDIO DE SEGURIDAD</SelectItem>
-                                          <SelectItem value="Reintegro No Aprobado">REINTEGRO NO APROBADO</SelectItem>
-                                          <SelectItem value="No asiste a Contratación">NO ASISTE A CONTRATACIÓN</SelectItem>
-                                       </SelectContent>
-                                    </Select>
+                                 <div className="flex flex-col gap-4">
+                                    <div>
+                                       <Label className="mb-2">Motivo (Cierre)</Label>
+                                       <Select
+                                          value={tipoMotivoCierre}
+                                          onValueChange={(v) => {
+                                             setTipoMotivoCierre(v);
+
+                                             if (v === 'OTRO') {
+                                                setMotivoCierreOtro('');
+                                                handleInputChange('entrevista', 'motivo', '');
+                                                return;
+                                             }
+
+                                             setMotivoCierreOtro('');
+                                             handleInputChange('entrevista', 'motivo', v);
+                                          }}
+                                       >
+                                          <SelectTrigger>
+                                             <SelectValue placeholder="Seleccionar motivo" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                             <SelectItem value="Desiste del Proceso">DESISTE DEL PROCESO</SelectItem>
+                                             <SelectItem value="No Cumple Perfil">NO CUMPLE PERFIL</SelectItem>
+                                             <SelectItem value="No asiste a Examenes Medicos">NO ASISTE A EXAMENES MEDICOS</SelectItem>
+                                             <SelectItem value="Exámenes No Aptos">EXÁMENES NO APTOS</SelectItem>
+                                             <SelectItem value="Documentación Incompleta">DOCUMENTACIÓN INCOMPLETA</SelectItem>
+                                             <SelectItem value="Estudio de Seguridad">ESTUDIO DE SEGURIDAD</SelectItem>
+                                             <SelectItem value="Reintegro No Aprobado">REINTEGRO NO APROBADO</SelectItem>
+                                             <SelectItem value="No asiste a Contratación">NO ASISTE A CONTRATACIÓN</SelectItem>
+                                             <SelectItem value="No supera prueba física">NO SUPERA PRUEBA FÍSICA</SelectItem>
+                                             <SelectItem value="OTRO">OTRO</SelectItem>
+                                          </SelectContent>
+                                       </Select>
+                                    </div>
+
+                                    {tipoMotivoCierre === 'OTRO' && (
+                                       <div>
+                                          <Label className="mb-2">Especifique el motivo</Label>
+                                          <Textarea
+                                             value={motivoCierreOtro}
+                                             onChange={(e) => {
+                                                const valor = e.target.value;
+                                                setMotivoCierreOtro(valor);
+                                                handleInputChange('entrevista', 'motivo', valor);
+                                             }}
+                                             placeholder="Escriba el motivo del rechazo"
+                                             maxLength={500}
+                                          />
+                                       </div>
+                                    )}
                                  </div>
                               )}
                               <div className="flex justify-end">
