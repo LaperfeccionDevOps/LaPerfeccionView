@@ -6,7 +6,11 @@ import {
   RegistrarDocumentosSeguridad,
   EliminarDocumentoSeguridadPorTipo
 } from '@/services/documentosSeguridad';
-import { RegistrarDocumentosContratacion, obtenerDocumentosContratacion } from '@/services/contratacionService';
+import {
+  RegistrarDocumentosContratacion,
+  obtenerDocumentosContratacion,
+  eliminarDocumentoContratacion,
+} from '@/services/contratacionService';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Folder, Upload, Trash2, Download, CheckCircle2, AlertCircle, Eye } from 'lucide-react';
@@ -20,6 +24,12 @@ import {
   subirDocumentosActivos,
   eliminarDocumentoActivo
 } from '@/services/documentosActivos';
+
+const TIPOS_DOCUMENTALES_MULTIPLES = ['36', '64'];
+
+const esTipoDocumentalMultiple = (tipoId) =>
+  TIPOS_DOCUMENTALES_MULTIPLES.includes(String(tipoId));
+
 
 const DocumentUploadModal = ({
   isOpen,
@@ -429,47 +439,177 @@ const descargarDocumentoRetiro = async (doc) => {
     }
   };
 
-  const handleEnviarDocumentosContratacion = async (docsContratacion) => {
-    const idsContratacion = listaDocumentosContratacion.map(d => String(d.id));
+  const obtenerIdRegistroPersonal = () =>
+    aspirante?.idRegistroPersonal ||
+    aspirante?.IdRegistroPersonal ||
+    aspirante?.id_registro_personal ||
+    aspirante?.id;
 
-    const idRegistroPersonal =
-      aspirante?.idRegistroPersonal ||
-      aspirante?.IdRegistroPersonal ||
-      aspirante?.id;
+  const normalizarRespuestaDocumentos = (respuesta) => {
+    if (Array.isArray(respuesta?.data)) return respuesta.data;
+    if (Array.isArray(respuesta)) return respuesta;
+    if (respuesta?.data) return [respuesta.data];
+    return [];
+  };
 
-    let docsPayload = docsContratacion
-      .filter(doc => idsContratacion.includes(String(doc.IdTipoDocumentacion)))
-      .map(doc => ({
-        IdTipoDocumentacion: doc.IdTipoDocumentacion,
-        Nombre: doc.Nombre,
-        DocumentoCargado: doc.DocumentoBase64 || doc.DocumentoCargado,
-        Formato: doc.Formato || 'application/pdf',
-      }));
+  const recargarDocumentosContratacion = async () => {
+    const idRegistroPersonal = obtenerIdRegistroPersonal();
 
-    const tieneContratoTrabajo = docsPayload.some(
-      doc => String(doc.IdTipoDocumentacion) === '74'
-    );
-
-    if (!tieneContratoTrabajo) {
-      docsPayload.push({
-        IdTipoDocumentacion: 74,
-        Nombre: 'Contrato de trabajo',
-        DocumentoCargado: '',
-        Formato: 'application/pdf',
-      });
+    if (!idRegistroPersonal) {
+      throw new Error('No se encontró el IdRegistroPersonal del trabajador.');
     }
 
-    const payload = {
-      idRegistroPersonal,
-      documentos_contratacion: docsPayload,
-    };
+    const respuesta = await obtenerDocumentosContratacion(idRegistroPersonal);
+    const documentosContratacion = normalizarRespuestaDocumentos(respuesta);
+    const idsContratacion = listaDocumentosContratacion.map((item) => String(item.id));
 
-    const res = await RegistrarDocumentosContratacion(payload);
+    setDocumentos((prev) => {
+      const documentosOtrasCategorias = (Array.isArray(prev) ? prev : []).filter(
+        (doc) => !idsContratacion.includes(String(doc.IdTipoDocumentacion))
+      );
 
-    if (res && res.status === 201) {
-      alert('Documentos de contratación registrados correctamente.');
-    } else {
-      alert('Error al registrar documentos de contratación.');
+      return [
+        ...documentosOtrasCategorias,
+        ...documentosContratacion,
+      ];
+    });
+  };
+
+  const handleEnviarDocumentosContratacion = async (docsContratacion) => {
+    try {
+      const idsContratacion = listaDocumentosContratacion.map((item) => String(item.id));
+      const idRegistroPersonal = obtenerIdRegistroPersonal();
+
+      if (!idRegistroPersonal) {
+        throw new Error('No se encontró el IdRegistroPersonal del trabajador.');
+      }
+
+      let docsPayload = (Array.isArray(docsContratacion) ? docsContratacion : [])
+        .filter((doc) => {
+          const tipoId = String(doc.IdTipoDocumentacion);
+
+          if (!idsContratacion.includes(tipoId)) {
+            return false;
+          }
+
+          // Para 36 y 64 se envían únicamente los archivos nuevos seleccionados
+          // en esta sesión. Así se evita duplicar los ya guardados.
+          if (esTipoDocumentalMultiple(tipoId)) {
+            return doc.EsNuevoDocumentoContratacion === true;
+          }
+
+          return true;
+        })
+        .map((doc) => ({
+          IdTipoDocumentacion: doc.IdTipoDocumentacion,
+          Nombre: doc.Nombre,
+          DocumentoCargado: doc.DocumentoBase64 || doc.DocumentoCargado,
+          Formato: doc.Formato || 'application/pdf',
+        }));
+
+      const tieneContratoTrabajo = docsPayload.some(
+        (doc) => String(doc.IdTipoDocumentacion) === '74'
+      );
+
+      if (!tieneContratoTrabajo) {
+        docsPayload.push({
+          IdTipoDocumentacion: 74,
+          Nombre: 'Contrato de trabajo',
+          DocumentoCargado: '',
+          Formato: 'application/pdf',
+        });
+      }
+
+      const payload = {
+        idRegistroPersonal,
+        documentos_contratacion: docsPayload,
+      };
+
+      const response = await RegistrarDocumentosContratacion(payload);
+
+      if (!response?.ok) {
+        let detalle = 'No fue posible registrar los documentos de contratación.';
+
+        try {
+          const data = await response.json();
+          detalle = data?.detail || detalle;
+        } catch {
+          // Se conserva el mensaje general.
+        }
+
+        throw new Error(detalle);
+      }
+
+      await recargarDocumentosContratacion();
+
+      toast({
+        title: 'Documentos de contratación registrados correctamente',
+      });
+    } catch (error) {
+      console.error('Error registrando documentos de contratación:', error);
+
+      toast({
+        title: 'Error al registrar documentos de contratación',
+        description: error.message || 'No fue posible guardar los documentos.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const eliminarDocumentoContratacionFront = async (doc) => {
+    if (soloLectura) return;
+
+    // Un documento nuevo todavía no tiene IdDocumento en base de datos.
+    // En ese caso se retira únicamente de la lista local.
+    if (!doc?.IdDocumento) {
+      setDocumentos((prev) =>
+        (Array.isArray(prev) ? prev : []).filter(
+          (item) => item.IdTemporalFrontend !== doc.IdTemporalFrontend
+        )
+      );
+
+      toast({
+        title: 'Documento retirado de la carga',
+      });
+
+      return;
+    }
+
+    const confirmar = window.confirm(
+      `¿Seguro que deseas eliminar el documento "${doc.Nombre || 'seleccionado'}"?`
+    );
+
+    if (!confirmar) return;
+
+    try {
+      const response = await eliminarDocumentoContratacion(doc.IdDocumento);
+
+      if (!response?.ok) {
+        let detalle = 'No fue posible eliminar el documento.';
+
+        try {
+          const data = await response.json();
+          detalle = data?.detail || detalle;
+        } catch {
+          // Se conserva el mensaje general.
+        }
+
+        throw new Error(detalle);
+      }
+
+      await recargarDocumentosContratacion();
+
+      toast({
+        title: 'Documento eliminado correctamente',
+      });
+    } catch (error) {
+      console.error('Error eliminando documento de contratación:', error);
+
+      toast({
+        title: 'Error al eliminar documento',
+        description: error.message || 'No fue posible eliminar el documento.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -544,16 +684,33 @@ const descargarDocumentoRetiro = async (doc) => {
           throw new Error('Error al registrar documento de seguridad');
         }
 
-        setDocumentos(prev => [
-          ...prev.filter(d => String(d.IdTipoDocumentacion) !== String(tipoId)),
-          {
+        setDocumentos((prev) => {
+          const documentosActuales = Array.isArray(prev) ? prev : [];
+
+          const nuevoDocumento = {
             IdTipoDocumentacion: tipoId,
             Nombre: file.name,
             DocumentoBase64: base64,
-            Formato: file.type,
+            Formato: file.type || 'application/pdf',
             NombreArchivo: file.name,
-          },
-        ]);
+            EsNuevoDocumentoContratacion: esTipoDocumentalMultiple(tipoId),
+            IdTemporalFrontend: `${tipoId}-${Date.now()}-${Math.random()}`,
+          };
+
+          if (esTipoDocumentalMultiple(tipoId)) {
+            return [
+              ...documentosActuales,
+              nuevoDocumento,
+            ];
+          }
+
+          return [
+            ...documentosActuales.filter(
+              (d) => String(d.IdTipoDocumentacion) !== String(tipoId)
+            ),
+            nuevoDocumento,
+          ];
+        });
 
         toast({
           title: 'Documento cargado correctamente',
@@ -569,6 +726,83 @@ const descargarDocumentoRetiro = async (doc) => {
 
         if (input) input.value = '';
       }
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+
+  const handleFileUploadContratacion = (e, tipoId) => {
+    if (soloLectura) return;
+
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const input = e.target;
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      try {
+        const base64Completo = event.target.result || '';
+        const base64 = String(base64Completo).split(',')[1] || '';
+
+        const nuevoDocumento = {
+          IdTipoDocumentacion: tipoId,
+          Nombre: file.name,
+          DocumentoBase64: base64,
+          Formato: file.type || 'application/pdf',
+          NombreArchivo: file.name,
+          EsNuevoDocumentoContratacion: true,
+          IdTemporalFrontend: `${tipoId}-${Date.now()}-${Math.random()}`,
+        };
+
+        setDocumentos((prev) => {
+          const documentosActuales = Array.isArray(prev) ? prev : [];
+
+          if (esTipoDocumentalMultiple(tipoId)) {
+            return [
+              ...documentosActuales,
+              nuevoDocumento,
+            ];
+          }
+
+          return [
+            ...documentosActuales.filter(
+              (doc) =>
+                String(doc.IdTipoDocumentacion) !== String(tipoId)
+            ),
+            nuevoDocumento,
+          ];
+        });
+
+        toast({
+          title: 'Documento listo para guardar',
+          description: 'Pulsa Guardar documentos para registrar el archivo.',
+        });
+      } catch (error) {
+        console.error(
+          'Error preparando documento de contratación:',
+          error
+        );
+
+        toast({
+          title: 'Error al preparar documento',
+          description: 'No fue posible leer el archivo seleccionado.',
+          variant: 'destructive',
+        });
+      } finally {
+        if (input) input.value = '';
+      }
+    };
+
+    reader.onerror = () => {
+      toast({
+        title: 'Error al leer el archivo',
+        description: 'No fue posible procesar el documento seleccionado.',
+        variant: 'destructive',
+      });
+
+      if (input) input.value = '';
     };
 
     reader.readAsDataURL(file);
@@ -1471,35 +1705,64 @@ const renderCarpetaHSE = () => {
                 <TabsContent value="contratacion">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-4 max-h-[50vh] overflow-y-auto pr-2">
                     {listaDocumentosContratacion.map((req) => {
-                      const doc = Array.isArray(documentos)
-                        ? documentos.find(d => String(d.IdTipoDocumentacion) === String(req.id))
-                        : null;
+                      const esMultiple = esTipoDocumentalMultiple(req.id);
 
-                      const hasFile = !!doc && (doc.DocumentoBase64 || doc.DocumentoCargado);
+                      const documentosTipo = Array.isArray(documentos)
+                        ? documentos.filter(
+                            (doc) =>
+                              String(doc.IdTipoDocumentacion) === String(req.id)
+                          )
+                        : [];
+
+                      const documentosVisibles = esMultiple
+                        ? documentosTipo
+                        : documentosTipo.slice(0, 1);
+
+                      const hasFile = documentosVisibles.some(
+                        (doc) => doc.DocumentoBase64 || doc.DocumentoCargado
+                      );
 
                       return (
-                        <div key={req.id} className="border-2 border-emerald-200 rounded-2xl p-6 bg-white/90 shadow-lg flex flex-col justify-between h-full group w-full hover:shadow-2xl transition-shadow duration-200">
+                        <div
+                          key={req.id}
+                          className="border-2 border-emerald-200 rounded-2xl p-6 bg-white/90 shadow-lg flex flex-col justify-between h-full group w-full hover:shadow-2xl transition-shadow duration-200"
+                        >
                           <div>
                             <h4 className="font-bold text-emerald-900 mb-3 text-base leading-tight min-h-[40px] tracking-wide flex items-center gap-2">
                               <span className="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
                               {req.nombre || req.label}
                             </h4>
 
-                            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-4 border shadow-sm ${hasFile ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-red-100 text-red-700 border-red-300'}`}>
-                              {hasFile ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                              {hasFile ? 'Adjuntado' : 'Falta adjuntar'}
+                            <div
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-4 border shadow-sm ${
+                                hasFile
+                                  ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                                  : 'bg-red-100 text-red-700 border-red-300'
+                              }`}
+                            >
+                              {hasFile ? (
+                                <CheckCircle2 className="w-4 h-4" />
+                              ) : (
+                                <AlertCircle className="w-4 h-4" />
+                              )}
+
+                              {hasFile
+                                ? esMultiple
+                                  ? `${documentosVisibles.length} documento(s)`
+                                  : 'Adjuntado'
+                                : 'Falta adjuntar'}
                             </div>
                           </div>
 
                           <div className="space-y-3">
-                            {!hasFile && !soloLectura && (
+                            {!soloLectura && (esMultiple || !hasFile) && (
                               <div className="flex gap-2">
                                 <div className="relative flex-1">
                                   <input
                                     type="file"
                                     id={`file-contratacion-${req.id}-${aspirante.id}`}
                                     className="hidden"
-                                    onChange={(e) => handleFileUpload(e, req.id)}
+                                    onChange={(e) => handleFileUploadContratacion(e, req.id)}
                                     accept=".pdf,image/*"
                                   />
 
@@ -1507,51 +1770,84 @@ const renderCarpetaHSE = () => {
                                     htmlFor={`file-contratacion-${req.id}-${aspirante.id}`}
                                     className="cursor-pointer flex items-center justify-center w-full px-3 py-2 border-2 border-emerald-300 shadow-sm text-sm font-semibold rounded-xl text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
                                   >
-                                    <Upload className="w-4 h-4 mr-2" /> Cargar
+                                    <Upload className="w-4 h-4 mr-2" />
+                                    {esMultiple && hasFile
+                                      ? 'Adjuntar otro documento'
+                                      : 'Cargar'}
                                   </label>
                                 </div>
                               </div>
                             )}
 
                             {hasFile && (
-                              <div className="flex flex-col gap-2 w-full">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-blue-700 border-blue-300 hover:bg-blue-100 px-3 h-auto w-full font-semibold"
-                                  onClick={() => verDocumento(doc)}
-                                >
-                                  <Eye className="w-4 h-4 mr-2" /> Ver
-                                </Button>
-
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-emerald-700 border-emerald-300 hover:bg-emerald-100 px-3 h-auto w-full font-semibold"
-                                  onClick={() => descargarDocumento(doc)}
-                                >
-                                  <Download className="w-4 h-4 mr-2" /> Descargar
-                                </Button>
-
-                                {!soloLectura && (
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="text-red-700 border-red-300 hover:bg-red-100 px-3 h-auto w-full font-semibold"
-                                    onClick={() => removeDocument(req.id)}
+                              <div className="space-y-3">
+                                {documentosVisibles.map((doc, index) => (
+                                  <div
+                                    key={
+                                      doc.IdDocumento ||
+                                      doc.IdTemporalFrontend ||
+                                      `${req.id}-${index}`
+                                    }
+                                    className="border border-gray-200 bg-gray-50 rounded-xl p-3"
                                   >
-                                    <Trash2 className="w-4 h-4 mr-2" /> Eliminar
-                                  </Button>
-                                )}
+                                    <p
+                                      className="text-xs text-gray-600 font-semibold truncate mb-2"
+                                      title={doc.Nombre || doc.NombreArchivo}
+                                    >
+                                      {doc.Nombre ||
+                                        doc.NombreArchivo ||
+                                        `Documento ${index + 1}`}
+                                    </p>
+
+                                    <div className="flex flex-col gap-2 w-full">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-blue-700 border-blue-300 hover:bg-blue-100 px-3 h-auto w-full font-semibold"
+                                        onClick={() => verDocumento(doc)}
+                                      >
+                                        <Eye className="w-4 h-4 mr-2" /> Ver
+                                      </Button>
+
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-emerald-700 border-emerald-300 hover:bg-emerald-100 px-3 h-auto w-full font-semibold"
+                                        onClick={() => descargarDocumento(doc)}
+                                      >
+                                        <Download className="w-4 h-4 mr-2" />
+                                        Descargar
+                                      </Button>
+
+                                      {!soloLectura && (
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          className="text-red-700 border-red-300 hover:bg-red-100 px-3 h-auto w-full font-semibold"
+                                          onClick={() =>
+                                            esMultiple
+                                              ? eliminarDocumentoContratacionFront(doc)
+                                              : removeDocument(req.id)
+                                          }
+                                        >
+                                          <Trash2 className="w-4 h-4 mr-2" />
+                                          Eliminar
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                             )}
 
-                            <p className="text-xs text-gray-500 truncate h-4 italic">
-                              {hasFile ? doc.Nombre : 'Sin archivo'}
-                            </p>
+                            {!hasFile && (
+                              <p className="text-xs text-gray-500 truncate h-4 italic">
+                                Sin archivo
+                              </p>
+                            )}
                           </div>
                         </div>
                       );
@@ -1563,7 +1859,9 @@ const renderCarpetaHSE = () => {
                       <Button
                         variant="default"
                         className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-8 py-2 rounded-xl shadow-md"
-                        onClick={() => handleEnviarDocumentosContratacion?.(documentos)}
+                        onClick={() =>
+                          handleEnviarDocumentosContratacion(documentos)
+                        }
                       >
                         Guardar documentos
                       </Button>
