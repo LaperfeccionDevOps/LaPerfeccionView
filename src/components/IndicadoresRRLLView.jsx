@@ -684,14 +684,14 @@ const IndicadoresRRLLView = () => {
         <Kpi
           title="Entrevistas de retiro realizadas"
           value={entero(totales.entrevistas_realizadas)}
-          detail="Procesos abiertos con entrevista de retiro en PDF."
+          detail="Procesos incluidos en el filtro con entrevista de retiro en PDF."
           icon={ClipboardCheck}
           accent
         />
         <Kpi
           title="Entrevistas de retiro pendientes"
           value={entero(totales.entrevistas_pendientes)}
-          detail="Procesos abiertos que aún no tienen entrevista de retiro."
+          detail="Procesos incluidos en el filtro que aún no tienen entrevista de retiro en PDF."
           icon={ClipboardCheck}
         />
         <Kpi
@@ -700,8 +700,8 @@ const IndicadoresRRLLView = () => {
           detail={`${entero(
             totales.entrevistas_realizadas
           )} entrevistas realizadas de ${entero(
-            totales.en_gestion_rrll
-          )} procesos abiertos.`}
+            totales.total_retiros
+          )} procesos incluidos en el filtro.`}
           icon={TimerReset}
           accent
         />
@@ -875,63 +875,6 @@ const IndicadoresRRLLView = () => {
           labelTitle="Sede · tipificación"
           top={12}
         />
-      </section>
-
-      <section className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-        <Encabezado
-          title="Entrevistas de retiro"
-          subtitle="Cobertura calculada únicamente sobre los procesos abiertos incluidos en el filtro."
-          icon={ClipboardCheck}
-        />
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <article className="rounded-xl border border-gray-200 bg-gray-50 p-5">
-            <p className="text-sm font-black text-gray-600">
-              Total procesos abiertos
-            </p>
-            <p className="mt-2 text-4xl font-black text-gray-900">
-              {entero(totales.total_retiros)}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              Base de procesos abiertos para medir la cobertura.
-            </p>
-          </article>
-
-          <article className="rounded-xl border border-gray-200 bg-gray-50 p-5">
-            <p className="text-sm font-black text-gray-600">
-              Entrevistas de retiro realizadas
-            </p>
-            <p className="mt-2 text-4xl font-black text-emerald-700">
-              {entero(totales.entrevistas_realizadas)}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              Con PDF generado y disponible.
-            </p>
-          </article>
-
-          <article className="rounded-xl border border-gray-200 bg-gray-50 p-5">
-            <p className="text-sm font-black text-gray-600">
-              Cobertura de entrevistas
-            </p>
-            <p className="mt-2 text-4xl font-black text-emerald-700">
-              {porcentaje(totales.porcentaje_entrevistas)}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              {entero(totales.entrevistas_pendientes)} entrevistas de retiro pendientes.
-            </p>
-            <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-gray-200">
-              <div
-                className="h-full rounded-full bg-emerald-600"
-                style={{
-                  width: `${Math.min(
-                    100,
-                    Math.max(0, numero(totales.porcentaje_entrevistas))
-                  )}%`,
-                }}
-              />
-            </div>
-          </article>
-        </div>
       </section>
 
       <section className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">

@@ -49,12 +49,43 @@ const formatearFechaHoraColombia = (valor) => {
   });
 };
 
-const valorTiempoProceso = (valor) => {
-  return valor === null || valor === undefined ? '—' : valor;
+const formatearTiempoSegundos = (valor) => {
+  if (valor === null || valor === undefined) return '—';
+
+  const totalSegundos = Math.max(0, Math.round(Number(valor)));
+
+  if (!Number.isFinite(totalSegundos)) return '—';
+  if (totalSegundos < 60) return 'Menos de 1 minuto';
+
+  const dias = Math.floor(totalSegundos / 86400);
+  const horas = Math.floor((totalSegundos % 86400) / 3600);
+  const minutos = Math.floor((totalSegundos % 3600) / 60);
+  const partes = [];
+
+  if (dias > 0) partes.push(`${dias} ${dias === 1 ? 'día' : 'días'}`);
+  if (horas > 0) partes.push(`${horas} ${horas === 1 ? 'hora' : 'horas'}`);
+  if (minutos > 0) partes.push(`${minutos} ${minutos === 1 ? 'minuto' : 'minutos'}`);
+
+  return partes.slice(0, 2).join(' ');
 };
 
-const textoUnidadTiempo = (valor) => {
-  return valor === null || valor === undefined ? 'Sin datos' : 'días';
+const valorTiempoProceso = (valor, tipo = 'dias') => {
+  if (valor === null || valor === undefined) return '—';
+
+  if (tipo === 'segundos') {
+    return formatearTiempoSegundos(valor);
+  }
+
+  const numero = Number(valor);
+  return Number.isFinite(numero) ? numero : '—';
+};
+
+const textoUnidadTiempo = (valor, tipo = 'dias') => {
+  if (valor === null || valor === undefined) return 'Sin información';
+
+  if (tipo === 'segundos') return 'Tiempo real de gestión';
+
+  return Number(valor) === 1 ? 'día calendario' : 'días calendario';
 };
 
 const mapRetiroApi = (item) => ({
@@ -84,11 +115,17 @@ const mapRetiroApi = (item) => ({
 diasRetiroPazYSalvo:
   item.DiasRetiroPazYSalvo ?? null,
 
-diasPazYSalvoCierreRRLL:
-  item.DiasPazYSalvoCierreRRLL ?? null,
+segundosPazYSalvoCierreRRLL:
+  item.SegundosPazYSalvoCierreRRLL ??
+  (item.DiasPazYSalvoCierreRRLL !== null && item.DiasPazYSalvoCierreRRLL !== undefined
+    ? Number(item.DiasPazYSalvoCierreRRLL) * 86400
+    : null),
 
-diasCierreRRLLNomina:
-  item.DiasCierreRRLLNomina ?? null,
+segundosCierreRRLLNomina:
+  item.SegundosCierreRRLLNomina ??
+  (item.DiasCierreRRLLNomina !== null && item.DiasCierreRRLLNomina !== undefined
+    ? Number(item.DiasCierreRRLLNomina) * 86400
+    : null),
 });
 
 const NominaRetirosView = () => {
@@ -861,11 +898,11 @@ const retiroIndicador = useMemo(() => {
           </p>
 
           <p className="text-4xl font-black text-emerald-900 mt-3">
-            {valorTiempoProceso(retiroIndicador?.diasPazYSalvoCierreRRLL)}
+            {valorTiempoProceso(retiroIndicador?.segundosPazYSalvoCierreRRLL, 'segundos')}
           </p>
 
           <p className="text-xs text-emerald-700 mt-2">
-            {textoUnidadTiempo(retiroIndicador?.diasPazYSalvoCierreRRLL)}
+            {textoUnidadTiempo(retiroIndicador?.segundosPazYSalvoCierreRRLL, 'segundos')}
           </p>
           <p className="text-xs text-gray-500 mt-3">
             Tiempo utilizado por RRLL para completar y remitir el proceso.
@@ -878,11 +915,11 @@ const retiroIndicador = useMemo(() => {
           </p>
 
           <p className="text-4xl font-black text-gray-900 mt-3">
-            {valorTiempoProceso(retiroIndicador?.diasCierreRRLLNomina)}
+            {valorTiempoProceso(retiroIndicador?.segundosCierreRRLLNomina, 'segundos')}
           </p>
 
           <p className="text-xs text-gray-700 mt-2">
-            {textoUnidadTiempo(retiroIndicador?.diasCierreRRLLNomina)}
+            {textoUnidadTiempo(retiroIndicador?.segundosCierreRRLLNomina, 'segundos')}
           </p>
           <p className="text-xs text-gray-500 mt-3">
             Tiempo utilizado por Nómina para finalizar el retiro.
@@ -1201,9 +1238,9 @@ const retiroIndicador = useMemo(() => {
                 <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
                   <p className="text-emerald-800 font-bold">Paz y Salvo cargado → envío a Nómina</p>
                   <p className="text-3xl font-black text-emerald-900 mt-2">
-                    {valorTiempoProceso(retiroSeleccionado.diasPazYSalvoCierreRRLL)}
+                    {valorTiempoProceso(retiroSeleccionado.segundosPazYSalvoCierreRRLL, 'segundos')}
                   </p>
-                  <p className="text-xs text-emerald-700 mt-1">{textoUnidadTiempo(retiroSeleccionado.diasPazYSalvoCierreRRLL)}</p>
+                  <p className="text-xs text-emerald-700 mt-1">{textoUnidadTiempo(retiroSeleccionado.segundosPazYSalvoCierreRRLL, 'segundos')}</p>
                   <p className="text-xs text-gray-500 mt-3">
                     Tiempo utilizado por RRLL para completar y remitir el proceso.
                   </p>
@@ -1215,14 +1252,16 @@ const retiroIndicador = useMemo(() => {
                 <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4">
                   <p className="text-gray-800 font-bold">Envío a Nómina → retiro finalizado</p>
                   <p className="text-3xl font-black text-gray-900 mt-2">
-                    {valorTiempoProceso(retiroSeleccionado.diasCierreRRLLNomina)}
+                    {valorTiempoProceso(retiroSeleccionado.segundosCierreRRLLNomina, 'segundos')}
                   </p>
-                  <p className="text-xs text-gray-700 mt-1">{textoUnidadTiempo(retiroSeleccionado.diasCierreRRLLNomina)}</p>
+                  <p className="text-xs text-gray-700 mt-1">{textoUnidadTiempo(retiroSeleccionado.segundosCierreRRLLNomina, 'segundos')}</p>
                   <p className="text-xs text-gray-500 mt-3">
                     Tiempo utilizado por Nómina para finalizar el retiro.
                   </p>
                   <p className="text-xs text-gray-500 mt-2">
-                    Retiro finalizado: {formatearFechaHoraColombia(retiroSeleccionado.fechaEnvioNomina)}
+                    {retiroSeleccionado.fechaEnvioNomina
+                      ? `Retiro finalizado: ${formatearFechaHoraColombia(retiroSeleccionado.fechaEnvioNomina)}`
+                      : 'Estado: Pendiente de finalización por Nómina'}
                   </p>
                 </div>
               </div>
