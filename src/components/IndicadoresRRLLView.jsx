@@ -661,47 +661,53 @@ const IndicadoresRRLLView = () => {
         </div>
       ) : null}
 
-      <section className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <section className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi
           title="Total procesos RRLL"
           value={entero(totales.total_retiros)}
-          detail="Todos los procesos incluidos en el filtro."
+          detail="Todos los procesos de retiro incluidos en el filtro."
           icon={Users}
         />
         <Kpi
           title="En gestión por RRLL"
           value={entero(totales.en_gestion_rrll)}
-          detail="Todos los procesos con estado ABIERTO."
+          detail="Procesos que actualmente se encuentran en gestión por Relaciones Laborales."
           icon={Clock3}
         />
         <Kpi
           title="Enviados a Nómina"
           value={entero(totales.enviados_nomina)}
-          detail="Procesos con estado ENVIADO_NOMINA o CERRADO."
+          detail="Procesos enviados o finalizados por Relaciones Laborales."
           icon={Send}
           accent
         />
         <Kpi
           title="Entrevistas de retiro realizadas"
           value={entero(totales.entrevistas_realizadas)}
-          detail="Procesos incluidos en el filtro con entrevista de retiro en PDF."
+          detail="Procesos que requerían entrevista y ya cuentan con una entrevista diligenciada por el trabajador."
           icon={ClipboardCheck}
           accent
         />
         <Kpi
           title="Entrevistas de retiro pendientes"
           value={entero(totales.entrevistas_pendientes)}
-          detail="Procesos incluidos en el filtro que aún no tienen entrevista de retiro en PDF."
+          detail="Procesos que requieren entrevista de retiro y aún se encuentran pendientes de diligenciamiento."
           icon={ClipboardCheck}
+        />
+        <Kpi
+          title="Entrevistas no requeridas"
+          value={entero(totales.entrevistas_no_aplican_abandono)}
+          detail="Procesos clasificados como abandono de cargo que no requieren entrevista de retiro."
+          icon={CheckCircle2}
         />
         <Kpi
           title="Cobertura de entrevistas de retiro"
           value={porcentaje(totales.porcentaje_entrevistas)}
           detail={`${entero(
             totales.entrevistas_realizadas
-          )} entrevistas realizadas de ${entero(
-            totales.total_retiros
-          )} procesos incluidos en el filtro.`}
+          )} de ${entero(
+            totales.procesos_requieren_entrevista
+          )} procesos que requerían entrevista cuentan con entrevista diligenciada. Los abandonos de cargo se excluyen automáticamente del cálculo.`}
           icon={TimerReset}
           accent
         />

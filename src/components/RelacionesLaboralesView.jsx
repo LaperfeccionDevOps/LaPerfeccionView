@@ -298,6 +298,11 @@ const TIPO_DOCUMENTO_RETIRO = [
   { id: 12, nombre: "EVIDENCIA SEGUNDO LLAMADO", tipo: "ADJUNTABLE" },
   { id: 13, nombre: "PRIMER LLAMADO ABANDONO INASISTENCIA AL CARGO", tipo: "GENERADO" },
   { id: 14, nombre: "SEGUNDO LLAMADO ABANDONO INASISTENCIA AL CARGO", tipo: "GENERADO" },
+  {
+  id: 19,
+  nombre: "EVIDENCIA CARTA FINALIZACIÓN DEL CONTRATO",
+  tipo: "ADJUNTABLE",
+},
 ];
 /* =========================================================
    ✅ REQUISITOS POR MOTIVO (ESTRUCTURA UNIFICADA)
@@ -343,6 +348,11 @@ const REQUISITOS_POR_MOTIVO = {
       label: "EVIDENCIA SEGUNDO LLAMADO",
       tipo: "ADJUNTABLE",
       idTipoDocumentoRetiro: 12,
+    },
+    {
+      label: "EVIDENCIA CARTA FINALIZACIÓN DEL CONTRATO",
+      tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 19,
     },
     { label: "PAQUETE DE RETIRO", tipo: "PAQUETE", idTipoDocumentoRetiro: 10 },
     { label: "OBSERVACIONES", tipo: "ESCRIBIR" },
