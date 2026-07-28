@@ -93,7 +93,7 @@ const mapRetiroApi = (item) => ({
   idRetiroLaboral: item.IdRetiroLaboral,
   idRegistroPersonal: item.IdRegistroPersonal,
   identificacion: item.NumeroIdentificacion || '',
-  nombre: `${item.Nombres || ''} ${item.Apellidos || ''}`.trim(),
+  nombre: `${item.Nombres || ''} ${item.Apellidos || ''}`.toUpperCase().trim(),
   cliente: item.NombreCliente || 'SIN CLIENTE',
   fechaRetiro: item.FechaRetiro || '',
   fechaProceso: item.FechaProceso || '',

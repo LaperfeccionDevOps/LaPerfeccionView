@@ -20,6 +20,7 @@ import IndicadoresSeleccionView from './components/IndicadoresSeleccionView';
 import IndicadoresRRLLView from './components/IndicadoresRRLLView';
 import NominaRetirosView from '@/components/NominaRetirosView';
 import IndicadoresNominaView from '@/components/IndicadoresNominaView';
+import PanelGerencialRRLLView from '@/components/PanelGerencialRRLLView';
 
 const RoleBasedRedirect = () => {
   const { user } = useAuth();
@@ -87,6 +88,7 @@ function App() {
           <Route path="nomina-retiros" element={<NominaRetirosView />} />
           <Route path="indicadores-rrll" element={<IndicadoresRRLLView />} />
           <Route path="indicadores-nomina" element={<IndicadoresNominaView />} />
+          <Route path="panel-gerencial-rrll" element={<PanelGerencialRRLLView />} />
           <Route path="nomina-carpeta-digital" element={<ArchivosView />} />
 
           <Route path="admin/crear-usuario" element={<CreateUserForm />} />
