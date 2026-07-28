@@ -1377,22 +1377,19 @@ const ContratacionView = () => {
 }, []);
 
   useEffect(() => {
-    let filtered = aspirantes;
+    let filtered = aspirantes.filter((a) => {
+      const estado = String(a?.estado ?? '').trim();
+
+      return (
+        estado === 'Avanza a Contratación' ||
+        a?.tuvoContratacion === true
+      );
+    });
 
     if (statusFilter !== 'todos') {
-      filtered = filtered.filter(a => a.estado.trim() === statusFilter);
-    }
-
-   if (statusFilter === 'todos') {
-      filtered = filtered.filter((a) => {
-        const estado = String(a?.estado ?? '').trim();
-
-        return [
-          'Avanza a Contratación',
-          'Contratado',
-          'Retirado',
-        ].includes(estado);
-      });
+      filtered = filtered.filter(
+        (a) => String(a?.estado ?? '').trim() === statusFilter
+      );
     }
 
     if (searchTerm) {
