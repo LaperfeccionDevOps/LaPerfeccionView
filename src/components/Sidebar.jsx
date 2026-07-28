@@ -37,6 +37,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { to: '/indicadores-contratacion', label: 'Indicadores', roles: ['Administrador', 'Contratación'] },
       { to: '/relaciones-laborales', label: 'Relaciones Laborales', roles: ['Administrador', 'Relaciones Laborales', 'Talento Humano'] },
       { to: '/indicadores-rrll', label: 'Indicadores', roles: ['Administrador', 'Relaciones Laborales', 'Talento Humano'] },
+      { to: '/panel-gerencial-rrll', label: 'Panel Gerencial', roles: ['Administrador', 'Relaciones Laborales', 'Talento Humano'] },
     ],
   },
   {
