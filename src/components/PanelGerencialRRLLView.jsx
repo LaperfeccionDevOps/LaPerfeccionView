@@ -635,15 +635,15 @@ const PanelGerencialRRLLView = () => {
       tipo: 'normal',
     },
     {
-      titulo: 'Tiempo de desvinculación',
+      titulo: 'Tiempo total de desvinculación',
       valor:
         datosPanel === null
           ? '—'
           : registrosValidosTiempo === 0
             ? 'Sin datos'
             : formatearDuracion(tiempoPromedioDesvinculacion),
-      descripcion:
-        'Promedio transcurrido entre la fecha del proceso y la fecha de cierre.',
+    descripcion:
+      'Promedio transcurrido desde la carga del Paz y Salvo hasta la finalización definitiva del retiro por Nómina.',
       detalle:
         registrosValidosTiempo === 0
           ? 'Sin registros válidos para calcular'
@@ -1518,12 +1518,12 @@ const PanelGerencialRRLLView = () => {
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
           <div>
             <h2 className="text-xl font-bold text-slate-900">
-              Tiempo de desvinculación
+               Tiempo total de desvinculación
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Cálculo entre FechaProceso y FechaCierre para casos cerrados o
-              enviados a Nómina.
+            Cálculo desde la carga del Paz y Salvo hasta la finalización definitiva
+            del retiro por Nómina.
             </p>
           </div>
 
@@ -1580,9 +1580,9 @@ const PanelGerencialRRLLView = () => {
 
             <p className="mt-1 text-sm leading-6 text-slate-700">
               {datosPanel === null
-                ? 'Realice una consulta para calcular el tiempo de desvinculación.'
+                ? 'Realice una consulta para calcular el tiempo total de desvinculación.'
                 : registrosValidosTiempo === 0
-                  ? 'No existen registros cerrados con fechas válidas para calcular el promedio en la consulta.'
+                  ? 'No existen retiros finalizados por Nómina con Paz y Salvo y fechas válidas para calcular el promedio.'
                   : `El tiempo promedio fue de ${formatearDuracion(
                       tiempoPromedioDesvinculacion
                     )}, calculado con ${formatearCantidad(
