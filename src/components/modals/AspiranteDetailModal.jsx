@@ -239,9 +239,9 @@ const clientesALP = [
    { id: 130, name: "Cruz Roja Colombiana S ED. Admon Cr 23 73 19 Aseo" },
    { id: 131, name: "Cruz Roja Colombiana S ED. Admon Cr 23 73 19 Aseo" },
    { id: 132, name: "Cruz Roja Colombiana S ED. Admon Cr 23 73 19 Supernumerarios" },
+   { id: 214, name: "CRUZ ROJA COLOMBIANA S PET CRA 45 # 106B - 18 ASEO" },
    { id: 133, name: "Cruz Roja Colombiana S Salvamento Av 68 68b 31 Piscinas" },
    { id: 134, name: "Cruz Roja Colombiana S Salvamento Av 68 68b 31 Recreacion" },
-   { id: 214, name: "CRUZ ROJA COLOMBIANA S PET CRA 45 # 106B - 18 ASEO" },
    { id: 135, name: "Edif Ahorramas S Cr 15a 121-12 Aseo" },
    { id: 136, name: "Edif Banco Ganadero S Av 15 122-35 Aseo" },
    { id: 137, name: "Edif Banco Ganadero S Av 15 122-35 Mantenimiento General" },
@@ -279,7 +279,11 @@ const clientesALP = [
    { id: 169, name: "Fund Univ Compensar S Campus Ak 68 No. 68 B - 45 Aseo" },
    { id: 170, name: "Fund Univ Compensar S Campus Ak 68 No. 68 B - 45 Obra Civil Menor" },
    { id: 171, name: "Fund Univ Compensar S Campus Ak 68 No. 68 B - 45 Recreacion" },
+   { id: 210, name: "FUNDACIÓN UNIVERSITARIA KONRAD LORENZ CRA 9 BIS 62-43 Aseo" },
    { id: 172, name: "Guala S Cl 17 42-75 Aseo" },
+   { id: 216, name: "Hacienda Los Lagos P. H. S Cr 54 d 200 54 Aseo" },
+   { id: 218, name: "Hacienda Los Lagos P. H. S Cr 54 d 200 54 Mantenimiento General" },
+   { id: 217, name: "Hacienda Los Lagos P. H. S Cr 54 d 200 54 Obra Civil Menor" },
    { id: 173, name: "Infinity Brows Studio SAS S CL 24 B 75 18 Cafeteria" },
    { id: 174, name: "Laboratorio Medico Echavarria SAS S Cr 44 20 a 05 Mantenimiento General" },
    { id: 175, name: "Laboratorios Smart S A S S Cl 19 # 69 - 05 Recreacion" },
@@ -318,7 +322,6 @@ const clientesALP = [
    { id: 208, name: "Textiles Asitex S.A.S S Cr 63 18 A 43 Aseo" },
    { id: 209, name: "Thomas Gred Seguridad Integral LTDA S CALLE 77 28B 25 Aseo" },
    { id: 215, name: "Universidad De Ciencias Aplicadas Y Ambientales UDCA S CL 222 55 37 Mantenimiento General" },
-   { id: 210, name: "FUNDACIÓN UNIVERSITARIA KONRAD LORENZ CRA 9 BIS 62-43 Aseo" },
 ];
 
 const EPS = [
