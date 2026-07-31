@@ -294,10 +294,6 @@ const IndicadoresContratacionView = () => {
     const porcentajeContratacion = Number(
       data?.comparativo_avanzan_contratados?.porcentaje_contratados || 0,
     );
-    const tiempoPromedio = data?.tiempo_contratacion?.disponible
-      ? data?.tiempo_contratacion?.promedio_formateado || 'Sin información'
-      : 'Sin información';
-
     return {
       registrados,
       avanzan,
@@ -305,7 +301,6 @@ const IndicadoresContratacionView = () => {
       pendientes,
       rechazados,
       porcentajeContratacion,
-      tiempoPromedio,
     };
   }, [data]);
 
@@ -590,7 +585,6 @@ const IndicadoresContratacionView = () => {
             <KpiCard title="Contratados" value={indicadores.contratados} icon={UserCheck} accentClass="text-emerald-600" backgroundClass="bg-emerald-50" />
             <KpiCard title="Rechazados" value={indicadores.rechazados} icon={UserX} accentClass="text-red-600" backgroundClass="bg-red-50" />
             <KpiCard title="Porcentaje de contratación" subtitle="Contratados respecto a quienes avanzaron" value={`${indicadores.porcentajeContratacion}%`} icon={TrendingUp} accentClass="text-violet-600" backgroundClass="bg-violet-50" />
-            <KpiCard title="Tiempo promedio de contratación" subtitle="Desde el estado 24 hasta la confirmación por botón C" value={indicadores.tiempoPromedio} icon={Clock3} accentClass="text-sky-600" backgroundClass="bg-sky-50" compactValue />
           </div>
         ) : (
           <IndividualSummary data={data} />
@@ -725,7 +719,6 @@ const GeneralDashboard = ({
           <ExecutiveRow label="Contratados" value={indicadores.contratados} color="bg-emerald-600" />
           <ExecutiveRow label="Rechazados" value={indicadores.rechazados} color="bg-red-600" />
           <ExecutiveRow label="Porcentaje de contratación" value={`${indicadores.porcentajeContratacion}%`} color="bg-violet-600" />
-          <ExecutiveRow label="Tiempo promedio desde avance hasta contratación" value={indicadores.tiempoPromedio} color="bg-sky-600" />
         </div>
       </div>
     </section>
@@ -763,7 +756,7 @@ const IndividualSummary = ({ data }) => {
   const valorContratacion = contratacion?.fecha
     ? formatearSoloFechaColombia(contratacion.fecha)
     : tieneContratacion
-      ? 'Contratado sin fecha disponible'
+      ? 'Contratado Historico'
       : 'Pendiente';
 
   const subtituloContratacion = esMigrado
@@ -834,16 +827,18 @@ const IndividualSummary = ({ data }) => {
         backgroundClass="bg-emerald-50"
         compactValue
       />
-      <KpiCard
-        title="Tiempo de contratación"
-        subtitle={subtituloTiempo}
-        value={valorTiempo}
-        icon={Clock3}
-        accentClass="text-sky-600"
-        backgroundClass="bg-sky-50"
-        compactValue
-        centerValue
-      />
+      {!esMigrado && (
+        <KpiCard
+          title="Tiempo de contratación"
+          subtitle={subtituloTiempo}
+          value={valorTiempo}
+          icon={Clock3}
+          accentClass="text-sky-600"
+          backgroundClass="bg-sky-50"
+          compactValue
+          centerValue
+        />
+      )}
     </div>
   );
 };
