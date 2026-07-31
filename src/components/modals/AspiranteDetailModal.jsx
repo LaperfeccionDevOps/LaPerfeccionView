@@ -439,6 +439,14 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   const [tipoMotivoCierre, setTipoMotivoCierre] = useState('');
   const [motivoCierreOtro, setMotivoCierreOtro] = useState('');
 
+  // Información de solo lectura cuando el rechazo fue registrado desde Contratación.
+  const [rechazoContratacion, setRechazoContratacion] = useState({
+    esRechazoContratacion: false,
+    observacion: '',
+    usuario: '',
+    fecha: null,
+  });
+
   // ✅ Estado inicial seguro para evitar uncontrolled inputs
   const initialFormData = {
     IdRegistroPersonal: '',
@@ -554,9 +562,9 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
 
          let responseMotivoCierre = null;
          try {
-         responseMotivoCierre = await getMotivoCierre(aspirante.id);
+           responseMotivoCierre = await getMotivoCierre(aspirante.id);
          } catch (error) {
-         responseMotivoCierre = null;
+           responseMotivoCierre = null;
          }
 
         // ✅ entrevista SIEMPRE array
@@ -564,10 +572,48 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
           ? responseEntrevista.data
           : (responseEntrevista?.data ? [responseEntrevista.data] : []);
 
-         const motivoCierreGuardado =
-         responseMotivoCierre?.data?.MotivoCierre ||
-         responseMotivoCierre?.data?.motivoCierre ||
-         '';
+         const motivoCierreData = responseMotivoCierre?.data || {};
+
+         const esRechazoContratacion =
+           Boolean(
+             motivoCierreData?.EsRechazoContratacion ??
+             motivoCierreData?.esRechazoContratacion
+           ) ||
+           String(
+             motivoCierreData?.OrigenRechazo ||
+             motivoCierreData?.origenRechazo ||
+             ''
+           ).trim().toUpperCase() === 'CONTRATACION';
+
+         const observacionRechazoContratacion = String(
+           motivoCierreData?.ObservacionContratacion ||
+           motivoCierreData?.observacionContratacion ||
+           motivoCierreData?.ObservacionesRechazo ||
+           motivoCierreData?.observacionesRechazo ||
+           (esRechazoContratacion ? motivoCierreData?.Observaciones : '') ||
+           ''
+         ).trim();
+
+         setRechazoContratacion({
+           esRechazoContratacion,
+           observacion: observacionRechazoContratacion,
+           usuario:
+             motivoCierreData?.UsuarioRechazoContratacion ||
+             motivoCierreData?.usuarioRechazoContratacion ||
+             '',
+           fecha:
+             motivoCierreData?.FechaRechazoContratacion ||
+             motivoCierreData?.fechaRechazoContratacion ||
+             null,
+         });
+
+         const motivoCierreGuardado = esRechazoContratacion
+           ? ''
+           : (
+               motivoCierreData?.MotivoCierre ||
+               motivoCierreData?.motivoCierre ||
+               ''
+             );
 
          const motivoCierreEsPredefinido =
            MOTIVOS_CIERRE_PREDEFINIDOS.includes(motivoCierreGuardado);
@@ -1501,7 +1547,7 @@ console.log('campos completos:', campos);
       ''
     ).trim();
 
-    if (estadoInt === 28) {
+    if (estadoInt === 28 && !rechazoContratacion.esRechazoContratacion) {
       if (!tipoMotivoCierre) {
         toast({
           title: 'Motivo de cierre requerido',
@@ -1565,7 +1611,7 @@ console.log('campos completos:', campos);
       localStorage.getItem('usuario') || 'sistema'
     );
 
-      if (estadoInt === 28) {
+      if (estadoInt === 28 && !rechazoContratacion.esRechazoContratacion) {
         const payload = {
           MotivoCierre: motivoCierreFinal,
           Observaciones: '',
@@ -4703,58 +4749,85 @@ if (response && response.status === 201) {
                                  </Select>
                               </div>
                               {formData.estadoProceso?.toString() === '28' && (
-                                 <div className="flex flex-col gap-4">
-                                    <div>
-                                       <Label className="mb-2">Motivo (Cierre)</Label>
-                                       <Select
-                                          value={tipoMotivoCierre}
-                                          onValueChange={(v) => {
-                                             setTipoMotivoCierre(v);
-
-                                             if (v === 'OTRO') {
-                                                setMotivoCierreOtro('');
-                                                handleInputChange('entrevista', 'motivo', '');
-                                                return;
-                                             }
-
-                                             setMotivoCierreOtro('');
-                                             handleInputChange('entrevista', 'motivo', v);
-                                          }}
-                                       >
-                                          <SelectTrigger>
-                                             <SelectValue placeholder="Seleccionar motivo" />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                             <SelectItem value="Desiste del Proceso">DESISTE DEL PROCESO</SelectItem>
-                                             <SelectItem value="No Cumple Perfil">NO CUMPLE PERFIL</SelectItem>
-                                             <SelectItem value="No asiste a Examenes Medicos">NO ASISTE A EXAMENES MEDICOS</SelectItem>
-                                             <SelectItem value="Exámenes No Aptos">EXÁMENES NO APTOS</SelectItem>
-                                             <SelectItem value="Documentación Incompleta">DOCUMENTACIÓN INCOMPLETA</SelectItem>
-                                             <SelectItem value="Estudio de Seguridad">ESTUDIO DE SEGURIDAD</SelectItem>
-                                             <SelectItem value="Reintegro No Aprobado">REINTEGRO NO APROBADO</SelectItem>
-                                             <SelectItem value="No asiste a Contratación">NO ASISTE A CONTRATACIÓN</SelectItem>
-                                             <SelectItem value="No supera prueba física">NO SUPERA PRUEBA FÍSICA</SelectItem>
-                                             <SelectItem value="OTRO">OTRO</SelectItem>
-                                          </SelectContent>
-                                       </Select>
-                                    </div>
-
-                                    {tipoMotivoCierre === 'OTRO' && (
-                                       <div>
-                                          <Label className="mb-2">Especifique el motivo</Label>
-                                          <Textarea
-                                             value={motivoCierreOtro}
-                                             onChange={(e) => {
-                                                const valor = e.target.value;
-                                                setMotivoCierreOtro(valor);
-                                                handleInputChange('entrevista', 'motivo', valor);
-                                             }}
-                                             placeholder="Escriba el motivo del rechazo"
-                                             maxLength={500}
-                                          />
+                                 rechazoContratacion.esRechazoContratacion ? (
+                                    <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
+                                       <Label className="text-amber-900">
+                                          Rechazo registrado por Contratación
+                                       </Label>
+                                       <p className="mt-2 text-sm font-semibold text-gray-700">
+                                          Observación
+                                       </p>
+                                       <div className="mt-1 min-h-[72px] whitespace-pre-wrap rounded-lg border border-amber-200 bg-white p-3 text-sm text-gray-800">
+                                          {rechazoContratacion.observacion || 'Sin observación registrada.'}
                                        </div>
-                                    )}
-                                 </div>
+                                       {(rechazoContratacion.usuario || rechazoContratacion.fecha) && (
+                                          <p className="mt-2 text-xs text-gray-500">
+                                             {rechazoContratacion.usuario
+                                                ? `Registrado por: ${rechazoContratacion.usuario}`
+                                                : ''}
+                                             {rechazoContratacion.usuario && rechazoContratacion.fecha
+                                                ? ' · '
+                                                : ''}
+                                             {rechazoContratacion.fecha
+                                                ? `Fecha: ${new Date(rechazoContratacion.fecha).toLocaleString('es-CO')}`
+                                                : ''}
+                                          </p>
+                                       )}
+                                    </div>
+                                 ) : (
+                                    <div className="flex flex-col gap-4">
+                                       <div>
+                                          <Label className="mb-2">Motivo (Cierre)</Label>
+                                          <Select
+                                             value={tipoMotivoCierre}
+                                             onValueChange={(v) => {
+                                                setTipoMotivoCierre(v);
+
+                                                if (v === 'OTRO') {
+                                                   setMotivoCierreOtro('');
+                                                   handleInputChange('entrevista', 'motivo', '');
+                                                   return;
+                                                }
+
+                                                setMotivoCierreOtro('');
+                                                handleInputChange('entrevista', 'motivo', v);
+                                             }}
+                                          >
+                                             <SelectTrigger>
+                                                <SelectValue placeholder="Seleccionar motivo" />
+                                             </SelectTrigger>
+                                             <SelectContent>
+                                                <SelectItem value="Desiste del Proceso">DESISTE DEL PROCESO</SelectItem>
+                                                <SelectItem value="No Cumple Perfil">NO CUMPLE PERFIL</SelectItem>
+                                                <SelectItem value="No asiste a Examenes Medicos">NO ASISTE A EXAMENES MEDICOS</SelectItem>
+                                                <SelectItem value="Exámenes No Aptos">EXÁMENES NO APTOS</SelectItem>
+                                                <SelectItem value="Documentación Incompleta">DOCUMENTACIÓN INCOMPLETA</SelectItem>
+                                                <SelectItem value="Estudio de Seguridad">ESTUDIO DE SEGURIDAD</SelectItem>
+                                                <SelectItem value="Reintegro No Aprobado">REINTEGRO NO APROBADO</SelectItem>
+                                                <SelectItem value="No asiste a Contratación">NO ASISTE A CONTRATACIÓN</SelectItem>
+                                                <SelectItem value="No supera prueba física">NO SUPERA PRUEBA FÍSICA</SelectItem>
+                                                <SelectItem value="OTRO">OTRO</SelectItem>
+                                             </SelectContent>
+                                          </Select>
+                                       </div>
+
+                                       {tipoMotivoCierre === 'OTRO' && (
+                                          <div>
+                                             <Label className="mb-2">Especifique el motivo</Label>
+                                             <Textarea
+                                                value={motivoCierreOtro}
+                                                onChange={(e) => {
+                                                   const valor = e.target.value;
+                                                   setMotivoCierreOtro(valor);
+                                                   handleInputChange('entrevista', 'motivo', valor);
+                                                }}
+                                                placeholder="Escriba el motivo del rechazo"
+                                                maxLength={500}
+                                             />
+                                          </div>
+                                       )}
+                                    </div>
+                                 )
                               )}
                               <div className="flex justify-end">
                                  <Button type="button" className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={handleActualizarEstadoProceso}>

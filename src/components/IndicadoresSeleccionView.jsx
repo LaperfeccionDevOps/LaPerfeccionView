@@ -233,8 +233,8 @@ const IndicadoresSeleccionView = () => {
         />
 
         <KpiPrincipal
-            title="Total personal rechazado"
-            value={data.rechazados_generales || 0}
+            title="Total personal rechazado en Selección"
+            value={data.rechazados_seleccion ?? data.rechazados_generales ?? 0}
         />
         </div>
 
