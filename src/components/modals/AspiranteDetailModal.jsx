@@ -4626,100 +4626,180 @@ if (response && response.status === 201) {
 
                            {/* ✅✅✅ NUEVO BLOQUE: Asignación cargo y cliente (JUSTO AQUÍ, debajo del historial) */}
                            {/* <details className="mb-6 bg-white border border-gray-200 rounded-xl shadow-sm"> */}
-                             <summary className="cursor-pointer select-none list-none px-4 py-3 flex items-center justify-between">
-                               <span className="font-semibold text-gray-800">Asignación cargo y cliente</span>
-                               {/* <span className="text-xs text-gray-500">Clic para desplegar</span> */}
-                             </summary>
+                           <summary className="cursor-pointer select-none list-none px-4 py-3 flex items-center justify-between">
+                              <span className="font-semibold text-gray-800">
+                                 Asignación cargo y cliente
+                              </span>
 
-                             <div className="px-4 pb-4 pt-2">
-                               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                 <div className="space-y-2">
+                              {/* <span className="text-xs text-gray-500">Clic para desplegar</span> */}
+                           </summary>
+
+                           <div className="px-4 pb-4 pt-2">
+                              <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1.4fr] gap-6 items-start">
+
+                                 {/* CARGO */}
+                                 <div className="space-y-2 min-w-0">
                                     <Label>Cargo</Label>
+
                                     <Select
-                                       value={formData?.asignacionCargo?.IdCargo ? String(formData.asignacionCargo.IdCargo) : ''}
-                                       onValueChange={v => {
-                                          setFormData(prev => ({
+                                       value={
+                                          formData?.asignacionCargo?.IdCargo
+                                             ? String(formData.asignacionCargo.IdCargo)
+                                             : ''
+                                       }
+                                       onValueChange={(v) => {
+                                          setFormData((prev) => ({
                                              ...prev,
                                              asignacionCargo: {
                                                 ...prev.asignacionCargo,
-                                                IdCargo: parseInt(v, 10)
-                                             }
+                                                IdCargo: parseInt(v, 10),
+                                             },
                                           }));
                                        }}
                                     >
-                                       <SelectTrigger>
+                                       <SelectTrigger
+                                          className="
+                                             w-full
+                                             min-h-10
+                                             h-auto
+                                             py-2
+                                             items-start
+                                             [&>span]:whitespace-normal
+                                             [&>span]:break-words
+                                             [&>span]:text-left
+                                             [&>span]:leading-5
+                                          "
+                                       >
                                           <SelectValue placeholder="Seleccionar..." />
                                        </SelectTrigger>
+
                                        <SelectContent className="max-h-60 overflow-y-auto">
-                                          {listaCargo.length > 0
-                                             ? listaCargo.map((item) => (
-                                                   <SelectItem key={item.IdCargo} value={String(item.IdCargo)}>
-                                                      {item.NombreCargo}
-                                                   </SelectItem>
-                                                ))
-                                             : <div className="px-3 py-2 text-sm text-gray-500">Sin opciones</div>
-                                          }
+                                          {listaCargo.length > 0 ? (
+                                             listaCargo.map((item) => (
+                                                <SelectItem
+                                                   key={item.IdCargo}
+                                                   value={String(item.IdCargo)}
+                                                   className="
+                                                      whitespace-normal
+                                                      break-words
+                                                      leading-5
+                                                      py-2
+                                                   "
+                                                >
+                                                   {item.NombreCargo}
+                                                </SelectItem>
+                                             ))
+                                          ) : (
+                                             <div className="px-3 py-2 text-sm text-gray-500">
+                                                Sin opciones
+                                             </div>
+                                          )}
                                        </SelectContent>
                                     </Select>
                                  </div>
-                                 {/* SALARIO (manual) */}
-                                 <div className="space-y-2">
+
+                                 {/* SALARIO */}
+                                 <div className="space-y-2 min-w-0">
                                     <Label>Salario</Label>
+
                                     <Input
-                                       value={formData?.asignacionCargo?.Salario || ""}
+                                       value={formData?.asignacionCargo?.Salario || ''}
                                        inputMode="numeric"
                                        pattern="[0-9]*"
                                        placeholder="Ej: 1300000"
                                        onChange={(e) => {
-                                          const onlyNums = (e.target.value || "").replace(/\D/g, "").slice(0, 7); // 👈 solo números (máx 9 dígitos)
-                                          handleInputChange("asignacionCargo", "Salario", onlyNums);
+                                          const onlyNums = (e.target.value || '')
+                                             .replace(/\D/g, '')
+                                             .slice(0, 7);
+
+                                          handleInputChange(
+                                             'asignacionCargo',
+                                             'Salario',
+                                             onlyNums
+                                          );
                                        }}
                                     />
                                  </div>
 
-                                 {/* CLIENTE (desplegable, pendiente lista) */}
-                                 <div className="space-y-2">
-                                   <Label>Cliente</Label>
+                                 {/* CLIENTE */}
+                                 <div className="space-y-2 min-w-0">
+                                    <Label>Cliente</Label>
+
                                     <Select
-                                    value={formData?.asignacionCargo?.IdCliente ? String(formData.asignacionCargo.IdCliente) : ''}
-                                    onValueChange={v => {
-                                       setFormData(prev => ({
-                                          ...prev,
-                                          asignacionCargo: {
-                                          ...prev.asignacionCargo,
-                                          IdCliente: parseInt(v, 10)
+                                       value={
+                                          formData?.asignacionCargo?.IdCliente
+                                             ? String(formData.asignacionCargo.IdCliente)
+                                             : ''
+                                       }
+                                       onValueChange={(v) => {
+                                          setFormData((prev) => ({
+                                             ...prev,
+                                             asignacionCargo: {
+                                                ...prev.asignacionCargo,
+                                                IdCliente: parseInt(v, 10),
+                                             },
+                                          }));
+                                       }}
+                                       onOpenChange={(open) => {
+                                          if (!open) {
+                                             setClienteQuery('');
                                           }
-                                       }));
-                                    }}
-                                    onOpenChange={open => { if (!open) setClienteQuery(''); }}
+                                       }}
                                     >
-                                    <SelectTrigger className="bg-white border-gray-200">
-                                       <SelectValue placeholder="Seleccionar cliente" />
-                                    </SelectTrigger>
-                                    <SelectContent className="max-h-72 overflow-y-auto">
-                                       <div className="sticky top-0 z-10 bg-popover p-2 border-b">
-                                          <Input
-                                          value={clienteQuery}
-                                          onChange={e => setClienteQuery(e.target.value)}
-                                          placeholder="Buscar cliente..."
-                                          className="h-9"
-                                          />
-                                       </div>
-                                       {clientesFiltrados.length > 0 ? (
-                                          clientesFiltrados.map((c) => (
-                                          <SelectItem key={c.id} value={String(c.id)}>
-                                             {c.name}
-                                          </SelectItem>
-                                          ))
-                                       ) : (
-                                          <div className="px-3 py-2 text-sm text-muted-foreground">
-                                          Sin resultados
+                                       <SelectTrigger
+                                          className="
+                                             w-full
+                                             min-h-10
+                                             h-auto
+                                             py-2
+                                             items-start
+                                             bg-white
+                                             border-gray-200
+                                             [&>span]:whitespace-normal
+                                             [&>span]:break-words
+                                             [&>span]:text-left
+                                             [&>span]:leading-5
+                                          "
+                                       >
+                                          <SelectValue placeholder="Seleccionar cliente" />
+                                       </SelectTrigger>
+
+                                       <SelectContent className="max-h-72 overflow-y-auto">
+                                          <div className="sticky top-0 z-10 bg-popover p-2 border-b">
+                                             <Input
+                                                value={clienteQuery}
+                                                onChange={(e) => setClienteQuery(e.target.value)}
+                                                placeholder="Buscar cliente..."
+                                                className="h-9"
+                                             />
                                           </div>
-                                       )}
-                                    </SelectContent>
+
+                                          {clientesFiltrados.length > 0 ? (
+                                             clientesFiltrados.map((c) => (
+                                                <SelectItem
+                                                   key={c.id}
+                                                   value={String(c.id)}
+                                                   className="
+                                                      whitespace-normal
+                                                      break-words
+                                                      leading-5
+                                                      py-2
+                                                   "
+                                                >
+                                                   {c.name}
+                                                </SelectItem>
+                                             ))
+                                          ) : (
+                                             <div className="px-3 py-2 text-sm text-muted-foreground">
+                                                Sin resultados
+                                             </div>
+                                          )}
+                                       </SelectContent>
                                     </Select>
                                  </div>
-                                <Button
+
+                                 {/* BOTÓN GUARDAR */}
+                                 <Button
                                     type="button"
                                     size="sm"
                                     className="h-9 px-4 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -4727,8 +4807,10 @@ if (response && response.status === 201) {
                                  >
                                     Guardar
                                  </Button>
-                               </div>
-                             </div>
+                              </div>
+                           </div>
+
+
                            {/* </details> */}
                            {/* CONTENEDOR: Estado del proceso general y motivo de cierre */}
                            <div className="mb-6 p-4 rounded-xl border border-emerald-200 flex flex-col gap-4" style={{ marginTop: '20px' }}>
