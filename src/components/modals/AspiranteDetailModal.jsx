@@ -321,6 +321,7 @@ const clientesALP = [
    { id: 207, name: "Teleférico Monserrate S Cr 2 Este 21-48 Aseo" },
    { id: 208, name: "Textiles Asitex S.A.S S Cr 63 18 A 43 Aseo" },
    { id: 209, name: "Thomas Gred Seguridad Integral LTDA S CALLE 77 28B 25 Aseo" },
+   { id: 219, name: "URBANIZACION RAFAEL NUÑEZ V ETAPA M3 L2 - PROPIEDAD HORIZONTAL" },
    { id: 215, name: "Universidad De Ciencias Aplicadas Y Ambientales UDCA S CL 222 55 37 Mantenimiento General" },
 ];
 
