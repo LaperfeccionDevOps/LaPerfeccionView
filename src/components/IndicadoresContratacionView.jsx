@@ -5,6 +5,7 @@ import {
   BarChart3,
   Clock3,
   Filter,
+  Hourglass,
   RotateCcw,
   TrendingUp,
   UserCheck,
@@ -288,6 +289,7 @@ const IndicadoresContratacionView = () => {
     const contratados = Number(
       data?.comparativo_avanzan_contratados?.contratados || 0,
     );
+    const pendientes = Number(data?.pendientes_contratacion?.total || 0);
     const rechazados = Number(data?.rechazados?.total || 0);
     const porcentajeContratacion = Number(
       data?.comparativo_avanzan_contratados?.porcentaje_contratados || 0,
@@ -300,6 +302,7 @@ const IndicadoresContratacionView = () => {
       registrados,
       avanzan,
       contratados,
+      pendientes,
       rechazados,
       porcentajeContratacion,
       tiempoPromedio,
@@ -310,13 +313,17 @@ const IndicadoresContratacionView = () => {
     () => [
       { nombre: 'Registrados', cantidad: indicadores.registrados, color: '#2563eb' },
       { nombre: 'Avanzan', cantidad: indicadores.avanzan, color: '#f59e0b' },
+      { nombre: 'Pendientes', cantidad: indicadores.pendientes, color: '#0ea5e9' },
       { nombre: 'Contratados', cantidad: indicadores.contratados, color: '#059669' },
     ],
     [indicadores],
   );
 
   const resultadoContratacion = useMemo(() => {
-    const total = indicadores.contratados + indicadores.rechazados;
+    const total =
+      indicadores.contratados +
+      indicadores.pendientes +
+      indicadores.rechazados;
 
     return [
       {
@@ -326,6 +333,14 @@ const IndicadoresContratacionView = () => {
           ? Number(((indicadores.contratados / total) * 100).toFixed(2))
           : 0,
         color: '#059669',
+      },
+      {
+        estado: 'Pendientes',
+        cantidad: indicadores.pendientes,
+        porcentaje: total
+          ? Number(((indicadores.pendientes / total) * 100).toFixed(2))
+          : 0,
+        color: '#0ea5e9',
       },
       {
         estado: 'Rechazados',
@@ -571,6 +586,7 @@ const IndicadoresContratacionView = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             <KpiCard title="Registrados por Selección" value={indicadores.registrados} icon={Users} accentClass="text-blue-600" backgroundClass="bg-blue-50" />
             <KpiCard title="Avanzan a Contratación" value={indicadores.avanzan} icon={ArrowRight} accentClass="text-amber-600" backgroundClass="bg-amber-50" />
+            <KpiCard title="Pendientes de Contratación" subtitle="Avanzaron y aún no tienen decisión final C o NC" value={indicadores.pendientes} icon={Hourglass} accentClass="text-sky-600" backgroundClass="bg-sky-50" />
             <KpiCard title="Contratados" value={indicadores.contratados} icon={UserCheck} accentClass="text-emerald-600" backgroundClass="bg-emerald-50" />
             <KpiCard title="Rechazados" value={indicadores.rechazados} icon={UserX} accentClass="text-red-600" backgroundClass="bg-red-50" />
             <KpiCard title="Porcentaje de contratación" subtitle="Contratados respecto a quienes avanzaron" value={`${indicadores.porcentajeContratacion}%`} icon={TrendingUp} accentClass="text-violet-600" backgroundClass="bg-violet-50" />
@@ -605,7 +621,7 @@ const GeneralDashboard = ({
     <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
       <ChartCard
         title="Comparativo del proceso"
-        subtitle="Registrados por Selección, personas que avanzan y personas contratadas."
+        subtitle="Registrados por Selección, personas que avanzan, pendientes y personas contratadas."
       >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={comparativoProceso} margin={{ top: 10, right: 10, left: -15, bottom: 5 }}>
@@ -624,7 +640,7 @@ const GeneralDashboard = ({
 
       <ChartCard
         title="Distribución de resultados registrados"
-        subtitle="Comparación visual entre contratados y rechazos registrados en el periodo."
+        subtitle="Comparación visual entre contratados, pendientes y rechazos registrados en el periodo."
       >
         {resultadoContratacion.length > 0 ? (
           <ResponsiveContainer width="100%" height="100%">
@@ -654,7 +670,7 @@ const GeneralDashboard = ({
             </PieChart>
           </ResponsiveContainer>
         ) : (
-          <EmptyChartMessage message="No hay personas contratadas o rechazadas para el periodo seleccionado." />
+          <EmptyChartMessage message="No hay personas contratadas, pendientes o rechazadas para el periodo seleccionado." />
         )}
       </ChartCard>
     </section>
@@ -705,6 +721,7 @@ const GeneralDashboard = ({
         <div className="space-y-3">
           <ExecutiveRow label="Registrados por Selección" value={indicadores.registrados} color="bg-blue-600" />
           <ExecutiveRow label="Avanzan a Contratación" value={indicadores.avanzan} color="bg-amber-500" />
+          <ExecutiveRow label="Pendientes de Contratación" value={indicadores.pendientes} color="bg-sky-600" />
           <ExecutiveRow label="Contratados" value={indicadores.contratados} color="bg-emerald-600" />
           <ExecutiveRow label="Rechazados" value={indicadores.rechazados} color="bg-red-600" />
           <ExecutiveRow label="Porcentaje de contratación" value={`${indicadores.porcentajeContratacion}%`} color="bg-violet-600" />
