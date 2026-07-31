@@ -736,11 +736,59 @@ const IndividualSummary = ({ data }) => {
   const trabajador = data?.trabajador || {};
   const tiempo = data?.tiempo_contratacion || {};
   const contratacion = data?.contratacion || {};
+  const avance = data?.avance_contratacion || {};
+
+  const esMigrado = Boolean(trabajador?.es_activo_migrado);
+  const estadoContratado = Number(trabajador?.id_estado_actual) === 25;
+  const tieneContratacion = Boolean(contratacion?.existe) || estadoContratado;
+
+  const tituloRegistro = esMigrado
+    ? 'Registro histórico en el aplicativo'
+    : 'Registro en Selección';
+
+  const valorAvance = esMigrado
+    ? 'No aplica'
+    : avance?.existe
+      ? formatearSoloFechaColombia(avance?.fecha)
+      : 'Pendiente';
+
+  const subtituloAvance = esMigrado
+    ? 'El trabajador ingresó mediante migración histórica'
+    : undefined;
+
+  const tituloContratacion = esMigrado
+    ? 'Fecha de contratación'
+    : 'Confirmado como Contratado';
+
+  const valorContratacion = contratacion?.fecha
+    ? formatearSoloFechaColombia(contratacion.fecha)
+    : tieneContratacion
+      ? 'Contratado sin fecha disponible'
+      : 'Pendiente';
+
+  const subtituloContratacion = esMigrado
+    ? (
+      contratacion?.fuente === 'CONTRATACION_BASICA'
+        ? 'Fecha tomada de ContratacionBasica'
+        : 'Información histórica disponible'
+    )
+    : undefined;
+
+  const subtituloTiempo = esMigrado
+    ? 'No se calcula porque no recorrió el flujo 24 → 25 del aplicativo'
+    : 'Desde el estado 24 hasta la confirmación de contratación';
+
+  const valorTiempo = esMigrado
+    ? 'No aplica'
+    : tiempo?.disponible
+      ? tiempo.formateado
+      : 'No disponible';
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
       <KpiCard
         title="Trabajador"
+        subtitle={esMigrado ? 'Origen: migración histórica' : 'Origen: aplicativo'}
         value={trabajador.nombre_completo || 'Sin información'}
         icon={Users}
         accentClass="text-blue-600"
@@ -756,7 +804,12 @@ const IndividualSummary = ({ data }) => {
         compactValue
       />
       <KpiCard
-        title="Registro en Selección"
+        title={tituloRegistro}
+        subtitle={
+          esMigrado
+            ? 'Corresponde a la incorporación del registro histórico'
+            : undefined
+        }
         value={formatearSoloFechaColombia(data?.registro_seleccion?.fecha)}
         icon={Clock3}
         accentClass="text-violet-600"
@@ -765,23 +818,17 @@ const IndividualSummary = ({ data }) => {
       />
       <KpiCard
         title="Avanzó a Contratación"
-        value={
-          data?.avance_contratacion?.existe
-            ? formatearSoloFechaColombia(data?.avance_contratacion?.fecha)
-            : 'Pendiente'
-        }
+        subtitle={subtituloAvance}
+        value={valorAvance}
         icon={ArrowRight}
         accentClass="text-amber-600"
         backgroundClass="bg-amber-50"
         compactValue
       />
       <KpiCard
-        title="Confirmado como Contratado"
-        value={
-          contratacion?.existe
-            ? formatearSoloFechaColombia(contratacion?.fecha)
-            : 'Pendiente'
-        }
+        title={tituloContratacion}
+        subtitle={subtituloContratacion}
+        value={valorContratacion}
         icon={UserCheck}
         accentClass="text-emerald-600"
         backgroundClass="bg-emerald-50"
@@ -789,8 +836,8 @@ const IndividualSummary = ({ data }) => {
       />
       <KpiCard
         title="Tiempo de contratación"
-        subtitle="Desde el estado 24 hasta la confirmación por botón C"
-        value={tiempo?.disponible ? tiempo.formateado : 'No disponible'}
+        subtitle={subtituloTiempo}
+        value={valorTiempo}
         icon={Clock3}
         accentClass="text-sky-600"
         backgroundClass="bg-sky-50"
@@ -802,11 +849,46 @@ const IndividualSummary = ({ data }) => {
 };
 
 const IndividualDashboard = ({ data }) => {
+  const trabajador = data?.trabajador || {};
   const tiempo = data?.tiempo_contratacion || {};
   const rechazo = data?.rechazo || {};
-  const eventos = Array.isArray(data?.linea_tiempo) ? data.linea_tiempo : [];
+  const eventosOriginales = Array.isArray(data?.linea_tiempo)
+    ? data.linea_tiempo
+    : [];
+
+  const esMigrado = Boolean(trabajador?.es_activo_migrado);
+  const estadoContratado = Number(trabajador?.id_estado_actual) === 25;
   const avanzo = Boolean(data?.avance_contratacion?.existe);
-  const contratado = Boolean(data?.contratacion?.existe);
+  const contratado = Boolean(data?.contratacion?.existe) || estadoContratado;
+
+  const eventos = esMigrado
+    ? [
+      {
+        evento: 'Registro histórico en el aplicativo',
+        completado: Boolean(data?.registro_seleccion?.fecha),
+        fecha: data?.registro_seleccion?.fecha,
+        fuente: 'RegistroPersonal.FechaCreacion',
+      },
+      {
+        evento: 'Contratado',
+        completado: contratado,
+        fecha: data?.contratacion?.fecha || null,
+        fuente: data?.contratacion?.fuente || 'Estado actual del trabajador',
+      },
+      ...(rechazo?.existe
+        ? [
+          {
+            evento: 'Rechazado en Contratación',
+            completado: true,
+            fecha: rechazo?.fecha,
+            usuario: rechazo?.usuario,
+            origen_movimiento: rechazo?.origen_movimiento,
+            motivo: rechazo?.motivo,
+          },
+        ]
+        : []),
+    ]
+    : eventosOriginales;
 
   const tituloPendiente = !avanzo
     ? 'Pendiente de avanzar a Contratación'
@@ -814,15 +896,21 @@ const IndividualDashboard = ({ data }) => {
 
   const mensajePendiente = !avanzo
     ? 'El trabajador todavía no registra el movimiento al estado 24 desde Selección.'
-    : 'El trabajador ya avanzó a Contratación, pero todavía no tiene confirmación mediante el botón C.';
+    : 'El trabajador ya avanzó a Contratación, pero todavía no tiene confirmación registrada.';
 
   return (
     <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
       <div className="xl:col-span-2 bg-white rounded-2xl shadow-xl p-5 md:p-7 border border-gray-100">
         <div className="mb-6">
-          <h2 className="text-xl font-bold text-gray-800">Línea de tiempo del trabajador</h2>
+          <h2 className="text-xl font-bold text-gray-800">
+            {esMigrado
+              ? 'Información histórica del trabajador'
+              : 'Línea de tiempo del trabajador'}
+          </h2>
           <p className="text-sm text-gray-500">
-            Fechas reales registradas durante el proceso de contratación.
+            {esMigrado
+              ? 'Se muestran únicamente las fechas históricas disponibles. La ausencia de los estados 24 y 25 no significa que el trabajador esté pendiente.'
+              : 'Fechas reales registradas durante el proceso de contratación.'}
           </p>
         </div>
 
@@ -862,14 +950,46 @@ const IndividualDashboard = ({ data }) => {
             <Clock3 className="w-6 h-6 text-sky-600" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-800">Tiempo de contratación</h2>
+            <h2 className="text-xl font-bold text-gray-800">
+              {esMigrado ? 'Trazabilidad histórica' : 'Tiempo de contratación'}
+            </h2>
             <p className="text-xs text-gray-500">
-              Estado 24 hasta confirmación por botón C.
+              {esMigrado
+                ? 'Información disponible del registro migrado.'
+                : 'Estado 24 hasta la confirmación de contratación.'}
             </p>
           </div>
         </div>
 
-        {tiempo?.disponible ? (
+        {esMigrado ? (
+          <div className="rounded-2xl border border-violet-200 bg-violet-50 p-5">
+            <p className="font-bold text-violet-900">Trabajador migrado</p>
+            <p className="mt-2 text-sm leading-relaxed text-violet-800">
+              Este trabajador no recorrió dentro del aplicativo el flujo de
+              Selección → estado 24 → estado 25. Por eso no se muestra como
+              pendiente y no se calcula un tiempo de contratación.
+            </p>
+
+            <div className="mt-4 space-y-3">
+              <DateDetail
+                label="Fecha de contratación"
+                value={
+                  data?.contratacion?.fecha
+                    ? formatearFechaColombia(data.contratacion.fecha)
+                    : 'Sin fecha histórica disponible'
+                }
+              />
+              <DateDetail
+                label="Fuente"
+                value={
+                  data?.contratacion?.fuente === 'CONTRATACION_BASICA'
+                    ? 'ContratacionBasica.FechaIngreso'
+                    : data?.contratacion?.fuente || 'Estado actual del trabajador'
+                }
+              />
+            </div>
+          </div>
+        ) : tiempo?.disponible ? (
           <>
             <div className="rounded-2xl bg-sky-50 border border-sky-100 p-5 mb-5 text-center">
               <p className="text-sm font-semibold text-sky-700">Tiempo real</p>
