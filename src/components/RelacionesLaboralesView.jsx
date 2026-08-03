@@ -1022,6 +1022,17 @@ const getMotivoValueById = (idMotivo) => {
     []
   );
 
+  const motivoActualNormalizado = String(form?.motivoRetiro || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+
+  const esNuncaIngreso =
+    Number(form?.idMotivoRetiro) === 10 ||
+    motivoActualNormalizado === "NUNCA INGRESO";
+
   const requisitosActuales = useMemo(() => {
     if (!form.motivoRetiro) return [];
     const base = REQUISITOS_POR_MOTIVO[form.motivoRetiro] || [];
@@ -2484,7 +2495,7 @@ const handleActualizarEstadoProceso = async () => {
       return;
     }
 
-    if (estadoSeleccionado === "CERRADO") {
+    if (estadoSeleccionado === "CERRADO" && !esNuncaIngreso) {
       const keyPazYSalvo = keyFromLabel(`${form.motivoRetiro}_PAZ Y SALVO`);
       const pazYSalvoBackend = adjuntosBackend[keyPazYSalvo];
       const pazYSalvoLocal = adjuntos[keyPazYSalvo];
@@ -3948,6 +3959,7 @@ if (step === "retiros_docs") {
             </div>
 
             {estadoSeleccionado === "CERRADO" &&
+              !esNuncaIngreso &&
               !adjuntosBackend[keyFromLabel(`${form.motivoRetiro}_PAZ Y SALVO`)] &&
               !adjuntos[keyFromLabel(`${form.motivoRetiro}_PAZ Y SALVO`)] && (
                 <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
