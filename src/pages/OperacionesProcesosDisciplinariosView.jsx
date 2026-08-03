@@ -217,16 +217,13 @@ const OperacionesProcesosDisciplinariosView = () => {
       );
 
       return (
-        esTrabajadorContratado(trabajador) &&
-        (
-          nombreCompleto.includes(criterio) ||
-          identificacion.includes(criterio)
-        )
+        nombreCompleto.includes(criterio) ||
+        identificacion.includes(criterio)
       );
     });
   }, [trabajadores, searchApplied]);
 
-  const cargarTrabajadoresQA = async () => {
+  const cargarTrabajadoresQA = async (criterio) => {
     const token = obtenerTokenAutenticacion();
 
     if (!token) {
@@ -235,8 +232,12 @@ const OperacionesProcesosDisciplinariosView = () => {
       );
     }
 
+    const parametros = new URLSearchParams({
+      search: criterio,
+    });
+
     const response = await fetch(
-      `${API_URL}/aspirantes`,
+      `${API_URL}/aspirantes?${parametros.toString()}`,
       {
         method: 'GET',
         headers: {
@@ -393,25 +394,42 @@ const OperacionesProcesosDisciplinariosView = () => {
       setMensajeRespuesta("");
       setRespuestaAbierta(null);
 
-      const response = await fetch(
-        `${API_URL}/procesos-disciplinarios/${idProceso}/expediente`,
-        {
-          method: "GET",
-          headers: construirHeaders(),
-        }
-      );
+      const [responseExpediente, responseDocumentos] =
+        await Promise.all([
+          fetch(
+            `${API_URL}/procesos-disciplinarios/${idProceso}/expediente`,
+            {
+              method: "GET",
+              headers: construirHeaders(),
+            }
+          ),
+          fetch(
+            `${API_URL}/documento-proceso-disciplinario/proceso/${idProceso}`,
+            {
+              method: "GET",
+              headers: construirHeaders(),
+            }
+          ),
+        ]);
 
-      if (!response.ok) {
+      if (!responseExpediente.ok) {
         throw new Error(
           "No se pudo consultar la respuesta de Relaciones Laborales."
         );
       }
 
-      const expediente = await response.json();
+      if (!responseDocumentos.ok) {
+        throw new Error(
+          "No se pudo validar la disponibilidad de los documentos."
+        );
+      }
 
-      const documentosRRLL = (
-        Array.isArray(expediente?.Documentos)
-          ? expediente.Documentos
+      const expediente = await responseExpediente.json();
+      const documentosProceso = await responseDocumentos.json();
+
+      const documentosRRLLTodos = (
+        Array.isArray(documentosProceso)
+          ? documentosProceso
           : []
       ).filter((documento) => {
         const tipo = String(
@@ -423,10 +441,19 @@ const OperacionesProcesosDisciplinariosView = () => {
         return tipo !== "EVIDENCIA_OPERACIONES";
       });
 
+      const documentosRRLL = documentosRRLLTodos.filter(
+        (documento) =>
+          documento?.ArchivoDisponible === true
+      );
+
+      const documentosNoDisponibles =
+        documentosRRLLTodos.length - documentosRRLL.length;
+
       setRespuestaAbierta({
         proceso,
         expediente,
         documentosRRLL,
+        documentosNoDisponibles,
       });
     } catch (error) {
       console.error(
@@ -480,20 +507,16 @@ const OperacionesProcesosDisciplinariosView = () => {
     try {
       setLoadingSearch(true);
 
-      const listaQA = await cargarTrabajadoresQA();
+      const listaQA = await cargarTrabajadoresQA(criterio);
 
-      const contratadosQA = listaQA.filter(
-        esTrabajadorContratado
-      );
-
-      setTrabajadores(contratadosQA);
+      setTrabajadores(listaQA);
       setSearchApplied(criterio);
       setBusquedaRealizada(true);
 
       const criterioNormalizado =
         normalizarTexto(criterio);
 
-      const encontrados = contratadosQA.filter(
+      const encontrados = listaQA.filter(
         (trabajador) => {
           const nombre = normalizarTexto(
             obtenerNombreCompleto(trabajador)
@@ -512,7 +535,7 @@ const OperacionesProcesosDisciplinariosView = () => {
 
       if (encontrados.length === 0) {
         setMensaje(
-          'No se encontró un trabajador contratado con ese criterio en QA.'
+          'No se encontró un trabajador con ese criterio en QA.'
         );
       } else {
         await Promise.all(
@@ -622,7 +645,7 @@ const OperacionesProcesosDisciplinariosView = () => {
             </h1>
 
             <p className="mt-1 break-words text-sm leading-relaxed text-gray-500">
-              Busca al trabajador contratado que presenta la novedad e inicia el proceso disciplinario.
+              Busca al trabajador para consultar sus procesos anteriores. Solo los trabajadores contratados pueden iniciar un proceso nuevo.
             </p>
           </div>
         </div>
@@ -679,7 +702,7 @@ const OperacionesProcesosDisciplinariosView = () => {
               </div>
 
               <h2 className="mt-4 text-lg font-semibold text-gray-700">
-                Busca un trabajador contratado
+                Busca un trabajador
               </h2>
 
               <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-gray-500">
@@ -693,7 +716,7 @@ const OperacionesProcesosDisciplinariosView = () => {
               </div>
 
               <h2 className="mt-4 text-lg font-semibold text-gray-700">
-                No se encontró un trabajador contratado
+                No se encontró un trabajador
               </h2>
 
               <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-gray-500">
@@ -704,8 +727,8 @@ const OperacionesProcesosDisciplinariosView = () => {
             <div className="space-y-3">
               <p className="text-sm font-medium text-gray-600">
                 {resultados.length === 1
-                  ? 'Trabajador contratado encontrado'
-                  : `${resultados.length} trabajadores contratados encontrados`}
+                  ? 'Trabajador encontrado'
+                  : `${resultados.length} trabajadores encontrados`}
               </p>
 
               {resultados.map((trabajador) => {
@@ -714,6 +737,13 @@ const OperacionesProcesosDisciplinariosView = () => {
 
                 const nombreCompleto =
                   obtenerNombreCompleto(trabajador);
+
+                const trabajadorContratado =
+                  esTrabajadorContratado(trabajador);
+
+                const estadoActual =
+                  obtenerEstadoTexto(trabajador) ||
+                  `ESTADO ${obtenerIdEstadoProceso(trabajador) || 'NO DEFINIDO'}`;
 
                 return (
                   <article
@@ -744,22 +774,37 @@ const OperacionesProcesosDisciplinariosView = () => {
                             {obtenerCargo(trabajador)}
                           </p>
 
-                          <span className="mt-3 inline-flex rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
-                            CONTRATADO
+                          <span
+                            className={cn(
+                              "mt-3 inline-flex rounded-full border px-2.5 py-1 text-xs font-bold uppercase tracking-wide",
+                              trabajadorContratado
+                                ? "border-emerald-200 bg-emerald-100 text-emerald-700"
+                                : "border-gray-300 bg-gray-100 text-gray-700"
+                            )}
+                          >
+                            {estadoActual}
                           </span>
                         </div>
                       </div>
 
-                      <Button
-                        type="button"
-                        onClick={() =>
-                          handleIniciarProceso(trabajador)
-                        }
-                        className="min-h-11 w-full rounded-xl bg-emerald-600 px-5 font-semibold text-white shadow-md hover:bg-emerald-700 lg:w-auto"
-                      >
-                        <FilePlus2 className="mr-2 h-5 w-5" />
-                        Iniciar nuevo proceso disciplinario
-                      </Button>
+                      {trabajadorContratado ? (
+                        <Button
+                          type="button"
+                          onClick={() =>
+                            handleIniciarProceso(trabajador)
+                          }
+                          className="min-h-11 w-full rounded-xl bg-emerald-600 px-5 font-semibold text-white shadow-md hover:bg-emerald-700 lg:w-auto"
+                        >
+                          <FilePlus2 className="mr-2 h-5 w-5" />
+                          Iniciar nuevo proceso disciplinario
+                        </Button>
+                      ) : (
+                        <div className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 lg:max-w-sm">
+                          Este trabajador no se encuentra contratado.
+                          Puedes consultar sus procesos disciplinarios anteriores,
+                          pero no iniciar uno nuevo.
+                        </div>
+                      )}
                     </div>
 
                     <div className="border-t border-gray-200 bg-gray-50/70 p-4 sm:p-5">
@@ -1013,11 +1058,17 @@ const OperacionesProcesosDisciplinariosView = () => {
                     </p>
                   </div>
 
+                  {respuestaAbierta.documentosNoDisponibles > 0 && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      Algunos documentos históricos no se muestran porque ya no cuentan con una copia disponible para consulta.
+                    </div>
+                  )}
+
                   {respuestaAbierta.documentosRRLL
                     .length === 0 ? (
                     <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center">
                       <p className="font-semibold text-gray-700">
-                        No hay documentos disponibles.
+                        No hay documentos disponibles para consulta.
                       </p>
                     </div>
                   ) : (

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import CierreProcesoDisciplinarioView from "@/pages/CierreProcesoDisciplinarioView";
@@ -23,18 +23,87 @@ const API_URL =
 
 const FILE_BASE_URL = API_URL.replace("/api", "");
 
+const construirClaveBorradorDescargos = (idProceso) =>
+  `rrll_descargos_borrador_${idProceso}`;
+
+const construirClavePasoProceso = (idProceso) =>
+  `rrll_proceso_ultimo_paso_${idProceso}`;
+
+const leerBorradorLocalDescargos = (idProceso) => {
+  if (!idProceso) {
+    return null;
+  }
+
+  try {
+    const valor = window.localStorage.getItem(
+      construirClaveBorradorDescargos(idProceso)
+    );
+
+    if (!valor) {
+      return null;
+    }
+
+    const borrador = JSON.parse(valor);
+
+    if (
+      Number(borrador?.IdProcesoDisciplinario) !==
+      Number(idProceso)
+    ) {
+      return null;
+    }
+
+    return borrador;
+  } catch (error) {
+    console.error(
+      "No se pudo leer el borrador local de descargos:",
+      error
+    );
+
+    return null;
+  }
+};
+
+const eliminarBorradorLocalDescargos = (idProceso) => {
+  if (!idProceso) {
+    return;
+  }
+
+  window.localStorage.removeItem(
+    construirClaveBorradorDescargos(idProceso)
+  );
+};
+
+
 export default function DescargosProcesoDisciplinarioView({
   onBack,
   proceso,
   trabajador,
 }) {
+  const idProceso = proceso?.IdProcesoDisciplinario || null;
+  const borradorInicialRef = useRef(
+    leerBorradorLocalDescargos(idProceso)
+  );
+  const borradorInicial = borradorInicialRef.current;
+
   const [vista, setVista] = useState("descargos");
-  const [fechaDescargo, setFechaDescargo] = useState("");
-  const [horaDescargo, setHoraDescargo] = useState("");
-  const [descargoTrabajador, setDescargoTrabajador] = useState("");
-  const [manifestacionSupervisor, setManifestacionSupervisor] = useState("");
-  const [observaciones, setObservaciones] = useState("");
-  const [responsableDescargo, setResponsableDescargo] = useState("");
+  const [fechaDescargo, setFechaDescargo] = useState(
+    borradorInicial?.FechaDescargo || ""
+  );
+  const [horaDescargo, setHoraDescargo] = useState(
+    borradorInicial?.HoraDescargo || ""
+  );
+  const [descargoTrabajador, setDescargoTrabajador] = useState(
+    borradorInicial?.DescargoTrabajador || ""
+  );
+  const [manifestacionSupervisor, setManifestacionSupervisor] = useState(
+    borradorInicial?.ManifestacionSupervisor || ""
+  );
+  const [observaciones, setObservaciones] = useState(
+    borradorInicial?.ObservacionesRRLL || ""
+  );
+  const [responsableDescargo, setResponsableDescargo] = useState(
+    borradorInicial?.ResponsableDescargo || ""
+  );
   const [loadingGuardar, setLoadingGuardar] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [descargoExistente, setDescargoExistente] = useState(null);
@@ -42,19 +111,205 @@ export default function DescargosProcesoDisciplinarioView({
 
   const [documentos, setDocumentos] = useState([]);
   const [evidenciasOperaciones, setEvidenciasOperaciones] = useState([]);
-  const [mostrarFormularioDocumento, setMostrarFormularioDocumento] = useState(false);
-  const [tipoDocumento, setTipoDocumento] = useState("PROCESO_DISCIPLINARIO");
-  const [observacionDocumento, setObservacionDocumento] = useState("");
+  const [mostrarFormularioDocumento, setMostrarFormularioDocumento] = useState(
+    borradorInicial?.MostrarFormularioDocumento === true
+  );
+  const [tipoDocumento, setTipoDocumento] = useState(
+    borradorInicial?.TipoDocumento || "PROCESO_DISCIPLINARIO"
+  );
+  const [observacionDocumento, setObservacionDocumento] = useState(
+    borradorInicial?.ObservacionDocumento || ""
+  );
   const [archivoDocumento, setArchivoDocumento] = useState(null);
   const [loadingDocumento, setLoadingDocumento] = useState(false);
   const [mensajeDocumento, setMensajeDocumento] = useState("");
 
-  const [asistentes, setAsistentes] = useState([]);
+  const [asistentes, setAsistentes] = useState(
+    Array.isArray(borradorInicial?.Asistentes)
+      ? borradorInicial.Asistentes
+      : []
+  );
 
   const [guardandoAsistentes, setGuardandoAsistentes] =
     useState(false);
   const [guardandoBorrador, setGuardandoBorrador] =
     useState(false);
+  const [borradorLocalDisponible, setBorradorLocalDisponible] =
+    useState(Boolean(borradorInicial));
+  const [borradorLocalRecuperado, setBorradorLocalRecuperado] =
+    useState(Boolean(borradorInicial));
+  const [fechaUltimoGuardadoLocal, setFechaUltimoGuardadoLocal] =
+    useState(borradorInicial?.FechaGuardadoLocal || null);
+  const [hayCambiosLocales, setHayCambiosLocales] =
+    useState(false);
+  const guardandoLocalRef = useRef(false);
+
+  const construirBorradorLocal = () => ({
+    IdProcesoDisciplinario: idProceso,
+    PasoActual: "DESCARGOS",
+    FechaDescargo: fechaDescargo,
+    HoraDescargo: horaDescargo,
+    DescargoTrabajador: descargoTrabajador,
+    ManifestacionSupervisor: manifestacionSupervisor,
+    ObservacionesRRLL: observaciones,
+    ResponsableDescargo: responsableDescargo,
+    Asistentes: asistentes,
+    MostrarFormularioDocumento: mostrarFormularioDocumento,
+    TipoDocumento: tipoDocumento,
+    ObservacionDocumento: observacionDocumento,
+    FechaGuardadoLocal: new Date().toISOString(),
+  });
+
+  const guardarBorradorLocal = () => {
+    if (!idProceso || !hayCambiosLocales) {
+      return;
+    }
+
+    try {
+      guardandoLocalRef.current = true;
+
+      const borrador = construirBorradorLocal();
+
+      window.localStorage.setItem(
+        construirClaveBorradorDescargos(idProceso),
+        JSON.stringify(borrador)
+      );
+
+      window.localStorage.setItem(
+        construirClavePasoProceso(idProceso),
+        JSON.stringify({
+          IdProcesoDisciplinario: idProceso,
+          PasoActual: "DESCARGOS",
+          FechaGuardadoLocal: borrador.FechaGuardadoLocal,
+        })
+      );
+
+      setFechaUltimoGuardadoLocal(
+        borrador.FechaGuardadoLocal
+      );
+      setBorradorLocalDisponible(true);
+      setBorradorLocalRecuperado(true);
+    } catch (error) {
+      console.error(
+        "No se pudo guardar el borrador local de descargos:",
+        error
+      );
+    } finally {
+      guardandoLocalRef.current = false;
+    }
+  };
+
+  const marcarCambioLocal = () => {
+    setHayCambiosLocales(true);
+  };
+
+  const descartarBorradorLocal = () => {
+    eliminarBorradorLocalDescargos(idProceso);
+
+    if (idProceso) {
+      window.localStorage.removeItem(
+        construirClavePasoProceso(idProceso)
+      );
+    }
+
+    setBorradorLocalDisponible(false);
+    setBorradorLocalRecuperado(false);
+    setFechaUltimoGuardadoLocal(null);
+    setHayCambiosLocales(false);
+  };
+
+  useEffect(() => {
+    if (!idProceso || !hayCambiosLocales) {
+      return undefined;
+    }
+
+    const temporizador = window.setTimeout(
+      guardarBorradorLocal,
+      500
+    );
+
+    return () => {
+      window.clearTimeout(temporizador);
+    };
+  }, [
+    idProceso,
+    hayCambiosLocales,
+    fechaDescargo,
+    horaDescargo,
+    descargoTrabajador,
+    manifestacionSupervisor,
+    observaciones,
+    responsableDescargo,
+    asistentes,
+    mostrarFormularioDocumento,
+    tipoDocumento,
+    observacionDocumento,
+  ]);
+
+  useEffect(() => {
+    if (!idProceso) {
+      return undefined;
+    }
+
+    const intervalo = window.setInterval(() => {
+      if (hayCambiosLocales) {
+        guardarBorradorLocal();
+      }
+    }, 15000);
+
+    return () => {
+      window.clearInterval(intervalo);
+    };
+  }, [
+    idProceso,
+    hayCambiosLocales,
+    fechaDescargo,
+    horaDescargo,
+    descargoTrabajador,
+    manifestacionSupervisor,
+    observaciones,
+    responsableDescargo,
+    asistentes,
+    mostrarFormularioDocumento,
+    tipoDocumento,
+    observacionDocumento,
+  ]);
+
+  useEffect(() => {
+    const manejarAntesDeSalir = (event) => {
+      if (!hayCambiosLocales) {
+        return;
+      }
+
+      guardarBorradorLocal();
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener(
+      "beforeunload",
+      manejarAntesDeSalir
+    );
+
+    return () => {
+      window.removeEventListener(
+        "beforeunload",
+        manejarAntesDeSalir
+      );
+    };
+  }, [
+    hayCambiosLocales,
+    fechaDescargo,
+    horaDescargo,
+    descargoTrabajador,
+    manifestacionSupervisor,
+    observaciones,
+    responsableDescargo,
+    asistentes,
+    mostrarFormularioDocumento,
+    tipoDocumento,
+    observacionDocumento,
+  ]);
 
   const cargarDocumentos = async () => {
     if (!proceso?.IdProcesoDisciplinario) return;
@@ -107,11 +362,15 @@ export default function DescargosProcesoDisciplinarioView({
         proceso.IdProcesoDisciplinario
       );
 
-    setAsistentes(
-      Array.isArray(respuesta)
+    setAsistentes((actuales) => {
+      if (actuales.length > 0) {
+        return actuales;
+      }
+
+      return Array.isArray(respuesta)
         ? respuesta
-        : []
-    );
+        : [];
+    });
   } catch (error) {
     console.error(
       "Error cargando asistentes",
@@ -295,18 +554,31 @@ const actualizarAsistente = (
       if (!data) return;
 
       setDescargoExistente(data);
-      setFechaDescargo(data.FechaDescargo || "");
-      setHoraDescargo(
-        data.HoraDescargo ? String(data.HoraDescargo).slice(0, 5) : ""
+      setFechaDescargo(
+        (valorActual) =>
+          valorActual || data.FechaDescargo || ""
       );
-      setDescargoTrabajador(data.DescargoTrabajador || "");
+      setHoraDescargo(
+        (valorActual) =>
+          valorActual ||
+          (
+            data.HoraDescargo
+              ? String(data.HoraDescargo).slice(0, 5)
+              : ""
+          )
+      );
+      setDescargoTrabajador(
+        (valorActual) =>
+          valorActual || data.DescargoTrabajador || ""
+      );
 
       const responsableGuardado = String(
         data.ResponsableDescargo || ""
       ).trim();
 
       setResponsableDescargo(
-        responsableGuardado
+        (valorActual) =>
+          valorActual || responsableGuardado
       );
 
       const textoObservaciones = data.Observaciones || "";
@@ -321,11 +593,16 @@ const actualizarAsistente = (
 
       const rrll = partes[1]?.trim();
 
-      setManifestacionSupervisor(supervisor || "");
+      setManifestacionSupervisor(
+        (valorActual) =>
+          valorActual || supervisor || ""
+      );
       setObservaciones(
-        data.ObservacionesRRLL ||
-        rrll ||
-        ""
+        (valorActual) =>
+          valorActual ||
+          data.ObservacionesRRLL ||
+          rrll ||
+          ""
       );
     } catch (error) {
       setDescargoExistente(null);
@@ -552,6 +829,8 @@ const actualizarAsistente = (
         return;
       }
 
+      descartarBorradorLocal();
+
       setMensaje(
         "Borrador del descargo y asistentes guardado correctamente."
       );
@@ -625,6 +904,7 @@ const actualizarAsistente = (
         return;
       }
 
+      descartarBorradorLocal();
       setVista("cierre");
     } catch (error) {
       console.error(error);
@@ -875,6 +1155,29 @@ function formatearTipoDocumento(valor) {
             asistentes y los documentos aportados.
           </p>
         </div>
+
+
+        {borradorLocalRecuperado && (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 mb-6">
+            <p className="font-bold text-emerald-800">
+              Borrador local recuperado
+            </p>
+
+            <p className="mt-1 text-sm text-emerald-700">
+              Se recuperó la información que había quedado sin guardar en este equipo.
+              Los archivos seleccionados deben elegirse nuevamente por seguridad del navegador.
+            </p>
+
+            {fechaUltimoGuardadoLocal && (
+              <p className="mt-2 text-xs font-semibold text-emerald-700">
+                Último respaldo local:{" "}
+                {new Date(
+                  fechaUltimoGuardadoLocal
+                ).toLocaleString("es-CO")}
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 mb-6">
           <h3 className="font-bold text-emerald-800 mb-4">
@@ -1327,7 +1630,10 @@ function formatearTipoDocumento(valor) {
                 className="w-full border rounded-lg p-3 min-h-[140px] resize-none"
                 placeholder="Aquí se registrará lo manifestado por el trabajador durante la diligencia..."
                 value={descargoTrabajador}
-                onChange={(e) => setDescargoTrabajador(e.target.value)}
+                onChange={(e) => {
+                  setDescargoTrabajador(e.target.value);
+                  marcarCambioLocal();
+                }}
               />
             </div>
 
@@ -1351,7 +1657,10 @@ function formatearTipoDocumento(valor) {
                 className="w-full border rounded-lg p-3 min-h-[120px] resize-none"
                 placeholder="Observaciones internas de RRLL..."
                 value={observaciones}
-                onChange={(e) => setObservaciones(e.target.value)}
+                onChange={(e) => {
+                  setObservaciones(e.target.value);
+                  marcarCambioLocal();
+                }}
               />
             </div>
           </div>
@@ -1372,9 +1681,12 @@ function formatearTipoDocumento(valor) {
             <Button
               className="bg-emerald-700 hover:bg-emerald-800"
               type="button"
-              onClick={() =>
-                setMostrarFormularioDocumento(!mostrarFormularioDocumento)
-              }
+              onClick={() => {
+                setMostrarFormularioDocumento(
+                  !mostrarFormularioDocumento
+                );
+                marcarCambioLocal();
+              }}
             >
               {mostrarFormularioDocumento
                 ? "Cancelar carga"
@@ -1392,7 +1704,10 @@ function formatearTipoDocumento(valor) {
                   <select
                     className="w-full mt-1 border rounded-lg p-3 bg-white"
                     value={tipoDocumento}
-                    onChange={(e) => setTipoDocumento(e.target.value)}
+                    onChange={(e) => {
+                      setTipoDocumento(e.target.value);
+                      marcarCambioLocal();
+                    }}
                   >
                     <option value="PROCESO_DISCIPLINARIO">
                       Procesos disciplinarios
@@ -1416,7 +1731,10 @@ function formatearTipoDocumento(valor) {
                   <label className="text-sm font-semibold">Observación</label>
                   <Input
                     value={observacionDocumento}
-                    onChange={(e) => setObservacionDocumento(e.target.value)}
+                    onChange={(e) => {
+                      setObservacionDocumento(e.target.value);
+                      marcarCambioLocal();
+                    }}
                     placeholder="Observación del documento"
                   />
                 </div>
@@ -1536,6 +1854,26 @@ function formatearTipoDocumento(valor) {
             firma y archivo.
           </p>
 
+
+          {(hayCambiosLocales || borradorLocalDisponible) && (
+            <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
+              <p className="text-sm font-semibold text-blue-800">
+                {hayCambiosLocales
+                  ? "Cambios protegidos automáticamente en este equipo."
+                  : "Borrador local disponible."}
+              </p>
+
+              {fechaUltimoGuardadoLocal && (
+                <p className="mt-1 text-xs text-blue-700">
+                  Último respaldo local:{" "}
+                  {new Date(
+                    fechaUltimoGuardadoLocal
+                  ).toLocaleString("es-CO")}
+                </p>
+              )}
+            </div>
+          )}
+
         {mensaje && (
             <p
               className={`text-sm font-semibold mt-3 ${
@@ -1550,7 +1888,13 @@ function formatearTipoDocumento(valor) {
         </div>
 
         <div className="flex flex-col md:flex-row justify-between gap-3">
-          <Button variant="outline" onClick={onBack}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              guardarBorradorLocal();
+              onBack();
+            }}
+          >
             ← Volver
           </Button>
 

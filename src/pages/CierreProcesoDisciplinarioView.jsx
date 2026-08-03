@@ -28,10 +28,6 @@ const TIPOS_CIERRE = [
     value: "SIN_MEDIDA_DISCIPLINARIA",
     label: "Sin medida disciplinaria",
   },
-  {
-    value: "ARCHIVO_DEL_PROCESO",
-    label: "Archivo del proceso",
-  },
 ];
 
 
@@ -41,6 +37,60 @@ const MEDIDAS_SUGERIDAS = [
   "Suspensión",
   "Terminación del contrato",
 ];
+
+
+const VERSION_BORRADOR_LOCAL = 1;
+
+
+function obtenerClaveBorrador(idProcesoDisciplinario) {
+  return `rrll_cierre_disciplinario_${idProcesoDisciplinario}`;
+}
+
+
+function leerBorradorLocal(idProcesoDisciplinario) {
+  if (!idProcesoDisciplinario) {
+    return null;
+  }
+
+  try {
+    const valor = window.localStorage.getItem(
+      obtenerClaveBorrador(idProcesoDisciplinario)
+    );
+
+    if (!valor) {
+      return null;
+    }
+
+    const borrador = JSON.parse(valor);
+
+    if (
+      Number(borrador?.version) !==
+      VERSION_BORRADOR_LOCAL
+    ) {
+      return null;
+    }
+
+    return borrador;
+  } catch (error) {
+    console.error(
+      "No se pudo leer el borrador local del cierre:",
+      error
+    );
+
+    return null;
+  }
+}
+
+
+function eliminarBorradorLocal(idProcesoDisciplinario) {
+  if (!idProcesoDisciplinario) {
+    return;
+  }
+
+  window.localStorage.removeItem(
+    obtenerClaveBorrador(idProcesoDisciplinario)
+  );
+}
 
 
 function limpiarTexto(valor) {
@@ -180,6 +230,17 @@ export default function CierreProcesoDisciplinarioView({
   ] = useState("");
 
 
+  const [
+    borradorLocalRecuperado,
+    setBorradorLocalRecuperado,
+  ] = useState(false);
+
+  const [
+    fechaUltimoRespaldoLocal,
+    setFechaUltimoRespaldoLocal,
+  ] = useState(null);
+
+
   const requiereMedida =
     tipoCierre ===
     "CON_MEDIDA_DISCIPLINARIA";
@@ -246,7 +307,10 @@ export default function CierreProcesoDisciplinarioView({
           );
 
           setTipoCierre(
-            dataCierre.TipoCierre || ""
+            dataCierre.TipoCierre ===
+              "ARCHIVO_DEL_PROCESO"
+              ? ""
+              : dataCierre.TipoCierre || ""
           );
 
           setMedidaDisciplinaria(
@@ -268,6 +332,49 @@ export default function CierreProcesoDisciplinarioView({
             nombreResponsable
           );
         }
+
+        const borradorLocal =
+          leerBorradorLocal(
+            proceso.IdProcesoDisciplinario
+          );
+
+        if (
+          borradorLocal &&
+          String(
+            proceso?.EstadoProceso || ""
+          ).toUpperCase() !== "CERRADO"
+        ) {
+          setFechaCierre(
+            borradorLocal.fechaCierre ||
+              fechaActualColombia()
+          );
+
+          setTipoCierre(
+            borradorLocal.tipoCierre ===
+              "ARCHIVO_DEL_PROCESO"
+              ? ""
+              : borradorLocal.tipoCierre || ""
+          );
+
+          setMedidaDisciplinaria(
+            borradorLocal.medidaDisciplinaria ||
+              ""
+          );
+
+          setConclusionRRLL(
+            borradorLocal.conclusionRRLL || ""
+          );
+
+          setResponsableCierre(
+            borradorLocal.responsableCierre ||
+              nombreResponsable
+          );
+
+          setBorradorLocalRecuperado(true);
+          setFechaUltimoRespaldoLocal(
+            borradorLocal.fechaGuardado || null
+          );
+        }
       } catch (error) {
         setTipoMensaje("error");
         setMensaje(
@@ -282,6 +389,129 @@ export default function CierreProcesoDisciplinarioView({
     cargar();
   }, [
     proceso?.IdProcesoDisciplinario,
+  ]);
+
+
+  useEffect(() => {
+    if (
+      loadingInicial ||
+      loadingResponsable ||
+      finalizado ||
+      !proceso?.IdProcesoDisciplinario
+    ) {
+      return undefined;
+    }
+
+    const guardarLocalmente = () => {
+      const ahora = new Date().toISOString();
+
+      const borrador = {
+        version: VERSION_BORRADOR_LOCAL,
+        idProcesoDisciplinario:
+          proceso.IdProcesoDisciplinario,
+        pasoActual: 4,
+        fechaCierre,
+        tipoCierre,
+        medidaDisciplinaria,
+        conclusionRRLL,
+        responsableCierre,
+        fechaGuardado: ahora,
+      };
+
+      try {
+        window.localStorage.setItem(
+          obtenerClaveBorrador(
+            proceso.IdProcesoDisciplinario
+          ),
+          JSON.stringify(borrador)
+        );
+
+        setFechaUltimoRespaldoLocal(ahora);
+      } catch (error) {
+        console.error(
+          "No se pudo guardar el borrador local del cierre:",
+          error
+        );
+      }
+    };
+
+    const temporizador = window.setTimeout(
+      guardarLocalmente,
+      500
+    );
+
+    return () => {
+      window.clearTimeout(temporizador);
+    };
+  }, [
+    conclusionRRLL,
+    fechaCierre,
+    finalizado,
+    loadingInicial,
+    loadingResponsable,
+    medidaDisciplinaria,
+    proceso?.IdProcesoDisciplinario,
+    responsableCierre,
+    tipoCierre,
+  ]);
+
+
+  useEffect(() => {
+    if (
+      loadingInicial ||
+      loadingResponsable ||
+      finalizado ||
+      !proceso?.IdProcesoDisciplinario
+    ) {
+      return undefined;
+    }
+
+    const intervalo = window.setInterval(() => {
+      const ahora = new Date().toISOString();
+
+      const borrador = {
+        version: VERSION_BORRADOR_LOCAL,
+        idProcesoDisciplinario:
+          proceso.IdProcesoDisciplinario,
+        pasoActual: 4,
+        fechaCierre,
+        tipoCierre,
+        medidaDisciplinaria,
+        conclusionRRLL,
+        responsableCierre,
+        fechaGuardado: ahora,
+      };
+
+      try {
+        window.localStorage.setItem(
+          obtenerClaveBorrador(
+            proceso.IdProcesoDisciplinario
+          ),
+          JSON.stringify(borrador)
+        );
+
+        setFechaUltimoRespaldoLocal(ahora);
+      } catch (error) {
+        console.error(
+          "No se pudo actualizar el borrador local del cierre:",
+          error
+        );
+      }
+    }, 15000);
+
+    return () => {
+      window.clearInterval(intervalo);
+    };
+  }, [
+    conclusionRRLL,
+    fechaCierre,
+    finalizado,
+    loadingInicial,
+    loadingResponsable,
+    medidaDisciplinaria,
+    proceso?.IdProcesoDisciplinario,
+    responsableCierre,
+    tipoCierre,
   ]);
 
 
@@ -403,6 +633,12 @@ export default function CierreProcesoDisciplinarioView({
       guardado
     );
 
+    eliminarBorradorLocal(
+      proceso.IdProcesoDisciplinario
+    );
+    setBorradorLocalRecuperado(false);
+    setFechaUltimoRespaldoLocal(null);
+
     if (mostrarMensaje) {
       setTipoMensaje("exito");
       setMensaje(
@@ -485,6 +721,11 @@ export default function CierreProcesoDisciplinarioView({
           cierreFinal
         );
 
+        eliminarBorradorLocal(
+          proceso.IdProcesoDisciplinario
+        );
+        setBorradorLocalRecuperado(false);
+        setFechaUltimoRespaldoLocal(null);
         setFinalizado(true);
         setTipoMensaje("exito");
         setMensaje(
@@ -499,6 +740,45 @@ export default function CierreProcesoDisciplinarioView({
         setGuardando(false);
       }
     };
+
+
+  const handleVolver = () => {
+    if (
+      !finalizado &&
+      proceso?.IdProcesoDisciplinario
+    ) {
+      const ahora = new Date().toISOString();
+
+      const borrador = {
+        version: VERSION_BORRADOR_LOCAL,
+        idProcesoDisciplinario:
+          proceso.IdProcesoDisciplinario,
+        pasoActual: 4,
+        fechaCierre,
+        tipoCierre,
+        medidaDisciplinaria,
+        conclusionRRLL,
+        responsableCierre,
+        fechaGuardado: ahora,
+      };
+
+      try {
+        window.localStorage.setItem(
+          obtenerClaveBorrador(
+            proceso.IdProcesoDisciplinario
+          ),
+          JSON.stringify(borrador)
+        );
+      } catch (error) {
+        console.error(
+          "No se pudo conservar el borrador antes de volver:",
+          error
+        );
+      }
+    }
+
+    onBack();
+  };
 
 
   if (
@@ -569,6 +849,18 @@ export default function CierreProcesoDisciplinarioView({
             Relaciones Laborales registra el resultado, la medida aplicable y la conclusión final.
           </p>
         </div>
+
+        {borradorLocalRecuperado && !finalizado && (
+          <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-5">
+            <h3 className="font-bold text-blue-800">
+              Borrador local recuperado
+            </h3>
+
+            <p className="mt-2 text-sm text-gray-600">
+              Se recuperó la información que estaba diligenciando en este cierre. Puede continuar desde donde quedó.
+            </p>
+          </div>
+        )}
 
         <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-5">
           <h3 className="mb-4 font-bold text-emerald-800">
@@ -881,6 +1173,18 @@ export default function CierreProcesoDisciplinarioView({
               : "Puede guardar un borrador o finalizar el proceso cuando la información esté completa."}
           </p>
 
+          {!finalizado &&
+            fechaUltimoRespaldoLocal && (
+              <p className="mt-3 text-xs text-gray-500">
+                Último respaldo local: {new Date(
+                  fechaUltimoRespaldoLocal
+                ).toLocaleString("es-CO", {
+                  timeZone: "America/Bogota",
+                  hour12: true,
+                })}
+              </p>
+            )}
+
           {mensaje && (
             <p
               className={`mt-3 text-sm font-semibold ${
@@ -897,7 +1201,7 @@ export default function CierreProcesoDisciplinarioView({
         <div className="flex flex-col justify-between gap-3 md:flex-row">
           <Button
             variant="outline"
-            onClick={onBack}
+            onClick={handleVolver}
           >
             Volver
           </Button>
