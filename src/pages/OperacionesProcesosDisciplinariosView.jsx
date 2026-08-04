@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { formatearExpedienteDisciplinario } from '@/utils/formatearExpedienteDisciplinario';
 
 const API_URL = String(
   import.meta.env.VITE_API_BASE_URL ||
@@ -394,42 +395,25 @@ const OperacionesProcesosDisciplinariosView = () => {
       setMensajeRespuesta("");
       setRespuestaAbierta(null);
 
-      const [responseExpediente, responseDocumentos] =
-        await Promise.all([
-          fetch(
-            `${API_URL}/procesos-disciplinarios/${idProceso}/expediente`,
-            {
-              method: "GET",
-              headers: construirHeaders(),
-            }
-          ),
-          fetch(
-            `${API_URL}/documento-proceso-disciplinario/proceso/${idProceso}`,
-            {
-              method: "GET",
-              headers: construirHeaders(),
-            }
-          ),
-        ]);
+      const response = await fetch(
+        `${API_URL}/procesos-disciplinarios/${idProceso}/expediente`,
+        {
+          method: "GET",
+          headers: construirHeaders(),
+        }
+      );
 
-      if (!responseExpediente.ok) {
+      if (!response.ok) {
         throw new Error(
           "No se pudo consultar la respuesta de Relaciones Laborales."
         );
       }
 
-      if (!responseDocumentos.ok) {
-        throw new Error(
-          "No se pudo validar la disponibilidad de los documentos."
-        );
-      }
+      const expediente = await response.json();
 
-      const expediente = await responseExpediente.json();
-      const documentosProceso = await responseDocumentos.json();
-
-      const documentosRRLLTodos = (
-        Array.isArray(documentosProceso)
-          ? documentosProceso
+      const documentosRRLL = (
+        Array.isArray(expediente?.Documentos)
+          ? expediente.Documentos
           : []
       ).filter((documento) => {
         const tipo = String(
@@ -441,19 +425,10 @@ const OperacionesProcesosDisciplinariosView = () => {
         return tipo !== "EVIDENCIA_OPERACIONES";
       });
 
-      const documentosRRLL = documentosRRLLTodos.filter(
-        (documento) =>
-          documento?.ArchivoDisponible === true
-      );
-
-      const documentosNoDisponibles =
-        documentosRRLLTodos.length - documentosRRLL.length;
-
       setRespuestaAbierta({
         proceso,
         expediente,
         documentosRRLL,
-        documentosNoDisponibles,
       });
     } catch (error) {
       console.error(
@@ -862,14 +837,14 @@ const OperacionesProcesosDisciplinariosView = () => {
                                         <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                                           <div>
                                             <p className="text-xs font-semibold uppercase text-gray-500">
-                                              Proceso
+                                              Expediente disciplinario
                                             </p>
                                             <p className="mt-1 font-bold text-gray-900">
-                                              #
-                                              {
-                                                proceso
-                                                  .IdProcesoDisciplinario
-                                              }
+                                              {formatearExpedienteDisciplinario(
+                                                proceso,
+                                                proceso?.FechaCitacion ||
+                                                  proceso?.FechaCreacion
+                                              )}
                                             </p>
                                           </div>
 
@@ -1011,14 +986,14 @@ const OperacionesProcesosDisciplinariosView = () => {
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                       <p className="text-xs font-semibold uppercase text-gray-500">
-                        Proceso
+                        Expediente disciplinario
                       </p>
                       <p className="mt-1 font-bold text-gray-900">
-                        #
-                        {
-                          respuestaAbierta.proceso
-                            .IdProcesoDisciplinario
-                        }
+                        {formatearExpedienteDisciplinario(
+                          respuestaAbierta.proceso,
+                          respuestaAbierta.proceso?.FechaCitacion ||
+                            respuestaAbierta.proceso?.FechaCreacion
+                        )}
                       </p>
                     </div>
 
@@ -1058,17 +1033,11 @@ const OperacionesProcesosDisciplinariosView = () => {
                     </p>
                   </div>
 
-                  {respuestaAbierta.documentosNoDisponibles > 0 && (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                      Algunos documentos históricos no se muestran porque ya no cuentan con una copia disponible para consulta.
-                    </div>
-                  )}
-
                   {respuestaAbierta.documentosRRLL
                     .length === 0 ? (
                     <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center">
                       <p className="font-semibold text-gray-700">
-                        No hay documentos disponibles para consulta.
+                        No hay documentos disponibles.
                       </p>
                     </div>
                   ) : (

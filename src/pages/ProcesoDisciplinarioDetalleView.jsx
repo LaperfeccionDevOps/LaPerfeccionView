@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { obtenerExpedienteDisciplinario } from "@/services/procesosDisciplinariosService";
+import { formatearExpedienteDisciplinario } from "@/utils/formatearExpedienteDisciplinario";
 
 const API_URL =
   import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
@@ -195,10 +196,19 @@ export default function ProcesoDisciplinarioDetalleView({
             Relaciones Laborales
           </p>
 
-          <h2 className="text-2xl font-bold text-gray-800">
-            Expediente Disciplinario No.{" "}
-            {procesoExp?.IdProcesoDisciplinario || "—"}
-          </h2>
+          <div>
+            <p className="text-sm text-emerald-700 font-semibold">
+              Expediente disciplinario
+            </p>
+            <h2 className="text-2xl font-bold text-gray-800">
+              {procesoExp?.IdProcesoDisciplinario
+                ? formatearExpedienteDisciplinario(
+                    procesoExp,
+                    procesoExp?.FechaCreacion
+                  )
+                : "—"}
+            </h2>
+          </div>
 
           <p className="text-sm text-gray-500">
             Consulta completa del proceso disciplinario seleccionado.

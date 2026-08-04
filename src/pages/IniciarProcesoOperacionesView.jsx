@@ -18,6 +18,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
+import { formatearExpedienteDisciplinario } from '@/utils/formatearExpedienteDisciplinario';
 
 import TrabajadorSeleccionadoCard from '@/components/operaciones/TrabajadorSeleccionadoCard';
 import ProgramacionCitacionCard from '@/components/operaciones/ProgramacionCitacionCard';
@@ -1796,7 +1797,11 @@ const IniciarProcesoOperacionesView =
             borradorConsultado &&
             idProcesoDisciplinario && (
               <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                Borrador de Operaciones recuperado. Proceso #{idProcesoDisciplinario}.
+                Borrador de Operaciones recuperado. Expediente disciplinario{" "}
+                {formatearExpedienteDisciplinario(
+                  idProcesoDisciplinario,
+                  formData.fechaCitacion
+                )}.
               </div>
             )}
 

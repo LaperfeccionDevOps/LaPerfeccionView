@@ -17,6 +17,7 @@ import {
 import {
   obtenerCitacionPorProceso,
 } from "@/services/citacionProcesoDisciplinarioService";
+import { formatearExpedienteDisciplinario } from "@/utils/formatearExpedienteDisciplinario";
 
 const API_URL =
   import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
@@ -1208,10 +1209,16 @@ function formatearTipoDocumento(valor) {
               </div>
 
               <div>
-                <p className="text-xs text-gray-500">Proceso</p>
+                <p className="text-xs text-gray-500">
+                  Expediente disciplinario
+                </p>
                 <p className="font-semibold text-gray-800">
                   {proceso?.IdProcesoDisciplinario
-                    ? `#${proceso.IdProcesoDisciplinario}`
+                    ? formatearExpedienteDisciplinario(
+                        proceso,
+                        proceso?.FechaCreacion ||
+                          citacionExistente?.FechaCitacion
+                      )
                     : "—"}
                 </p>
               </div>

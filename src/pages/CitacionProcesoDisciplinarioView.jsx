@@ -7,6 +7,7 @@ import DescargosProcesoDisciplinarioView from "@/pages/DescargosProcesoDisciplin
 import {
   obtenerCitacionPorProceso,
 } from "@/services/citacionProcesoDisciplinarioService";
+import { formatearExpedienteDisciplinario } from "@/utils/formatearExpedienteDisciplinario";
 
 
 const API_URL = String(
@@ -747,12 +748,16 @@ export default function CitacionProcesoDisciplinarioView({
 
               <div>
                 <p className="text-xs text-gray-500">
-                  Proceso
+                  Expediente disciplinario
                 </p>
 
                 <p className="font-semibold text-gray-800">
                   {proceso?.IdProcesoDisciplinario
-                    ? `#${proceso.IdProcesoDisciplinario}`
+                    ? formatearExpedienteDisciplinario(
+                        proceso,
+                        proceso?.FechaCreacion ||
+                          citacionExistente?.FechaCitacion
+                      )
                     : "—"}
                 </p>
               </div>

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { formatearExpedienteDisciplinario } from "@/utils/formatearExpedienteDisciplinario";
 
 const DIAS_HABILES_REPROGRAMACION = 5;
 
@@ -778,6 +779,9 @@ export default function AgendaDisciplinariaView({
                   Trabajador
                 </th>
                 <th className="px-4 py-3 text-left">
+                  Expediente disciplinario
+                </th>
+                <th className="px-4 py-3 text-left">
                   Documento
                 </th>
                 <th className="px-4 py-3 text-left">
@@ -799,7 +803,7 @@ export default function AgendaDisciplinariaView({
               {loading ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={9}
                     className="px-4 py-10 text-center text-gray-500 bg-white"
                   >
                     Cargando agenda...
@@ -808,7 +812,7 @@ export default function AgendaDisciplinariaView({
               ) : agenda.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={9}
                     className="px-4 py-10 text-center text-gray-500 bg-white"
                   >
                     No hay eventos para la fecha consultada.
@@ -843,6 +847,16 @@ export default function AgendaDisciplinariaView({
 
                       <td className="px-4 py-3 font-semibold text-gray-800">
                         {evento.NombreCompleto || "—"}
+                      </td>
+
+                      <td className="px-4 py-3 whitespace-nowrap font-semibold text-gray-800">
+                        {evento?.IdProcesoDisciplinario
+                          ? formatearExpedienteDisciplinario(
+                              evento.IdProcesoDisciplinario,
+                              evento.FechaCreacion ||
+                                evento.FechaEvento
+                            )
+                          : "—"}
                       </td>
 
                       <td className="px-4 py-3">
@@ -926,6 +940,13 @@ export default function AgendaDisciplinariaView({
               </h3>
               <p className="mt-1 text-sm text-gray-500">
                 {eventoSeleccionado.NombreCompleto || "Trabajador"} ·{" "}
+                {eventoSeleccionado?.IdProcesoDisciplinario
+                  ? formatearExpedienteDisciplinario(
+                      eventoSeleccionado.IdProcesoDisciplinario,
+                      eventoSeleccionado.FechaCreacion ||
+                        eventoSeleccionado.FechaEvento
+                    )
+                  : "Sin expediente"} ·{" "}
                 {eventoSeleccionado.FechaEvento || "—"} ·{" "}
                 {eventoSeleccionado.HoraInicio || "—"} -{" "}
                 {eventoSeleccionado.HoraFin || "—"}
@@ -1063,6 +1084,13 @@ export default function AgendaDisciplinariaView({
               </h3>
               <p className="mt-1 text-sm text-gray-500">
                 {eventoSeleccionado.NombreCompleto || "Trabajador"} ·{" "}
+                {eventoSeleccionado?.IdProcesoDisciplinario
+                  ? formatearExpedienteDisciplinario(
+                      eventoSeleccionado.IdProcesoDisciplinario,
+                      eventoSeleccionado.FechaCreacion ||
+                        eventoSeleccionado.FechaEvento
+                    )
+                  : "Sin expediente"} ·{" "}
                 {eventoSeleccionado.FechaEvento || "—"} ·{" "}
                 {eventoSeleccionado.HoraInicio || "—"} -{" "}
                 {eventoSeleccionado.HoraFin || "—"}

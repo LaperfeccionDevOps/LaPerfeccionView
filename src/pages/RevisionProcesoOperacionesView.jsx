@@ -26,6 +26,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
+import { formatearExpedienteDisciplinario } from '@/utils/formatearExpedienteDisciplinario';
 
 const API_URL = String(
   import.meta.env.VITE_API_BASE_URL ||
@@ -916,8 +917,11 @@ const RevisionProcesoOperacionesView =
               />
 
               <TarjetaDato
-                titulo="Proceso"
-                valor={`#${idProcesoDisciplinario}`}
+                titulo="Expediente disciplinario"
+                valor={formatearExpedienteDisciplinario(
+                  idProcesoDisciplinario,
+                  citacion?.FechaCitacion
+                )}
                 icono={ClipboardList}
               />
             </div>
@@ -1295,8 +1299,11 @@ const RevisionProcesoOperacionesView =
                   />
 
                   <TarjetaDato
-                    titulo="Proceso"
-                    valor={`#${idProcesoDisciplinario}`}
+                    titulo="Expediente disciplinario"
+                    valor={formatearExpedienteDisciplinario(
+                      idProcesoDisciplinario,
+                      citacion?.FechaCitacion
+                    )}
                     icono={ClipboardList}
                   />
 

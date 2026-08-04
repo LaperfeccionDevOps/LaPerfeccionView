@@ -17,6 +17,7 @@ import {
 import {
   obtenerAsistentesPorProceso,
 } from "@/services/asistenteDescargoProcesoDisciplinarioService";
+import { formatearExpedienteDisciplinario } from "@/utils/formatearExpedienteDisciplinario";
 
 
 const TIPOS_CIERRE = [
@@ -907,13 +908,17 @@ export default function CierreProcesoDisciplinarioView({
 
               <div>
                 <p className="text-xs text-gray-500">
-                  Proceso
+                  Expediente disciplinario
                 </p>
 
                 <p className="font-semibold text-gray-800">
-                  {proceso
-                    ?.IdProcesoDisciplinario
-                    ? `#${proceso.IdProcesoDisciplinario}`
+                  {proceso?.IdProcesoDisciplinario
+                    ? formatearExpedienteDisciplinario(
+                        proceso,
+                        proceso?.FechaCreacion ||
+                          cierreExistente?.FechaCierre ||
+                          fechaCierre
+                      )
                     : "—"}
                 </p>
               </div>

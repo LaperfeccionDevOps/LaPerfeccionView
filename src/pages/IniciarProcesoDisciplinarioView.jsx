@@ -7,6 +7,7 @@ import {
   crearProcesoDisciplinario,
   obtenerHistorialDisciplinarioTrabajador,
 } from "@/services/procesosDisciplinariosService";
+import { formatearExpedienteDisciplinario } from "@/utils/formatearExpedienteDisciplinario";
 
 const API_URL =
   import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
@@ -202,7 +203,7 @@ const consultarLiderProceso = async (
 
       if (!eventoAgenda) {
         throw new Error(
-          `No se encontró información para el proceso disciplinario ${idProcesoDesdeAgenda}.`
+          `No se encontró información para el expediente disciplinario ${formatearExpedienteDisciplinario(idProcesoDesdeAgenda)}.`
         );
       }
 
@@ -872,7 +873,7 @@ setProcesoCreado(procesoDesdeAgenda);
                 <thead className="bg-gray-100">
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-semibold">
-                      Proceso
+                      Expediente disciplinario
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-semibold">
                       Fecha
@@ -912,7 +913,10 @@ setProcesoCreado(procesoDesdeAgenda);
                         className="border-t"
                       >
                         <td className="px-4 py-3 text-sm font-semibold">
-                          #{item.IdProcesoDisciplinario}
+                          {formatearExpedienteDisciplinario(
+                            item.IdProcesoDisciplinario,
+                            item.FechaCreacion
+                          )}
                         </td>
 
                         <td className="px-4 py-3 text-sm">
