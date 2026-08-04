@@ -37,6 +37,61 @@ const ProgramacionCitacionCard = ({
   const esPresencial =
     formData.modalidad === 'PRESENCIAL';
 
+  const esHorarioViernesAutorizado =
+    horariosDisponibles.some(
+      (horario) =>
+        horario?.EsAutorizacionViernes === true
+    );
+
+  const esViernesSeleccionado = (() => {
+    const fecha = String(
+      formData.fechaCitacion || ''
+    ).trim();
+
+    if (!fecha) {
+      return false;
+    }
+
+    const partes = fecha
+      .split('-')
+      .map(Number);
+
+    if (
+      partes.length !== 3 ||
+      partes.some((parte) =>
+        Number.isNaN(parte)
+      )
+    ) {
+      return false;
+    }
+
+    const [
+      anio,
+      mes,
+      dia,
+    ] = partes;
+
+    return new Date(
+      anio,
+      mes - 1,
+      dia
+    ).getDay() === 5;
+  })();
+
+  const mensajeViernes =
+    'Los viernes solo se atienden casos previamente autorizados por Relaciones Laborales. Si considera que este caso es crítico, comuníquese con RRLL para solicitar la autorización correspondiente.';
+
+  const solicitudViernesPendiente =
+    esViernesSeleccionado &&
+    (
+      String(errorProgramacion || '')
+        .toLowerCase()
+        .includes('pendiente de aprobación') ||
+      String(errorProgramacion || '')
+        .toLowerCase()
+        .includes('solicitud enviada')
+    );
+
   const fechaMinimaTexto =
     formatearFechaColombia(
       fechaMinimaPermitida
@@ -149,7 +204,9 @@ const ProgramacionCitacionCard = ({
                   ? 'Consultando horarios...'
                   : horariosDisponibles.length > 0
                     ? 'Selecciona una hora disponible'
-                    : 'No hay horarios disponibles'}
+                    : solicitudViernesPendiente
+                        ? 'Pendiente de autorización'
+                        : 'No hay horarios disponibles'}
             </option>
 
             {horariosDisponibles.map(
@@ -177,17 +234,45 @@ const ProgramacionCitacionCard = ({
             !errorProgramacion &&
             horariosDisponibles.length > 0 && (
               <p className="mt-2 text-xs text-gray-500">
-                Se encontraron {horariosDisponibles.length} horario(s) disponible(s).
+                {esHorarioViernesAutorizado
+                  ? 'Se habilitó el horario autorizado por Relaciones Laborales.'
+                  : `Se encontraron ${horariosDisponibles.length} horario(s) disponible(s).`}
               </p>
             )}
         </div>
       </div>
 
-      {errorProgramacion && (
-        <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {errorProgramacion}
-        </div>
-      )}
+      {errorProgramacion &&
+        esViernesSeleccionado && (
+          <div
+            className="mt-5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-4 text-sm text-amber-900"
+            role="alert"
+          >
+            <p className="font-semibold">
+              {solicitudViernesPendiente
+                ? 'Solicitud enviada correctamente'
+                : 'Atención para agendamiento en viernes'}
+            </p>
+
+            <p className="mt-1 leading-relaxed">
+              {solicitudViernesPendiente
+                ? (
+                    'La citación del viernes fue enviada a Relaciones Laborales. Cuando RRLL la apruebe, el horario aparecerá automáticamente para continuar el proceso.'
+                  )
+                : mensajeViernes}
+            </p>
+          </div>
+        )}
+
+      {errorProgramacion &&
+        !esViernesSeleccionado && (
+          <div
+            className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            role="alert"
+          >
+            {errorProgramacion}
+          </div>
+        )}
 
       {!programacionValida &&
         !errorProgramacion && (

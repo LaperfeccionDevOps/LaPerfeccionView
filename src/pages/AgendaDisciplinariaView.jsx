@@ -109,6 +109,21 @@ export default function AgendaDisciplinariaView({
     useState(false);
   const [errorCancelacion, setErrorCancelacion] = useState("");
 
+  const [modalAutorizacionAbierto, setModalAutorizacionAbierto] =
+    useState(false);
+  const [eventoAutorizacion, setEventoAutorizacion] = useState(null);
+  const [fechaAutorizada, setFechaAutorizada] = useState("");
+  const [horaAutorizada, setHoraAutorizada] = useState("");
+  const [horariosAutorizables, setHorariosAutorizables] = useState([]);
+  const [motivoAutorizacion, setMotivoAutorizacion] = useState("");
+  const [observacionAutorizacion, setObservacionAutorizacion] =
+    useState("");
+  const [loadingConfiguracionAutorizacion, setLoadingConfiguracionAutorizacion] =
+    useState(false);
+  const [guardandoAutorizacion, setGuardandoAutorizacion] =
+    useState(false);
+  const [errorAutorizacion, setErrorAutorizacion] = useState("");
+
   const usuarioMovimiento = useMemo(
     () => obtenerUsuarioMovimiento(),
     []
@@ -351,8 +366,28 @@ export default function AgendaDisciplinariaView({
       setErrorReprogramacion("");
       setHoraInicioNueva("");
 
+      const parametrosViernes = new URLSearchParams();
+
+      if (eventoSeleccionado?.IdRegistroPersonal) {
+        parametrosViernes.set(
+          "id_registro_personal",
+          eventoSeleccionado.IdRegistroPersonal
+        );
+      }
+
+      if (eventoSeleccionado?.IdProcesoDisciplinario) {
+        parametrosViernes.set(
+          "id_proceso_disciplinario",
+          eventoSeleccionado.IdProcesoDisciplinario
+        );
+      }
+
+      const query = parametrosViernes.toString();
+
       const res = await fetch(
-        `${API_BASE}/agenda-disciplinaria/horarios-disponibles/${fecha}`
+        `${API_BASE}/agenda-disciplinaria/horarios-disponibles/${fecha}${
+          query ? `?${query}` : ""
+        }`
       );
 
       const data = await res.json().catch(() => ({}));
@@ -608,6 +643,210 @@ export default function AgendaDisciplinariaView({
       );
     } finally {
       setGuardandoCancelacion(false);
+    }
+  };
+
+  const cerrarModalAutorizacion = () => {
+    setModalAutorizacionAbierto(false);
+    setEventoAutorizacion(null);
+    setFechaAutorizada("");
+    setHoraAutorizada("");
+    setMotivoAutorizacion("");
+    setObservacionAutorizacion("");
+    setErrorAutorizacion("");
+  };
+
+  const cargarConfiguracionAutorizacion = async () => {
+    try {
+      setLoadingConfiguracionAutorizacion(true);
+      setErrorAutorizacion("");
+
+      const res = await fetch(
+        `${API_BASE}/autorizaciones-agenda-disciplinaria/configuracion`
+      );
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(
+          obtenerMensajeBackend(
+            data,
+            "No se pudo consultar la configuración de autorizaciones."
+          )
+        );
+      }
+
+      setHorariosAutorizables(
+        Array.isArray(data?.horariosPermitidos)
+          ? data.horariosPermitidos
+          : []
+      );
+    } catch (err) {
+      setHorariosAutorizables([]);
+      setErrorAutorizacion(
+        err?.message ||
+          "Error consultando los horarios autorizables."
+      );
+    } finally {
+      setLoadingConfiguracionAutorizacion(false);
+    }
+  };
+
+  const abrirModalAutorizacion = async (evento) => {
+    setEventoAutorizacion(evento);
+    setFechaAutorizada("");
+    setHoraAutorizada("");
+    setMotivoAutorizacion("");
+    setObservacionAutorizacion("");
+    setErrorAutorizacion("");
+    setModalAutorizacionAbierto(true);
+
+    await cargarConfiguracionAutorizacion();
+  };
+
+  const handleCambioFechaAutorizada = (event) => {
+    const valor = event.target.value;
+
+    setFechaAutorizada(valor);
+    setHoraAutorizada("");
+    setErrorAutorizacion("");
+
+    if (!valor) {
+      return;
+    }
+
+    const fecha = new Date(`${valor}T12:00:00`);
+
+    if (fecha.getDay() !== 5) {
+      setErrorAutorizacion(
+        "La autorización excepcional debe corresponder a un viernes."
+      );
+    }
+  };
+
+  const crearAutorizacionViernes = async () => {
+    if (
+      !eventoAutorizacion?.IdProcesoDisciplinario ||
+      !eventoAutorizacion?.IdRegistroPersonal
+    ) {
+      setErrorAutorizacion(
+        "No se encontró el trabajador o el expediente que se desea autorizar."
+      );
+      return;
+    }
+
+    if (!fechaAutorizada) {
+      setErrorAutorizacion(
+        "Seleccione el viernes que desea autorizar."
+      );
+      return;
+    }
+
+    const fechaSeleccionada = new Date(
+      `${fechaAutorizada}T12:00:00`
+    );
+
+    if (fechaSeleccionada.getDay() !== 5) {
+      setErrorAutorizacion(
+        "La fecha seleccionada debe corresponder a un viernes."
+      );
+      return;
+    }
+
+    if (!horaAutorizada) {
+      setErrorAutorizacion(
+        "Seleccione el bloque horario que desea autorizar."
+      );
+      return;
+    }
+
+    if (motivoAutorizacion.trim().length < 5) {
+      setErrorAutorizacion(
+        "Ingrese un motivo de autorización válido."
+      );
+      return;
+    }
+
+    const bloqueSeleccionado = horariosAutorizables.find(
+      (horario) =>
+        String(horario?.HoraInicio || "").slice(0, 5) ===
+        horaAutorizada
+    );
+
+    if (!bloqueSeleccionado) {
+      setErrorAutorizacion(
+        "No se encontró el bloque horario seleccionado."
+      );
+      return;
+    }
+
+    try {
+      setGuardandoAutorizacion(true);
+      setErrorAutorizacion("");
+
+      const res = await fetch(
+        `${API_BASE}/autorizaciones-agenda-disciplinaria/`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            IdRegistroPersonal:
+              eventoAutorizacion.IdRegistroPersonal,
+            IdProcesoDisciplinario:
+              eventoAutorizacion.IdProcesoDisciplinario,
+            IdAgendaProcesoDisciplinario: null,
+            FechaAutorizada: fechaAutorizada,
+            HoraInicio: `${String(
+              bloqueSeleccionado.HoraInicio
+            ).slice(0, 5)}:00`,
+            HoraFin: `${String(
+              bloqueSeleccionado.HoraFin
+            ).slice(0, 5)}:00`,
+            TipoAutorizacion: "VIERNES",
+            MotivoAutorizacion:
+              motivoAutorizacion.trim(),
+            UsuarioSolicita: "operaciones",
+            UsuarioAutoriza: usuarioMovimiento,
+            Observacion:
+              observacionAutorizacion.trim() || null,
+          }),
+        }
+      );
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(
+          obtenerMensajeBackend(
+            data,
+            "No se pudo crear la autorización excepcional."
+          )
+        );
+      }
+
+      const fechaCreada = fechaAutorizada;
+      const etiquetaHorario =
+        bloqueSeleccionado.Etiqueta ||
+        `${bloqueSeleccionado.HoraInicio} - ${bloqueSeleccionado.HoraFin}`;
+
+      cerrarModalAutorizacion();
+
+      setMensajeExito(
+        `Viernes ${fechaCreada}, ${etiquetaHorario}, autorizado correctamente para el expediente ${formatearExpedienteDisciplinario(
+          eventoAutorizacion.IdProcesoDisciplinario,
+          eventoAutorizacion.FechaCreacion ||
+            eventoAutorizacion.FechaEvento
+        )}.`
+      );
+    } catch (err) {
+      setErrorAutorizacion(
+        err?.message ||
+          "Error creando la autorización excepcional."
+      );
+    } finally {
+      setGuardandoAutorizacion(false);
     }
   };
 
@@ -889,7 +1128,20 @@ export default function AgendaDisciplinariaView({
                         }
                       >
                         {permiteAcciones ? (
-                          <div className="flex flex-col xl:flex-row justify-center gap-2 min-w-[220px]">
+                          <div className="flex flex-col 2xl:flex-row justify-center gap-2 min-w-[340px]">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                              onClick={() =>
+                                abrirModalAutorizacion(
+                                  evento
+                                )
+                              }
+                            >
+                              Autorizar viernes
+                            </Button>
+
                             <Button
                               type="button"
                               variant="outline"
@@ -930,6 +1182,181 @@ export default function AgendaDisciplinariaView({
           </table>
         </div>
       </div>
+
+      {modalAutorizacionAbierto && eventoAutorizacion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+            <div className="border-b border-gray-200 px-6 py-5">
+              <p className="text-sm font-semibold text-emerald-700">
+                Relaciones Laborales
+              </p>
+              <h3 className="text-xl font-bold text-gray-800">
+                Autorizar atención excepcional de viernes
+              </h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Esta autorización habilita un único bloque para el
+                trabajador y expediente seleccionados.
+              </p>
+            </div>
+
+            <div className="space-y-5 px-6 py-5">
+              <div className="grid grid-cols-1 gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 md:grid-cols-2">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-emerald-700">
+                    Trabajador
+                  </p>
+                  <p className="mt-1 font-bold text-gray-800">
+                    {eventoAutorizacion.NombreCompleto || "—"}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Documento:{" "}
+                    {eventoAutorizacion.NumeroIdentificacion || "—"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs font-semibold uppercase text-emerald-700">
+                    Expediente disciplinario
+                  </p>
+                  <p className="mt-1 font-bold text-gray-800">
+                    {formatearExpedienteDisciplinario(
+                      eventoAutorizacion.IdProcesoDisciplinario,
+                      eventoAutorizacion.FechaCreacion ||
+                        eventoAutorizacion.FechaEvento
+                    )}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    La autorización será de uso único.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="font-semibold text-amber-800">
+                  Atención excepcional
+                </p>
+                <p className="mt-1 text-sm text-amber-700">
+                  Los viernes no tienen atención regular. Registre esta
+                  autorización únicamente cuando el caso haya sido
+                  validado directamente con Relaciones Laborales.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label className="text-sm font-semibold text-gray-700">
+                    Viernes autorizado *
+                  </label>
+                  <input
+                    type="date"
+                    value={fechaAutorizada}
+                    onChange={handleCambioFechaAutorizada}
+                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-semibold text-gray-700">
+                    Bloque horario *
+                  </label>
+                  <select
+                    value={horaAutorizada}
+                    onChange={(event) =>
+                      setHoraAutorizada(event.target.value)
+                    }
+                    disabled={loadingConfiguracionAutorizacion}
+                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 disabled:bg-gray-100"
+                  >
+                    <option value="">
+                      {loadingConfiguracionAutorizacion
+                        ? "Consultando horarios..."
+                        : "Seleccione un horario"}
+                    </option>
+
+                    {horariosAutorizables.map((horario) => (
+                      <option
+                        key={`${horario.HoraInicio}-${horario.HoraFin}`}
+                        value={String(
+                          horario.HoraInicio
+                        ).slice(0, 5)}
+                      >
+                        {horario.Etiqueta}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-gray-700">
+                  Motivo de la autorización *
+                </label>
+                <textarea
+                  value={motivoAutorizacion}
+                  onChange={(event) =>
+                    setMotivoAutorizacion(event.target.value)
+                  }
+                  placeholder="Explique por qué el caso requiere atención excepcional un viernes."
+                  className="mt-1 min-h-[110px] w-full resize-none rounded-lg border border-gray-300 p-3"
+                  maxLength={2000}
+                />
+                <p className="mt-1 text-right text-xs text-gray-500">
+                  {motivoAutorizacion.length}/2000
+                </p>
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-gray-700">
+                  Observación adicional
+                </label>
+                <textarea
+                  value={observacionAutorizacion}
+                  onChange={(event) =>
+                    setObservacionAutorizacion(event.target.value)
+                  }
+                  placeholder="Información adicional para la trazabilidad de la autorización."
+                  className="mt-1 min-h-[90px] w-full resize-none rounded-lg border border-gray-300 p-3"
+                  maxLength={2000}
+                />
+                <p className="mt-1 text-right text-xs text-gray-500">
+                  {observacionAutorizacion.length}/2000
+                </p>
+              </div>
+
+              {errorAutorizacion && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {errorAutorizacion}
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-gray-200 px-6 py-4 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={cerrarModalAutorizacion}
+                disabled={guardandoAutorizacion}
+              >
+                Cancelar
+              </Button>
+
+              <Button
+                type="button"
+                className="bg-emerald-700 hover:bg-emerald-800"
+                onClick={crearAutorizacionViernes}
+                disabled={
+                  guardandoAutorizacion ||
+                  loadingConfiguracionAutorizacion
+                }
+              >
+                {guardandoAutorizacion
+                  ? "Autorizando..."
+                  : "Autorizar viernes"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {modalReprogramarAbierto && eventoSeleccionado && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

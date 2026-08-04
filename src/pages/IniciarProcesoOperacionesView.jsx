@@ -482,33 +482,279 @@ const IniciarProcesoOperacionesView =
           setCargandoHorarios(true);
           setErrorProgramacion('');
 
-          const response = await fetch(
-            `${API_URL}/agenda-disciplinaria/horarios-disponibles/${fechaCitacion}`,
-            {
-              method: 'GET',
-              headers:
-                construirHeaders(),
-            }
-          );
+          const partesFecha = String(
+            fechaCitacion
+          )
+            .split('-')
+            .map(Number);
 
-          if (!response.ok) {
-            const mensaje =
-              await obtenerMensajeError(
-                response,
-                'La fecha seleccionada no está disponible'
+          const esViernes =
+            partesFecha.length === 3 &&
+            !partesFecha.some((parte) =>
+              Number.isNaN(parte)
+            ) &&
+            new Date(
+              partesFecha[0],
+              partesFecha[1] - 1,
+              partesFecha[2]
+            ).getDay() === 5;
+
+          let horarios = [];
+
+          if (esViernes) {
+            const responseHistorial =
+              await fetch(
+                `${API_URL}/procesos-disciplinarios/trabajador/${idRegistroPersonal}/historial`,
+                {
+                  method: 'GET',
+                  headers:
+                    construirHeaders(),
+                }
               );
 
-            throw new Error(mensaje);
+            if (!responseHistorial.ok) {
+              const mensaje =
+                await obtenerMensajeError(
+                  responseHistorial,
+                  'No se pudo validar la autorización del viernes'
+                );
+
+              throw new Error(mensaje);
+            }
+
+            const historial =
+              await responseHistorial.json();
+
+            const procesos = Array.isArray(
+              historial
+            )
+              ? historial
+              : [];
+
+            const autorizacion =
+              procesos.find((proceso) => {
+                const fechaAutorizada =
+                  String(
+                    proceso
+                      ?.FechaAutorizadaViernes ||
+                    proceso
+                      ?.FechaSolicitadaViernes ||
+                    ''
+                  ).slice(0, 10);
+
+                const estadoSolicitud =
+                  String(
+                    proceso
+                      ?.EstadoSolicitudViernes ||
+                    ''
+                  )
+                    .trim()
+                    .toUpperCase();
+
+                const estadoAutorizacion =
+                  String(
+                    proceso
+                      ?.EstadoAutorizacionViernes ||
+                    ''
+                  )
+                    .trim()
+                    .toUpperCase();
+
+                return (
+                  fechaAutorizada ===
+                    fechaCitacion &&
+                  proceso
+                    ?.AutorizacionViernesDisponible ===
+                    true &&
+                  estadoSolicitud ===
+                    'APROBADA' &&
+                  estadoAutorizacion ===
+                    'ACTIVA' &&
+                  proceso
+                    ?.HoraInicioAutorizadaViernes &&
+                  proceso
+                    ?.HoraFinAutorizadaViernes
+                );
+              });
+
+            if (autorizacion) {
+              const horaInicio =
+                normalizarHoraBackend(
+                  autorizacion
+                    .HoraInicioAutorizadaViernes
+                );
+
+              const horaFin =
+                normalizarHoraBackend(
+                  autorizacion
+                    .HoraFinAutorizadaViernes
+                );
+
+              horarios = [
+                {
+                  HoraInicio: horaInicio,
+                  HoraFin: horaFin,
+                  Etiqueta:
+                    `${horaInicio} - ${horaFin}`,
+                  EsAutorizacionViernes: true,
+                  IdAutorizacionAgendaDisciplinaria:
+                    autorizacion
+                      .IdAutorizacionAgendaDisciplinaria ||
+                    null,
+                  IdProcesoAutorizado:
+                    autorizacion
+                      .IdProcesoDisciplinario ||
+                    null,
+                },
+              ];
+            } else {
+              setHorariosDisponibles([]);
+              setFormData((prev) => ({
+                ...prev,
+                horaCitacion: '',
+              }));
+
+              let procesoId =
+                idProcesoDisciplinario;
+
+              if (!procesoId) {
+                const proceso =
+                  await crearProcesoBorrador(
+                    'BORRADOR_OPERACIONES'
+                  );
+
+                procesoId =
+                  proceso
+                    ?.IdProcesoDisciplinario ||
+                  null;
+              }
+
+              if (!procesoId) {
+                throw new Error(
+                  'No fue posible crear o recuperar el expediente disciplinario para solicitar la autorización.'
+                );
+              }
+
+              const parametrosPendiente =
+                new URLSearchParams({
+                  id_proceso_disciplinario:
+                    String(procesoId),
+                  fecha_solicitada:
+                    fechaCitacion,
+                });
+
+              const responsePendiente =
+                await fetch(
+                  `${API_URL}/solicitudes-autorizacion-agenda-disciplinaria/trabajador/${idRegistroPersonal}/pendiente?${parametrosPendiente.toString()}`,
+                  {
+                    method: 'GET',
+                    headers:
+                      construirHeaders(),
+                  }
+                );
+
+              if (!responsePendiente.ok) {
+                const mensaje =
+                  await obtenerMensajeError(
+                    responsePendiente,
+                    'No fue posible validar si ya existe una solicitud pendiente'
+                  );
+
+                throw new Error(mensaje);
+              }
+
+              const solicitudPendiente =
+                await responsePendiente.json();
+
+              if (
+                solicitudPendiente
+                  ?.IdSolicitudAutorizacion
+              ) {
+                setErrorProgramacion(
+                  'La solicitud para este viernes ya fue enviada a Relaciones Laborales y está pendiente de aprobación.'
+                );
+                return;
+              }
+
+              const usuario =
+                obtenerUsuarioSesion();
+
+              const responseSolicitud =
+                await fetch(
+                  `${API_URL}/solicitudes-autorizacion-agenda-disciplinaria/`,
+                  {
+                    method: 'POST',
+                    headers:
+                      construirHeaders(true),
+                    body: JSON.stringify({
+                      IdRegistroPersonal:
+                        idRegistroPersonal,
+                      IdProcesoDisciplinario:
+                        procesoId,
+                      FechaSolicitada:
+                        fechaCitacion,
+                      MotivoSolicitud:
+                        'Solicitud automática enviada desde Operaciones para programar una citación disciplinaria en viernes.',
+                      UsuarioSolicita:
+                        usuario,
+                    }),
+                  }
+                );
+
+              if (!responseSolicitud.ok) {
+                const mensaje =
+                  await obtenerMensajeError(
+                    responseSolicitud,
+                    'No fue posible enviar la solicitud de autorización a Relaciones Laborales'
+                  );
+
+                throw new Error(mensaje);
+              }
+
+              await responseSolicitud.json();
+
+              setErrorProgramacion(
+                'Solicitud enviada a Relaciones Laborales. Está pendiente de aprobación.'
+              );
+
+              toast({
+                title:
+                  'Solicitud enviada',
+                description:
+                  'Relaciones Laborales recibió la solicitud para autorizar la citación del viernes.',
+              });
+
+              return;
+            }
+          } else {
+            const response = await fetch(
+              `${API_URL}/agenda-disciplinaria/horarios-disponibles/${fechaCitacion}`,
+              {
+                method: 'GET',
+                headers:
+                  construirHeaders(),
+              }
+            );
+
+            if (!response.ok) {
+              const mensaje =
+                await obtenerMensajeError(
+                  response,
+                  'La fecha seleccionada no está disponible'
+                );
+
+              throw new Error(mensaje);
+            }
+
+            const resultado =
+              await response.json();
+
+            horarios = Array.isArray(
+              resultado?.horarios
+            )
+              ? resultado.horarios
+              : [];
           }
-
-          const resultado =
-            await response.json();
-
-          const horarios = Array.isArray(
-            resultado?.horarios
-          )
-            ? resultado.horarios
-            : [];
 
           setHorariosDisponibles(
             horarios

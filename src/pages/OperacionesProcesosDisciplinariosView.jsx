@@ -324,6 +324,40 @@ const OperacionesProcesosDisciplinariosView = () => {
       );
   };
 
+  const formatearHora = (valor) => {
+    if (!valor) {
+      return "—";
+    }
+
+    const texto = String(valor).slice(0, 5);
+    const [horaTexto, minutoTexto] =
+      texto.split(":");
+
+    const hora = Number(horaTexto);
+    const minuto = Number(minutoTexto);
+
+    if (
+      Number.isNaN(hora) ||
+      Number.isNaN(minuto)
+    ) {
+      return texto;
+    }
+
+    const periodo =
+      hora >= 12 ? "P. M." : "A. M.";
+
+    const horaNormal =
+      hora % 12 || 12;
+
+    return `${String(horaNormal).padStart(
+      2,
+      "0"
+    )}:${String(minuto).padStart(
+      2,
+      "0"
+    )} ${periodo}`;
+  };
+
   const cargarHistorialTrabajador = async (
     idRegistroPersonal
   ) => {
@@ -825,6 +859,34 @@ const OperacionesProcesosDisciplinariosView = () => {
                                       ?.RespuestaRRLLDisponible ===
                                     true;
 
+                                  const tieneSolicitudViernes =
+                                    proceso
+                                      ?.TieneSolicitudViernes ===
+                                    true;
+
+                                  const autorizacionViernesDisponible =
+                                    proceso
+                                      ?.AutorizacionViernesDisponible ===
+                                    true;
+
+                                  const estadoSolicitudViernes =
+                                    String(
+                                      proceso
+                                        ?.EstadoSolicitudViernes ||
+                                        ""
+                                    )
+                                      .trim()
+                                      .toUpperCase();
+
+                                  const estadoAutorizacionViernes =
+                                    String(
+                                      proceso
+                                        ?.EstadoAutorizacionViernes ||
+                                        ""
+                                    )
+                                      .trim()
+                                      .toUpperCase();
+
                                   return (
                                     <div
                                       key={
@@ -881,14 +943,24 @@ const OperacionesProcesosDisciplinariosView = () => {
                                             <span
                                               className={cn(
                                                 "mt-1 inline-flex rounded-full border px-2.5 py-1 text-xs font-bold",
-                                                respuestaDisponible
+                                                autorizacionViernesDisponible
                                                   ? "border-emerald-200 bg-emerald-100 text-emerald-700"
-                                                  : "border-amber-200 bg-amber-100 text-amber-800"
+                                                  : estadoSolicitudViernes ===
+                                                      "RECHAZADA"
+                                                    ? "border-red-200 bg-red-100 text-red-700"
+                                                    : respuestaDisponible
+                                                      ? "border-blue-200 bg-blue-100 text-blue-700"
+                                                      : "border-amber-200 bg-amber-100 text-amber-800"
                                               )}
                                             >
-                                              {respuestaDisponible
-                                                ? "Disponible"
-                                                : "Pendiente"}
+                                              {autorizacionViernesDisponible
+                                                ? "Aprobada"
+                                                : estadoSolicitudViernes ===
+                                                    "RECHAZADA"
+                                                  ? "Rechazada"
+                                                  : respuestaDisponible
+                                                    ? "Disponible"
+                                                    : "Pendiente"}
                                             </span>
                                           </div>
                                         </div>
@@ -912,6 +984,97 @@ const OperacionesProcesosDisciplinariosView = () => {
                                           </Button>
                                         )}
                                       </div>
+
+                                      {tieneSolicitudViernes && (
+                                        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                            <div className="min-w-0">
+                                              <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+                                                Autorización excepcional para viernes
+                                              </p>
+
+                                              <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                <span
+                                                  className={cn(
+                                                    "inline-flex rounded-full border px-2.5 py-1 text-xs font-bold",
+                                                    autorizacionViernesDisponible
+                                                      ? "border-emerald-200 bg-emerald-100 text-emerald-700"
+                                                      : estadoSolicitudViernes ===
+                                                          "RECHAZADA"
+                                                        ? "border-red-200 bg-red-100 text-red-700"
+                                                        : "border-amber-200 bg-amber-100 text-amber-800"
+                                                  )}
+                                                >
+                                                  {autorizacionViernesDisponible
+                                                    ? "Aprobada"
+                                                    : estadoSolicitudViernes
+                                                      ? formatearTexto(
+                                                          estadoSolicitudViernes
+                                                        )
+                                                      : "Pendiente"}
+                                                </span>
+
+                                                {estadoAutorizacionViernes && (
+                                                  <span className="text-xs font-semibold text-gray-600">
+                                                    Estado:{" "}
+                                                    {formatearTexto(
+                                                      estadoAutorizacionViernes
+                                                    )}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+
+                                            <div className="grid min-w-0 grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                                              <div className="rounded-lg border border-amber-100 bg-white px-3 py-2">
+                                                <p className="text-xs font-semibold uppercase text-gray-500">
+                                                  Viernes autorizado
+                                                </p>
+                                                <p className="mt-1 font-semibold text-gray-900">
+                                                  {formatearFecha(
+                                                    proceso
+                                                      ?.FechaAutorizadaViernes ||
+                                                      proceso
+                                                        ?.FechaSolicitadaViernes
+                                                  )}
+                                                </p>
+                                              </div>
+
+                                              <div className="rounded-lg border border-amber-100 bg-white px-3 py-2">
+                                                <p className="text-xs font-semibold uppercase text-gray-500">
+                                                  Horario
+                                                </p>
+                                                <p className="mt-1 font-semibold text-gray-900">
+                                                  {formatearHora(
+                                                    proceso
+                                                      ?.HoraInicioAutorizadaViernes
+                                                  )}{" "}
+                                                  -{" "}
+                                                  {formatearHora(
+                                                    proceso
+                                                      ?.HoraFinAutorizadaViernes
+                                                  )}
+                                                </p>
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          {proceso
+                                            ?.ObservacionResolucionViernes && (
+                                            <div className="mt-3 border-t border-amber-200 pt-3">
+                                              <p className="text-xs font-semibold uppercase text-amber-800">
+                                                Observación de RRLL
+                                              </p>
+                                              <p className="mt-1 break-words text-sm text-gray-700">
+                                                {
+                                                  proceso
+                                                    .ObservacionResolucionViernes
+                                                }
+                                              </p>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
 
                                       {proceso
                                         ?.MotivoCitacion && (

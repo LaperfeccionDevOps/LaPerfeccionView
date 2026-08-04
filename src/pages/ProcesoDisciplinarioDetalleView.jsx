@@ -8,6 +8,118 @@ const API_URL =
 
 const FILE_BASE_URL = API_URL.replace("/api", "");
 
+const obtenerUsuarioSesion = () => {
+  const almacenamientos = [
+    window.localStorage,
+    window.sessionStorage,
+  ];
+
+  const claves = [
+    "user",
+    "userData",
+    "auth",
+    "authData",
+    "session",
+  ];
+
+  for (const almacenamiento of almacenamientos) {
+    for (const clave of claves) {
+      const valor = almacenamiento.getItem(clave);
+
+      if (!valor) {
+        continue;
+      }
+
+      try {
+        const objeto = JSON.parse(valor);
+
+        return (
+          objeto?.username ||
+          objeto?.usuario ||
+          objeto?.Usuario ||
+          objeto?.NombreUsuario ||
+          objeto?.user?.username ||
+          objeto?.user?.usuario ||
+          "rrll"
+        );
+      } catch {
+        // Continuar buscando en las demás claves.
+      }
+    }
+  }
+
+  return "rrll";
+};
+
+const obtenerMensajeBackend = async (
+  response,
+  mensajePredeterminado
+) => {
+  try {
+    const data = await response.json();
+
+    if (typeof data?.detail === "string") {
+      return data.detail;
+    }
+
+    if (typeof data?.detail?.mensaje === "string") {
+      return data.detail.mensaje;
+    }
+
+    if (typeof data?.mensaje === "string") {
+      return data.mensaje;
+    }
+  } catch {
+    // La respuesta no contenía JSON.
+  }
+
+  return `${mensajePredeterminado} (HTTP ${response.status}).`;
+};
+
+const formatearFechaColombia = (valor) => {
+  if (!valor) {
+    return "—";
+  }
+
+  const fecha = String(valor).slice(0, 10);
+  const partes = fecha.split("-");
+
+  if (partes.length !== 3) {
+    return valor;
+  }
+
+  return `${partes[2]}/${partes[1]}/${partes[0]}`;
+};
+
+const formatearHora = (valor) => {
+  if (!valor) {
+    return "—";
+  }
+
+  return String(valor).slice(0, 5);
+};
+
+const esFechaViernes = (valor) => {
+  if (!valor) {
+    return false;
+  }
+
+  const partes = String(valor)
+    .split("-")
+    .map(Number);
+
+  if (
+    partes.length !== 3 ||
+    partes.some((parte) => Number.isNaN(parte))
+  ) {
+    return false;
+  }
+
+  const [anio, mes, dia] = partes;
+
+  return new Date(anio, mes - 1, dia).getDay() === 5;
+};
+
 export default function ProcesoDisciplinarioDetalleView({
   onBack,
   proceso,
@@ -20,6 +132,30 @@ export default function ProcesoDisciplinarioDetalleView({
   const [archivo, setArchivo] = useState(null);
   const [cargandoDocumento, setCargandoDocumento] = useState(false);
   const [mensajeDocumento, setMensajeDocumento] = useState("");
+
+  const [autorizaciones, setAutorizaciones] = useState([]);
+  const [cargandoAutorizaciones, setCargandoAutorizaciones] =
+    useState(false);
+  const [mensajeAutorizacion, setMensajeAutorizacion] =
+    useState("");
+  const [modalAutorizacionAbierto, setModalAutorizacionAbierto] =
+    useState(false);
+  const [modalAnulacionAbierto, setModalAnulacionAbierto] =
+    useState(false);
+  const [autorizacionSeleccionada, setAutorizacionSeleccionada] =
+    useState(null);
+  const [horariosAutorizables, setHorariosAutorizables] =
+    useState([]);
+  const [fechaAutorizada, setFechaAutorizada] = useState("");
+  const [horaAutorizada, setHoraAutorizada] = useState("");
+  const [motivoAutorizacion, setMotivoAutorizacion] =
+    useState("");
+  const [observacionAutorizacion, setObservacionAutorizacion] =
+    useState("");
+  const [motivoAnulacion, setMotivoAnulacion] =
+    useState("");
+  const [guardandoAutorizacion, setGuardandoAutorizacion] =
+    useState(false);
 
   async function cargarExpediente() {
     if (!proceso?.IdProcesoDisciplinario) return;
@@ -38,9 +174,325 @@ export default function ProcesoDisciplinarioDetalleView({
     }
   }
 
+
+  const idProcesoActual = Number(
+    expediente?.Proceso?.IdProcesoDisciplinario ||
+      proceso?.IdProcesoDisciplinario ||
+      0
+  );
+
+  const idRegistroPersonalActual = Number(
+    expediente?.Proceso?.IdRegistroPersonal ||
+      proceso?.IdRegistroPersonal ||
+      trabajador?.IdRegistroPersonal ||
+      0
+  );
+
+  async function cargarAutorizaciones(
+    idProceso = idProcesoActual
+  ) {
+    if (!idProceso) {
+      setAutorizaciones([]);
+      return;
+    }
+
+    try {
+      setCargandoAutorizaciones(true);
+      setMensajeAutorizacion("");
+
+      const response = await fetch(
+        `${API_URL}/autorizaciones-agenda-disciplinaria/proceso/${idProceso}`
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          await obtenerMensajeBackend(
+            response,
+            "No se pudieron consultar las autorizaciones"
+          )
+        );
+      }
+
+      const data = await response.json();
+
+      setAutorizaciones(
+        Array.isArray(data) ? data : []
+      );
+    } catch (error) {
+      console.error(
+        "Error consultando autorizaciones:",
+        error
+      );
+      setAutorizaciones([]);
+      setMensajeAutorizacion(
+        error?.message ||
+          "No fue posible consultar las autorizaciones."
+      );
+    } finally {
+      setCargandoAutorizaciones(false);
+    }
+  }
+
+  async function cargarConfiguracionAutorizacion() {
+    const response = await fetch(
+      `${API_URL}/autorizaciones-agenda-disciplinaria/configuracion`
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        await obtenerMensajeBackend(
+          response,
+          "No se pudo consultar la configuración"
+        )
+      );
+    }
+
+    const data = await response.json();
+
+    setHorariosAutorizables(
+      Array.isArray(data?.horariosPermitidos)
+        ? data.horariosPermitidos
+        : []
+    );
+  }
+
+  const abrirModalAutorizacion = async () => {
+    if (
+      !idProcesoActual ||
+      !idRegistroPersonalActual
+    ) {
+      setMensajeAutorizacion(
+        "No fue posible identificar el expediente o el trabajador."
+      );
+      return;
+    }
+
+    setFechaAutorizada("");
+    setHoraAutorizada("");
+    setMotivoAutorizacion("");
+    setObservacionAutorizacion("");
+    setMensajeAutorizacion("");
+    setModalAutorizacionAbierto(true);
+
+    try {
+      await cargarConfiguracionAutorizacion();
+    } catch (error) {
+      setMensajeAutorizacion(
+        error?.message ||
+          "No fue posible cargar los horarios."
+      );
+    }
+  };
+
+  const cerrarModalAutorizacion = () => {
+    if (guardandoAutorizacion) {
+      return;
+    }
+
+    setModalAutorizacionAbierto(false);
+    setFechaAutorizada("");
+    setHoraAutorizada("");
+    setMotivoAutorizacion("");
+    setObservacionAutorizacion("");
+    setMensajeAutorizacion("");
+  };
+
+  const crearAutorizacionViernes = async () => {
+    if (!esFechaViernes(fechaAutorizada)) {
+      setMensajeAutorizacion(
+        "La fecha seleccionada debe corresponder a un viernes."
+      );
+      return;
+    }
+
+    if (!horaAutorizada) {
+      setMensajeAutorizacion(
+        "Seleccione el bloque horario que desea autorizar."
+      );
+      return;
+    }
+
+    if (motivoAutorizacion.trim().length < 5) {
+      setMensajeAutorizacion(
+        "Ingrese un motivo de autorización válido."
+      );
+      return;
+    }
+
+    const bloque = horariosAutorizables.find(
+      (item) =>
+        String(item?.HoraInicio || "").slice(0, 5) ===
+        horaAutorizada
+    );
+
+    if (!bloque) {
+      setMensajeAutorizacion(
+        "No fue posible identificar el horario seleccionado."
+      );
+      return;
+    }
+
+    try {
+      setGuardandoAutorizacion(true);
+      setMensajeAutorizacion("");
+
+      const response = await fetch(
+        `${API_URL}/autorizaciones-agenda-disciplinaria/`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            IdRegistroPersonal: idRegistroPersonalActual,
+            IdProcesoDisciplinario: idProcesoActual,
+            IdAgendaProcesoDisciplinario: null,
+            FechaAutorizada: fechaAutorizada,
+            HoraInicio: `${String(
+              bloque.HoraInicio
+            ).slice(0, 5)}:00`,
+            HoraFin: `${String(
+              bloque.HoraFin
+            ).slice(0, 5)}:00`,
+            TipoAutorizacion: "VIERNES",
+            MotivoAutorizacion:
+              motivoAutorizacion.trim(),
+            UsuarioSolicita: "operaciones",
+            UsuarioAutoriza: obtenerUsuarioSesion(),
+            Observacion:
+              observacionAutorizacion.trim() || null,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          await obtenerMensajeBackend(
+            response,
+            "No se pudo crear la autorización"
+          )
+        );
+      }
+
+      setModalAutorizacionAbierto(false);
+      setFechaAutorizada("");
+      setHoraAutorizada("");
+      setMotivoAutorizacion("");
+      setObservacionAutorizacion("");
+      setMensajeAutorizacion(
+        "El viernes y el horario fueron autorizados correctamente."
+      );
+
+      await cargarAutorizaciones(idProcesoActual);
+    } catch (error) {
+      console.error(
+        "Error creando autorización:",
+        error
+      );
+      setMensajeAutorizacion(
+        error?.message ||
+          "No fue posible crear la autorización."
+      );
+    } finally {
+      setGuardandoAutorizacion(false);
+    }
+  };
+
+  const abrirModalAnulacion = (autorizacion) => {
+    setAutorizacionSeleccionada(autorizacion);
+    setMotivoAnulacion("");
+    setMensajeAutorizacion("");
+    setModalAnulacionAbierto(true);
+  };
+
+  const cerrarModalAnulacion = () => {
+    if (guardandoAutorizacion) {
+      return;
+    }
+
+    setModalAnulacionAbierto(false);
+    setAutorizacionSeleccionada(null);
+    setMotivoAnulacion("");
+    setMensajeAutorizacion("");
+  };
+
+  const anularAutorizacion = async () => {
+    const idAutorizacion =
+      autorizacionSeleccionada
+        ?.IdAutorizacionAgendaDisciplinaria;
+
+    if (!idAutorizacion) {
+      setMensajeAutorizacion(
+        "No fue posible identificar la autorización."
+      );
+      return;
+    }
+
+    if (motivoAnulacion.trim().length < 5) {
+      setMensajeAutorizacion(
+        "Ingrese un motivo de anulación válido."
+      );
+      return;
+    }
+
+    try {
+      setGuardandoAutorizacion(true);
+      setMensajeAutorizacion("");
+
+      const response = await fetch(
+        `${API_URL}/autorizaciones-agenda-disciplinaria/${idAutorizacion}/anular`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            MotivoAnulacion: motivoAnulacion.trim(),
+            UsuarioAnula: obtenerUsuarioSesion(),
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          await obtenerMensajeBackend(
+            response,
+            "No se pudo anular la autorización"
+          )
+        );
+      }
+
+      setModalAnulacionAbierto(false);
+      setAutorizacionSeleccionada(null);
+      setMotivoAnulacion("");
+      setMensajeAutorizacion(
+        "La autorización fue anulada correctamente."
+      );
+
+      await cargarAutorizaciones(idProcesoActual);
+    } catch (error) {
+      console.error(
+        "Error anulando autorización:",
+        error
+      );
+      setMensajeAutorizacion(
+        error?.message ||
+          "No fue posible anular la autorización."
+      );
+    } finally {
+      setGuardandoAutorizacion(false);
+    }
+  };
+
   useEffect(() => {
     cargarExpediente();
   }, [proceso]);
+
+
+  useEffect(() => {
+    cargarAutorizaciones(idProcesoActual);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idProcesoActual]);
 
   const procesoExp = expediente?.Proceso || proceso;
   const citacion = expediente?.Citacion;
@@ -326,6 +778,186 @@ export default function ProcesoDisciplinarioDetalleView({
                 {trabajador?.ClienteNombre || "—"}
               </p>
             </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 mb-6">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-amber-700">
+                Relaciones Laborales
+              </p>
+
+              <h3 className="text-lg font-bold text-gray-800">
+                Autorización excepcional de viernes
+              </h3>
+
+              <p className="mt-1 text-sm text-gray-600">
+                Autoriza un único viernes y bloque horario para este
+                trabajador y expediente disciplinario.
+              </p>
+            </div>
+
+            {!cerrado && (
+              <Button
+                type="button"
+                className="bg-amber-600 hover:bg-amber-700"
+                onClick={abrirModalAutorizacion}
+                disabled={cargandoAutorizaciones}
+              >
+                Autorizar viernes
+              </Button>
+            )}
+          </div>
+
+          {mensajeAutorizacion &&
+            !modalAutorizacionAbierto &&
+            !modalAnulacionAbierto && (
+              <div className="mt-4 rounded-lg border border-amber-300 bg-white px-4 py-3 text-sm font-medium text-amber-900">
+                {mensajeAutorizacion}
+              </div>
+            )}
+
+          <div className="mt-5">
+            {cargandoAutorizaciones ? (
+              <div className="rounded-xl border border-amber-200 bg-white px-4 py-6 text-center text-sm text-gray-500">
+                Consultando autorizaciones...
+              </div>
+            ) : autorizaciones.length === 0 ? (
+              <div className="rounded-xl border border-amber-200 bg-white px-4 py-6 text-center">
+                <p className="font-semibold text-gray-800">
+                  Sin autorizaciones registradas
+                </p>
+
+                <p className="mt-1 text-sm text-gray-500">
+                  Este expediente todavía no tiene un viernes
+                  excepcional autorizado.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {autorizaciones.map((autorizacion) => {
+                  const estadoAutorizacion =
+                    autorizacion.EstadoAutorizacion ||
+                    "—";
+
+                  const activa =
+                    estadoAutorizacion === "ACTIVA" &&
+                    autorizacion.Activo;
+
+                  return (
+                    <div
+                      key={
+                        autorizacion
+                          .IdAutorizacionAgendaDisciplinaria
+                      }
+                      className="rounded-xl border border-amber-200 bg-white p-4"
+                    >
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+                        <div>
+                          <p className="text-xs text-gray-500">
+                            Estado
+                          </p>
+
+                          <span
+                            className={`mt-1 inline-flex rounded-full px-3 py-1 text-xs font-bold ${
+                              estadoAutorizacion === "ACTIVA"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : estadoAutorizacion === "UTILIZADA"
+                                  ? "bg-blue-100 text-blue-700"
+                                  : estadoAutorizacion === "ANULADA"
+                                    ? "bg-red-100 text-red-700"
+                                    : "bg-gray-100 text-gray-700"
+                            }`}
+                          >
+                            {estadoAutorizacion}
+                          </span>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-gray-500">
+                            Viernes autorizado
+                          </p>
+                          <p className="mt-1 font-semibold text-gray-800">
+                            {formatearFechaColombia(
+                              autorizacion.FechaAutorizada
+                            )}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-gray-500">
+                            Horario
+                          </p>
+                          <p className="mt-1 font-semibold text-gray-800">
+                            {formatearHora(
+                              autorizacion.HoraInicio
+                            )}{" "}
+                            -{" "}
+                            {formatearHora(
+                              autorizacion.HoraFin
+                            )}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-gray-500">
+                            Autorizó
+                          </p>
+                          <p className="mt-1 font-semibold text-gray-800">
+                            {autorizacion.UsuarioAutoriza ||
+                              "—"}
+                          </p>
+                        </div>
+
+                        <div className="md:text-right">
+                          {activa ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="border-red-300 text-red-700 hover:bg-red-50"
+                              onClick={() =>
+                                abrirModalAnulacion(
+                                  autorizacion
+                                )
+                              }
+                            >
+                              Anular autorización
+                            </Button>
+                          ) : (
+                            <p className="text-sm text-gray-500">
+                              Sin acciones
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-1 gap-4 border-t border-amber-100 pt-4 md:grid-cols-2">
+                        <div>
+                          <p className="text-xs font-semibold text-gray-500">
+                            Motivo
+                          </p>
+                          <p className="mt-1 whitespace-pre-line text-sm text-gray-700">
+                            {autorizacion.MotivoAutorizacion ||
+                              "—"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-semibold text-gray-500">
+                            Observación
+                          </p>
+                          <p className="mt-1 whitespace-pre-line text-sm text-gray-700">
+                            {autorizacion.Observacion ||
+                              "—"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
@@ -715,6 +1347,243 @@ export default function ProcesoDisciplinarioDetalleView({
             </Button>
           </div>
         </div>
+
+        {modalAutorizacionAbierto && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+            <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+              <div className="border-b border-gray-200 px-6 py-5">
+                <p className="text-sm font-semibold text-amber-700">
+                  Relaciones Laborales
+                </p>
+                <h2 className="text-xl font-bold text-gray-900">
+                  Autorizar atención excepcional de viernes
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  La autorización será válida únicamente para este
+                  trabajador, expediente, fecha y horario.
+                </p>
+              </div>
+
+              <div className="space-y-5 px-6 py-5">
+                <div className="grid grid-cols-1 gap-4 rounded-xl border border-amber-200 bg-amber-50 p-4 md:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-amber-700">
+                      Trabajador
+                    </p>
+                    <p className="mt-1 font-bold text-gray-800">
+                      {trabajador?.NombreCompleto || "—"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-amber-700">
+                      Expediente disciplinario
+                    </p>
+                    <p className="mt-1 font-bold text-gray-800">
+                      {formatearExpedienteDisciplinario(
+                        procesoExp,
+                        procesoExp?.FechaCreacion
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="text-sm font-semibold text-gray-700">
+                      Viernes autorizado *
+                    </label>
+                    <input
+                      type="date"
+                      value={fechaAutorizada}
+                      onChange={(event) => {
+                        setFechaAutorizada(
+                          event.target.value
+                        );
+                        setHoraAutorizada("");
+                        setMensajeAutorizacion("");
+                      }}
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold text-gray-700">
+                      Bloque horario *
+                    </label>
+                    <select
+                      value={horaAutorizada}
+                      onChange={(event) =>
+                        setHoraAutorizada(
+                          event.target.value
+                        )
+                      }
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
+                    >
+                      <option value="">
+                        Seleccione un horario
+                      </option>
+
+                      {horariosAutorizables.map((horario) => (
+                        <option
+                          key={`${horario.HoraInicio}-${horario.HoraFin}`}
+                          value={String(
+                            horario.HoraInicio
+                          ).slice(0, 5)}
+                        >
+                          {horario.Etiqueta ||
+                            `${horario.HoraInicio} - ${horario.HoraFin}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-semibold text-gray-700">
+                    Motivo de la autorización *
+                  </label>
+                  <textarea
+                    value={motivoAutorizacion}
+                    onChange={(event) =>
+                      setMotivoAutorizacion(
+                        event.target.value
+                      )
+                    }
+                    maxLength={2000}
+                    placeholder="Explique por qué el caso requiere atención excepcional un viernes."
+                    className="mt-1 min-h-[110px] w-full resize-none rounded-lg border border-gray-300 p-3"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-semibold text-gray-700">
+                    Observación adicional
+                  </label>
+                  <textarea
+                    value={observacionAutorizacion}
+                    onChange={(event) =>
+                      setObservacionAutorizacion(
+                        event.target.value
+                      )
+                    }
+                    maxLength={2000}
+                    placeholder="Información adicional para la trazabilidad."
+                    className="mt-1 min-h-[90px] w-full resize-none rounded-lg border border-gray-300 p-3"
+                  />
+                </div>
+
+                {mensajeAutorizacion && (
+                  <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    {mensajeAutorizacion}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 sm:flex-row sm:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={cerrarModalAutorizacion}
+                  disabled={guardandoAutorizacion}
+                >
+                  Cancelar
+                </Button>
+
+                <Button
+                  type="button"
+                  className="bg-amber-600 hover:bg-amber-700"
+                  onClick={crearAutorizacionViernes}
+                  disabled={guardandoAutorizacion}
+                >
+                  {guardandoAutorizacion
+                    ? "Autorizando..."
+                    : "Autorizar viernes"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {modalAnulacionAbierto &&
+          autorizacionSeleccionada && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+              <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
+                <div className="border-b border-gray-200 px-6 py-5">
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Anular autorización
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Registre el motivo por el cual esta autorización
+                    ya no debe utilizarse.
+                  </p>
+                </div>
+
+                <div className="space-y-4 px-6 py-5">
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                    Viernes{" "}
+                    {formatearFechaColombia(
+                      autorizacionSeleccionada
+                        .FechaAutorizada
+                    )}{" "}
+                    de{" "}
+                    {formatearHora(
+                      autorizacionSeleccionada.HoraInicio
+                    )}{" "}
+                    a{" "}
+                    {formatearHora(
+                      autorizacionSeleccionada.HoraFin
+                    )}.
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold text-gray-700">
+                      Motivo de anulación *
+                    </label>
+                    <textarea
+                      value={motivoAnulacion}
+                      onChange={(event) =>
+                        setMotivoAnulacion(
+                          event.target.value
+                        )
+                      }
+                      maxLength={2000}
+                      placeholder="Explique por qué se anula la autorización."
+                      className="mt-1 min-h-[100px] w-full resize-none rounded-lg border border-gray-300 p-3"
+                    />
+                  </div>
+
+                  {mensajeAutorizacion && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      {mensajeAutorizacion}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-col-reverse gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 sm:flex-row sm:justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={cerrarModalAnulacion}
+                    disabled={guardandoAutorizacion}
+                  >
+                    Cancelar
+                  </Button>
+
+                  <Button
+                    type="button"
+                    className="bg-red-600 hover:bg-red-700"
+                    onClick={anularAutorizacion}
+                    disabled={guardandoAutorizacion}
+                  >
+                    {guardandoAutorizacion
+                      ? "Anulando..."
+                      : "Anular autorización"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
       </div>
     </div>
   );
