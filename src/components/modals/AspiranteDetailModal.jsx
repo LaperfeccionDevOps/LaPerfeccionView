@@ -132,6 +132,8 @@ const clientesALP = [
    { id: 23, name: "Asistir Salud S Quiroga Salud" },
    { id: 24, name: "Asistir Salud S Soacha Salud" },
    { id: 25, name: "Asociación Aconiño S Cl 127 B 45 28 Salud" },
+   { id: 222, name: "Bel Medicina SAS S Cl 110 9 25 CS 601 1701 Aseo general y especializado" },
+   { id: 212, name: "Bel Medicina SAS S Cl 110 9 25 CS 601 1701 Salud" },
    { id: 26, name: "Caja De Compensación Familiar Cafam S Ak 68 64 45 Piscinas" },
    { id: 221, name: "CENTRO COMERCIAL Y DE NEGOCIOS ANDINO PH CR 11 82-71 MANTENIMIENTO DE CUBIERTAS" },
    { id: 27, name: "Centro aud. y quirúrgico del country S Cl 97 23 37 PISO 10 Mantenimiento General" },
