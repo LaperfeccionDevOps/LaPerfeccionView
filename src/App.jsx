@@ -10,6 +10,7 @@ import LoginPage from '@/pages/LoginPage';
 import HomePage from '@/pages/HomePage';
 import EntrevistaRetiroPage from '@/pages/EntrevistaRetiroPage';
 import OperacionesProcesosDisciplinariosView from '@/pages/OperacionesProcesosDisciplinariosView';
+import OperacionesRetirosView from '@/pages/OperacionesRetirosView';
 import IniciarProcesoOperacionesView from '@/pages/IniciarProcesoOperacionesView';
 
 
@@ -138,6 +139,11 @@ function App() {
           <Route
             path="operaciones/procesos-disciplinarios"
             element={<OperacionesProcesosDisciplinariosView />}
+          />
+
+          <Route
+            path="operaciones/retiros"
+            element={<OperacionesRetirosView />}
           />
 
           <Route

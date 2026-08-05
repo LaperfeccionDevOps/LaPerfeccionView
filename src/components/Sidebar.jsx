@@ -130,6 +130,11 @@ const Sidebar = ({
           roles: ["Operaciones"],
         },
         {
+          to: "/operaciones/retiros",
+          label: "Retiros",
+          roles: ["Operaciones"],
+        },
+        {
           to: "/indicadores-contratacion",
           label: "Indicadores",
           roles: ["Administrador", "Contratación"],
