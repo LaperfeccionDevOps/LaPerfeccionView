@@ -113,6 +113,7 @@ const CreateUserForm = () => {
                 <SelectItem value="Selección">Selección</SelectItem>
                 <SelectItem value="Contratación">Contratación</SelectItem>
                 <SelectItem value="Administrador">Administrador</SelectItem>
+                <SelectItem value="Nómina">Nómina</SelectItem>
               </SelectContent>
             </Select>
           </div>

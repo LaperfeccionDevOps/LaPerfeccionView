@@ -8,6 +8,7 @@ import {
   Menu,
   ShieldAlert,
   Users,
+  WalletCards,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -59,7 +60,10 @@ const Sidebar = ({
     {
       label: "Administrador",
       icon: ShieldAlert,
-      roles: ["Administrador", "Super Administrador"],
+      roles: [
+        "Administrador",
+        "Super Administrador",
+      ],
       children: [
         {
           to: "/admin/crear-usuario",
@@ -90,22 +94,34 @@ const Sidebar = ({
         {
           to: "/aspirantes",
           label: "Registro Aspirante",
-          roles: ["Administrador", "Aspirante"],
+          roles: [
+            "Administrador",
+            "Aspirante",
+          ],
         },
         {
           to: "/seleccion",
           label: "Selección",
-          roles: ["Administrador", "Selección"],
+          roles: [
+            "Administrador",
+            "Selección",
+          ],
         },
         {
           to: "/indicadores-seleccion",
           label: "Indicadores",
-          roles: ["Administrador", "Selección"],
+          roles: [
+            "Administrador",
+            "Selección",
+          ],
         },
         {
           to: "/contratacion",
           label: "Contratación",
-          roles: ["Administrador", "Contratación"],
+          roles: [
+            "Administrador",
+            "Contratación",
+          ],
         },
         {
           to: "/archivos",
@@ -137,7 +153,10 @@ const Sidebar = ({
         {
           to: "/indicadores-contratacion",
           label: "Indicadores",
-          roles: ["Administrador", "Contratación"],
+          roles: [
+            "Administrador",
+            "Contratación",
+          ],
         },
         {
           to: "/relaciones-laborales",
@@ -157,6 +176,58 @@ const Sidebar = ({
             "Talento Humano",
           ],
         },
+        {
+          to: "/panel-gerencial-rrll",
+          label: "Panel Gerencial",
+          roles: [
+            "Administrador",
+            "Super Administrador",
+            "Relaciones Laborales",
+            "Talento Humano",
+          ],
+        },
+      ],
+    },
+    {
+      label: "Nómina",
+      icon: WalletCards,
+      roles: [
+        "Administrador",
+        "Super Administrador",
+        "Nómina",
+        "Nomina",
+      ],
+      children: [
+        {
+          to: "/nomina-retiros",
+          label: "Retiros",
+          roles: [
+            "Administrador",
+            "Super Administrador",
+            "Nómina",
+            "Nomina",
+          ],
+        },
+        {
+          to: "/indicadores-nomina",
+          label: "Indicadores",
+          roles: [
+            "Administrador",
+            "Super Administrador",
+            "Nómina",
+            "Nomina",
+          ],
+        },
+        {
+          to: "/nomina-carpeta-digital",
+          label: "Carpeta Digital",
+          roles: [
+            "Administrador",
+            "Super Administrador",
+            "Nómina",
+            "Nomina",
+          ],
+        },
       ],
     },
   ];
@@ -165,10 +236,6 @@ const Sidebar = ({
     .map((item) => {
       if (!rolUsuario) {
         return null;
-      }
-
-      if (esSuperAdministrador) {
-        return item;
       }
 
       if (
@@ -183,8 +250,8 @@ const Sidebar = ({
       }
 
       if (Array.isArray(item.children)) {
-        const filteredChildren = item.children.filter((child) =>
-          puedeVerPorRol(child.roles)
+        const filteredChildren = item.children.filter(
+          (child) => puedeVerPorRol(child.roles)
         );
 
         if (filteredChildren.length === 0) {

@@ -132,7 +132,10 @@ const clientesALP = [
    { id: 23, name: "Asistir Salud S Quiroga Salud" },
    { id: 24, name: "Asistir Salud S Soacha Salud" },
    { id: 25, name: "Asociación Aconiño S Cl 127 B 45 28 Salud" },
+   { id: 222, name: "Bel Medicina SAS S Cl 110 9 25 CS 601 1701 Aseo general y especializado" },
+   { id: 212, name: "Bel Medicina SAS S Cl 110 9 25 CS 601 1701 Salud" },
    { id: 26, name: "Caja De Compensación Familiar Cafam S Ak 68 64 45 Piscinas" },
+   { id: 221, name: "CENTRO COMERCIAL Y DE NEGOCIOS ANDINO PH CR 11 82-71 MANTENIMIENTO DE CUBIERTAS" },
    { id: 27, name: "Centro aud. y quirúrgico del country S Cl 97 23 37 PISO 10 Mantenimiento General" },
    { id: 28, name: "Centro aud. y quirúrgico del country S Cl 97 23-37 PISO 10 Salud" },
    { id: 29, name: "Centro Enfermedades Digestivas Cl 97 23-37 Cons 315 Supernumerarios" },
@@ -239,9 +242,9 @@ const clientesALP = [
    { id: 130, name: "Cruz Roja Colombiana S ED. Admon Cr 23 73 19 Aseo" },
    { id: 131, name: "Cruz Roja Colombiana S ED. Admon Cr 23 73 19 Aseo" },
    { id: 132, name: "Cruz Roja Colombiana S ED. Admon Cr 23 73 19 Supernumerarios" },
+   { id: 214, name: "CRUZ ROJA COLOMBIANA S PET CRA 45 # 106B - 18 ASEO" },
    { id: 133, name: "Cruz Roja Colombiana S Salvamento Av 68 68b 31 Piscinas" },
    { id: 134, name: "Cruz Roja Colombiana S Salvamento Av 68 68b 31 Recreacion" },
-   { id: 214, name: "CRUZ ROJA COLOMBIANA S PET CRA 45 # 106B - 18 ASEO" },
    { id: 135, name: "Edif Ahorramas S Cr 15a 121-12 Aseo" },
    { id: 136, name: "Edif Banco Ganadero S Av 15 122-35 Aseo" },
    { id: 137, name: "Edif Banco Ganadero S Av 15 122-35 Mantenimiento General" },
@@ -279,7 +282,11 @@ const clientesALP = [
    { id: 169, name: "Fund Univ Compensar S Campus Ak 68 No. 68 B - 45 Aseo" },
    { id: 170, name: "Fund Univ Compensar S Campus Ak 68 No. 68 B - 45 Obra Civil Menor" },
    { id: 171, name: "Fund Univ Compensar S Campus Ak 68 No. 68 B - 45 Recreacion" },
+   { id: 210, name: "FUNDACIÓN UNIVERSITARIA KONRAD LORENZ CRA 9 BIS 62-43 Aseo" },
    { id: 172, name: "Guala S Cl 17 42-75 Aseo" },
+   { id: 216, name: "Hacienda Los Lagos P. H. S Cr 54 d 200 54 Aseo" },
+   { id: 218, name: "Hacienda Los Lagos P. H. S Cr 54 d 200 54 Mantenimiento General" },
+   { id: 217, name: "Hacienda Los Lagos P. H. S Cr 54 d 200 54 Obra Civil Menor" },
    { id: 173, name: "Infinity Brows Studio SAS S CL 24 B 75 18 Cafeteria" },
    { id: 174, name: "Laboratorio Medico Echavarria SAS S Cr 44 20 a 05 Mantenimiento General" },
    { id: 175, name: "Laboratorios Smart S A S S Cl 19 # 69 - 05 Recreacion" },
@@ -317,8 +324,9 @@ const clientesALP = [
    { id: 207, name: "Teleférico Monserrate S Cr 2 Este 21-48 Aseo" },
    { id: 208, name: "Textiles Asitex S.A.S S Cr 63 18 A 43 Aseo" },
    { id: 209, name: "Thomas Gred Seguridad Integral LTDA S CALLE 77 28B 25 Aseo" },
+   { id: 219, name: "Urbanizacion Rafael Nuñez V Etapa M3 L2 P H S CL 44 D 45 45 Aseo" },
+   { id: 220, name: "Urbanizacion Rafael Nuñez V Etapa M3 L2 P H S CL 44 D 45 45 Mantenimiento General" },
    { id: 215, name: "Universidad De Ciencias Aplicadas Y Ambientales UDCA S CL 222 55 37 Mantenimiento General" },
-   { id: 210, name: "FUNDACIÓN UNIVERSITARIA KONRAD LORENZ CRA 9 BIS 62-43 Aseo" },
 ];
 
 const EPS = [
@@ -401,6 +409,18 @@ const GRUPOS_SANGUINEOS = [
 ];
 
 
+const MOTIVOS_CIERRE_PREDEFINIDOS = [
+  'Desiste del Proceso',
+  'No Cumple Perfil',
+  'No asiste a Examenes Medicos',
+  'Exámenes No Aptos',
+  'Documentación Incompleta',
+  'Estudio de Seguridad',
+  'Reintegro No Aprobado',
+  'No asiste a Contratación',
+  'No supera prueba física',
+];
+
 const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   // Estado para loader al abrir modal
   const [loadingAspiranteDetalle, setLoadingAspiranteDetalle] = useState(false);
@@ -419,6 +439,18 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   const [nombreContacto, setNombreContacto] = useState(null);
   const [cargoExperiencia, setCargoExperiencia] = useState('');
   const [funcionesExperiencia, setFuncionesExperiencia] = useState('');
+
+  // Control exclusivo del motivo de cierre cuando el proceso queda RECHAZADO.
+  const [tipoMotivoCierre, setTipoMotivoCierre] = useState('');
+  const [motivoCierreOtro, setMotivoCierreOtro] = useState('');
+
+  // Información de solo lectura cuando el rechazo fue registrado desde Contratación.
+  const [rechazoContratacion, setRechazoContratacion] = useState({
+    esRechazoContratacion: false,
+    observacion: '',
+    usuario: '',
+    fecha: null,
+  });
 
   // ✅ Estado inicial seguro para evitar uncontrolled inputs
   const initialFormData = {
@@ -535,9 +567,9 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
 
          let responseMotivoCierre = null;
          try {
-         responseMotivoCierre = await getMotivoCierre(aspirante.id);
+           responseMotivoCierre = await getMotivoCierre(aspirante.id);
          } catch (error) {
-         responseMotivoCierre = null;
+           responseMotivoCierre = null;
          }
 
         // ✅ entrevista SIEMPRE array
@@ -545,10 +577,63 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
           ? responseEntrevista.data
           : (responseEntrevista?.data ? [responseEntrevista.data] : []);
 
-         const motivoCierreGuardado =
-         responseMotivoCierre?.data?.MotivoCierre ||
-         responseMotivoCierre?.data?.motivoCierre ||
-         '';
+         const motivoCierreData = responseMotivoCierre?.data || {};
+
+         const esRechazoContratacion =
+           Boolean(
+             motivoCierreData?.EsRechazoContratacion ??
+             motivoCierreData?.esRechazoContratacion
+           ) ||
+           String(
+             motivoCierreData?.OrigenRechazo ||
+             motivoCierreData?.origenRechazo ||
+             ''
+           ).trim().toUpperCase() === 'CONTRATACION';
+
+         const observacionRechazoContratacion = String(
+           motivoCierreData?.ObservacionContratacion ||
+           motivoCierreData?.observacionContratacion ||
+           motivoCierreData?.ObservacionesRechazo ||
+           motivoCierreData?.observacionesRechazo ||
+           (esRechazoContratacion ? motivoCierreData?.Observaciones : '') ||
+           ''
+         ).trim();
+
+         setRechazoContratacion({
+           esRechazoContratacion,
+           observacion: observacionRechazoContratacion,
+           usuario:
+             motivoCierreData?.UsuarioRechazoContratacion ||
+             motivoCierreData?.usuarioRechazoContratacion ||
+             '',
+           fecha:
+             motivoCierreData?.FechaRechazoContratacion ||
+             motivoCierreData?.fechaRechazoContratacion ||
+             null,
+         });
+
+         const motivoCierreGuardado = esRechazoContratacion
+           ? ''
+           : (
+               motivoCierreData?.MotivoCierre ||
+               motivoCierreData?.motivoCierre ||
+               ''
+             );
+
+         const motivoCierreEsPredefinido =
+           MOTIVOS_CIERRE_PREDEFINIDOS.includes(motivoCierreGuardado);
+
+         setTipoMotivoCierre(
+           motivoCierreGuardado
+             ? (motivoCierreEsPredefinido ? motivoCierreGuardado : 'OTRO')
+             : ''
+         );
+
+         setMotivoCierreOtro(
+           motivoCierreGuardado && !motivoCierreEsPredefinido
+             ? motivoCierreGuardado
+             : ''
+         );
 
         let asignacionCargoCliente = {};
         try {
@@ -1461,6 +1546,40 @@ console.log('campos completos:', campos);
     setLoadingAspiranteDetalle(true);
 
     const estadoInt = parseInt(formData.estadoProceso, 10);
+    const motivoCierreFinal = String(
+      formData?.entrevista?.[0]?.motivo ||
+      formData?.entrevista?.motivo ||
+      ''
+    ).trim();
+
+    if (estadoInt === 28 && !rechazoContratacion.esRechazoContratacion) {
+      if (!tipoMotivoCierre) {
+        toast({
+          title: 'Motivo de cierre requerido',
+          description: 'Debe seleccionar el motivo por el cual se rechaza al candidato.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (tipoMotivoCierre === 'OTRO' && !motivoCierreOtro.trim()) {
+        toast({
+          title: 'Motivo de cierre requerido',
+          description: 'Debe escribir el motivo del rechazo.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (!motivoCierreFinal) {
+        toast({
+          title: 'Motivo de cierre requerido',
+          description: 'Debe registrar un motivo válido para rechazar al candidato.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
 
     const tieneCargoCompleto =
       formData?.asignacionCargo?.IdCargo !== undefined &&
@@ -1497,9 +1616,9 @@ console.log('campos completos:', campos);
       localStorage.getItem('usuario') || 'sistema'
     );
 
-      if (formData.estadoProceso == 28) {
+      if (estadoInt === 28 && !rechazoContratacion.esRechazoContratacion) {
         const payload = {
-          MotivoCierre: formData?.entrevista?.[0]?.motivo || formData?.entrevista?.motivo || '',
+          MotivoCierre: motivoCierreFinal,
           Observaciones: '',
           UsuarioActualizacion: localStorage.getItem('usuario') || 'sistema',
         };
@@ -4510,100 +4629,180 @@ if (response && response.status === 201) {
 
                            {/* ✅✅✅ NUEVO BLOQUE: Asignación cargo y cliente (JUSTO AQUÍ, debajo del historial) */}
                            {/* <details className="mb-6 bg-white border border-gray-200 rounded-xl shadow-sm"> */}
-                             <summary className="cursor-pointer select-none list-none px-4 py-3 flex items-center justify-between">
-                               <span className="font-semibold text-gray-800">Asignación cargo y cliente</span>
-                               {/* <span className="text-xs text-gray-500">Clic para desplegar</span> */}
-                             </summary>
+                           <summary className="cursor-pointer select-none list-none px-4 py-3 flex items-center justify-between">
+                              <span className="font-semibold text-gray-800">
+                                 Asignación cargo y cliente
+                              </span>
 
-                             <div className="px-4 pb-4 pt-2">
-                               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                 <div className="space-y-2">
+                              {/* <span className="text-xs text-gray-500">Clic para desplegar</span> */}
+                           </summary>
+
+                           <div className="px-4 pb-4 pt-2">
+                              <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1.4fr] gap-6 items-start">
+
+                                 {/* CARGO */}
+                                 <div className="space-y-2 min-w-0">
                                     <Label>Cargo</Label>
+
                                     <Select
-                                       value={formData?.asignacionCargo?.IdCargo ? String(formData.asignacionCargo.IdCargo) : ''}
-                                       onValueChange={v => {
-                                          setFormData(prev => ({
+                                       value={
+                                          formData?.asignacionCargo?.IdCargo
+                                             ? String(formData.asignacionCargo.IdCargo)
+                                             : ''
+                                       }
+                                       onValueChange={(v) => {
+                                          setFormData((prev) => ({
                                              ...prev,
                                              asignacionCargo: {
                                                 ...prev.asignacionCargo,
-                                                IdCargo: parseInt(v, 10)
-                                             }
+                                                IdCargo: parseInt(v, 10),
+                                             },
                                           }));
                                        }}
                                     >
-                                       <SelectTrigger>
+                                       <SelectTrigger
+                                          className="
+                                             w-full
+                                             min-h-10
+                                             h-auto
+                                             py-2
+                                             items-start
+                                             [&>span]:whitespace-normal
+                                             [&>span]:break-words
+                                             [&>span]:text-left
+                                             [&>span]:leading-5
+                                          "
+                                       >
                                           <SelectValue placeholder="Seleccionar..." />
                                        </SelectTrigger>
+
                                        <SelectContent className="max-h-60 overflow-y-auto">
-                                          {listaCargo.length > 0
-                                             ? listaCargo.map((item) => (
-                                                   <SelectItem key={item.IdCargo} value={String(item.IdCargo)}>
-                                                      {item.NombreCargo}
-                                                   </SelectItem>
-                                                ))
-                                             : <div className="px-3 py-2 text-sm text-gray-500">Sin opciones</div>
-                                          }
+                                          {listaCargo.length > 0 ? (
+                                             listaCargo.map((item) => (
+                                                <SelectItem
+                                                   key={item.IdCargo}
+                                                   value={String(item.IdCargo)}
+                                                   className="
+                                                      whitespace-normal
+                                                      break-words
+                                                      leading-5
+                                                      py-2
+                                                   "
+                                                >
+                                                   {item.NombreCargo}
+                                                </SelectItem>
+                                             ))
+                                          ) : (
+                                             <div className="px-3 py-2 text-sm text-gray-500">
+                                                Sin opciones
+                                             </div>
+                                          )}
                                        </SelectContent>
                                     </Select>
                                  </div>
-                                 {/* SALARIO (manual) */}
-                                 <div className="space-y-2">
+
+                                 {/* SALARIO */}
+                                 <div className="space-y-2 min-w-0">
                                     <Label>Salario</Label>
+
                                     <Input
-                                       value={formData?.asignacionCargo?.Salario || ""}
+                                       value={formData?.asignacionCargo?.Salario || ''}
                                        inputMode="numeric"
                                        pattern="[0-9]*"
                                        placeholder="Ej: 1300000"
                                        onChange={(e) => {
-                                          const onlyNums = (e.target.value || "").replace(/\D/g, "").slice(0, 7); // 👈 solo números (máx 9 dígitos)
-                                          handleInputChange("asignacionCargo", "Salario", onlyNums);
+                                          const onlyNums = (e.target.value || '')
+                                             .replace(/\D/g, '')
+                                             .slice(0, 7);
+
+                                          handleInputChange(
+                                             'asignacionCargo',
+                                             'Salario',
+                                             onlyNums
+                                          );
                                        }}
                                     />
                                  </div>
 
-                                 {/* CLIENTE (desplegable, pendiente lista) */}
-                                 <div className="space-y-2">
-                                   <Label>Cliente</Label>
+                                 {/* CLIENTE */}
+                                 <div className="space-y-2 min-w-0">
+                                    <Label>Cliente</Label>
+
                                     <Select
-                                    value={formData?.asignacionCargo?.IdCliente ? String(formData.asignacionCargo.IdCliente) : ''}
-                                    onValueChange={v => {
-                                       setFormData(prev => ({
-                                          ...prev,
-                                          asignacionCargo: {
-                                          ...prev.asignacionCargo,
-                                          IdCliente: parseInt(v, 10)
+                                       value={
+                                          formData?.asignacionCargo?.IdCliente
+                                             ? String(formData.asignacionCargo.IdCliente)
+                                             : ''
+                                       }
+                                       onValueChange={(v) => {
+                                          setFormData((prev) => ({
+                                             ...prev,
+                                             asignacionCargo: {
+                                                ...prev.asignacionCargo,
+                                                IdCliente: parseInt(v, 10),
+                                             },
+                                          }));
+                                       }}
+                                       onOpenChange={(open) => {
+                                          if (!open) {
+                                             setClienteQuery('');
                                           }
-                                       }));
-                                    }}
-                                    onOpenChange={open => { if (!open) setClienteQuery(''); }}
+                                       }}
                                     >
-                                    <SelectTrigger className="bg-white border-gray-200">
-                                       <SelectValue placeholder="Seleccionar cliente" />
-                                    </SelectTrigger>
-                                    <SelectContent className="max-h-72 overflow-y-auto">
-                                       <div className="sticky top-0 z-10 bg-popover p-2 border-b">
-                                          <Input
-                                          value={clienteQuery}
-                                          onChange={e => setClienteQuery(e.target.value)}
-                                          placeholder="Buscar cliente..."
-                                          className="h-9"
-                                          />
-                                       </div>
-                                       {clientesFiltrados.length > 0 ? (
-                                          clientesFiltrados.map((c) => (
-                                          <SelectItem key={c.id} value={String(c.id)}>
-                                             {c.name}
-                                          </SelectItem>
-                                          ))
-                                       ) : (
-                                          <div className="px-3 py-2 text-sm text-muted-foreground">
-                                          Sin resultados
+                                       <SelectTrigger
+                                          className="
+                                             w-full
+                                             min-h-10
+                                             h-auto
+                                             py-2
+                                             items-start
+                                             bg-white
+                                             border-gray-200
+                                             [&>span]:whitespace-normal
+                                             [&>span]:break-words
+                                             [&>span]:text-left
+                                             [&>span]:leading-5
+                                          "
+                                       >
+                                          <SelectValue placeholder="Seleccionar cliente" />
+                                       </SelectTrigger>
+
+                                       <SelectContent className="max-h-72 overflow-y-auto">
+                                          <div className="sticky top-0 z-10 bg-popover p-2 border-b">
+                                             <Input
+                                                value={clienteQuery}
+                                                onChange={(e) => setClienteQuery(e.target.value)}
+                                                placeholder="Buscar cliente..."
+                                                className="h-9"
+                                             />
                                           </div>
-                                       )}
-                                    </SelectContent>
+
+                                          {clientesFiltrados.length > 0 ? (
+                                             clientesFiltrados.map((c) => (
+                                                <SelectItem
+                                                   key={c.id}
+                                                   value={String(c.id)}
+                                                   className="
+                                                      whitespace-normal
+                                                      break-words
+                                                      leading-5
+                                                      py-2
+                                                   "
+                                                >
+                                                   {c.name}
+                                                </SelectItem>
+                                             ))
+                                          ) : (
+                                             <div className="px-3 py-2 text-sm text-muted-foreground">
+                                                Sin resultados
+                                             </div>
+                                          )}
+                                       </SelectContent>
                                     </Select>
                                  </div>
-                                <Button
+
+                                 {/* BOTÓN GUARDAR */}
+                                 <Button
                                     type="button"
                                     size="sm"
                                     className="h-9 px-4 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -4611,8 +4810,10 @@ if (response && response.status === 201) {
                                  >
                                     Guardar
                                  </Button>
-                               </div>
-                             </div>
+                              </div>
+                           </div>
+
+
                            {/* </details> */}
                            {/* CONTENEDOR: Estado del proceso general y motivo de cierre */}
                            <div className="mb-6 p-4 rounded-xl border border-emerald-200 flex flex-col gap-4" style={{ marginTop: '20px' }}>
@@ -4635,22 +4836,85 @@ if (response && response.status === 201) {
                                  </Select>
                               </div>
                               {formData.estadoProceso?.toString() === '28' && (
-                                 <div>
-                                    <Label className="mb-2">Motivo (Cierre)</Label>
-                                    <Select value={formData.entrevista.motivo} onValueChange={(v) => handleInputChange('entrevista', 'motivo', v)}>
-                                       <SelectTrigger><SelectValue placeholder="Seleccionar motivo" /></SelectTrigger>
-                                       <SelectContent>
-                                          <SelectItem value="Desiste del Proceso">DESISTE DEL PROCESO</SelectItem>
-                                          <SelectItem value="No Cumple Perfil">NO CUMPLE PERFIL</SelectItem>
-                                          <SelectItem value="No asiste a Examenes Medicos">NO ASISTE A EXAMENES MEDICOS </SelectItem>
-                                          <SelectItem value="Exámenes No Aptos">EXÁMENES NO APTOS</SelectItem>
-                                          <SelectItem value="Documentación Incompleta">DOCUMENTACIÓN INCOMPLETA</SelectItem>
-                                          <SelectItem value="Estudio de Seguridad">ESTUDIO DE SEGURIDAD</SelectItem>
-                                          <SelectItem value="Reintegro No Aprobado">REINTEGRO NO APROBADO</SelectItem>
-                                          <SelectItem value="No asiste a Contratación">NO ASISTE A CONTRATACIÓN</SelectItem>
-                                       </SelectContent>
-                                    </Select>
-                                 </div>
+                                 rechazoContratacion.esRechazoContratacion ? (
+                                    <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
+                                       <Label className="text-amber-900">
+                                          Rechazo registrado por Contratación
+                                       </Label>
+                                       <p className="mt-2 text-sm font-semibold text-gray-700">
+                                          Observación
+                                       </p>
+                                       <div className="mt-1 min-h-[72px] whitespace-pre-wrap rounded-lg border border-amber-200 bg-white p-3 text-sm text-gray-800">
+                                          {rechazoContratacion.observacion || 'Sin observación registrada.'}
+                                       </div>
+                                       {(rechazoContratacion.usuario || rechazoContratacion.fecha) && (
+                                          <p className="mt-2 text-xs text-gray-500">
+                                             {rechazoContratacion.usuario
+                                                ? `Registrado por: ${rechazoContratacion.usuario}`
+                                                : ''}
+                                             {rechazoContratacion.usuario && rechazoContratacion.fecha
+                                                ? ' · '
+                                                : ''}
+                                             {rechazoContratacion.fecha
+                                                ? `Fecha: ${new Date(rechazoContratacion.fecha).toLocaleString('es-CO')}`
+                                                : ''}
+                                          </p>
+                                       )}
+                                    </div>
+                                 ) : (
+                                    <div className="flex flex-col gap-4">
+                                       <div>
+                                          <Label className="mb-2">Motivo (Cierre)</Label>
+                                          <Select
+                                             value={tipoMotivoCierre}
+                                             onValueChange={(v) => {
+                                                setTipoMotivoCierre(v);
+
+                                                if (v === 'OTRO') {
+                                                   setMotivoCierreOtro('');
+                                                   handleInputChange('entrevista', 'motivo', '');
+                                                   return;
+                                                }
+
+                                                setMotivoCierreOtro('');
+                                                handleInputChange('entrevista', 'motivo', v);
+                                             }}
+                                          >
+                                             <SelectTrigger>
+                                                <SelectValue placeholder="Seleccionar motivo" />
+                                             </SelectTrigger>
+                                             <SelectContent>
+                                                <SelectItem value="Desiste del Proceso">DESISTE DEL PROCESO</SelectItem>
+                                                <SelectItem value="No Cumple Perfil">NO CUMPLE PERFIL</SelectItem>
+                                                <SelectItem value="No asiste a Examenes Medicos">NO ASISTE A EXAMENES MEDICOS</SelectItem>
+                                                <SelectItem value="Exámenes No Aptos">EXÁMENES NO APTOS</SelectItem>
+                                                <SelectItem value="Documentación Incompleta">DOCUMENTACIÓN INCOMPLETA</SelectItem>
+                                                <SelectItem value="Estudio de Seguridad">ESTUDIO DE SEGURIDAD</SelectItem>
+                                                <SelectItem value="Reintegro No Aprobado">REINTEGRO NO APROBADO</SelectItem>
+                                                <SelectItem value="No asiste a Contratación">NO ASISTE A CONTRATACIÓN</SelectItem>
+                                                <SelectItem value="No supera prueba física">NO SUPERA PRUEBA FÍSICA</SelectItem>
+                                                <SelectItem value="OTRO">OTRO</SelectItem>
+                                             </SelectContent>
+                                          </Select>
+                                       </div>
+
+                                       {tipoMotivoCierre === 'OTRO' && (
+                                          <div>
+                                             <Label className="mb-2">Especifique el motivo</Label>
+                                             <Textarea
+                                                value={motivoCierreOtro}
+                                                onChange={(e) => {
+                                                   const valor = e.target.value;
+                                                   setMotivoCierreOtro(valor);
+                                                   handleInputChange('entrevista', 'motivo', valor);
+                                                }}
+                                                placeholder="Escriba el motivo del rechazo"
+                                                maxLength={500}
+                                             />
+                                          </div>
+                                       )}
+                                    </div>
+                                 )
                               )}
                               <div className="flex justify-end">
                                  <Button type="button" className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={handleActualizarEstadoProceso}>

@@ -771,7 +771,10 @@ const ArchivosView = () => {
         docTypeConfigSeguridad={modalConfigs.seguridad}
         docTypeConfigContratacion={modalConfigs.contratacion}
         tipoCarpeta={modalState.carpeta}
-        soloLectura={modalState.carpeta === 'operaciones'}
+        soloLectura={
+          modalState.carpeta === 'ingreso' ||
+          modalState.carpeta === 'operaciones'
+        }
       />
     </motion.div>
   );

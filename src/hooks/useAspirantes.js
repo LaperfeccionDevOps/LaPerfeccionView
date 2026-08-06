@@ -28,26 +28,39 @@ const mapApiAspiranteToFront = (item) => {
       ? Number(idRegistroPersonalRaw)
       : null;
 
-  return {
-    id: idRegistroPersonal,
-    idRegistroPersonal: idRegistroPersonal,
-    nombres: item.Nombres ?? item.nombres ?? '',
-    apellidos: item.Apellidos ?? item.apellidos ?? '',
-    cedula: item.NumeroIdentificacion ?? item.cedula ?? '',
-    telefono: item.Telefono ?? item.telefono ?? '',
-    celular: item.Celular ?? item.celular ?? '',
-    correo: item.Correo ?? item.correo ?? item.Email ?? '',
-    direccion: item.Direccion ?? item.direccion ?? '',
-    lugarExpedicion: item.LugarExpedicion ?? item.lugarExpedicion ?? '',
-    barrio: item.Barrio ?? item.barrio ?? '',
-    direccion: item.Direccion ?? item.direccion ?? '',
-    fechaNacimiento: item.FechaNacimiento ?? item.fechaNacimiento ?? null,
-    fechaIngreso: item.FechaIngreso ?? item.fechaIngreso ?? null,
-    cargo: item.Cargo ?? item.CargoPostulado ?? item.IdCargo ?? item.cargo ?? '',
-    cliente: item.NombreCliente ?? item.NombreCliente ?? '',
-    fechaExpedicion: item.FechaExpedicion ?? item.fechaExpedicion ?? null,
-    fechaNacimiento: item.FechaNacimiento ?? item.fechaNacimiento ?? null,
+      const tuvoContratacionRaw =
+      item?.TuvoContratacion ??
+      item?.tuvoContratacion ??
+      false;
 
+    const tuvoContratacion =
+      tuvoContratacionRaw === true ||
+      tuvoContratacionRaw === 1 ||
+      ['true', 't', '1', 'si', 'sí'].includes(
+        String(tuvoContratacionRaw).trim().toLowerCase(),
+      );
+
+ return {
+  id: idRegistroPersonal,
+  idRegistroPersonal: idRegistroPersonal,
+  tuvoContratacion,
+  nombres: item.Nombres ?? item.nombres ?? '',
+  apellidos: item.Apellidos ?? item.apellidos ?? '',
+  cedula: item.NumeroIdentificacion ?? item.cedula ?? '',
+  telefono: item.Telefono ?? item.telefono ?? '',
+  celular: item.Celular ?? item.celular ?? '',
+  correo: item.Correo ?? item.correo ?? item.Email ?? '',
+  direccion: item.Direccion ?? item.direccion ?? '',
+  lugarExpedicion: item.LugarExpedicion ?? item.lugarExpedicion ?? '',
+  barrio: item.Barrio ?? item.barrio ?? '',
+  direccion: item.Direccion ?? item.direccion ?? '',
+  fechaNacimiento: item.FechaNacimiento ?? item.fechaNacimiento ?? null,
+  fechaIngreso: item.FechaIngreso ?? item.fechaIngreso ?? null,
+  cargo: item.Cargo ?? item.CargoPostulado ?? item.IdCargo ?? item.cargo ?? '',
+  cliente: item.NombreCliente ?? item.NombreCliente ?? '',
+  fechaExpedicion: item.FechaExpedicion ?? item.fechaExpedicion ?? null,
+  fechaNacimiento: item.FechaNacimiento ?? item.fechaNacimiento ?? null,
+  
     estado:
       item.EstadoProcesoNombre ??
       item.EstadoProceso ??

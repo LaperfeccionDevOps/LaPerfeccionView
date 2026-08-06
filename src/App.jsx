@@ -27,6 +27,9 @@ import UpdateUserView from '@/components/admin/UpdateUserView';
 import IndicadoresContratacionView from './components/IndicadoresContratacionView';
 import IndicadoresSeleccionView from './components/IndicadoresSeleccionView';
 import IndicadoresRRLLView from './components/IndicadoresRRLLView';
+import NominaRetirosView from '@/components/NominaRetirosView';
+import IndicadoresNominaView from '@/components/IndicadoresNominaView';
+import PanelGerencialRRLLView from '@/components/PanelGerencialRRLLView';
 
 const RoleBasedRedirect = () => {
   const { user } = useAuth();
@@ -57,6 +60,10 @@ const RoleBasedRedirect = () => {
     case 'Bienestar':
     case 'HSE':
       return <Navigate to="/archivos" replace />;
+
+    case 'Nómina':
+    case 'Nomina':
+      return <Navigate to="/nomina-retiros" replace />;
 
     default:
       return <Navigate to="/seleccion" replace />;

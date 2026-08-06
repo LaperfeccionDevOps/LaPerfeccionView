@@ -300,6 +300,11 @@ const TIPO_DOCUMENTO_RETIRO = [
   { id: 12, nombre: "EVIDENCIA SEGUNDO LLAMADO", tipo: "ADJUNTABLE" },
   { id: 13, nombre: "PRIMER LLAMADO ABANDONO INASISTENCIA AL CARGO", tipo: "GENERADO" },
   { id: 14, nombre: "SEGUNDO LLAMADO ABANDONO INASISTENCIA AL CARGO", tipo: "GENERADO" },
+  {
+  id: 19,
+  nombre: "EVIDENCIA CARTA FINALIZACIÓN DEL CONTRATO",
+  tipo: "ADJUNTABLE",
+},
 ];
 /* =========================================================
    ✅ REQUISITOS POR MOTIVO (ESTRUCTURA UNIFICADA)
@@ -345,6 +350,11 @@ const REQUISITOS_POR_MOTIVO = {
       label: "EVIDENCIA SEGUNDO LLAMADO",
       tipo: "ADJUNTABLE",
       idTipoDocumentoRetiro: 12,
+    },
+    {
+      label: "EVIDENCIA CARTA FINALIZACIÓN DEL CONTRATO",
+      tipo: "ADJUNTABLE",
+      idTipoDocumentoRetiro: 19,
     },
     { label: "PAQUETE DE RETIRO", tipo: "PAQUETE", idTipoDocumentoRetiro: 10 },
     { label: "OBSERVACIONES", tipo: "ESCRIBIR" },
@@ -520,18 +530,68 @@ function keyFromLabel(label) {
 function toDateInput(value) {
   if (!value) return "";
 
-  // Si ya viene como "YYYY-MM-DD"
-  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  /*
+   * Cuando el backend devuelve una fecha o timestamp ISO, conservamos
+   * directamente su fecha calendario original.
+   *
+   * Ejemplo:
+   * 2026-07-22T21:50:24.017-05:00 -> 2026-07-22
+   *
+   * No usamos toISOString(), porque convierte a UTC y después de las
+   * 7:00 p. m. de Colombia puede cambiarla al día siguiente.
+   */
+  if (typeof value === "string") {
+    const valor = value.trim();
+    const fechaIso = valor.match(/^(\d{4}-\d{2}-\d{2})(?:[T\s]|$)/);
+
+    if (fechaIso) {
+      return fechaIso[1];
+    }
+  }
 
   try {
-    const d = new Date(value);
-    if (isNaN(d.getTime())) return "";
+    const fecha = value instanceof Date ? value : new Date(value);
 
-    // toISOString => "YYYY-MM-DDTHH:mm:ss.sssZ"
-    return d.toISOString().slice(0, 10);
+    if (Number.isNaN(fecha.getTime())) {
+      return "";
+    }
+
+    const partes = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Bogota",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(fecha);
+
+    const valores = Object.fromEntries(
+      partes
+        .filter((parte) => parte.type !== "literal")
+        .map((parte) => [parte.type, parte.value])
+    );
+
+    return `${valores.year}-${valores.month}-${valores.day}`;
   } catch {
     return "";
   }
+}
+
+// Fecha calendario de Colombia sin convertir a UTC.
+// Evita que después de las 7:00 p. m. se guarde el día siguiente.
+function obtenerFechaColombia() {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const valores = Object.fromEntries(
+    partes
+      .filter((parte) => parte.type !== "literal")
+      .map((parte) => [parte.type, parte.value])
+  );
+
+  return `${valores.year}-${valores.month}-${valores.day}`;
 }
 
 // ✅ descarga local del archivo seleccionado (UI)
@@ -611,7 +671,48 @@ async function downloadBackendAdjunto(apiBase, file) {
   window.URL.revokeObjectURL(url);
 }
 
-  export default function RelacionesLaboralesView() {
+const DocCard = ({
+  idx,
+  title,
+  subtitle,
+  file,
+  displayFileName,
+  actions,
+  fileNode,
+  children,
+}) => (
+  <div className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5">
+    <div className="flex items-start justify-between gap-3 flex-wrap">
+      <div>
+        <p className="text-base font-bold text-slate-900">
+          {idx}. {title}
+        </p>
+        <p className="text-xs text-slate-500 mt-1">{subtitle}</p>
+      </div>
+      {actions}
+    </div>
+
+    <div className="mt-3">
+      {file ? (
+        <div className="text-xs text-emerald-700">
+          <b className="break-words">
+            {displayFileName ||
+              `Archivo: ${
+                file?.NombreArchivoOriginal || file?.name || "archivo"
+              }`}
+          </b>
+        </div>
+      ) : (
+        <div className="text-xs text-slate-500">Sin archivo</div>
+      )}
+    </div>
+
+    {fileNode ? <div className="mt-4">{fileNode}</div> : null}
+    {children ? <div className="mt-3">{children}</div> : null}
+  </div>
+);
+
+export default function RelacionesLaboralesView() {
   // ✅ lee tu .env (debe ser: http://localhost:8000/api)
   const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
   const API_BASE_ENTREVISTA = API_BASE.replace(/\/api$/, "");
@@ -634,6 +735,7 @@ async function downloadBackendAdjunto(apiBase, file) {
   // ✅ filtros
   const [filtroTipoDocumento, setFiltroTipoDocumento] = useState("CC");
   const [filtroDocumento, setFiltroDocumento] = useState("");
+  const [resultadosBusqueda, setResultadosBusqueda] = useState([]);
 
   // ✅ estados UX
   const [loadingBuscar, setLoadingBuscar] = useState(false);
@@ -750,6 +852,17 @@ async function downloadBackendAdjunto(apiBase, file) {
   const [entrevistaRetiroData, setEntrevistaRetiroData] = useState(null);
   const [loadingEntrevistaRetiro, setLoadingEntrevistaRetiro] = useState(false);
 
+  // Validación oficial del motivo de retiro por RRLL.
+  // La respuesta original del trabajador se consulta en modo solo lectura.
+  const [motivoRRLLData, setMotivoRRLLData] = useState(null);
+  const [descripcionRetiroRRLL, setDescripcionRetiroRRLL] = useState("");
+  const [loadingMotivoRRLL, setLoadingMotivoRRLL] = useState(false);
+  const [guardandoMotivoRRLL, setGuardandoMotivoRRLL] = useState(false);
+  const [mensajeMotivoRRLL, setMensajeMotivoRRLL] = useState({
+    tipo: "",
+    texto: "",
+  });
+
   const [qrEntrevistaInfo, setQrEntrevistaInfo] = useState({
   open: false,
   link: "",
@@ -844,7 +957,7 @@ const [mensajeEntrevista, setMensajeEntrevista] = useState({
   const [estadoProceso, setEstadoProceso] = useState("ABIERTO"); // ABIERTO | CERRADO
   
   const [ownerProceso, setOwnerProceso] = useState("RRLL"); // RRLL | NOMINA
-  const [estadoSeleccionado, setEstadoSeleccionado] = useState("ABIERTO");
+  const [estadoSeleccionado, setEstadoSeleccionado] = useState("ENVIADO_NOMINA");
 
   // ✅ Tipificación retiro (pendiente lista)
   const [tipificacionRetiro, setTipificacionRetiro] = useState("");
@@ -921,6 +1034,17 @@ const getMotivoValueById = (idMotivo) => {
     []
   );
 
+  const motivoActualNormalizado = String(form?.motivoRetiro || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+
+  const esNuncaIngreso =
+    Number(form?.idMotivoRetiro) === 10 ||
+    motivoActualNormalizado === "NUNCA INGRESO";
+
   const requisitosActuales = useMemo(() => {
     if (!form.motivoRetiro) return [];
     const base = REQUISITOS_POR_MOTIVO[form.motivoRetiro] || [];
@@ -977,16 +1101,19 @@ const getMotivoValueById = (idMotivo) => {
     });
   }, [form.motivoRetiro, EXCLUIR_ENTREVISTA_POR_MOTIVO]);
 
-  // ✅ BOTÓN BUSCAR: pega al backend y recarga cabecera
-  const handleBuscar = async () => {
+  // BOTÓN BUSCAR: permite consultar por documento o por nombre.
+  // Cuando el nombre devuelve varias coincidencias, se muestran para seleccionar.
+  const handleBuscar = async (trabajadorSeleccionado = null) => {
   try {
     setErrorBuscar("");
     setMsgActualizar("");
 
-    const numero = (filtroDocumento || "").trim();
+    const criterioIngresado = String(
+      trabajadorSeleccionado?.NumeroDocumento || filtroDocumento || ""
+    ).trim();
 
-    if (!numero) {
-      setErrorBuscar("Debe escribir el número de documento.");
+    if (!criterioIngresado) {
+      setErrorBuscar("Debe escribir el número de documento o el nombre del trabajador.");
       return;
     }
 
@@ -997,13 +1124,63 @@ const getMotivoValueById = (idMotivo) => {
 
     setLoadingBuscar(true);
 
-    // 1) detectar automáticamente el tipo real del trabajador
-    const trabajadorDetectado = await detectarTipoDocumentoPorNumero(numero);
+    const esDocumento = /^\d+$/.test(
+      criterioIngresado.replace(/[.\s-]/g, "")
+    );
+
+    // Si se escribió un nombre, primero obtenemos las coincidencias.
+    if (!trabajadorSeleccionado && !esDocumento) {
+      const urlBusqueda =
+        `${API_BASE}/rrll/trabajador/buscar` +
+        `?busqueda=${encodeURIComponent(criterioIngresado)}` +
+        `&limite=20`;
+
+      const respuestaBusqueda = await fetch(urlBusqueda, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+
+      const textoBusqueda = await respuestaBusqueda.text().catch(() => "");
+
+      if (!respuestaBusqueda.ok) {
+        throw new Error(
+          textoBusqueda ||
+            `Error buscando trabajadores (${respuestaBusqueda.status})`
+        );
+      }
+
+      const coincidencias = textoBusqueda ? JSON.parse(textoBusqueda) : [];
+
+      if (!Array.isArray(coincidencias) || coincidencias.length === 0) {
+        setResultadosBusqueda([]);
+        setErrorBuscar("No se encontraron trabajadores con ese nombre.");
+        return;
+      }
+
+      if (coincidencias.length > 1) {
+        setResultadosBusqueda(coincidencias);
+        return;
+      }
+
+      trabajadorSeleccionado = coincidencias[0];
+    }
+
+    const numero = String(
+      trabajadorSeleccionado?.NumeroDocumento || criterioIngresado
+    ).trim();
+
+    setFiltroDocumento(numero);
+    setResultadosBusqueda([]);
+
+    // Detectar automáticamente el tipo real del trabajador.
+    const trabajadorDetectado =
+      trabajadorSeleccionado ||
+      (await detectarTipoDocumentoPorNumero(numero));
+
     const tipoDetectado = getTipoDocumentoById(
       trabajadorDetectado?.IdTipoIdentificacion
     );
 
-    // 2) reflejarlo visualmente en el select
     setFiltroTipoDocumento(tipoDetectado);
 
     const tipo = tipoDetectado;
@@ -1094,20 +1271,19 @@ const getMotivoValueById = (idMotivo) => {
         ""
     ).toUpperCase();
 
-    if (
-      estadoRecuperadoBusqueda === "CERRADO" ||
-      estadoRecuperadoBusqueda === "ABIERTO"
-    ) {
-      setEstadoProceso(estadoRecuperadoBusqueda);
-      setEstadoSeleccionado(estadoRecuperadoBusqueda);
-      setOwnerProceso(
-        estadoRecuperadoBusqueda === "CERRADO" ? "NOMINA" : "RRLL"
-      );
-    } else {
-      setEstadoProceso("ABIERTO");
-      setEstadoSeleccionado("ABIERTO");
-      setOwnerProceso("RRLL");
-    }
+  if (estadoRecuperadoBusqueda === "ENVIADO_NOMINA") {
+  setEstadoProceso("ENVIADO_NOMINA");
+  setEstadoSeleccionado("CERRADO");
+  setOwnerProceso("NOMINA");
+} else if (estadoRecuperadoBusqueda === "CERRADO") {
+  setEstadoProceso("CERRADO");
+  setEstadoSeleccionado("CERRADO");
+  setOwnerProceso("NOMINA");
+} else {
+  setEstadoProceso("ABIERTO");
+  setEstadoSeleccionado("ABIERTO");
+  setOwnerProceso("RRLL");
+}
 
     const fechaFinalFromBackend =
       toDateInput(retiroObj?.FechaRetiro) ||
@@ -1239,7 +1415,7 @@ const getMotivoValueById = (idMotivo) => {
       e?.message?.includes("No se encontró")
         ? e.message
         : e?.message ||
-            "No se pudo cargar el trabajador. Verifica documento o el backend."
+            "No se pudo cargar el trabajador. Verifique el documento, el nombre o el backend."
     );
   } finally {
     setLoadingBuscar(false);
@@ -1384,7 +1560,7 @@ const getMotivoValueById = (idMotivo) => {
               IdEstadoProceso: ESTADO_PROCESO_ID_MAP[estadoProceso] ?? 1,
               FechaProceso: form.fechaProceso
                 ? form.fechaProceso
-                : new Date().toISOString().slice(0, 10),
+                : obtenerFechaColombia(),
               UsuarioCreacion: "RRLL",
             }),
           });
@@ -1448,7 +1624,7 @@ const getMotivoValueById = (idMotivo) => {
                       FechaRetiro: form.fechaFinal ? form.fechaFinal : null,
                       // Puedes dejar fijo "ABIERTO" si así lo manejas:
                       EstadoCasoRRLL: "ABIERTO",
-                      FechaProceso: form.fechaProceso ? form.fechaProceso : new Date().toISOString().slice(0, 10),
+                      FechaProceso: form.fechaProceso ? form.fechaProceso : obtenerFechaColombia(),
                       UsuarioActualizacion: "RRLL",
                       ObservacionGeneral: null,
                     }),
@@ -1482,7 +1658,7 @@ const getMotivoValueById = (idMotivo) => {
                       IdCliente: Number(form.idCliente),
                       IdMotivoRetiro: Number(form.idMotivoRetiro),
                       FechaRetiro: form.fechaFinal ? form.fechaFinal : null,
-                      FechaProceso: form.fechaProceso ? form.fechaProceso : new Date().toISOString().slice(0, 10),
+                      FechaProceso: form.fechaProceso ? form.fechaProceso : obtenerFechaColombia(),
                       UsuarioActualizacion: "RRLL",
                       // EstadoCasoRRLL: "ABIERTO", // si aplica en tu modelo
                     }),
@@ -1561,7 +1737,7 @@ const getMotivoValueById = (idMotivo) => {
           IdEstadoProceso: ESTADO_PROCESO_ID_MAP[estadoProceso] ?? 1,
           FechaProceso: form.fechaProceso
             ? form.fechaProceso
-            : new Date().toISOString().slice(0, 10),
+            : obtenerFechaColombia(),
           UsuarioActualizacion: "RRLL",
         };
 
@@ -1747,7 +1923,10 @@ const cargarAdjuntosDesdeBackend = async (idRetiroLaboral) => {
   }
 };
 
-const retiroBloqueado = estadoProceso === "CERRADO";
+const retiroBloqueado =
+  estadoProceso === "ENVIADO_NOMINA" ||
+  estadoProceso === "CERRADO" ||
+  ownerProceso === "NOMINA";
 
 const motivoActualEsPersistido =
   !form.idRetiroLaboral ||
@@ -1838,8 +2017,12 @@ useEffect(() => {
 useEffect(() => {
   if (step === "retiros_docs" && form.idRetiroLaboral) {
     cargarEntrevistaRetiroDesdeBackend(form.idRetiroLaboral);
+    cargarMotivoRRLLDesdeBackend(form.idRetiroLaboral);
   } else {
     setEntrevistaRetiroData(null);
+    setMotivoRRLLData(null);
+    setDescripcionRetiroRRLL("");
+    setMensajeMotivoRRLL({ tipo: "", texto: "" });
   }
 }, [step, form.idRetiroLaboral]);
 
@@ -1923,6 +2106,137 @@ const descargarAdjuntoRetiroBackend = async (
   setTimeout(() => {
     window.URL.revokeObjectURL(url);
   }, 60000);
+};
+
+const consultarMotivoRRLLBackend = async (idRetiroLaboral) => {
+  const res = await fetch(
+    `${API_BASE}/rrll/retiro/${idRetiroLaboral}/motivo-rrll`,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+    }
+  );
+
+  if (res.status === 404) return null;
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(
+      data?.detail || "No se pudo consultar la validación oficial de RRLL."
+    );
+  }
+
+  return data;
+};
+
+const cargarMotivoRRLLDesdeBackend = async (idRetiroLaboral) => {
+  if (!idRetiroLaboral) {
+    setMotivoRRLLData(null);
+    setDescripcionRetiroRRLL("");
+    return;
+  }
+
+  try {
+    setLoadingMotivoRRLL(true);
+    setMensajeMotivoRRLL({ tipo: "", texto: "" });
+
+    const data = await consultarMotivoRRLLBackend(idRetiroLaboral);
+
+    setMotivoRRLLData(data);
+    setDescripcionRetiroRRLL(data?.DescripcionRetiroRRLL || "");
+  } catch (error) {
+    console.error("Error cargando validación oficial de RRLL:", error);
+    setMotivoRRLLData(null);
+    setDescripcionRetiroRRLL("");
+    setMensajeMotivoRRLL({
+      tipo: "error",
+      texto:
+        error?.message ||
+        "No se pudo cargar la validación oficial del motivo de retiro.",
+    });
+  } finally {
+    setLoadingMotivoRRLL(false);
+  }
+};
+
+const guardarMotivoRRLL = async () => {
+  try {
+    if (!form.idRetiroLaboral) {
+      throw new Error("No existe un retiro laboral para guardar la validación.");
+    }
+
+    const cabeceraEntrevista = entrevistaRetiroData?.cabecera || null;
+    const respuestasEntrevista = entrevistaRetiroData?.respuestas || [];
+    const entrevistaDiligenciada =
+      !!cabeceraEntrevista?.IdEntrevistaRetiro &&
+      respuestasEntrevista.length > 0;
+
+    if (!entrevistaDiligenciada) {
+      throw new Error(
+        "La entrevista aún no ha sido diligenciada por el trabajador."
+      );
+    }
+
+    if (retiroBloqueado) {
+      throw new Error(
+        "El retiro se encuentra bloqueado y no permite modificaciones."
+      );
+    }
+
+    const descripcion = String(descripcionRetiroRRLL || "").trim();
+
+    if (descripcion.length < 3) {
+      throw new Error(
+        "El motivo oficial validado por RRLL debe tener al menos 3 caracteres."
+      );
+    }
+
+    setGuardandoMotivoRRLL(true);
+    setMensajeMotivoRRLL({ tipo: "", texto: "" });
+
+    const res = await fetch(
+      `${API_BASE}/rrll/retiro/${form.idRetiroLaboral}/motivo-rrll`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          DescripcionRetiroRRLL: descripcion,
+          UsuarioValidacionRRLL: "RRLL",
+        }),
+      }
+    );
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(
+        data?.detail || "No se pudo guardar la validación oficial de RRLL."
+      );
+    }
+
+    setMotivoRRLLData(data);
+    setDescripcionRetiroRRLL(data?.DescripcionRetiroRRLL || descripcion);
+    setMensajeMotivoRRLL({
+      tipo: "exito",
+      texto: "La validación oficial de RRLL fue guardada correctamente.",
+    });
+  } catch (error) {
+    console.error("Error guardando validación oficial de RRLL:", error);
+    setMensajeMotivoRRLL({
+      tipo: "error",
+      texto:
+        error?.message ||
+        "No se pudo guardar la validación oficial del motivo de retiro.",
+    });
+  } finally {
+    setGuardandoMotivoRRLL(false);
+  }
 };
 
 const consultarEntrevistaRetiroBackend = async (idRetiroLaboral) => {
@@ -2193,7 +2507,7 @@ const handleActualizarEstadoProceso = async () => {
       return;
     }
 
-    if (estadoSeleccionado === "CERRADO") {
+    if (estadoSeleccionado === "CERRADO" && !esNuncaIngreso) {
       const keyPazYSalvo = keyFromLabel(`${form.motivoRetiro}_PAZ Y SALVO`);
       const pazYSalvoBackend = adjuntosBackend[keyPazYSalvo];
       const pazYSalvoLocal = adjuntos[keyPazYSalvo];
@@ -2206,17 +2520,17 @@ const handleActualizarEstadoProceso = async () => {
 
     setLoadingActualizar(true);
 
-    const estadoCasoRRLL = estadoSeleccionado;
-    const idEstadoProceso = estadoSeleccionado === "CERRADO" ? 31 : 30;
+    const esEnvioNomina = estadoSeleccionado === "CERRADO";
+
+    const estadoCasoRRLL = esEnvioNomina ? "ENVIADO_NOMINA" : "ABIERTO";
+    const idEstadoProceso = esEnvioNomina ? 32 : 30;
+    const fechaActual = new Date().toISOString();
 
     const payload = {
       EstadoCasoRRLL: estadoCasoRRLL,
       IdEstadoProceso: idEstadoProceso,
-      FechaCierre:
-        estadoSeleccionado === "CERRADO"
-          ? new Date().toISOString()
-          : null,
-      FechaEnvioNomina: null,
+      FechaCierre: esEnvioNomina ? fechaActual : null,
+      FechaEnvioNomina: esEnvioNomina ? fechaActual : null,
       UsuarioActualizacion: "RRLL",
     };
 
@@ -2241,7 +2555,7 @@ const handleActualizarEstadoProceso = async () => {
 
     if (data?.success) {
       setEstadoProceso(estadoCasoRRLL);
-      setOwnerProceso(estadoCasoRRLL === "CERRADO" ? "NOMINA" : "RRLL");
+      setOwnerProceso(estadoCasoRRLL === "ENVIADO_NOMINA" ? "NOMINA" : "RRLL");
       setMsgActualizar("✅ Estado del proceso actualizado correctamente.");
     } else {
       setMsgActualizar("No fue posible actualizar el estado del proceso.");
@@ -2963,35 +3277,6 @@ if (step === "retiros_docs") {
   console.log("entrevistaRespuestas =>", entrevistaRespuestas);
   console.log("tieneEntrevistaRetiro =>", tieneEntrevistaRetiro);
   console.log("form.idRetiroLaboral =>", form.idRetiroLaboral);
-
-    const DocCard = ({ idx, title, subtitle, file, displayFileName, actions, fileNode, children }) => (
-      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <p className="text-base font-bold text-slate-900">
-              {idx}. {title}
-            </p>
-            <p className="text-xs text-slate-500 mt-1">{subtitle}</p>
-          </div>
-          {actions}
-        </div>
-
-        <div className="mt-3">
-        {file ? (
-          <div className="text-xs text-emerald-700">
-          <b className="break-words">
-            {displayFileName || `Archivo: ${file?.NombreArchivoOriginal || file?.name || "archivo"}`}
-          </b>
-        </div>
-      ) : (
-        <div className="text-xs text-slate-500">Sin archivo</div>
-        )}
-      </div>
-
-        {fileNode ? <div className="mt-4">{fileNode}</div> : null}
-        {children ? <div className="mt-3">{children}</div> : null}
-      </div>
-    );
 
         return (
           <div className="p-6">
@@ -3741,10 +4026,149 @@ if (step === "retiros_docs") {
         </div>
       }
     >
-      <div className="text-xs text-slate-500">
-        {tieneEntrevistaRetiro
-          ? "La entrevista fue diligenciada por el trabajador y ya se encuentra disponible en PDF."
-          : "La entrevista aún no ha sido diligenciada por el trabajador. Genere el QR para que pueda responderla."}
+      <div className="space-y-5">
+        <div className="text-xs text-slate-500">
+          {tieneEntrevistaRetiro
+            ? "La entrevista fue diligenciada por el trabajador y ya se encuentra disponible en PDF."
+            : "La entrevista aún no ha sido diligenciada por el trabajador. Genere el QR para que pueda responderla."}
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-slate-800">
+                Validación del motivo de retiro por RRLL
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                La respuesta original del trabajador no se modifica. RRLL registra
+                una descripción oficial independiente.
+              </p>
+            </div>
+
+            <span
+              className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${
+                motivoRRLLData?.EstadoValidacionRRLL === "VALIDADO"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-amber-100 text-amber-700"
+              }`}
+            >
+              {motivoRRLLData?.EstadoValidacionRRLL || "PENDIENTE"}
+            </span>
+          </div>
+
+          {loadingMotivoRRLL ? (
+            <p className="mt-4 text-sm text-slate-500">
+              Cargando validación de RRLL...
+            </p>
+          ) : (
+            <div className="mt-4 grid grid-cols-1 gap-4">
+              <div>
+                <Label className="text-xs font-semibold text-slate-600">
+                  Respuesta original del trabajador
+                </Label>
+                <textarea
+                  value={motivoRRLLData?.DescripcionTrabajador || ""}
+                  readOnly
+                  rows={4}
+                  placeholder={
+                    tieneEntrevistaRetiro
+                      ? "La entrevista no contiene una respuesta para la descripción del retiro."
+                      : "La entrevista todavía no ha sido diligenciada."
+                  }
+                  className="mt-2 w-full resize-y rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 outline-none"
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs font-semibold text-slate-600">
+                  Motivo oficial validado por RRLL
+                </Label>
+                <textarea
+                  value={descripcionRetiroRRLL}
+                  onChange={(event) =>
+                    setDescripcionRetiroRRLL(event.target.value)
+                  }
+                  rows={4}
+                  maxLength={5000}
+                  disabled={
+                    !tieneEntrevistaRetiro ||
+                    retiroBloqueado ||
+                    guardandoMotivoRRLL
+                  }
+                  placeholder="Escriba el motivo oficial que RRLL dejará registrado."
+                  className={`mt-2 w-full resize-y rounded-xl border p-3 text-sm outline-none ${
+                    !tieneEntrevistaRetiro || retiroBloqueado
+                      ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500"
+                      : "border-slate-300 bg-white text-slate-800 focus:border-emerald-500"
+                  }`}
+                />
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs text-slate-400">
+                    {descripcionRetiroRRLL.length}/5000 caracteres
+                  </span>
+
+                  {!retiroBloqueado && (
+                    <Button
+                      type="button"
+                      onClick={guardarMotivoRRLL}
+                      disabled={
+                        !tieneEntrevistaRetiro ||
+                        guardandoMotivoRRLL ||
+                        descripcionRetiroRRLL.trim().length < 3
+                      }
+                      className="bg-emerald-600 text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {guardandoMotivoRRLL
+                        ? "Guardando..."
+                        : motivoRRLLData?.EstadoValidacionRRLL === "VALIDADO"
+                        ? "Actualizar validación"
+                        : "Guardar validación"}
+                    </Button>
+                  )}
+                </div>
+
+                {retiroBloqueado && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Esta validación quedó en modo solo lectura porque el proceso
+                    fue enviado a Nómina o se encuentra cerrado.
+                  </p>
+                )}
+              </div>
+
+              {motivoRRLLData?.EstadoValidacionRRLL === "VALIDADO" && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
+                  <p>
+                    <b>Validado por:</b>{" "}
+                    {motivoRRLLData?.UsuarioValidacionRRLL || "RRLL"}
+                  </p>
+                  {motivoRRLLData?.FechaValidacionRRLL && (
+                    <p className="mt-1">
+                      <b>Fecha:</b>{" "}
+                      {new Date(
+                        motivoRRLLData.FechaValidacionRRLL
+                      ).toLocaleString("es-CO", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {mensajeMotivoRRLL.texto && (
+                <div
+                  className={`rounded-xl border px-4 py-3 text-sm ${
+                    mensajeMotivoRRLL.tipo === "exito"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-red-200 bg-red-50 text-red-700"
+                  }`}
+                >
+                  {mensajeMotivoRRLL.texto}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </DocCard>
   );
@@ -4115,8 +4539,7 @@ if (step === "retiros_docs") {
                   </SelectTrigger>
 
                   <SelectContent className="max-h-60 overflow-y-auto">
-                    <SelectItem value="ABIERTO">ABIERTO</SelectItem>
-                    <SelectItem value="CERRADO">CERRADO</SelectItem>
+                   <SelectItem value="CERRADO">ENVIAR A NÓMINA</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -4134,6 +4557,7 @@ if (step === "retiros_docs") {
             </div>
 
             {estadoSeleccionado === "CERRADO" &&
+              !esNuncaIngreso &&
               !adjuntosBackend[keyFromLabel(`${form.motivoRetiro}_PAZ Y SALVO`)] &&
               !adjuntos[keyFromLabel(`${form.motivoRetiro}_PAZ Y SALVO`)] && (
                 <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
@@ -4201,19 +4625,33 @@ if (step === "retiros_docs") {
               </Select>
             </div>
 
-            <div className="md:col-span-4">
-              <Label className="text-xs text-gray-600">Número documento</Label>
+            <div className="md:col-span-6">
+              <Label className="text-xs text-gray-600">
+                Número de documento o nombre
+              </Label>
               <Input
                 value={filtroDocumento}
-                onChange={(e) => setFiltroDocumento(e.target.value)}
-                placeholder="Buscar por documento..."
+                onChange={(e) => {
+                  setFiltroDocumento(e.target.value);
+                  setResultadosBusqueda([]);
+                  setErrorBuscar("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !loadingBuscar) {
+                    handleBuscar();
+                  }
+                }}
+                placeholder="Escriba el número de documento o nombre"
                 className="bg-white"
               />
+              <p className="mt-1 text-[11px] text-gray-500">
+                Puede escribir el documento completo o una parte del nombre y los apellidos.
+              </p>
             </div>
 
             <div className="md:col-span-2">
               <Button
-                onClick={handleBuscar}
+                onClick={() => handleBuscar()}
                 className="w-full bg-emerald-600 hover:bg-emerald-700"
                 disabled={loadingBuscar}
               >
@@ -4223,7 +4661,44 @@ if (step === "retiros_docs") {
           </div>
 
           {errorBuscar ? (
-            <div className="mt-3 text-xs text-red-600">{errorBuscar}</div>
+            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {errorBuscar}
+            </div>
+          ) : null}
+
+          {resultadosBusqueda.length > 1 ? (
+            <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4">
+              <div className="mb-3">
+                <p className="font-semibold text-gray-800">
+                  Seleccione el trabajador
+                </p>
+                <p className="text-xs text-gray-500">
+                  Se encontraron {resultadosBusqueda.length} coincidencias.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                {resultadosBusqueda.map((trabajador) => (
+                  <button
+                    key={trabajador.IdRegistroPersonal}
+                    type="button"
+                    onClick={() => handleBuscar(trabajador)}
+                    className="rounded-xl border border-gray-200 bg-white p-3 text-left transition hover:border-emerald-500 hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <p className="font-semibold text-gray-800">
+                      {trabajador.NombreCompleto ||
+                        `${trabajador.Nombres || ""} ${trabajador.Apellidos || ""}`.trim()}
+                    </p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                      <span className="rounded-full bg-gray-100 px-2 py-1">
+                        {getTipoDocumentoById(trabajador.IdTipoIdentificacion)}
+                      </span>
+                      <span>{trabajador.NumeroDocumento}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
           ) : null}
         </div>
 

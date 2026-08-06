@@ -784,24 +784,30 @@ const RegistroContratacionModal = ({
               <p className="text-xs text-gray-500 mt-2">Campo manual (código numérico).</p>
             </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-2">
-                <ClipboardList className="w-4 h-4 text-blue-700" />
-                <Label className="text-sm font-semibold text-gray-800">Escalafón</Label>
-              </div>
-
-              <Select value={escalafon} onValueChange={setEscalafon}>
-                <SelectTrigger className="rounded-xl">
-                  <SelectValue placeholder="Selecciona escalafón" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="200">200</SelectItem>
-                  <SelectItem value="220">220</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <p className="text-xs text-gray-500 mt-2">Solo 200 o 220.</p>
+           <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2 mb-2">
+              <ClipboardList className="w-4 h-4 text-blue-700" />
+              <Label className="text-sm font-semibold text-gray-800">
+                Escalafón
+              </Label>
             </div>
+
+            <Select value={escalafon} onValueChange={setEscalafon}>
+              <SelectTrigger className="rounded-xl">
+                <SelectValue placeholder="Selecciona escalafón" />
+              </SelectTrigger>
+
+              <SelectContent>
+                <SelectItem value="200">200</SelectItem>
+                <SelectItem value="210">210</SelectItem>
+                <SelectItem value="220">220</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <p className="text-xs text-gray-500 mt-2">
+              Selecciona el escalafón correspondiente: 200, 210 o 220.
+            </p>
+          </div>
 
             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm md:col-span-1">
               <div className="flex items-center gap-2 mb-2">
@@ -1371,14 +1377,19 @@ const ContratacionView = () => {
 }, []);
 
   useEffect(() => {
-    let filtered = aspirantes;
+    let filtered = aspirantes.filter((a) => {
+      const estado = String(a?.estado ?? '').trim();
+
+      return (
+        estado === 'Avanza a Contratación' ||
+        a?.tuvoContratacion === true
+      );
+    });
 
     if (statusFilter !== 'todos') {
-      filtered = filtered.filter(a => a.estado.trim() === statusFilter);
-    }
-
-    if (statusFilter === 'todos') {
-      filtered = filtered.filter(a => a.estado.trim() === 'Avanza a Contratación' || a.estado.trim() === 'Contratado');
+      filtered = filtered.filter(
+        (a) => String(a?.estado ?? '').trim() === statusFilter
+      );
     }
 
     if (searchTerm) {
@@ -1972,15 +1983,19 @@ const currentIdsKey = currentItems
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos los Estados</SelectItem>
-                   {ALL_STATUS_OPTIONS
-                      .filter((s) =>
-                        ["Avanza a Contratación", "Contratado"].includes(s)
-                      )
-                      .map((status) => (
-                        <SelectItem key={status} value={status}>
-                          {getEstadoInfo(status).label}
-                        </SelectItem>
-                      ))}
+                  {ALL_STATUS_OPTIONS
+                    .filter((status) =>
+                      [
+                        'Avanza a Contratación',
+                        'Contratado',
+                        'Retirado',
+                      ].includes(status)
+                    )
+                    .map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {getEstadoInfo(status).label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -2093,40 +2108,61 @@ const currentIdsKey = currentItems
                               <span className="text-xs text-gray-400">—</span>
                             )}
                           </td>
-                          <td className="px-6 py-4 text-center">
-                            {(() => {
-                              const idRegStr = String(getIdRegistroPersonal(aspirante) ?? '');
-                              const estadoVisual = idRegStr ? estadoVisualMap[idRegStr] || '' : '';
+                        <td className="px-6 py-4 text-center">
+                          {(() => {
+                            const estadoActual = String(aspirante?.estado ?? '').trim();
+                            const puedeActualizarEstado = estadoActual === 'Avanza a Contratación';
 
-                              const baseBtn = 'h-8 w-10 rounded-lg border text-xs font-bold transition';
-                              const activoC = 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700';
-                              const activoNC = 'bg-rose-600 text-white border-rose-600 hover:bg-rose-700';
-                              const inactivo = 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50';
-
+                            if (!puedeActualizarEstado) {
                               return (
+                                <span className="text-xs font-medium normal-case text-gray-500">
+                                  Solo consulta
+                                </span>
+                              );
+                            }
+
+                            const idRegStr = String(getIdRegistroPersonal(aspirante) ?? '');
+                            const estadoVisual = idRegStr ? estadoVisualMap[idRegStr] || '' : '';
+
+                            const baseBtn =
+                              'h-8 w-10 rounded-lg border text-xs font-bold transition';
+
+                            const activoC =
+                              'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700';
+
+                            const activoNC =
+                              'bg-rose-600 text-white border-rose-600 hover:bg-rose-700';
+
+                            const inactivo =
+                              'bg-white text-gray-700 border-gray-200 hover:bg-gray-50';
+
+                            return (
                               <div className="inline-flex items-center gap-2">
                                 <button
-                                type="button"
-                                title="Contratado"
-                                className={`${baseBtn} ${estadoVisual === 'C' ? activoC : inactivo}`}
-                                onClick={() => marcarContratadoBD(aspirante)}
+                                  type="button"
+                                  title="Contratado"
+                                  className={`${baseBtn} ${
+                                    estadoVisual === 'C' ? activoC : inactivo
+                                  }`}
+                                  onClick={() => marcarContratadoBD(aspirante)}
                                 >
-                                C
+                                  C
                                 </button>
-                                {aspirante.estado.trim() !== "Contratado" && (
-                                  <button
-                                    type="button"
-                                    title="No contratado"
-                                    className={`${baseBtn} ${estadoVisual === 'NC' ? activoNC : inactivo}`}
-                                    onClick={() => openNCModal(aspirante)}
-                                  >
+
+                                <button
+                                  type="button"
+                                  title="No contratado"
+                                  className={`${baseBtn} ${
+                                    estadoVisual === 'NC' ? activoNC : inactivo
+                                  }`}
+                                  onClick={() => openNCModal(aspirante)}
+                                >
                                   NC
-                                  </button>
-                                )}
+                                </button>
                               </div>
-                              );
-                            })()}
-                          </td>
+                            );
+                          })()}
+                        </td>
                           <td className="px-6 py-4 text-right">
                              <div className="flex items-center justify-end gap-2">
                               <ActionIconButton
