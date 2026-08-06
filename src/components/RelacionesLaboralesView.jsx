@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ProcesosDisciplinariosView from "@/pages/ProcesosDisciplinariosView";
 import AgendaDisciplinariaView from "@/pages/AgendaDisciplinariaView";
+import AgendaGeneralRRLLView from "@/components/AgendaGeneralRRLLView";
 import {
   Select,
   SelectContent,
@@ -911,7 +912,7 @@ const [mensajeEntrevista, setMensajeEntrevista] = useState({
     const data = raw ? JSON.parse(raw) : {};
     return data;
   };
-  
+
 
  const handleDescargarExcel = async () => {
    try {
@@ -955,7 +956,7 @@ const [mensajeEntrevista, setMensajeEntrevista] = useState({
 
   // ✅ Estado general del caso (solo visual por ahora)
   const [estadoProceso, setEstadoProceso] = useState("ABIERTO"); // ABIERTO | CERRADO
-  
+
   const [ownerProceso, setOwnerProceso] = useState("RRLL"); // RRLL | NOMINA
   const [estadoSeleccionado, setEstadoSeleccionado] = useState("ENVIADO_NOMINA");
 
@@ -995,7 +996,7 @@ const [mensajeEntrevista, setMensajeEntrevista] = useState({
   );
   if (foundEnClientesALP?.name) return String(foundEnClientesALP.name).trim();
 
-  
+
 
   const foundEnClientes = (clientes || []).find((x) => {
     if (typeof x === "object" && x !== null) {
@@ -3136,6 +3137,25 @@ if (step === "agenda_disciplinaria") {
         setIdProcesoAgenda(null);
         setStep("inicio");
       }}
+      onAbrirAgendaGeneral={() => {
+        setIdProcesoAgenda(null);
+        setStep("agenda_general_rrll");
+      }}
+      onAbrirProceso={(idProceso) => {
+        setIdProcesoAgenda(idProceso);
+        setStep("procesos_disciplinarios");
+      }}
+    />
+  );
+}
+
+if (step === "agenda_general_rrll") {
+  return (
+    <AgendaGeneralRRLLView
+      onVolver={() => {
+        setIdProcesoAgenda(null);
+        setStep("agenda_disciplinaria");
+      }}
       onAbrirProceso={(idProceso) => {
         setIdProcesoAgenda(idProceso);
         setStep("procesos_disciplinarios");
@@ -4519,7 +4539,7 @@ if (step === "retiros_docs") {
             </div>
           </div>
 
-                   
+
 
           {/* ✅ Estado del Proceso General (UI) — AL FINAL */}
           <div className="mt-6 bg-white p-5 rounded-xl border border-gray-100">

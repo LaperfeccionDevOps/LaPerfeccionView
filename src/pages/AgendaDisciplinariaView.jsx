@@ -75,6 +75,7 @@ function obtenerUsuarioMovimiento() {
 export default function AgendaDisciplinariaView({
   onVolver,
   onAbrirProceso,
+  onAbrirAgendaGeneral,
 }) {
   const API_BASE = (
     import.meta.env.VITE_API_BASE_URL || ""
@@ -857,27 +858,33 @@ export default function AgendaDisciplinariaView({
   return (
     <div className="p-6 bg-slate-50 min-h-screen">
       <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-blue-600">
-        <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-6">
+        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
+              Relaciones Laborales
+            </p>
+
+            <h2 className="mt-1 text-3xl font-bold text-gray-800">
               Agenda Disciplinaria
             </h2>
 
-            <p className="text-sm text-gray-500">
-              Relaciones Laborales - gestión de citaciones
+            <p className="mt-1 text-sm text-gray-500">
+              Gestión diaria de citaciones y acceso a la agenda general.
             </p>
           </div>
 
           <Button
+            type="button"
             variant="outline"
             onClick={onVolver}
+            className="rounded-xl border-slate-300 bg-white font-semibold text-slate-700 hover:bg-slate-100"
           >
             Volver
           </Button>
         </div>
 
-        <div className="bg-gray-50 rounded-xl border p-5 mb-5">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+        <div className="mb-5 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.8fr_0.9fr_1fr_0.75fr] xl:items-end">
             <div>
               <label className="text-sm font-semibold text-gray-700">
                 Fecha
@@ -891,38 +898,52 @@ export default function AgendaDisciplinariaView({
                     event.target.value
                   )
                 }
-                className="w-full mt-1 border rounded-lg px-3 py-2 bg-white"
+                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
               />
             </div>
 
             <Button
+              type="button"
               onClick={buscarPorFecha}
               disabled={loading}
+              className="h-[42px] rounded-xl bg-emerald-700 font-semibold hover:bg-emerald-800"
             >
-              Buscar
+              Buscar por fecha
             </Button>
 
             <Button
+              type="button"
               variant="outline"
               onClick={cargarAgendaHoy}
               disabled={loading}
+              className="h-[42px] rounded-xl border-slate-300 bg-white font-semibold text-slate-700 hover:bg-slate-100"
             >
               Agenda de hoy
             </Button>
 
-            <div className="text-sm text-gray-600">
-              <p>
-                Fecha:{" "}
-                <b>
-                  {fechaConsulta || "—"}
-                </b>
-              </p>
+            <Button
+              type="button"
+              onClick={() => {
+                if (
+                  typeof onAbrirAgendaGeneral ===
+                  "function"
+                ) {
+                  onAbrirAgendaGeneral();
+                }
+              }}
+              className="h-[42px] rounded-xl bg-gradient-to-r from-emerald-700 to-teal-700 font-semibold text-white shadow-md transition hover:from-emerald-800 hover:to-teal-800 hover:shadow-lg"
+            >
+              Ver agenda general
+            </Button>
 
-              <p>
-                Total eventos:{" "}
-                <b>{total}</b>
-              </p>
-            </div>
+           <div className="flex min-h-[42px] items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm text-gray-600 shadow-sm">
+            <p>
+              Eventos de la fecha:{" "}
+              <b className="text-lg text-slate-900">
+                {total}
+              </b>
+            </p>
+          </div>
           </div>
 
           {error && (
