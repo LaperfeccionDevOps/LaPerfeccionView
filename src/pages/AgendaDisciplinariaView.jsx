@@ -110,6 +110,14 @@ export default function AgendaDisciplinariaView({
     useState(false);
   const [errorCancelacion, setErrorCancelacion] = useState("");
 
+  const [modalEnlaceVirtualAbierto, setModalEnlaceVirtualAbierto] =
+    useState(false);
+  const [eventoEnlaceVirtual, setEventoEnlaceVirtual] = useState(null);
+  const [enlaceVirtual, setEnlaceVirtual] = useState("");
+  const [guardandoEnlaceVirtual, setGuardandoEnlaceVirtual] =
+    useState(false);
+  const [errorEnlaceVirtual, setErrorEnlaceVirtual] = useState("");
+
   const [modalAutorizacionAbierto, setModalAutorizacionAbierto] =
     useState(false);
   const [eventoAutorizacion, setEventoAutorizacion] = useState(null);
@@ -198,6 +206,20 @@ export default function AgendaDisciplinariaView({
       punto: "bg-slate-400",
     };
   };
+
+  const eventoEsVirtual = (evento) =>
+    String(evento?.Modalidad || "")
+      .trim()
+      .toUpperCase() === "VIRTUAL";
+
+  const eventoTieneEnlaceVirtual = (evento) =>
+    Boolean(
+      String(
+        evento?.LugarCitacion ||
+          evento?.EnlaceVirtual ||
+          ""
+      ).trim()
+    );
 
   const estadoPermiteAcciones = (evento) => {
     const estado = String(evento?.EstadoAgenda || "")
@@ -318,6 +340,110 @@ export default function AgendaDisciplinariaView({
       onAbrirProceso(
         evento.IdProcesoDisciplinario
       );
+    }
+  };
+
+  const cerrarModalEnlaceVirtual = () => {
+    if (guardandoEnlaceVirtual) {
+      return;
+    }
+
+    setModalEnlaceVirtualAbierto(false);
+    setEventoEnlaceVirtual(null);
+    setEnlaceVirtual("");
+    setErrorEnlaceVirtual("");
+  };
+
+  const abrirModalEnlaceVirtual = (evento) => {
+    setEventoEnlaceVirtual(evento);
+    setEnlaceVirtual(
+      String(
+        evento?.LugarCitacion ||
+          evento?.EnlaceVirtual ||
+          ""
+      ).trim()
+    );
+    setErrorEnlaceVirtual("");
+    setModalEnlaceVirtualAbierto(true);
+  };
+
+  const guardarEnlaceVirtual = async () => {
+    if (
+      !eventoEnlaceVirtual
+        ?.IdAgendaProcesoDisciplinario
+    ) {
+      setErrorEnlaceVirtual(
+        "No se encontró la citación virtual que desea actualizar."
+      );
+      return;
+    }
+
+    const enlaceNormalizado =
+      enlaceVirtual.trim();
+
+    if (!enlaceNormalizado) {
+      setErrorEnlaceVirtual(
+        "Ingrese el enlace de la reunión virtual."
+      );
+      return;
+    }
+
+    if (
+      !/^https?:\/\//i.test(
+        enlaceNormalizado
+      )
+    ) {
+      setErrorEnlaceVirtual(
+        "El enlace debe comenzar por http:// o https://."
+      );
+      return;
+    }
+
+    try {
+      setGuardandoEnlaceVirtual(true);
+      setErrorEnlaceVirtual("");
+
+      const res = await fetch(
+        `${API_BASE}/agenda-disciplinaria/${eventoEnlaceVirtual.IdAgendaProcesoDisciplinario}/enlace-virtual`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            EnlaceVirtual: enlaceNormalizado,
+            UsuarioMovimiento:
+              usuarioMovimiento,
+          }),
+        }
+      );
+
+      const data =
+        await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(
+          obtenerMensajeBackend(
+            data,
+            "No se pudo guardar el enlace de la reunión."
+          )
+        );
+      }
+
+      setMensajeExito(
+        data?.mensaje ||
+          "El enlace virtual fue registrado y se gestionó la notificación al trabajador."
+      );
+
+      cerrarModalEnlaceVirtual();
+      await recargarAgendaActual();
+    } catch (err) {
+      setErrorEnlaceVirtual(
+        err?.message ||
+          "Error guardando el enlace de la reunión."
+      );
+    } finally {
+      setGuardandoEnlaceVirtual(false);
     }
   };
 
@@ -1128,7 +1254,31 @@ export default function AgendaDisciplinariaView({
                       </td>
 
                       <td className="px-4 py-3">
-                        {evento.Modalidad || "—"}
+                        {eventoEsVirtual(evento) ? (
+                          <div className="flex flex-col gap-1">
+                            <span className="font-semibold text-blue-800">
+                              Virtual
+                            </span>
+
+                            <span
+                              className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[11px] font-bold ${
+                                eventoTieneEnlaceVirtual(
+                                  evento
+                                )
+                                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                  : "border-amber-200 bg-amber-50 text-amber-700"
+                              }`}
+                            >
+                              {eventoTieneEnlaceVirtual(
+                                evento
+                              )
+                                ? "Enlace asignado"
+                                : "Pendiente enlace RRLL"}
+                            </span>
+                          </div>
+                        ) : (
+                          evento.Modalidad || "—"
+                        )}
                       </td>
 
                       <td className="px-4 py-3">
@@ -1150,6 +1300,25 @@ export default function AgendaDisciplinariaView({
                       >
                         {permiteAcciones ? (
                           <div className="flex flex-col 2xl:flex-row justify-center gap-2 min-w-[340px]">
+                            {eventoEsVirtual(
+                              evento
+                            ) &&
+                              !eventoTieneEnlaceVirtual(
+                                evento
+                              ) && (
+                                <Button
+                                  type="button"
+                                  className="bg-blue-700 text-white hover:bg-blue-800"
+                                  onClick={() =>
+                                    abrirModalEnlaceVirtual(
+                                      evento
+                                    )
+                                  }
+                                >
+                                  Agregar enlace
+                                </Button>
+                              )}
+
                             <Button
                               type="button"
                               variant="outline"
@@ -1203,6 +1372,143 @@ export default function AgendaDisciplinariaView({
           </table>
         </div>
       </div>
+
+      {modalEnlaceVirtualAbierto &&
+        eventoEnlaceVirtual && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+              <div className="border-b border-gray-200 px-6 py-5">
+                <p className="text-sm font-semibold text-blue-700">
+                  Relaciones Laborales
+                </p>
+
+                <h3 className="text-xl font-bold text-gray-800">
+                  Agregar enlace de reunión virtual
+                </h3>
+
+                <p className="mt-1 text-sm text-gray-500">
+                  Registra el enlace definitivo para completar la citación y notificar al trabajador.
+                </p>
+              </div>
+
+              <div className="space-y-5 px-6 py-5">
+                <div className="grid grid-cols-1 gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 md:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-blue-700">
+                      Trabajador
+                    </p>
+
+                    <p className="mt-1 font-bold text-gray-800">
+                      {eventoEnlaceVirtual
+                        .NombreCompleto ||
+                        "—"}
+                    </p>
+
+                    <p className="text-sm text-gray-600">
+                      Documento:{" "}
+                      {eventoEnlaceVirtual
+                        .NumeroIdentificacion ||
+                        "—"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-blue-700">
+                      Citación
+                    </p>
+
+                    <p className="mt-1 font-bold text-gray-800">
+                      {eventoEnlaceVirtual
+                        .FechaEvento ||
+                        "—"}{" "}
+                      ·{" "}
+                      {eventoEnlaceVirtual
+                        .HoraInicio ||
+                        "—"}
+                    </p>
+
+                    <p className="text-sm text-gray-600">
+                      Modalidad: Virtual
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="font-semibold text-amber-800">
+                    Notificación pendiente
+                  </p>
+
+                  <p className="mt-1 text-sm leading-relaxed text-amber-700">
+                    El trabajador todavía no debe recibir la citación virtual. Al guardar este enlace, el sistema gestionará el envío del correo con la fecha, hora y enlace de conexión.
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="enlaceVirtualRRLL"
+                    className="text-sm font-semibold text-gray-700"
+                  >
+                    Enlace de la reunión *
+                  </label>
+
+                  <input
+                    id="enlaceVirtualRRLL"
+                    type="url"
+                    value={enlaceVirtual}
+                    onChange={(event) => {
+                      setEnlaceVirtual(
+                        event.target.value
+                      );
+                      setErrorEnlaceVirtual("");
+                    }}
+                    placeholder="https://meet.google.com/... o https://teams.microsoft.com/..."
+                    className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+
+                  <p className="mt-2 text-xs text-gray-500">
+                    Usa el enlace completo generado en la plataforma de reunión.
+                  </p>
+                </div>
+
+                {errorEnlaceVirtual && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {errorEnlaceVirtual}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 sm:flex-row sm:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={
+                    cerrarModalEnlaceVirtual
+                  }
+                  disabled={
+                    guardandoEnlaceVirtual
+                  }
+                >
+                  Cancelar
+                </Button>
+
+                <Button
+                  type="button"
+                  className="bg-blue-700 text-white hover:bg-blue-800"
+                  onClick={
+                    guardarEnlaceVirtual
+                  }
+                  disabled={
+                    guardandoEnlaceVirtual
+                  }
+                >
+                  {guardandoEnlaceVirtual
+                    ? "Guardando y notificando..."
+                    : "Guardar enlace y notificar"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
       {modalAutorizacionAbierto && eventoAutorizacion && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

@@ -2,7 +2,7 @@ import React from 'react';
 import {
   Calendar,
   Loader2,
-  MapPin,
+  Video,
 } from 'lucide-react';
 
 import { Input } from '@/components/ui/input';
@@ -338,32 +338,52 @@ const ProgramacionCitacionCard = ({
               </div>
             </div>
 
-            <div className="min-w-0 lg:col-span-2">
-              <label
-                htmlFor="lugarCitacion"
-                className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700"
-              >
-                <MapPin className="h-4 w-4 text-emerald-600" />
+            {esPresencial && (
+              <div className="min-w-0 lg:col-span-2">
+                <label
+                  htmlFor="lugarCitacion"
+                  className="mb-2 block text-sm font-semibold text-gray-700"
+                >
+                  Lugar de la citación *
+                </label>
 
-                {esVirtual
-                  ? 'Enlace o información de conexión *'
-                  : 'Lugar de la citación *'}
-              </label>
+                <Input
+                  id="lugarCitacion"
+                  name="lugarCitacion"
+                  type="text"
+                  value={formData.lugarCitacion}
+                  onChange={onChange}
+                  placeholder="Sede principal Galán"
+                  className="min-h-11 w-full"
+                />
+              </div>
+            )}
 
-              <Input
-                id="lugarCitacion"
-                name="lugarCitacion"
-                type="text"
-                value={formData.lugarCitacion}
-                onChange={onChange}
-                placeholder={
-                  esVirtual
-                    ? 'Ejemplo: enlace de Google Meet o Teams'
-                    : 'Sede principal Galán'
-                }
-                className="min-h-11 w-full"
-              />
-            </div>
+            {esVirtual && (
+              <div className="min-w-0 lg:col-span-2">
+                <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm">
+                      <Video className="h-5 w-5" />
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-blue-900">
+                        Citación virtual
+                      </p>
+
+                      <p className="mt-1 text-sm leading-relaxed text-blue-800">
+                        El enlace de la reunión será asignado por Relaciones Laborales después de recibir el caso.
+                      </p>
+
+                      <p className="mt-2 text-xs leading-relaxed text-blue-700">
+                        Operaciones puede continuar con el registro y envío del proceso sin diligenciar un enlace de conexión.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="min-w-0">
               <label

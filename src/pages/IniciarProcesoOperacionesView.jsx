@@ -1027,15 +1027,16 @@ const IniciarProcesoOperacionesView =
             formData.modalidad,
           label: 'Modalidad',
         },
-        {
-          value:
-            formData.lugarCitacion,
-          label:
-            formData.modalidad ===
-            'VIRTUAL'
-              ? 'Enlace de conexión'
-              : 'Lugar de la citación',
-        },
+        ...(formData.modalidad === 'PRESENCIAL'
+          ? [
+              {
+                value:
+                  formData.lugarCitacion,
+                label:
+                  'Lugar de la citación',
+              },
+            ]
+          : []),
         {
           value:
             formData
@@ -1274,8 +1275,15 @@ const IniciarProcesoOperacionesView =
                 '',
 
               lugarCitacion:
-                citacion.LugarCitacion ||
-                '',
+                String(
+                  citacion.Modalidad || ''
+                )
+                  .trim()
+                  .toUpperCase() ===
+                'PRESENCIAL'
+                  ? citacion.LugarCitacion ||
+                    ''
+                  : '',
 
               supervisorReporta:
                 citacion
@@ -1548,8 +1556,11 @@ const IniciarProcesoOperacionesView =
           null,
 
         LugarCitacion:
-          formData.lugarCitacion ||
-          null,
+          formData.modalidad ===
+          'PRESENCIAL'
+            ? formData.lugarCitacion ||
+              null
+            : null,
 
         MotivoCitacion:
           formData.tipoFalta ||
