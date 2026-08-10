@@ -208,6 +208,67 @@ function formatearHora(hora) {
 }
 
 
+function formatearTipoGestion(valor) {
+  const textos = {
+    NO_ATENCION: "No atención",
+    PERIODO_PRUEBA: "Período de prueba",
+    PROCESO_DISCIPLINARIO: "Proceso disciplinario",
+    RENUNCIAS: "Renuncias",
+    REUNIONES_CAPACITACIONES: "Reuniones y capacitaciones",
+  };
+
+  const clave = String(valor || "").trim();
+
+  if (!clave) {
+    return "—";
+  }
+
+  return (
+    textos[clave] ||
+    clave
+      .replaceAll("_", " ")
+      .toLowerCase()
+      .replace(/^./, (letra) => letra.toUpperCase())
+  );
+}
+
+
+function formatearMotivoCitacion(valor) {
+  const textos = {
+    AUSENCIA_INJUSTIFICADA: "Ausencia injustificada",
+    RETARDOS_INJUSTIFICADOS: "Retardos injustificados",
+    INCUMPLIMIENTO_FUNCIONES: "Incumplimiento de funciones",
+    INCUMPLIMIENTO_NORMAS: "Incumplimiento de normas",
+    CLIMA_LABORAL: "Clima laboral",
+    DANOS_BIEN_AJENO_AFECTACION_CLIENTE:
+      "Daños en bien ajeno - afectación al cliente",
+    PERIODO_PRUEBA: "Período de prueba",
+    ATENCION_LINEA_VERDE: "Atención línea verde",
+
+    // Compatibilidad con registros anteriores.
+    RETARDO_INJUSTIFICADO: "Retardo injustificado",
+    DESOBEDIENCIA: "Desobediencia de instrucciones",
+    COMPORTAMIENTO_INADECUADO: "Comportamiento inadecuado",
+    INCUMPLIMIENTO_REGLAMENTO: "Incumplimiento del reglamento",
+    OTRO: "Otro",
+  };
+
+  const clave = String(valor || "").trim();
+
+  if (!clave) {
+    return "—";
+  }
+
+  return (
+    textos[clave] ||
+    clave
+      .replaceAll("_", " ")
+      .toLowerCase()
+      .replace(/^./, (letra) => letra.toUpperCase())
+  );
+}
+
+
 export default function CitacionProcesoDisciplinarioView({
   onBack,
   proceso,
@@ -248,6 +309,11 @@ export default function CitacionProcesoDisciplinarioView({
   const [
     cliente,
     setCliente,
+  ] = useState("");
+
+  const [
+    tipoGestion,
+    setTipoGestion,
   ] = useState("");
 
   const [
@@ -366,6 +432,10 @@ export default function CitacionProcesoDisciplinarioView({
               ""
           );
 
+          setTipoGestion(
+            dataCitacion.TipoGestionDisciplinaria || ""
+          );
+
           const datosAnteriores =
             separarMotivoAnterior(
               dataCitacion.MotivoCitacion
@@ -399,6 +469,7 @@ export default function CitacionProcesoDisciplinarioView({
           );
         } else {
           setCitacionExistente(null);
+          setTipoGestion("");
           setDesempenoContinua("");
           setJustificacionDesempeno("");
         }
@@ -881,14 +952,26 @@ export default function CitacionProcesoDisciplinarioView({
               </div>
 
               <div className="mt-4 space-y-4">
-                <div className="rounded-lg border border-blue-200 bg-white p-4">
-                  <p className="text-xs font-semibold uppercase text-gray-500">
-                    Motivo de la citación
-                  </p>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="rounded-lg border border-blue-200 bg-white p-4">
+                    <p className="text-xs font-semibold uppercase text-gray-500">
+                      Tipo de gestión
+                    </p>
 
-                  <p className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
-                    {motivoCitacion || "—"}
-                  </p>
+                    <p className="mt-2 font-semibold text-gray-800">
+                      {formatearTipoGestion(tipoGestion)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border border-blue-200 bg-white p-4">
+                    <p className="text-xs font-semibold uppercase text-gray-500">
+                      Motivo de citación / presunta falta
+                    </p>
+
+                    <p className="mt-2 whitespace-pre-wrap text-sm font-semibold text-gray-800">
+                      {formatearMotivoCitacion(motivoCitacion)}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="rounded-lg border border-blue-200 bg-white p-4">

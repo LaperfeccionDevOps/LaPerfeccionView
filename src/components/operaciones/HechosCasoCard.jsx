@@ -6,10 +6,13 @@ const HechosCasoCard = ({
   onChange,
 }) => {
   return (
-    <section className="mt-6 min-w-0 rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 lg:p-6">
+    <section className="min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex min-w-0 items-start gap-3">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
-          <MessageSquare className="h-6 w-6" />
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-50">
+          <MessageSquare
+            size={24}
+            className="text-orange-600"
+          />
         </div>
 
         <div className="min-w-0">
@@ -18,60 +21,118 @@ const HechosCasoCard = ({
           </h2>
 
           <p className="mt-1 break-words text-sm text-gray-500">
-            Describe claramente la falta y los hechos reportados.
+            Registra el tipo de gestión, el motivo de la citación y los
+            hechos reportados.
           </p>
         </div>
       </div>
 
       <div className="mt-5 grid min-w-0 grid-cols-1 gap-5">
+        {/* ===================================================== */}
+        {/* TIPO DE GESTIÓN */}
+        {/* ===================================================== */}
+
+        <div className="min-w-0">
+          <label
+            htmlFor="tipoGestion"
+            className="mb-2 block text-sm font-semibold text-gray-700"
+          >
+            Tipo de gestión *
+          </label>
+
+          <select
+            id="tipoGestion"
+            name="tipoGestion"
+            value={formData.tipoGestion || ''}
+            onChange={onChange}
+            className="min-h-11 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+          >
+            <option value="">
+              Selecciona el tipo de gestión
+            </option>
+
+            <option value="NO_ATENCION">
+              No atención
+            </option>
+
+            <option value="PERIODO_PRUEBA">
+              Período de prueba
+            </option>
+
+            <option value="PROCESO_DISCIPLINARIO">
+              Proceso disciplinario
+            </option>
+
+            <option value="RENUNCIAS">
+              Renuncias
+            </option>
+
+            <option value="REUNIONES_CAPACITACIONES">
+              Reuniones y capacitaciones
+            </option>
+          </select>
+        </div>
+
+        {/* ===================================================== */}
+        {/* MOTIVO DE CITACIÓN / PRESUNTA FALTA */}
+        {/* ===================================================== */}
+
         <div className="min-w-0">
           <label
             htmlFor="tipoFalta"
             className="mb-2 block text-sm font-semibold text-gray-700"
           >
-            Tipo de falta disciplinaria *
+            Motivo de citación / presunta falta *
           </label>
 
           <select
             id="tipoFalta"
             name="tipoFalta"
-            value={formData.tipoFalta}
+            value={formData.tipoFalta || ''}
             onChange={onChange}
             className="min-h-11 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
           >
             <option value="">
-              Selecciona el tipo de falta
-            </option>
-
-            <option value="INCUMPLIMIENTO_FUNCIONES">
-              Incumplimiento de funciones
+              Selecciona el motivo de citación / presunta falta
             </option>
 
             <option value="AUSENCIA_INJUSTIFICADA">
               Ausencia injustificada
             </option>
 
-            <option value="RETARDO_INJUSTIFICADO">
-              Retardo injustificado
+            <option value="RETARDOS_INJUSTIFICADOS">
+              Retardos injustificados
             </option>
 
-            <option value="DESOBEDIENCIA">
-              Desobediencia de instrucciones
+            <option value="INCUMPLIMIENTO_FUNCIONES">
+              Incumplimiento de funciones
             </option>
 
-            <option value="COMPORTAMIENTO_INADECUADO">
-              Comportamiento inadecuado
+            <option value="INCUMPLIMIENTO_NORMAS">
+              Incumplimiento de normas
             </option>
 
-            <option value="INCUMPLIMIENTO_REGLAMENTO">
-              Incumplimiento del reglamento
+            <option value="CLIMA_LABORAL">
+              Clima laboral
             </option>
 
-            <option value="OTRO">
-              Otro
+            <option value="DANOS_BIEN_AJENO_AFECTACION_CLIENTE">
+              Daños en bien ajeno - afectación al cliente
+            </option>
+
+            <option value="PERIODO_PRUEBA">
+              Período de prueba
+            </option>
+
+            <option value="ATENCION_LINEA_VERDE">
+              Atención línea verde
             </option>
           </select>
         </div>
+
+        {/* ===================================================== */}
+        {/* RELATO DE LOS HECHOS */}
+        {/* ===================================================== */}
 
         <div className="min-w-0">
           <label
@@ -84,13 +145,17 @@ const HechosCasoCard = ({
           <textarea
             id="relatoHechos"
             name="relatoHechos"
-            value={formData.relatoHechos}
+            value={formData.relatoHechos || ''}
             onChange={onChange}
             rows={6}
             placeholder="Describe qué ocurrió, cuándo ocurrió, dónde ocurrió y quiénes estuvieron presentes."
             className="w-full resize-y rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
           />
         </div>
+
+        {/* ===================================================== */}
+        {/* OBSERVACIONES GESTOR(A) */}
+        {/* ===================================================== */}
 
         <div className="min-w-0">
           <label
@@ -103,13 +168,17 @@ const HechosCasoCard = ({
           <textarea
             id="observacionesAdicionales"
             name="observacionesAdicionales"
-            value={formData.observacionesAdicionales}
+            value={formData.observacionesAdicionales || ''}
             onChange={onChange}
             rows={4}
             placeholder="Registra información adicional del gestor(a) que deba conocer Relaciones Laborales, si aplica."
             className="w-full resize-y rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
           />
         </div>
+
+        {/* ===================================================== */}
+        {/* CONTINUIDAD DEL DESEMPEÑO */}
+        {/* ===================================================== */}
 
         <div className="min-w-0 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 sm:p-5">
           <div className="min-w-0">
@@ -118,9 +187,9 @@ const HechosCasoCard = ({
             </h3>
 
             <p className="mt-1 text-sm leading-relaxed text-gray-500">
-              Indica si, de acuerdo con la gestión realizada por Operaciones,
-              se considera que el colaborador debe continuar desempeñando sus
-              labores.
+              Indica si, de acuerdo con la gestión realizada por
+              Operaciones, se considera que el colaborador debe continuar
+              desempeñando sus labores.
             </p>
           </div>
 
@@ -194,8 +263,8 @@ const HechosCasoCard = ({
             />
 
             <p className="mt-2 text-xs leading-relaxed text-gray-500">
-              La justificación es obligatoria tanto para una respuesta Sí como
-              para una respuesta No.
+              La justificación es obligatoria tanto para una respuesta Sí
+              como para una respuesta No.
             </p>
           </div>
         </div>

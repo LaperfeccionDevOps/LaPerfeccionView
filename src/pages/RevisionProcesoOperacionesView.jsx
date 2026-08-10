@@ -235,12 +235,49 @@ const formatearFecha = (valor) => {
   );
 };
 
+const formatearTipoGestion = (valor) => {
+  const textos = {
+    NO_ATENCION: 'No atención',
+    PERIODO_PRUEBA: 'Período de prueba',
+    PROCESO_DISCIPLINARIO:
+      'Proceso disciplinario',
+    RENUNCIAS: 'Renuncias',
+    REUNIONES_CAPACITACIONES:
+      'Reuniones y capacitaciones',
+  };
+
+  return (
+    textos[String(valor || '').trim()] ||
+    String(valor || '—')
+      .replaceAll('_', ' ')
+      .toLowerCase()
+      .replace(
+        /^./,
+        (letra) => letra.toUpperCase()
+      )
+  );
+};
+
 const formatearTipoFalta = (valor) => {
   const textos = {
-    INCUMPLIMIENTO_FUNCIONES:
-      'Incumplimiento de funciones',
     AUSENCIA_INJUSTIFICADA:
       'Ausencia injustificada',
+    RETARDOS_INJUSTIFICADOS:
+      'Retardos injustificados',
+    INCUMPLIMIENTO_FUNCIONES:
+      'Incumplimiento de funciones',
+    INCUMPLIMIENTO_NORMAS:
+      'Incumplimiento de normas',
+    CLIMA_LABORAL:
+      'Clima laboral',
+    DANOS_BIEN_AJENO_AFECTACION_CLIENTE:
+      'Daños en bien ajeno - afectación al cliente',
+    PERIODO_PRUEBA:
+      'Período de prueba',
+    ATENCION_LINEA_VERDE:
+      'Atención línea verde',
+
+    // Compatibilidad con registros históricos.
     RETARDO_INJUSTIFICADO:
       'Retardo injustificado',
     DESOBEDIENCIA:
@@ -994,16 +1031,30 @@ const RevisionProcesoOperacionesView =
             </h2>
 
             <div className="mt-4 space-y-4">
-              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Tipo de falta disciplinaria
-                </p>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Tipo de gestión
+                  </p>
 
-                <p className="mt-2 break-words text-sm font-semibold text-gray-800">
-                  {formatearTipoFalta(
-                    citacion?.MotivoCitacion
-                  )}
-                </p>
+                  <p className="mt-2 break-words text-sm font-semibold text-gray-800">
+                    {formatearTipoGestion(
+                      citacion?.TipoGestionDisciplinaria
+                    )}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Motivo de citación / presunta falta
+                  </p>
+
+                  <p className="mt-2 break-words text-sm font-semibold text-gray-800">
+                    {formatearTipoFalta(
+                      citacion?.MotivoCitacion
+                    )}
+                  </p>
+                </div>
               </div>
 
               <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">

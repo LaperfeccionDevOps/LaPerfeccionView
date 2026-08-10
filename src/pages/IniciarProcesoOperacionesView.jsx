@@ -316,6 +316,7 @@ const IniciarProcesoOperacionesView =
       cliente:
         obtenerClienteInicial(),
       sede: obtenerSedeInicial(),
+      tipoGestion: '',
       tipoFalta: '',
       relatoHechos: '',
       observacionesAdicionales: '',
@@ -1053,9 +1054,15 @@ const IniciarProcesoOperacionesView =
         },
         {
           value:
+            formData.tipoGestion,
+          label:
+            'Tipo de gestión',
+        },
+        {
+          value:
             formData.tipoFalta,
           label:
-            'Tipo de falta disciplinaria',
+            'Motivo de citación / presunta falta',
         },
         {
           value:
@@ -1313,6 +1320,11 @@ const IniciarProcesoOperacionesView =
               sede:
                 citacion.Sede ||
                 prev.sede ||
+                '',
+
+              tipoGestion:
+                citacion
+                  .TipoGestionDisciplinaria ||
                 '',
 
               tipoFalta:
@@ -1585,6 +1597,10 @@ const IniciarProcesoOperacionesView =
             ? formData.lugarCitacion ||
               null
             : null,
+
+        TipoGestionDisciplinaria:
+          formData.tipoGestion ||
+          null,
 
         MotivoCitacion:
           formData.tipoFalta ||
