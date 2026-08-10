@@ -266,6 +266,16 @@ export default function CitacionProcesoDisciplinarioView({
   ] = useState("");
 
   const [
+    desempenoContinua,
+    setDesempenoContinua,
+  ] = useState("");
+
+  const [
+    justificacionDesempeno,
+    setJustificacionDesempeno,
+  ] = useState("");
+
+  const [
     evidenciasOperaciones,
     setEvidenciasOperaciones,
   ] = useState([]);
@@ -379,8 +389,18 @@ export default function CitacionProcesoDisciplinarioView({
               dataCitacion.ManifestacionSupervisor ||
               ""
           );
+
+          setDesempenoContinua(
+            dataCitacion.DesempenoContinua || ""
+          );
+
+          setJustificacionDesempeno(
+            dataCitacion.JustificacionDesempeno || ""
+          );
         } else {
           setCitacionExistente(null);
+          setDesempenoContinua("");
+          setJustificacionDesempeno("");
         }
 
         if (!responseEvidencias.ok) {
@@ -888,6 +908,30 @@ export default function CitacionProcesoDisciplinarioView({
 
                   <p className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
                     {observacionesGestor || "—"}
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-blue-200 bg-white p-4">
+                  <p className="text-xs font-semibold uppercase text-gray-500">
+                    ¿Desempeño continúa?
+                  </p>
+
+                  <p className="mt-2 font-semibold text-gray-800">
+                    {desempenoContinua === "SI"
+                      ? "Sí"
+                      : desempenoContinua === "NO"
+                        ? "No"
+                        : "—"}
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-blue-200 bg-white p-4">
+                  <p className="text-xs font-semibold uppercase text-gray-500">
+                    Justificación del desempeño
+                  </p>
+
+                  <p className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
+                    {justificacionDesempeno || "—"}
                   </p>
                 </div>
               </div>

@@ -319,6 +319,8 @@ const IniciarProcesoOperacionesView =
       tipoFalta: '',
       relatoHechos: '',
       observacionesAdicionales: '',
+      desempenoContinua: '',
+      justificacionDesempeno: '',
     });
 
     const [
@@ -1061,6 +1063,18 @@ const IniciarProcesoOperacionesView =
           label:
             'Relato de los hechos',
         },
+        {
+          value:
+            formData.desempenoContinua,
+          label:
+            '¿Desempeño continúa?',
+        },
+        {
+          value:
+            formData.justificacionDesempeno,
+          label:
+            '¿Por qué continúa o no continúa el desempeño?',
+        },
       ];
 
       const campoFaltante =
@@ -1314,6 +1328,16 @@ const IniciarProcesoOperacionesView =
               observacionesAdicionales:
                 citacion
                   .ObservacionOperaciones ||
+                '',
+
+              desempenoContinua:
+                citacion
+                  .DesempenoContinua ||
+                '',
+
+              justificacionDesempeno:
+                citacion
+                  .JustificacionDesempeno ||
                 '',
             }));
           }
@@ -1581,6 +1605,14 @@ const IniciarProcesoOperacionesView =
         ObservacionOperaciones:
           formData
             .observacionesAdicionales ||
+          null,
+
+        DesempenoContinua:
+          formData.desempenoContinua ||
+          null,
+
+        JustificacionDesempeno:
+          formData.justificacionDesempeno ||
           null,
 
         SupervisorReporta:

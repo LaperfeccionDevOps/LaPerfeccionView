@@ -6,10 +6,10 @@ const HechosCasoCard = ({
   onChange,
 }) => {
   return (
-    <section className="mt-6 min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
-      <div className="flex min-w-0 items-start gap-3 border-b border-gray-100 pb-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-700">
-          <MessageSquare className="h-5 w-5" />
+    <section className="mt-6 min-w-0 rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 lg:p-6">
+      <div className="flex min-w-0 items-start gap-3">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
+          <MessageSquare className="h-6 w-6" />
         </div>
 
         <div className="min-w-0">
@@ -109,6 +109,95 @@ const HechosCasoCard = ({
             placeholder="Registra información adicional del gestor(a) que deba conocer Relaciones Laborales, si aplica."
             className="w-full resize-y rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
           />
+        </div>
+
+        <div className="min-w-0 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 sm:p-5">
+          <div className="min-w-0">
+            <h3 className="text-base font-bold text-gray-800">
+              ¿Desempeño continúa? *
+            </h3>
+
+            <p className="mt-1 text-sm leading-relaxed text-gray-500">
+              Indica si, de acuerdo con la gestión realizada por Operaciones,
+              se considera que el colaborador debe continuar desempeñando sus
+              labores.
+            </p>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label
+              className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${
+                formData.desempenoContinua === 'SI'
+                  ? 'border-emerald-500 bg-emerald-50'
+                  : 'border-gray-200 bg-white hover:border-emerald-300'
+              }`}
+            >
+              <input
+                type="radio"
+                name="desempenoContinua"
+                value="SI"
+                checked={
+                  formData.desempenoContinua === 'SI'
+                }
+                onChange={onChange}
+                className="h-4 w-4 accent-emerald-600"
+              />
+
+              <span className="font-semibold text-gray-800">
+                Sí
+              </span>
+            </label>
+
+            <label
+              className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${
+                formData.desempenoContinua === 'NO'
+                  ? 'border-red-400 bg-red-50'
+                  : 'border-gray-200 bg-white hover:border-red-300'
+              }`}
+            >
+              <input
+                type="radio"
+                name="desempenoContinua"
+                value="NO"
+                checked={
+                  formData.desempenoContinua === 'NO'
+                }
+                onChange={onChange}
+                className="h-4 w-4 accent-red-600"
+              />
+
+              <span className="font-semibold text-gray-800">
+                No
+              </span>
+            </label>
+          </div>
+
+          <div className="mt-5 min-w-0">
+            <label
+              htmlFor="justificacionDesempeno"
+              className="mb-2 block text-sm font-semibold text-gray-700"
+            >
+              ¿Por qué? *
+            </label>
+
+            <textarea
+              id="justificacionDesempeno"
+              name="justificacionDesempeno"
+              value={
+                formData.justificacionDesempeno || ''
+              }
+              onChange={onChange}
+              rows={4}
+              required
+              placeholder="Explica el motivo de la respuesta seleccionada."
+              className="w-full resize-y rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+            />
+
+            <p className="mt-2 text-xs leading-relaxed text-gray-500">
+              La justificación es obligatoria tanto para una respuesta Sí como
+              para una respuesta No.
+            </p>
+          </div>
         </div>
       </div>
     </section>
