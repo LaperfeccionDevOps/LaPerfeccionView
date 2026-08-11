@@ -733,6 +733,16 @@ export default function RelacionesLaboralesView() {
   const [fechaInicioExcel, setFechaInicioExcel] = useState("");
   const [fechaFinExcel, setFechaFinExcel] = useState("");
 
+  const [
+    fechaInicioExcelDisciplinarios,
+    setFechaInicioExcelDisciplinarios,
+  ] = useState("");
+
+  const [
+    fechaFinExcelDisciplinarios,
+    setFechaFinExcelDisciplinarios,
+  ] = useState("");
+
   // ✅ filtros
   const [filtroTipoDocumento, setFiltroTipoDocumento] = useState("CC");
   const [filtroDocumento, setFiltroDocumento] = useState("");
@@ -3164,6 +3174,82 @@ if (step === "agenda_general_rrll") {
   );
 }
 
+  const handleDescargarExcelDisciplinarios = async () => {
+    try {
+      if (
+        !fechaInicioExcelDisciplinarios ||
+        !fechaFinExcelDisciplinarios
+      ) {
+        alert("Debes seleccionar ambas fechas.");
+        return;
+      }
+
+      if (
+        fechaInicioExcelDisciplinarios >
+        fechaFinExcelDisciplinarios
+      ) {
+        alert(
+          "La fecha de inicio no puede ser mayor que la fecha final."
+        );
+        return;
+      }
+
+      const url =
+        `${API_BASE}/rrll-excel/exportar-procesos-disciplinarios` +
+        `?fecha_inicio=${fechaInicioExcelDisciplinarios}` +
+        `&fecha_fin=${fechaFinExcelDisciplinarios}`;
+
+      const response = await fetch(url, {
+        method: "GET",
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+
+        throw new Error(
+          errorText ||
+            "No se pudo descargar el Excel de procesos disciplinarios."
+        );
+      }
+
+      const blob = await response.blob();
+
+      const contentDisposition =
+        response.headers.get("Content-Disposition") || "";
+
+      const matchNombre = contentDisposition.match(
+        /filename="?([^"]+)"?/i
+      );
+
+      const nombreArchivo =
+        matchNombre?.[1] ||
+        `reporte_procesos_disciplinarios_${fechaInicioExcelDisciplinarios}_a_${fechaFinExcelDisciplinarios}.xlsx`;
+
+      const objectUrl = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = nombreArchivo;
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      console.error(
+        "Error al descargar Excel de procesos disciplinarios:",
+        error
+      );
+
+      alert(
+        error?.message ||
+          "No se pudo descargar el Excel de procesos disciplinarios."
+      );
+    }
+  };
+
+
   // --------------------------
   // VISTA INICIAL
   // --------------------------
@@ -3217,17 +3303,35 @@ if (step === "agenda_general_rrll") {
             </button>
           </div>
 
+          {/* ========================================================= */}
+          {/* EXCEL DE RETIROS */}
+          {/* ========================================================= */}
+
           <div className="mt-6 rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-end gap-4">
+            <div className="mb-4">
+              <h3 className="text-base font-bold text-emerald-700">
+                Excel de Retiros
+              </h3>
+
+              <p className="mt-1 text-xs text-gray-500">
+                Descarga el reporte de retiros dentro del rango de fechas
+                seleccionado.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-4 md:flex-row md:items-end">
               <div className="w-full md:w-auto">
                 <Label className="text-sm font-medium text-gray-700">
                   Fecha inicio:
                 </Label>
+
                 <Input
                   type="date"
                   value={fechaInicioExcel}
-                  onChange={(e) => setFechaInicioExcel(e.target.value)}
-                  className="bg-white h-12 mt-2 w-full md:w-[190px]"
+                  onChange={(e) =>
+                    setFechaInicioExcel(e.target.value)
+                  }
+                  className="mt-2 h-12 w-full bg-white md:w-[190px]"
                 />
               </div>
 
@@ -3235,11 +3339,14 @@ if (step === "agenda_general_rrll") {
                 <Label className="text-sm font-medium text-gray-700">
                   Fecha fin:
                 </Label>
+
                 <Input
                   type="date"
                   value={fechaFinExcel}
-                  onChange={(e) => setFechaFinExcel(e.target.value)}
-                  className="bg-white h-12 mt-2 w-full md:w-[190px]"
+                  onChange={(e) =>
+                    setFechaFinExcel(e.target.value)
+                  }
+                  className="mt-2 h-12 w-full bg-white md:w-[190px]"
                 />
               </div>
 
@@ -3248,12 +3355,81 @@ if (step === "agenda_general_rrll") {
                   type="button"
                   variant="outline"
                   onClick={handleDescargarExcel}
-                  className="w-full md:w-[220px] h-12 border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+                  className="h-12 w-full border-emerald-500 text-emerald-700 hover:bg-emerald-50 md:w-[220px]"
                 >
                   Descargar Excel
                 </Button>
               </div>
             </div>
+          </div>
+
+          {/* ========================================================= */}
+          {/* EXCEL DE PROCESOS DISCIPLINARIOS */}
+          {/* ========================================================= */}
+
+          <div className="mt-4 rounded-2xl border border-blue-200 bg-white p-5 shadow-sm">
+            <div className="mb-4">
+              <h3 className="text-base font-bold text-blue-700">
+                Excel de Procesos Disciplinarios
+              </h3>
+
+              <p className="mt-1 text-xs text-gray-500">
+                Descarga el reporte de procesos disciplinarios dentro del
+                rango de fechas seleccionado.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-4 md:flex-row md:items-end">
+              <div className="w-full md:w-auto">
+                <Label className="text-sm font-medium text-gray-700">
+                  Fecha inicio:
+                </Label>
+
+                <Input
+                  type="date"
+                  value={fechaInicioExcelDisciplinarios}
+                  onChange={(e) =>
+                    setFechaInicioExcelDisciplinarios(
+                      e.target.value
+                    )
+                  }
+                  className="mt-2 h-12 w-full bg-white md:w-[190px]"
+                />
+              </div>
+
+              <div className="w-full md:w-auto">
+                <Label className="text-sm font-medium text-gray-700">
+                  Fecha fin:
+                </Label>
+
+                <Input
+                  type="date"
+                  value={fechaFinExcelDisciplinarios}
+                  onChange={(e) =>
+                    setFechaFinExcelDisciplinarios(
+                      e.target.value
+                    )
+                  }
+                  className="mt-2 h-12 w-full bg-white md:w-[190px]"
+                />
+              </div>
+
+              <div className="w-full md:w-auto">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleDescargarExcelDisciplinarios}
+                  className="h-12 w-full border-blue-500 text-blue-700 hover:bg-blue-50 md:w-[220px]"
+                >
+                  Descargar Excel
+                </Button>
+              </div>
+            </div>
+
+            <p className="mt-3 text-xs text-gray-500">
+              El reporte incluye los procesos disciplinarios creados dentro
+              del rango de fechas seleccionado.
+            </p>
           </div>
           </div>
         </div>
