@@ -1,6 +1,7 @@
 import React from 'react';
 import { MessageSquare } from 'lucide-react';
 
+
 const HechosCasoCard = ({
   formData,
   onChange,
@@ -177,68 +178,53 @@ const HechosCasoCard = ({
         </div>
 
         {/* ===================================================== */}
-        {/* CONTINUIDAD DEL DESEMPEÑO */}
+        {/* NIVEL DE DESEMPEÑO DEL COLABORADOR */}
         {/* ===================================================== */}
 
         <div className="min-w-0 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 sm:p-5">
           <div className="min-w-0">
-            <h3 className="text-base font-bold text-gray-800">
-              ¿Desempeño continúa? *
-            </h3>
+            <label
+              htmlFor="desempenoContinua"
+              className="block text-base font-bold text-gray-800"
+            >
+              Selecciona el nivel de desempeño del colaborador *
+            </label>
 
             <p className="mt-1 text-sm leading-relaxed text-gray-500">
-              Indica si, de acuerdo con la gestión realizada por
-              Operaciones, se considera que el colaborador debe continuar
-              desempeñando sus labores.
+              Selecciona la valoración que corresponde al desempeño del
+              colaborador de acuerdo con la gestión realizada por Operaciones.
             </p>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label
-              className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${
-                formData.desempenoContinua === 'SI'
-                  ? 'border-emerald-500 bg-emerald-50'
-                  : 'border-gray-200 bg-white hover:border-emerald-300'
-              }`}
+          <div className="mt-4">
+            <select
+              id="desempenoContinua"
+              name="desempenoContinua"
+              value={formData.desempenoContinua || ''}
+              onChange={onChange}
+              required
+              className="min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
             >
-              <input
-                type="radio"
-                name="desempenoContinua"
-                value="SI"
-                checked={
-                  formData.desempenoContinua === 'SI'
-                }
-                onChange={onChange}
-                className="h-4 w-4 accent-emerald-600"
-              />
+              <option value="">
+                Selecciona el nivel de desempeño
+              </option>
 
-              <span className="font-semibold text-gray-800">
-                Sí
-              </span>
-            </label>
+              <option value="EXCELENTE">
+                Excelente
+              </option>
 
-            <label
-              className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${
-                formData.desempenoContinua === 'NO'
-                  ? 'border-red-400 bg-red-50'
-                  : 'border-gray-200 bg-white hover:border-red-300'
-              }`}
-            >
-              <input
-                type="radio"
-                name="desempenoContinua"
-                value="NO"
-                checked={
-                  formData.desempenoContinua === 'NO'
-                }
-                onChange={onChange}
-                className="h-4 w-4 accent-red-600"
-              />
+              <option value="BUENO">
+                Bueno
+              </option>
 
-              <span className="font-semibold text-gray-800">
-                No
-              </span>
-            </label>
+              <option value="REGULAR">
+                Regular
+              </option>
+
+              <option value="DEFICIENTE">
+                Deficiente
+              </option>
+            </select>
           </div>
 
           <div className="mt-5 min-w-0">
@@ -258,13 +244,13 @@ const HechosCasoCard = ({
               onChange={onChange}
               rows={4}
               required
-              placeholder="Explica el motivo de la respuesta seleccionada."
+              placeholder="Explica el motivo del nivel de desempeño seleccionado."
               className="w-full resize-y rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
             />
 
             <p className="mt-2 text-xs leading-relaxed text-gray-500">
-              La justificación es obligatoria tanto para una respuesta Sí
-              como para una respuesta No.
+              La justificación es obligatoria para cualquier nivel de
+              desempeño seleccionado.
             </p>
           </div>
         </div>
@@ -272,5 +258,6 @@ const HechosCasoCard = ({
     </section>
   );
 };
+
 
 export default HechosCasoCard;

@@ -269,6 +269,36 @@ function formatearMotivoCitacion(valor) {
 }
 
 
+function formatearNivelDesempeno(valor) {
+  const textos = {
+    EXCELENTE: "Excelente",
+    BUENO: "Bueno",
+    REGULAR: "Regular",
+    DEFICIENTE: "Deficiente",
+
+    // Compatibilidad con registros históricos.
+    SI: "Sí",
+    NO: "No",
+  };
+
+  const clave = String(valor || "")
+    .trim()
+    .toUpperCase();
+
+  if (!clave) {
+    return "—";
+  }
+
+  return (
+    textos[clave] ||
+    String(valor || "—")
+      .replaceAll("_", " ")
+      .toLowerCase()
+      .replace(/^./, (letra) => letra.toUpperCase())
+  );
+}
+
+
 export default function CitacionProcesoDisciplinarioView({
   onBack,
   proceso,
@@ -1032,21 +1062,19 @@ export default function CitacionProcesoDisciplinarioView({
 
                 <div className="rounded-lg border border-blue-200 bg-white p-4">
                   <p className="text-xs font-semibold uppercase text-gray-500">
-                    ¿Desempeño continúa?
+                    Nivel de desempeño del colaborador
                   </p>
 
                   <p className="mt-2 font-semibold text-gray-800">
-                    {desempenoContinua === "SI"
-                      ? "Sí"
-                      : desempenoContinua === "NO"
-                        ? "No"
-                        : "—"}
+                    {formatearNivelDesempeno(
+                      desempenoContinua
+                    )}
                   </p>
                 </div>
 
                 <div className="rounded-lg border border-blue-200 bg-white p-4">
                   <p className="text-xs font-semibold uppercase text-gray-500">
-                    Justificación del desempeño
+                    Justificación del nivel de desempeño
                   </p>
 
                   <p className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
