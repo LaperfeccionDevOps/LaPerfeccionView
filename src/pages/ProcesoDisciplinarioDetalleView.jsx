@@ -793,8 +793,9 @@ export default function ProcesoDisciplinarioDetalleView({
               </h3>
 
               <p className="mt-1 text-sm text-gray-600">
-                Autoriza un único viernes y bloque horario para este
-                trabajador y expediente disciplinario.
+                {cerrado
+                  ? "Consulta la autorización excepcional asignada a este expediente disciplinario."
+                  : "Autoriza un único viernes y bloque horario para este trabajador y expediente disciplinario."}
               </p>
             </div>
 
@@ -841,7 +842,18 @@ export default function ProcesoDisciplinarioDetalleView({
                     autorizacion.EstadoAutorizacion ||
                     "—";
 
+                  const autorizacionConsumida =
+                    cerrado &&
+                    estadoAutorizacion === "ACTIVA" &&
+                    autorizacion.Activo;
+
+                  const estadoAutorizacionVisual =
+                    autorizacionConsumida
+                      ? "FINALIZADA"
+                      : estadoAutorizacion;
+
                   const activa =
+                    !cerrado &&
                     estadoAutorizacion === "ACTIVA" &&
                     autorizacion.Activo;
 
@@ -861,16 +873,18 @@ export default function ProcesoDisciplinarioDetalleView({
 
                           <span
                             className={`mt-1 inline-flex rounded-full px-3 py-1 text-xs font-bold ${
-                              estadoAutorizacion === "ACTIVA"
-                                ? "bg-emerald-100 text-emerald-700"
-                                : estadoAutorizacion === "UTILIZADA"
-                                  ? "bg-blue-100 text-blue-700"
-                                  : estadoAutorizacion === "ANULADA"
-                                    ? "bg-red-100 text-red-700"
-                                    : "bg-gray-100 text-gray-700"
+                              estadoAutorizacionVisual === "FINALIZADA"
+                                ? "bg-slate-100 text-slate-700"
+                                : estadoAutorizacionVisual === "ACTIVA"
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : estadoAutorizacionVisual === "UTILIZADA"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : estadoAutorizacionVisual === "ANULADA"
+                                      ? "bg-red-100 text-red-700"
+                                      : "bg-gray-100 text-gray-700"
                             }`}
                           >
-                            {estadoAutorizacion}
+                            {estadoAutorizacionVisual}
                           </span>
                         </div>
 
@@ -924,6 +938,15 @@ export default function ProcesoDisciplinarioDetalleView({
                             >
                               Anular autorización
                             </Button>
+                          ) : cerrado ? (
+                            <div className="inline-flex flex-col items-end">
+                              <span className="text-sm font-semibold text-slate-700">
+                                Proceso finalizado
+                              </span>
+                              <span className="mt-1 text-xs text-slate-500">
+                                Autorización solo para consulta
+                              </span>
+                            </div>
                           ) : (
                             <p className="text-sm text-gray-500">
                               Sin acciones

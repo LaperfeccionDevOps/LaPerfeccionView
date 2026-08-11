@@ -12,6 +12,20 @@ function formatearFechaInput(fecha) {
   return `${year}-${month}-${day}`;
 }
 
+function formatearFechaVisual(fecha) {
+  if (!fecha) {
+    return "—";
+  }
+
+  const [year, month, day] = String(fecha).slice(0, 10).split("-");
+
+  if (!year || !month || !day) {
+    return fecha;
+  }
+
+  return `${day}/${month}/${year}`;
+}
+
 function sumarDiasHabiles(fechaInicial, cantidadDias) {
   const resultado = new Date(fechaInicial);
   let diasSumados = 0;
@@ -89,6 +103,12 @@ export default function AgendaDisciplinariaView({
   const [error, setError] = useState("");
   const [mensajeExito, setMensajeExito] = useState("");
 
+  const [solicitudesPendientes, setSolicitudesPendientes] = useState([]);
+  const [loadingSolicitudes, setLoadingSolicitudes] = useState(false);
+  const [errorSolicitudes, setErrorSolicitudes] = useState("");
+  const [mostrarSolicitudesPendientes, setMostrarSolicitudesPendientes] =
+    useState(true);
+
   const [eventoSeleccionado, setEventoSeleccionado] = useState(null);
 
   const [modalReprogramarAbierto, setModalReprogramarAbierto] =
@@ -124,7 +144,6 @@ export default function AgendaDisciplinariaView({
   const [fechaAutorizada, setFechaAutorizada] = useState("");
   const [horaAutorizada, setHoraAutorizada] = useState("");
   const [horariosAutorizables, setHorariosAutorizables] = useState([]);
-  const [motivoAutorizacion, setMotivoAutorizacion] = useState("");
   const [observacionAutorizacion, setObservacionAutorizacion] =
     useState("");
   const [loadingConfiguracionAutorizacion, setLoadingConfiguracionAutorizacion] =
@@ -245,6 +264,42 @@ export default function AgendaDisciplinariaView({
     setFechaConsulta(
       data?.fecha || fechaAlterna || ""
     );
+  };
+
+  const cargarSolicitudesPendientes = async () => {
+    try {
+      setLoadingSolicitudes(true);
+      setErrorSolicitudes("");
+
+      const res = await fetch(
+        `${API_BASE}/solicitudes-autorizacion-agenda-disciplinaria/pendientes`
+      );
+
+      const data = await res.json().catch(() => []);
+
+      if (!res.ok) {
+        throw new Error(
+          obtenerMensajeBackend(
+            data,
+            "No se pudieron cargar las solicitudes excepcionales pendientes."
+          )
+        );
+      }
+
+      setSolicitudesPendientes(
+        Array.isArray(data)
+          ? data
+          : []
+      );
+    } catch (err) {
+      setSolicitudesPendientes([]);
+      setErrorSolicitudes(
+        err?.message ||
+          "Error cargando las solicitudes excepcionales pendientes."
+      );
+    } finally {
+      setLoadingSolicitudes(false);
+    }
   };
 
   const cargarAgendaHoy = async () => {
@@ -778,7 +833,6 @@ export default function AgendaDisciplinariaView({
     setEventoAutorizacion(null);
     setFechaAutorizada("");
     setHoraAutorizada("");
-    setMotivoAutorizacion("");
     setObservacionAutorizacion("");
     setErrorAutorizacion("");
   };
@@ -789,7 +843,7 @@ export default function AgendaDisciplinariaView({
       setErrorAutorizacion("");
 
       const res = await fetch(
-        `${API_BASE}/autorizaciones-agenda-disciplinaria/configuracion`
+        `${API_BASE}/solicitudes-autorizacion-agenda-disciplinaria/configuracion`
       );
 
       const data = await res.json().catch(() => ({}));
@@ -819,11 +873,23 @@ export default function AgendaDisciplinariaView({
     }
   };
 
-  const abrirModalAutorizacion = async (evento) => {
-    setEventoAutorizacion(evento);
-    setFechaAutorizada("");
+  const abrirModalAutorizacion = async (solicitud) => {
+    setEventoAutorizacion({
+      ...solicitud,
+      NumeroIdentificacion:
+        solicitud?.NumeroDocumento ||
+        solicitud?.NumeroIdentificacion ||
+        "",
+      FechaEvento:
+        solicitud?.FechaSolicitada ||
+        solicitud?.FechaEvento ||
+        "",
+    });
+    setFechaAutorizada(
+      solicitud?.FechaSolicitada ||
+      ""
+    );
     setHoraAutorizada("");
-    setMotivoAutorizacion("");
     setObservacionAutorizacion("");
     setErrorAutorizacion("");
     setModalAutorizacionAbierto(true);
@@ -831,40 +897,21 @@ export default function AgendaDisciplinariaView({
     await cargarConfiguracionAutorizacion();
   };
 
-  const handleCambioFechaAutorizada = (event) => {
-    const valor = event.target.value;
-
-    setFechaAutorizada(valor);
-    setHoraAutorizada("");
-    setErrorAutorizacion("");
-
-    if (!valor) {
-      return;
-    }
-
-    const fecha = new Date(`${valor}T12:00:00`);
-
-    if (fecha.getDay() !== 5) {
-      setErrorAutorizacion(
-        "La autorización excepcional debe corresponder a un viernes."
-      );
-    }
-  };
-
   const crearAutorizacionViernes = async () => {
     if (
+      !eventoAutorizacion?.IdSolicitudAutorizacion ||
       !eventoAutorizacion?.IdProcesoDisciplinario ||
       !eventoAutorizacion?.IdRegistroPersonal
     ) {
       setErrorAutorizacion(
-        "No se encontró el trabajador o el expediente que se desea autorizar."
+        "No se encontró la solicitud, el trabajador o el expediente que se desea autorizar."
       );
       return;
     }
 
     if (!fechaAutorizada) {
       setErrorAutorizacion(
-        "Seleccione el viernes que desea autorizar."
+        "La solicitud no tiene un viernes registrado."
       );
       return;
     }
@@ -875,7 +922,7 @@ export default function AgendaDisciplinariaView({
 
     if (fechaSeleccionada.getDay() !== 5) {
       setErrorAutorizacion(
-        "La fecha seleccionada debe corresponder a un viernes."
+        "La fecha solicitada debe corresponder a un viernes."
       );
       return;
     }
@@ -883,13 +930,6 @@ export default function AgendaDisciplinariaView({
     if (!horaAutorizada) {
       setErrorAutorizacion(
         "Seleccione el bloque horario que desea autorizar."
-      );
-      return;
-    }
-
-    if (motivoAutorizacion.trim().length < 5) {
-      setErrorAutorizacion(
-        "Ingrese un motivo de autorización válido."
       );
       return;
     }
@@ -912,31 +952,21 @@ export default function AgendaDisciplinariaView({
       setErrorAutorizacion("");
 
       const res = await fetch(
-        `${API_BASE}/autorizaciones-agenda-disciplinaria/`,
+        `${API_BASE}/solicitudes-autorizacion-agenda-disciplinaria/${eventoAutorizacion.IdSolicitudAutorizacion}/aprobar`,
         {
-          method: "POST",
+          method: "PUT",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            IdRegistroPersonal:
-              eventoAutorizacion.IdRegistroPersonal,
-            IdProcesoDisciplinario:
-              eventoAutorizacion.IdProcesoDisciplinario,
-            IdAgendaProcesoDisciplinario: null,
-            FechaAutorizada: fechaAutorizada,
             HoraInicio: `${String(
               bloqueSeleccionado.HoraInicio
             ).slice(0, 5)}:00`,
             HoraFin: `${String(
               bloqueSeleccionado.HoraFin
             ).slice(0, 5)}:00`,
-            TipoAutorizacion: "VIERNES",
-            MotivoAutorizacion:
-              motivoAutorizacion.trim(),
-            UsuarioSolicita: "operaciones",
-            UsuarioAutoriza: usuarioMovimiento,
-            Observacion:
+            UsuarioResuelve: usuarioMovimiento,
+            ObservacionResolucion:
               observacionAutorizacion.trim() || null,
           }),
         }
@@ -948,12 +978,20 @@ export default function AgendaDisciplinariaView({
         throw new Error(
           obtenerMensajeBackend(
             data,
-            "No se pudo crear la autorización excepcional."
+            "No se pudo aprobar la solicitud excepcional de viernes."
           )
         );
       }
 
-      const fechaCreada = fechaAutorizada;
+      const expediente =
+        formatearExpedienteDisciplinario(
+          eventoAutorizacion.IdProcesoDisciplinario,
+          eventoAutorizacion.FechaCreacion ||
+            eventoAutorizacion.FechaSolicitud ||
+            eventoAutorizacion.FechaSolicitada
+        );
+
+      const fechaAprobada = fechaAutorizada;
       const etiquetaHorario =
         bloqueSeleccionado.Etiqueta ||
         `${bloqueSeleccionado.HoraInicio} - ${bloqueSeleccionado.HoraFin}`;
@@ -961,16 +999,16 @@ export default function AgendaDisciplinariaView({
       cerrarModalAutorizacion();
 
       setMensajeExito(
-        `Viernes ${fechaCreada}, ${etiquetaHorario}, autorizado correctamente para el expediente ${formatearExpedienteDisciplinario(
-          eventoAutorizacion.IdProcesoDisciplinario,
-          eventoAutorizacion.FechaCreacion ||
-            eventoAutorizacion.FechaEvento
-        )}.`
+        `Solicitud aprobada. Viernes ${formatearFechaVisual(
+          fechaAprobada
+        )}, ${etiquetaHorario}, autorizado para el expediente ${expediente}.`
       );
+
+      await cargarSolicitudesPendientes();
     } catch (err) {
       setErrorAutorizacion(
         err?.message ||
-          "Error creando la autorización excepcional."
+          "Error aprobando la solicitud excepcional."
       );
     } finally {
       setGuardandoAutorizacion(false);
@@ -979,6 +1017,7 @@ export default function AgendaDisciplinariaView({
 
   useEffect(() => {
     cargarAgendaHoy();
+    cargarSolicitudesPendientes();
   }, []);
 
   return (
@@ -1082,6 +1121,141 @@ export default function AgendaDisciplinariaView({
             <div className="mt-4 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-lg text-sm font-semibold">
               {mensajeExito}
             </div>
+          )}
+        </div>
+
+        <div className="mb-5 overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-3 border-b border-amber-200 bg-amber-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-amber-700">
+                Relaciones Laborales
+              </p>
+              <h3 className="mt-1 text-lg font-bold text-gray-800">
+                Solicitudes excepcionales de viernes
+              </h3>
+              <p className="mt-1 text-sm text-amber-800">
+                Operaciones envía estas solicitudes para que RRLL autorice el bloque de atención del viernes.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="inline-flex min-h-10 items-center justify-center rounded-xl border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-800">
+                Pendientes:{" "}
+                <span className="ml-2 text-lg font-bold">
+                  {solicitudesPendientes.length}
+                </span>
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  setMostrarSolicitudesPendientes(
+                    (valorActual) => !valorActual
+                  )
+                }
+                className="min-h-10 rounded-xl border-amber-300 bg-white font-semibold text-amber-800 hover:bg-amber-100"
+              >
+                {mostrarSolicitudesPendientes
+                  ? "Ocultar solicitudes"
+                  : "Mostrar solicitudes"}
+              </Button>
+            </div>
+          </div>
+
+          {mostrarSolicitudesPendientes && (
+            <>
+              {errorSolicitudes && (
+                <div className="m-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {errorSolicitudes}
+                </div>
+              )}
+
+              {loadingSolicitudes ? (
+                <div className="px-5 py-6 text-center text-sm text-gray-500">
+                  Cargando solicitudes pendientes...
+                </div>
+              ) : solicitudesPendientes.length === 0 ? (
+                <div className="px-5 py-6 text-center">
+                  <p className="font-semibold text-gray-700">
+                    No hay solicitudes excepcionales pendientes.
+                  </p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Cuando Operaciones solicite atención para un viernes, aparecerá aquí para revisión de RRLL.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-200">
+                  {solicitudesPendientes.map((solicitud) => (
+                    <div
+                      key={solicitud.IdSolicitudAutorizacion}
+                      className="grid grid-cols-1 gap-3 px-5 py-3 transition hover:bg-amber-50/40 xl:grid-cols-[1.4fr_0.8fr_1fr_0.8fr_auto] xl:items-center"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold uppercase text-gray-500">
+                          Trabajador
+                        </p>
+                        <p className="mt-0.5 break-words font-bold text-gray-900">
+                          {solicitud.NombreCompleto || "—"}
+                        </p>
+                        <p className="mt-0.5 text-sm text-gray-600">
+                          {solicitud.TipoDocumento || "CC"}{" "}
+                          {solicitud.NumeroDocumento || "—"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase text-gray-500">
+                          Expediente
+                        </p>
+                        <p className="mt-0.5 font-bold text-gray-800">
+                          {solicitud?.IdProcesoDisciplinario
+                            ? formatearExpedienteDisciplinario(
+                                solicitud.IdProcesoDisciplinario,
+                                solicitud.FechaCreacion ||
+                                  solicitud.FechaSolicitud ||
+                                  solicitud.FechaSolicitada
+                              )
+                            : "—"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase text-gray-500">
+                          Viernes solicitado
+                        </p>
+                        <p className="mt-0.5 font-bold text-gray-800">
+                          {formatearFechaVisual(
+                            solicitud.FechaSolicitada
+                          )}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase text-gray-500">
+                          Estado
+                        </p>
+                        <span className="mt-0.5 inline-flex rounded-full border border-amber-300 bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">
+                          {solicitud.EstadoSolicitud || "PENDIENTE"}
+                        </span>
+                      </div>
+
+                      <Button
+                        type="button"
+                        onClick={() =>
+                          abrirModalAutorizacion(
+                            solicitud
+                          )
+                        }
+                        className="w-full rounded-xl bg-emerald-700 font-semibold text-white hover:bg-emerald-800 xl:w-auto"
+                      >
+                        Revisar solicitud
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -1322,19 +1496,6 @@ export default function AgendaDisciplinariaView({
                             <Button
                               type="button"
                               variant="outline"
-                              className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                              onClick={() =>
-                                abrirModalAutorizacion(
-                                  evento
-                                )
-                              }
-                            >
-                              Autorizar viernes
-                            </Button>
-
-                            <Button
-                              type="button"
-                              variant="outline"
                               className="border-gray-300 text-gray-700 hover:bg-gray-100"
                               onClick={() =>
                                 abrirModalReprogramar(
@@ -1517,12 +1678,13 @@ export default function AgendaDisciplinariaView({
               <p className="text-sm font-semibold text-emerald-700">
                 Relaciones Laborales
               </p>
+
               <h3 className="text-xl font-bold text-gray-800">
-                Autorizar atención excepcional de viernes
+                Revisar solicitud excepcional de viernes
               </h3>
+
               <p className="mt-1 text-sm text-gray-500">
-                Esta autorización habilita un único bloque para el
-                trabajador y expediente seleccionados.
+                Operaciones solicitó atención para este viernes. Seleccione el bloque horario que RRLL autoriza.
               </p>
             </div>
 
@@ -1532,12 +1694,16 @@ export default function AgendaDisciplinariaView({
                   <p className="text-xs font-semibold uppercase text-emerald-700">
                     Trabajador
                   </p>
+
                   <p className="mt-1 font-bold text-gray-800">
                     {eventoAutorizacion.NombreCompleto || "—"}
                   </p>
+
                   <p className="text-sm text-gray-600">
                     Documento:{" "}
-                    {eventoAutorizacion.NumeroIdentificacion || "—"}
+                    {eventoAutorizacion.NumeroDocumento ||
+                      eventoAutorizacion.NumeroIdentificacion ||
+                      "—"}
                   </p>
                 </div>
 
@@ -1545,106 +1711,91 @@ export default function AgendaDisciplinariaView({
                   <p className="text-xs font-semibold uppercase text-emerald-700">
                     Expediente disciplinario
                   </p>
+
                   <p className="mt-1 font-bold text-gray-800">
                     {formatearExpedienteDisciplinario(
                       eventoAutorizacion.IdProcesoDisciplinario,
                       eventoAutorizacion.FechaCreacion ||
-                        eventoAutorizacion.FechaEvento
+                        eventoAutorizacion.FechaSolicitud ||
+                        eventoAutorizacion.FechaSolicitada
                     )}
                   </p>
+
                   <p className="text-sm text-gray-600">
-                    La autorización será de uso único.
+                    Solicitud #{eventoAutorizacion.IdSolicitudAutorizacion}
                   </p>
                 </div>
               </div>
 
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
                 <p className="font-semibold text-amber-800">
-                  Atención excepcional
+                  Viernes solicitado por Operaciones
                 </p>
-                <p className="mt-1 text-sm text-amber-700">
-                  Los viernes no tienen atención regular. Registre esta
-                  autorización únicamente cuando el caso haya sido
-                  validado directamente con Relaciones Laborales.
+
+                <p className="mt-1 text-lg font-bold text-gray-900">
+                  {formatearFechaVisual(fechaAutorizada)}
+                </p>
+
+                <p className="mt-2 text-sm leading-relaxed text-amber-800">
+                  {eventoAutorizacion.MotivoSolicitud ||
+                    "Solicitud excepcional enviada por Operaciones."}
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <label className="text-sm font-semibold text-gray-700">
-                    Viernes autorizado *
-                  </label>
-                  <input
-                    type="date"
-                    value={fechaAutorizada}
-                    onChange={handleCambioFechaAutorizada}
-                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2"
-                  />
-                </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-700">
+                  Bloque horario autorizado *
+                </label>
 
-                <div>
-                  <label className="text-sm font-semibold text-gray-700">
-                    Bloque horario *
-                  </label>
-                  <select
-                    value={horaAutorizada}
-                    onChange={(event) =>
-                      setHoraAutorizada(event.target.value)
-                    }
-                    disabled={loadingConfiguracionAutorizacion}
-                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 disabled:bg-gray-100"
-                  >
-                    <option value="">
-                      {loadingConfiguracionAutorizacion
-                        ? "Consultando horarios..."
-                        : "Seleccione un horario"}
+                <select
+                  value={horaAutorizada}
+                  onChange={(event) => {
+                    setHoraAutorizada(event.target.value);
+                    setErrorAutorizacion("");
+                  }}
+                  disabled={loadingConfiguracionAutorizacion}
+                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 disabled:bg-gray-100"
+                >
+                  <option value="">
+                    {loadingConfiguracionAutorizacion
+                      ? "Consultando horarios..."
+                      : "Seleccione un horario"}
+                  </option>
+
+                  {horariosAutorizables.map((horario) => (
+                    <option
+                      key={`${horario.HoraInicio}-${horario.HoraFin}`}
+                      value={String(
+                        horario.HoraInicio
+                      ).slice(0, 5)}
+                    >
+                      {horario.Etiqueta}
                     </option>
+                  ))}
+                </select>
 
-                    {horariosAutorizables.map((horario) => (
-                      <option
-                        key={`${horario.HoraInicio}-${horario.HoraFin}`}
-                        value={String(
-                          horario.HoraInicio
-                        ).slice(0, 5)}
-                      >
-                        {horario.Etiqueta}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold text-gray-700">
-                  Motivo de la autorización *
-                </label>
-                <textarea
-                  value={motivoAutorizacion}
-                  onChange={(event) =>
-                    setMotivoAutorizacion(event.target.value)
-                  }
-                  placeholder="Explique por qué el caso requiere atención excepcional un viernes."
-                  className="mt-1 min-h-[110px] w-full resize-none rounded-lg border border-gray-300 p-3"
-                  maxLength={2000}
-                />
-                <p className="mt-1 text-right text-xs text-gray-500">
-                  {motivoAutorizacion.length}/2000
+                <p className="mt-2 text-xs text-gray-500">
+                  Los bloques disponibles son definidos por Relaciones Laborales y tienen una duración de 40 minutos.
                 </p>
               </div>
 
               <div>
                 <label className="text-sm font-semibold text-gray-700">
-                  Observación adicional
+                  Observación de RRLL
                 </label>
+
                 <textarea
                   value={observacionAutorizacion}
                   onChange={(event) =>
-                    setObservacionAutorizacion(event.target.value)
+                    setObservacionAutorizacion(
+                      event.target.value
+                    )
                   }
-                  placeholder="Información adicional para la trazabilidad de la autorización."
-                  className="mt-1 min-h-[90px] w-full resize-none rounded-lg border border-gray-300 p-3"
+                  placeholder="Registra una observación sobre la aprobación, si aplica."
+                  className="mt-1 min-h-[100px] w-full resize-none rounded-lg border border-gray-300 p-3"
                   maxLength={2000}
                 />
+
                 <p className="mt-1 text-right text-xs text-gray-500">
                   {observacionAutorizacion.length}/2000
                 </p>
@@ -1657,7 +1808,7 @@ export default function AgendaDisciplinariaView({
               )}
             </div>
 
-            <div className="flex flex-col-reverse gap-3 border-t border-gray-200 px-6 py-4 sm:flex-row sm:justify-end">
+            <div className="flex flex-col-reverse gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 sm:flex-row sm:justify-end">
               <Button
                 type="button"
                 variant="outline"
@@ -1677,8 +1828,8 @@ export default function AgendaDisciplinariaView({
                 }
               >
                 {guardandoAutorizacion
-                  ? "Autorizando..."
-                  : "Autorizar viernes"}
+                  ? "Aprobando..."
+                  : "Aprobar viernes"}
               </Button>
             </div>
           </div>
