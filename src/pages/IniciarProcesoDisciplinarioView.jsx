@@ -110,7 +110,7 @@ const formatearFechaColombiana = (valor) => {
   return `${partes[2]}/${partes[1]}/${partes[0]}`;
 };
 
-const consultarLiderProceso = async (
+const consultarDatosCitacionProceso = async (
   idProcesoDisciplinario
 ) => {
   if (!idProcesoDisciplinario) {
@@ -130,16 +130,10 @@ const consultarLiderProceso = async (
       return null;
     }
 
-    const citacion = await respuesta.json();
-
-    return (
-      citacion?.SupervisorReporta ||
-      citacion?.supervisorReporta ||
-      null
-    );
+    return await respuesta.json();
   } catch (error) {
     console.error(
-      "No se pudo consultar el líder reportado:",
+      "No se pudieron consultar los datos de la citación:",
       error
     );
 
@@ -286,8 +280,8 @@ const consultarLiderProceso = async (
 
       const dataDetalle = await respuestaDetalle.json();
 
-      const liderProceso =
-        await consultarLiderProceso(
+      const datosCitacion =
+        await consultarDatosCitacionProceso(
           idProcesoDesdeAgenda
         );
 
@@ -316,8 +310,16 @@ const consultarLiderProceso = async (
         ClienteNombre:
           dataDetalle?.ClienteNombre || dataDetalle?.Cliente || "—",
 
+        TelefonoTrabajador:
+          datosCitacion?.TelefonoTrabajador ||
+          dataDetalle?.Celular ||
+          dataDetalle?.NumeroWhatsapp ||
+          dataDetalle?.Telefono ||
+          "—",
+
         Lider:
-          liderProceso ||
+          datosCitacion?.SupervisorReporta ||
+          datosCitacion?.supervisorReporta ||
           dataDetalle?.Lider ||
           dataDetalle?.Supervisor ||
           "—",
@@ -457,6 +459,11 @@ setProcesoCreado(procesoDesdeAgenda);
         TipoDocumento: tipoDocumento,
         Cargo: dataDetalle?.Cargo || "—",
         ClienteNombre: dataDetalle?.ClienteNombre || dataDetalle?.Cliente || "—",
+        TelefonoTrabajador:
+          dataDetalle?.Celular ||
+          dataDetalle?.NumeroWhatsapp ||
+          dataDetalle?.Telefono ||
+          "—",
         Lider:
           dataDetalle?.Lider ||
           dataDetalle?.Supervisor ||
@@ -815,7 +822,7 @@ setProcesoCreado(procesoDesdeAgenda);
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 rounded-xl bg-white p-5 border border-emerald-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 rounded-xl bg-white p-5 border border-emerald-200">
                 <div>
                   <p className="text-xs text-gray-500">Nombre</p>
                   <p className="font-semibold text-gray-800">
@@ -827,6 +834,13 @@ setProcesoCreado(procesoDesdeAgenda);
                   <p className="text-xs text-gray-500">Documento</p>
                   <p className="font-semibold text-gray-800">
                     {trabajador.TipoDocumento} {trabajador.NumeroDocumento}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-gray-500">Teléfono</p>
+                  <p className="font-semibold text-gray-800">
+                    {trabajador.TelefonoTrabajador || "—"}
                   </p>
                 </div>
 

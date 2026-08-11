@@ -17,6 +17,9 @@ import {
 import {
   obtenerAsistentesPorProceso,
 } from "@/services/asistenteDescargoProcesoDisciplinarioService";
+import {
+  obtenerCitacionPorProceso,
+} from "@/services/citacionProcesoDisciplinarioService";
 import { formatearExpedienteDisciplinario } from "@/utils/formatearExpedienteDisciplinario";
 
 
@@ -170,6 +173,11 @@ export default function CierreProcesoDisciplinarioView({
   ] = useState(null);
 
   const [
+    citacionExistente,
+    setCitacionExistente,
+  ] = useState(null);
+
+  const [
     fechaCierre,
     setFechaCierre,
   ] = useState(
@@ -266,6 +274,7 @@ export default function CierreProcesoDisciplinarioView({
         const [
           dataCierre,
           dataAsistentes,
+          dataCitacion,
         ] = await Promise.all([
           obtenerCierrePorProceso(
             proceso.IdProcesoDisciplinario
@@ -273,7 +282,14 @@ export default function CierreProcesoDisciplinarioView({
           obtenerAsistentesPorProceso(
             proceso.IdProcesoDisciplinario
           ),
+          obtenerCitacionPorProceso(
+            proceso.IdProcesoDisciplinario
+          ),
         ]);
+
+        setCitacionExistente(
+          dataCitacion || null
+        );
 
         const listaAsistentes =
           Array.isArray(dataAsistentes)
@@ -869,7 +885,7 @@ export default function CierreProcesoDisciplinarioView({
           </h3>
 
           {trabajador ? (
-            <div className="grid grid-cols-1 gap-4 rounded-xl border border-emerald-200 bg-white p-5 md:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 rounded-xl border border-emerald-200 bg-white p-5 sm:grid-cols-2 lg:grid-cols-5">
               <div>
                 <p className="text-xs text-gray-500">
                   Nombre
@@ -892,6 +908,18 @@ export default function CierreProcesoDisciplinarioView({
                     ? " "
                     : ""}
                   {trabajador.NumeroDocumento ||
+                    "—"}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-500">
+                  Teléfono
+                </p>
+
+                <p className="font-semibold text-gray-800">
+                  {citacionExistente?.TelefonoTrabajador ||
+                    trabajador?.TelefonoTrabajador ||
                     "—"}
                 </p>
               </div>

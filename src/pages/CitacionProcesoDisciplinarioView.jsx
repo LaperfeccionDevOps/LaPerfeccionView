@@ -312,6 +312,11 @@ export default function CitacionProcesoDisciplinarioView({
   ] = useState("");
 
   const [
+    telefonoTrabajador,
+    setTelefonoTrabajador,
+  ] = useState("");
+
+  const [
     tipoGestion,
     setTipoGestion,
   ] = useState("");
@@ -432,6 +437,14 @@ export default function CitacionProcesoDisciplinarioView({
               ""
           );
 
+          setTelefonoTrabajador(
+            dataCitacion.TelefonoTrabajador ||
+              trabajador?.TelefonoTrabajador ||
+              trabajador?.Celular ||
+              trabajador?.NumeroWhatsapp ||
+              ""
+          );
+
           setTipoGestion(
             dataCitacion.TipoGestionDisciplinaria || ""
           );
@@ -469,6 +482,12 @@ export default function CitacionProcesoDisciplinarioView({
           );
         } else {
           setCitacionExistente(null);
+          setTelefonoTrabajador(
+            trabajador?.TelefonoTrabajador ||
+              trabajador?.Celular ||
+              trabajador?.NumeroWhatsapp ||
+              ""
+          );
           setTipoGestion("");
           setDesempenoContinua("");
           setJustificacionDesempeno("");
@@ -522,6 +541,7 @@ export default function CitacionProcesoDisciplinarioView({
   }, [
     proceso?.IdProcesoDisciplinario,
     trabajador?.ClienteNombre,
+    trabajador?.TelefonoTrabajador,
   ]);
 
 
@@ -688,7 +708,13 @@ export default function CitacionProcesoDisciplinarioView({
       <DescargosProcesoDisciplinarioView
         onBack={() => setVista("citacion")}
         proceso={proceso}
-        trabajador={trabajador}
+        trabajador={{
+          ...trabajador,
+          TelefonoTrabajador:
+            telefonoTrabajador ||
+            trabajador?.TelefonoTrabajador ||
+            "—",
+        }}
       />
     );
   }
@@ -783,7 +809,7 @@ export default function CitacionProcesoDisciplinarioView({
           </h3>
 
           {trabajador ? (
-            <div className="grid grid-cols-1 gap-4 rounded-xl border border-emerald-200 bg-white p-5 md:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 rounded-xl border border-emerald-200 bg-white p-5 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <p className="text-xs text-gray-500">
                   Nombre
@@ -802,6 +828,16 @@ export default function CitacionProcesoDisciplinarioView({
                 <p className="font-semibold text-gray-800">
                   {trabajador.TipoDocumento || ""}{" "}
                   {trabajador.NumeroDocumento || "—"}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-500">
+                  Teléfono
+                </p>
+
+                <p className="font-semibold text-gray-800">
+                  {telefonoTrabajador || "—"}
                 </p>
               </div>
 

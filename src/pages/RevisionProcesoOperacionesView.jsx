@@ -15,6 +15,7 @@ import {
   FileText,
   Loader2,
   MapPin,
+  Phone,
   Send,
   User,
   X,
@@ -930,7 +931,7 @@ const RevisionProcesoOperacionesView =
               Trabajador seleccionado
             </h2>
 
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <TarjetaDato
                 titulo="Nombre"
                 valor={nombreTrabajador}
@@ -943,6 +944,15 @@ const RevisionProcesoOperacionesView =
                   trabajador
                 )}
                 icono={FileText}
+              />
+
+              <TarjetaDato
+                titulo="Teléfono"
+                valor={
+                  citacion?.TelefonoTrabajador ||
+                  '—'
+                }
+                icono={Phone}
               />
 
               <TarjetaDato

@@ -303,6 +303,17 @@ const IniciarProcesoOperacionesView =
         trabajador?.nombreSupervisor ||
         '';
 
+    const obtenerTelefonoInicial = () =>
+      String(
+        trabajador?.Celular ||
+        trabajador?.celular ||
+        trabajador?.NumeroWhatsapp ||
+        trabajador?.numeroWhatsapp ||
+        trabajador?.Telefono ||
+        trabajador?.telefono ||
+        ''
+      ).trim();
+
     const [
       formData,
       setFormData,
@@ -313,6 +324,8 @@ const IniciarProcesoOperacionesView =
       lugarCitacion: '',
       supervisorReporta:
         obtenerSupervisorInicial(),
+      telefonoTrabajador:
+        obtenerTelefonoInicial(),
       cliente:
         obtenerClienteInicial(),
       sede: obtenerSedeInicial(),
@@ -1049,6 +1062,13 @@ const IniciarProcesoOperacionesView =
         },
         {
           value:
+            formData
+              .telefonoTrabajador,
+          label:
+            'Teléfono del trabajador',
+        },
+        {
+          value:
             formData.cliente,
           label: 'Cliente',
         },
@@ -1310,6 +1330,13 @@ const IniciarProcesoOperacionesView =
                 citacion
                   .SupervisorReporta ||
                 prev.supervisorReporta ||
+                '',
+
+              telefonoTrabajador:
+                citacion
+                  .TelefonoTrabajador ||
+                prev.telefonoTrabajador ||
+                obtenerTelefonoInicial() ||
                 '',
 
               cliente:
@@ -1635,6 +1662,12 @@ const IniciarProcesoOperacionesView =
           formData
             .supervisorReporta ||
           null,
+
+        TelefonoTrabajador:
+          String(
+            formData.telefonoTrabajador ||
+            ''
+          ).trim() || null,
 
         ManifestacionSupervisor:
           null,
@@ -2114,6 +2147,12 @@ const IniciarProcesoOperacionesView =
             trabajador={trabajador}
             idRegistroPersonal={
               idRegistroPersonal
+            }
+            telefonoTrabajador={
+              formData.telefonoTrabajador
+            }
+            onTelefonoChange={
+              handleChange
             }
           />
 

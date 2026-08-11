@@ -1186,7 +1186,7 @@ function formatearTipoDocumento(valor) {
           </h3>
 
           {trabajador ? (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 rounded-xl bg-white p-5 border border-emerald-200">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 rounded-xl bg-white p-5 border border-emerald-200">
               <div>
                 <p className="text-xs text-gray-500">Nombre</p>
                 <p className="font-semibold text-gray-800">
@@ -1198,6 +1198,15 @@ function formatearTipoDocumento(valor) {
                 <p className="text-xs text-gray-500">Documento</p>
                 <p className="font-semibold text-gray-800">
                   {trabajador.TipoDocumento} {trabajador.NumeroDocumento}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-500">Teléfono</p>
+                <p className="font-semibold text-gray-800">
+                  {citacionExistente?.TelefonoTrabajador ||
+                    trabajador?.TelefonoTrabajador ||
+                    "—"}
                 </p>
               </div>
 
