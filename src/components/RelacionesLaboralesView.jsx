@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ProcesosDisciplinariosView from "@/pages/ProcesosDisciplinariosView";
+import IndicadoresProcesosDisciplinariosView from "@/pages/IndicadoresProcesosDisciplinariosView";
 import AgendaDisciplinariaView from "@/pages/AgendaDisciplinariaView";
 import AgendaGeneralRRLLView from "@/components/AgendaGeneralRRLLView";
 import {
@@ -714,6 +716,8 @@ const DocCard = ({
 );
 
 export default function RelacionesLaboralesView() {
+  const navigate = useNavigate();
+
   // ✅ lee tu .env (debe ser: http://localhost:8000/api)
   const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
   const API_BASE_ENTREVISTA = API_BASE.replace(/\/api$/, "");
@@ -3140,6 +3144,17 @@ if (step === "procesos_disciplinarios") {
   );
 }
 
+if (step === "indicadores_procesos_disciplinarios") {
+  return (
+    <IndicadoresProcesosDisciplinariosView
+      onBack={() => {
+        setIdProcesoAgenda(null);
+        setStep("inicio");
+      }}
+    />
+  );
+}
+
 if (step === "agenda_disciplinaria") {
   return (
     <AgendaDisciplinariaView
@@ -3251,186 +3266,223 @@ if (step === "agenda_general_rrll") {
 
 
   // --------------------------
-  // VISTA INICIAL
+  // PORTADA DEL MÓDULO RRLL
   // --------------------------
- if (step === "inicio") {
-  return (
-    <div className="p-6">
-      <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
-        <div className="mb-1">
-          <h2 className="text-2xl font-bold text-gray-800">
-            Relaciones Laborales
-          </h2>
-          <p className="text-sm text-gray-500">Vista inicial</p>
-        </div>
+  if (step === "inicio") {
+    return (
+      <div className="p-6">
+        <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
+          <div className="mb-6">
+            <p className="text-sm font-semibold text-emerald-700">
+              Talento Humano
+            </p>
 
-        <div className="mt-6 bg-gray-50 p-6 rounded-xl border border-gray-100">
-          <p className="text-sm font-semibold text-gray-700 mb-3">
-            Seleccione un flujo:
-          </p>
+            <h2 className="text-2xl font-bold text-gray-800">
+              Relaciones Laborales
+            </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <button
-              onClick={() => setStep("retiros")}
-              className="text-left bg-white rounded-xl border border-emerald-100 p-4 hover:border-emerald-300 hover:shadow-sm transition"
-            >
-              <p className="font-bold text-emerald-700">Retiros</p>
-              <p className="text-xs text-gray-500">
-                Gestión de retiros y documentación…
-              </p>
-            </button>
-
-            <button
-              onClick={() => setStep("agenda_disciplinaria")}
-              className="text-left bg-white rounded-xl border border-blue-200 p-4 hover:border-blue-300 hover:shadow-sm transition"
-            >
-              <p className="font-bold text-blue-700">Agenda Disciplinaria</p>
-              <p className="text-xs text-gray-500">
-                Consulta de citaciones, descargos y seguimientos programados.
-              </p>
-            </button>
-
-            <button
-              onClick={() => setStep("solicitudes_viernes")}
-              className="text-left bg-white rounded-xl border border-amber-200 p-4 hover:border-amber-400 hover:shadow-sm transition"
-            >
-              <p className="font-bold text-amber-700">
-                Solicitudes de autorización para viernes
-              </p>
-              <p className="text-xs text-gray-500">
-                Aprobar o rechazar casos críticos enviados por Operaciones.
-              </p>
-            </button>
-          </div>
-
-          {/* ========================================================= */}
-          {/* EXCEL DE RETIROS */}
-          {/* ========================================================= */}
-
-          <div className="mt-6 rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
-            <div className="mb-4">
-              <h3 className="text-base font-bold text-emerald-700">
-                Excel de Retiros
-              </h3>
-
-              <p className="mt-1 text-xs text-gray-500">
-                Descarga el reporte de retiros dentro del rango de fechas
-                seleccionado.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-4 md:flex-row md:items-end">
-              <div className="w-full md:w-auto">
-                <Label className="text-sm font-medium text-gray-700">
-                  Fecha inicio:
-                </Label>
-
-                <Input
-                  type="date"
-                  value={fechaInicioExcel}
-                  onChange={(e) =>
-                    setFechaInicioExcel(e.target.value)
-                  }
-                  className="mt-2 h-12 w-full bg-white md:w-[190px]"
-                />
-              </div>
-
-              <div className="w-full md:w-auto">
-                <Label className="text-sm font-medium text-gray-700">
-                  Fecha fin:
-                </Label>
-
-                <Input
-                  type="date"
-                  value={fechaFinExcel}
-                  onChange={(e) =>
-                    setFechaFinExcel(e.target.value)
-                  }
-                  className="mt-2 h-12 w-full bg-white md:w-[190px]"
-                />
-              </div>
-
-              <div className="w-full md:w-auto">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleDescargarExcel}
-                  className="h-12 w-full border-emerald-500 text-emerald-700 hover:bg-emerald-50 md:w-[220px]"
-                >
-                  Descargar Excel
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* ========================================================= */}
-          {/* EXCEL DE PROCESOS DISCIPLINARIOS */}
-          {/* ========================================================= */}
-
-          <div className="mt-4 rounded-2xl border border-blue-200 bg-white p-5 shadow-sm">
-            <div className="mb-4">
-              <h3 className="text-base font-bold text-blue-700">
-                Excel de Procesos Disciplinarios
-              </h3>
-
-              <p className="mt-1 text-xs text-gray-500">
-                Descarga el reporte de procesos disciplinarios dentro del
-                rango de fechas seleccionado.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-4 md:flex-row md:items-end">
-              <div className="w-full md:w-auto">
-                <Label className="text-sm font-medium text-gray-700">
-                  Fecha inicio:
-                </Label>
-
-                <Input
-                  type="date"
-                  value={fechaInicioExcelDisciplinarios}
-                  onChange={(e) =>
-                    setFechaInicioExcelDisciplinarios(
-                      e.target.value
-                    )
-                  }
-                  className="mt-2 h-12 w-full bg-white md:w-[190px]"
-                />
-              </div>
-
-              <div className="w-full md:w-auto">
-                <Label className="text-sm font-medium text-gray-700">
-                  Fecha fin:
-                </Label>
-
-                <Input
-                  type="date"
-                  value={fechaFinExcelDisciplinarios}
-                  onChange={(e) =>
-                    setFechaFinExcelDisciplinarios(
-                      e.target.value
-                    )
-                  }
-                  className="mt-2 h-12 w-full bg-white md:w-[190px]"
-                />
-              </div>
-
-              <div className="w-full md:w-auto">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleDescargarExcelDisciplinarios}
-                  className="h-12 w-full border-blue-500 text-blue-700 hover:bg-blue-50 md:w-[220px]"
-                >
-                  Descargar Excel
-                </Button>
-              </div>
-            </div>
-
-            <p className="mt-3 text-xs text-gray-500">
-              El reporte incluye los procesos disciplinarios creados dentro
-              del rango de fechas seleccionado.
+            <p className="mt-1 text-sm text-gray-500">
+              Seleccione el proceso que desea gestionar.
             </p>
           </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-6">
+            <div className="mb-5">
+              <h3 className="text-lg font-bold text-gray-800">
+                Gestión de Relaciones Laborales
+              </h3>
+
+              <p className="mt-1 text-sm text-gray-500">
+                Acceda a los procesos de retiros, gestión disciplinaria o panel gerencial.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <button
+                type="button"
+                onClick={() => setStep("retiros_inicio")}
+                className="group rounded-2xl border border-emerald-200 bg-white p-6 text-left transition hover:border-emerald-400 hover:shadow-md"
+              >
+                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-lg font-bold text-emerald-700">
+                  R
+                </div>
+
+                <p className="text-lg font-bold text-emerald-700">
+                  Retiros
+                </p>
+
+                <p className="mt-2 text-sm leading-6 text-gray-500">
+                  Gestión de retiros, documentación, indicadores y reportes.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  navigate("/relaciones-laborales/procesos-disciplinarios")
+                }
+                className="group rounded-2xl border border-blue-200 bg-white p-6 text-left transition hover:border-blue-400 hover:shadow-md"
+              >
+                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-lg font-bold text-blue-700">
+                  PD
+                </div>
+
+                <p className="text-lg font-bold text-blue-700">
+                  Procesos Disciplinarios
+                </p>
+
+                <p className="mt-2 text-sm leading-6 text-gray-500">
+                  Agenda, indicadores, autorizaciones y reportes disciplinarios.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate("/panel-gerencial-rrll")}
+                className="group rounded-2xl border border-slate-300 bg-white p-6 text-left transition hover:border-slate-500 hover:shadow-md"
+              >
+                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-lg font-bold text-slate-700">
+                  PG
+                </div>
+
+                <p className="text-lg font-bold text-slate-700">
+                  Panel Gerencial
+                </p>
+
+                <p className="mt-2 text-sm leading-6 text-gray-500">
+                  Consulta consolidada para seguimiento y control gerencial.
+                </p>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --------------------------
+  // VISTA INICIAL DE RETIROS
+  // --------------------------
+  if (step === "retiros_inicio") {
+    return (
+      <div className="p-6">
+        <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
+          <div className="mb-1">
+            <h2 className="text-2xl font-bold text-gray-800">
+              Relaciones Laborales
+            </h2>
+            <p className="text-sm text-gray-500">
+              Gestión de retiros
+            </p>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-6">
+            <div className="mb-4">
+              <p className="text-sm font-semibold text-emerald-800">
+                Retiros
+              </p>
+              <p className="mt-1 text-xs text-gray-500">
+                Gestión, seguimiento e indicadores del proceso de retiro.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setStep("retiros")}
+                className="text-left bg-white rounded-xl border border-emerald-200 p-5 hover:border-emerald-400 hover:shadow-sm transition"
+              >
+                <p className="font-bold text-emerald-700">
+                  Retiros
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Gestión de retiros y documentación.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate("/indicadores-rrll")}
+                className="text-left bg-white rounded-xl border border-emerald-200 p-5 hover:border-emerald-400 hover:shadow-sm transition"
+              >
+                <p className="font-bold text-emerald-700">
+                  Indicadores de Retiros
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Consulta y seguimiento de los indicadores del proceso de retiro.
+                </p>
+              </button>
+            </div>
+
+            {/* ========================================================= */}
+            {/* EXCEL DE RETIROS */}
+            {/* ========================================================= */}
+
+            <div className="mt-6 rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm">
+              <div className="mb-4">
+                <h3 className="text-base font-bold text-emerald-700">
+                  Excel de Retiros
+                </h3>
+
+                <p className="mt-1 text-xs text-gray-500">
+                  Descarga el reporte de retiros dentro del rango de fechas
+                  seleccionado.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-4 md:flex-row md:items-end">
+                <div className="w-full md:w-auto">
+                  <Label className="text-sm font-medium text-gray-700">
+                    Fecha inicio:
+                  </Label>
+
+                  <Input
+                    type="date"
+                    value={fechaInicioExcel}
+                    onChange={(e) =>
+                      setFechaInicioExcel(e.target.value)
+                    }
+                    className="mt-2 h-12 w-full bg-white md:w-[190px]"
+                  />
+                </div>
+
+                <div className="w-full md:w-auto">
+                  <Label className="text-sm font-medium text-gray-700">
+                    Fecha fin:
+                  </Label>
+
+                  <Input
+                    type="date"
+                    value={fechaFinExcel}
+                    onChange={(e) =>
+                      setFechaFinExcel(e.target.value)
+                    }
+                    className="mt-2 h-12 w-full bg-white md:w-[190px]"
+                  />
+                </div>
+
+                <div className="w-full md:w-auto">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleDescargarExcel}
+                    className="h-12 w-full border-emerald-500 text-emerald-700 hover:bg-emerald-50 md:w-[220px]"
+                  >
+                    Descargar Excel
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStep("inicio")}
+              >
+                Volver al módulo
+              </Button>
+            </div>
           </div>
         </div>
       </div>
