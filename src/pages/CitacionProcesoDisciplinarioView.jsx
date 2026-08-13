@@ -235,15 +235,22 @@ function formatearTipoGestion(valor) {
 
 function formatearMotivoCitacion(valor) {
   const textos = {
+    ACCIDENTE_LABORAL_SST: "Accidente laboral (SST)",
+    ACTOS_INSEGUROS_SST: "Actos inseguros (SST)",
+    ATENCION_LINEA_VERDE: "Atención línea verde",
     AUSENCIA_INJUSTIFICADA: "Ausencia injustificada",
-    RETARDOS_INJUSTIFICADOS: "Retardos injustificados",
-    INCUMPLIMIENTO_FUNCIONES: "Incumplimiento de funciones",
-    INCUMPLIMIENTO_NORMAS: "Incumplimiento de normas",
     CLIMA_LABORAL: "Clima laboral",
     DANOS_BIEN_AJENO_AFECTACION_CLIENTE:
       "Daños en bien ajeno - afectación al cliente",
+    INCUMPLIMIENTO_FUNCIONES: "Incumplimiento de funciones",
+    INCUMPLIMIENTO_NORMAS: "Incumplimiento de normas",
+    NO_USAR_EPP_LABOR: "No usar EPP para la labor",
+    OMISION_REPORTE_CONFLICTO_INTERES:
+      "Omisión reporte conflicto de interés",
+    PERDIDA_OBJETOS_CLIENTE_COMPANEROS:
+      "Pérdida de objetos cliente / compañeros",
     PERIODO_PRUEBA: "Período de prueba",
-    ATENCION_LINEA_VERDE: "Atención línea verde",
+    RETARDOS_INJUSTIFICADOS: "Retardos injustificados",
 
     // Compatibilidad con registros anteriores.
     RETARDO_INJUSTIFICADO: "Retardo injustificado",

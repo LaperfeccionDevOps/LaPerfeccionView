@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Calendar,
   Loader2,
+  Mail,
   Video,
 } from 'lucide-react';
 
@@ -397,7 +398,7 @@ const ProgramacionCitacionCard = ({
                 id="supervisorReporta"
                 name="supervisorReporta"
                 type="text"
-                value={formData.supervisorReporta}
+                value={formData.supervisorReporta || ''}
                 onChange={onChange}
                 placeholder="Nombre del supervisor"
                 className="min-h-11 w-full"
@@ -405,6 +406,50 @@ const ProgramacionCitacionCard = ({
             </div>
 
             <div className="min-w-0">
+              <label
+                htmlFor="correoSupervisorReporta"
+                className="mb-2 block text-sm font-semibold text-gray-700"
+              >
+                Correo del supervisor que reporta *
+              </label>
+
+              <Input
+                id="correoSupervisorReporta"
+                name="correoSupervisorReporta"
+                type="email"
+                value={formData.correoSupervisorReporta || ''}
+                onChange={onChange}
+                placeholder="correo@empresa.com"
+                autoComplete="email"
+                required
+                className="min-h-11 w-full"
+              />
+            </div>
+
+            <div className="min-w-0 lg:col-span-2">
+              <div
+                className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"
+                role="alert"
+              >
+                <div className="flex items-start gap-3">
+                  <Mail className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-amber-900">
+                      Verifique el correo del supervisor
+                    </p>
+
+                    <p className="mt-1 text-sm leading-relaxed text-amber-800">
+                      Verifique que este correo corresponda al supervisor que
+                      reporta. Si está desactualizado o no corresponde,
+                      modifíquelo antes de continuar.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="min-w-0 lg:col-span-2">
               <label
                 htmlFor="cliente"
                 className="mb-2 block text-sm font-semibold text-gray-700"

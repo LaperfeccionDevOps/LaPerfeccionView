@@ -97,20 +97,20 @@ const HechosCasoCard = ({
               Selecciona el motivo de citación / presunta falta
             </option>
 
+            <option value="ACCIDENTE_LABORAL_SST">
+              Accidente laboral (SST)
+            </option>
+
+            <option value="ACTOS_INSEGUROS_SST">
+              Actos inseguros (SST)
+            </option>
+
+            <option value="ATENCION_LINEA_VERDE">
+              Atención línea verde
+            </option>
+
             <option value="AUSENCIA_INJUSTIFICADA">
               Ausencia injustificada
-            </option>
-
-            <option value="RETARDOS_INJUSTIFICADOS">
-              Retardos injustificados
-            </option>
-
-            <option value="INCUMPLIMIENTO_FUNCIONES">
-              Incumplimiento de funciones
-            </option>
-
-            <option value="INCUMPLIMIENTO_NORMAS">
-              Incumplimiento de normas
             </option>
 
             <option value="CLIMA_LABORAL">
@@ -121,12 +121,32 @@ const HechosCasoCard = ({
               Daños en bien ajeno - afectación al cliente
             </option>
 
+            <option value="INCUMPLIMIENTO_FUNCIONES">
+              Incumplimiento de funciones
+            </option>
+
+            <option value="INCUMPLIMIENTO_NORMAS">
+              Incumplimiento de normas
+            </option>
+
+            <option value="NO_USAR_EPP_LABOR">
+              No usar EPP para la labor
+            </option>
+
+            <option value="OMISION_REPORTE_CONFLICTO_INTERES">
+              Omisión reporte conflicto de interés
+            </option>
+
+            <option value="PERDIDA_OBJETOS_CLIENTE_COMPANEROS">
+              Pérdida de objetos cliente/compañeros
+            </option>
+
             <option value="PERIODO_PRUEBA">
               Período de prueba
             </option>
 
-            <option value="ATENCION_LINEA_VERDE">
-              Atención línea verde
+            <option value="RETARDOS_INJUSTIFICADOS">
+              Retardos injustificados
             </option>
           </select>
         </div>

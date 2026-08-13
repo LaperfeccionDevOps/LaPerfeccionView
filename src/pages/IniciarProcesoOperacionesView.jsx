@@ -5,6 +5,7 @@ import React, {
 } from 'react';
 import { motion } from 'framer-motion';
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   ClipboardList,
@@ -324,6 +325,7 @@ const IniciarProcesoOperacionesView =
       lugarCitacion: '',
       supervisorReporta:
         obtenerSupervisorInicial(),
+      correoSupervisorReporta: '',
       telefonoTrabajador:
         obtenerTelefonoInicial(),
       cliente:
@@ -361,6 +363,16 @@ const IniciarProcesoOperacionesView =
       guardando,
       setGuardando,
     ] = useState(false);
+
+    const [
+      modalMaximoProcesosAbierto,
+      setModalMaximoProcesosAbierto,
+    ] = useState(false);
+
+    const [
+      mensajeMaximoProcesos,
+      setMensajeMaximoProcesos,
+    ] = useState('');
 
     const [
       borradorConsultado,
@@ -1024,6 +1036,44 @@ const IniciarProcesoOperacionesView =
         }
       };
 
+    const manejarErrorMaximoProcesos = (
+      error
+    ) => {
+      const mensaje = String(
+        error?.message || ''
+      ).trim();
+
+      const esMaximoProcesos =
+        mensaje
+          .toLowerCase()
+          .includes(
+            '2 procesos disciplinarios abiertos'
+          ) ||
+        mensaje
+          .toLowerCase()
+          .includes(
+            'máximo permitido de 2 procesos disciplinarios'
+          );
+
+      if (!esMaximoProcesos) {
+        return false;
+      }
+
+      setMensajeMaximoProcesos(
+        mensaje ||
+          'Este trabajador ya cuenta con 2 procesos disciplinarios abiertos.'
+      );
+
+      setModalMaximoProcesosAbierto(true);
+
+      return true;
+    };
+
+    const cerrarModalMaximoProcesos = () => {
+      setModalMaximoProcesosAbierto(false);
+      setMensajeMaximoProcesos('');
+    };
+
     const validarPasoDos = () => {
       const camposObligatorios = [
         {
@@ -1059,6 +1109,13 @@ const IniciarProcesoOperacionesView =
               .supervisorReporta,
           label:
             'Supervisor que reporta',
+        },
+        {
+          value:
+            formData
+              .correoSupervisorReporta,
+          label:
+            'Correo del supervisor que reporta',
         },
         {
           value:
@@ -1119,6 +1176,27 @@ const IniciarProcesoOperacionesView =
           description:
             `Debes diligenciar: ` +
             `${campoFaltante.label}.`,
+          variant: 'destructive',
+        });
+
+        return false;
+      }
+
+      const correoSupervisor = String(
+        formData.correoSupervisorReporta || ''
+      ).trim();
+
+      const correoValido =
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+          correoSupervisor
+        );
+
+      if (!correoValido) {
+        toast({
+          title:
+            'Correo inválido',
+          description:
+            'Debes registrar un correo válido para el supervisor que reporta.',
           variant: 'destructive',
         });
 
@@ -1330,6 +1408,12 @@ const IniciarProcesoOperacionesView =
                 citacion
                   .SupervisorReporta ||
                 prev.supervisorReporta ||
+                '',
+
+              correoSupervisorReporta:
+                citacion
+                  .CorreoSupervisorReporta ||
+                prev.correoSupervisorReporta ||
                 '',
 
               telefonoTrabajador:
@@ -1663,6 +1747,12 @@ const IniciarProcesoOperacionesView =
             .supervisorReporta ||
           null,
 
+        CorreoSupervisorReporta:
+          String(
+            formData.correoSupervisorReporta ||
+            ''
+          ).trim() || null,
+
         TelefonoTrabajador:
           String(
             formData.telefonoTrabajador ||
@@ -1954,14 +2044,20 @@ const IniciarProcesoOperacionesView =
             error
           );
 
-          toast({
-            title:
-              'No se pudo guardar el borrador',
-            description:
-              error?.message ||
-              'Ocurrió un error guardando la información.',
-            variant: 'destructive',
-          });
+          if (
+            !manejarErrorMaximoProcesos(
+              error
+            )
+          ) {
+            toast({
+              title:
+                'No se pudo guardar el borrador',
+              description:
+                error?.message ||
+                'Ocurrió un error guardando la información.',
+              variant: 'destructive',
+            });
+          }
         } finally {
           setGuardando(false);
         }
@@ -2004,14 +2100,20 @@ const IniciarProcesoOperacionesView =
             error
           );
 
-          toast({
-            title:
-              'No se pudo completar el Paso 2',
-            description:
-              error?.message ||
-              'Ocurrió un error guardando la información.',
-            variant: 'destructive',
-          });
+          if (
+            !manejarErrorMaximoProcesos(
+              error
+            )
+          ) {
+            toast({
+              title:
+                'No se pudo completar el Paso 2',
+              description:
+                error?.message ||
+                'Ocurrió un error guardando la información.',
+              variant: 'destructive',
+            });
+          }
         } finally {
           setGuardando(false);
         }
@@ -2272,6 +2374,83 @@ const IniciarProcesoOperacionesView =
             </div>
           </div>
         </section>
+
+        {modalMaximoProcesosAbierto && (
+          <div
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-maximo-procesos"
+            onMouseDown={(event) => {
+              if (
+                event.target ===
+                event.currentTarget
+              ) {
+                cerrarModalMaximoProcesos();
+              }
+            }}
+          >
+            <motion.div
+              initial={{
+                opacity: 0,
+                scale: 0.96,
+                y: 16,
+              }}
+              animate={{
+                opacity: 1,
+                scale: 1,
+                y: 0,
+              }}
+              className="w-full max-w-lg overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-2xl"
+            >
+              <div className="bg-amber-50 px-6 py-6 sm:px-7">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+                    <AlertTriangle className="h-6 w-6" />
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-amber-700">
+                      No es posible iniciar otro proceso
+                    </p>
+
+                    <h2
+                      id="titulo-maximo-procesos"
+                      className="mt-1 text-xl font-bold text-gray-900"
+                    >
+                      El trabajador ya cuenta con 2 procesos disciplinarios abiertos
+                    </h2>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 px-6 py-6 sm:px-7">
+                <p className="text-sm leading-relaxed text-gray-700">
+                  {mensajeMaximoProcesos ||
+                    'No es posible iniciar un nuevo proceso hasta que uno de los procesos actuales sea finalizado o cerrado.'}
+                </p>
+
+                <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+                  <p className="text-sm leading-relaxed text-blue-800">
+                    Puedes continuar con este trabajador cuando uno de sus procesos disciplinarios actuales haya sido finalizado o cerrado.
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-200 bg-gray-50 px-6 py-4 sm:px-7">
+                <Button
+                  type="button"
+                  onClick={
+                    cerrarModalMaximoProcesos
+                  }
+                  className="min-h-11 w-full rounded-xl bg-emerald-600 px-5 font-semibold text-white hover:bg-emerald-700"
+                >
+                  Entendido
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
 
         {evidenciaSeleccionada && (
           <div
