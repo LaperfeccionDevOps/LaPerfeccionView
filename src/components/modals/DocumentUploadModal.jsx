@@ -30,7 +30,7 @@ const TIPOS_DOCUMENTALES_MULTIPLES = ['36', '64'];
 const esTipoDocumentalMultiple = (tipoId) =>
   TIPOS_DOCUMENTALES_MULTIPLES.includes(String(tipoId));
 
-const TIPOS_ACTIVOS_FORMATOS_AMPLIADOS = ['82', '87'];
+const TIPOS_ACTIVOS_FORMATOS_AMPLIADOS = ['82', '87', '90', '91'];
 
 const ACCEPT_ACTIVOS_FORMATOS_AMPLIADOS =
   '.pdf,image/*,.doc,.docx,.xls,.xlsx,.mp3,.wav,.m4a,.ogg';
@@ -1575,7 +1575,7 @@ const renderCarpetaBienestar = () => {
                   id={`file-bienestar-91-${aspirante.id}`}
                   className="hidden"
                   onChange={(e) => handleFileUploadActivo(e, 91)}
-                  accept=".pdf,image/*,.doc,.docx"
+                  accept={ACCEPT_ACTIVOS_FORMATOS_AMPLIADOS}
                 />
 
                 <label
@@ -1673,7 +1673,7 @@ const renderCarpetaHSE = () => {
                   id={`file-hse-90-${aspirante.id}`}
                   className="hidden"
                   onChange={(e) => handleFileUploadActivo(e, 90)}
-                  accept=".pdf,image/*,.doc,.docx"
+                  accept={ACCEPT_ACTIVOS_FORMATOS_AMPLIADOS}
                 />
 
                 <label
