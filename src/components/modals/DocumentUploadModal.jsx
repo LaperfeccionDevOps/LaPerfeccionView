@@ -13,7 +13,7 @@ import {
 } from '@/services/contratacionService';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Folder, Upload, Trash2, Download, CheckCircle2, AlertCircle, Eye } from 'lucide-react';
+import { Folder, Upload, Trash2, Download, CheckCircle2, AlertCircle, Eye, Play } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { listaDocumentosContratacion } from '@/utils/listaDocumentos';
 import { DescargarDocumentoPdf } from '../../services/descargarDocumento';
@@ -308,8 +308,140 @@ const tituloModal = esCarpetaActivos
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
+const obtenerExtensionRetiro = (doc) => {
+  const nombre = String(
+    doc?.NombreArchivoOriginal ||
+    doc?.NombreArchivo ||
+    ''
+  ).toLowerCase();
+
+  const extensionDesdeCampo = String(doc?.ExtensionArchivo || '')
+    .toLowerCase()
+    .trim();
+
+  if (extensionDesdeCampo) {
+    return extensionDesdeCampo.startsWith('.')
+      ? extensionDesdeCampo
+      : `.${extensionDesdeCampo}`;
+  }
+
+  const match = nombre.match(/\.[a-z0-9]+$/i);
+  return match ? match[0] : '';
+};
+
+const esAudioRetiro = (doc) =>
+  ['.mp3', '.wav', '.m4a', '.ogg'].includes(obtenerExtensionRetiro(doc));
+
+const esExcelRetiro = (doc) =>
+  ['.xls', '.xlsx'].includes(obtenerExtensionRetiro(doc));
+
+const reproducirAudioRetiro = async (doc) => {
+  try {
+    if (!doc?.IdRetiroLaboralAdjunto) {
+      return toast({ title: 'No hay audio para reproducir' });
+    }
+
+    const response = await fetch(
+      `${API_BASE}/rrll/adjuntos/${doc.IdRetiroLaboralAdjunto}/ver`
+    );
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(
+        data?.detail || 'No fue posible reproducir el audio.'
+      );
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+
+    const ventana = window.open('', '_blank');
+
+    if (!ventana) {
+      URL.revokeObjectURL(url);
+      throw new Error(
+        'El navegador bloqueó la ventana de reproducción.'
+      );
+    }
+
+    ventana.document.write(`
+      <!doctype html>
+      <html lang="es">
+        <head>
+          <meta charset="utf-8" />
+          <title>Reproducir audio</title>
+          <style>
+            body {
+              margin: 0;
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: #f8fafc;
+              font-family: Arial, sans-serif;
+            }
+            .contenedor {
+              width: min(720px, 90vw);
+              background: white;
+              border: 1px solid #e5e7eb;
+              border-radius: 18px;
+              padding: 28px;
+              box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+            }
+            h2 {
+              margin: 0 0 18px;
+              color: #065f46;
+            }
+            p {
+              margin: 0 0 18px;
+              color: #475569;
+              word-break: break-word;
+            }
+            audio {
+              width: 100%;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="contenedor">
+            <h2>Reproducción de audio</h2>
+            <p>${String(
+              doc?.NombreArchivoOriginal ||
+              doc?.NombreArchivo ||
+              'Audio de retiro'
+            ).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+            <audio controls autoplay src="${url}"></audio>
+          </div>
+        </body>
+      </html>
+    `);
+
+    ventana.document.close();
+
+    setTimeout(() => URL.revokeObjectURL(url), 60 * 60 * 1000);
+  } catch (error) {
+    console.error('Error reproduciendo audio de retiro:', error);
+    toast({
+      title: 'Error al reproducir audio',
+      description: error.message || 'No fue posible reproducir el audio.',
+      variant: 'destructive',
+    });
+  }
+};
+
 const verDocumentoRetiro = async (doc) => {
   try {
+    if (esExcelRetiro(doc)) {
+      return toast({
+        title: 'Archivo Excel',
+        description: 'Este tipo de archivo se encuentra disponible para descarga.',
+      });
+    }
+
+    if (esAudioRetiro(doc)) {
+      return reproducirAudioRetiro(doc);
+    }
+
     if (doc?.OrigenArchivo === 'ENTREVISTA' && !doc?.IdEntrevistaRetiro) {
       return toast({ title: 'No hay entrevista para visualizar' });
     }
@@ -318,15 +450,18 @@ const verDocumentoRetiro = async (doc) => {
       return toast({ title: 'No hay archivo para visualizar' });
     }
 
-    const urlDescarga =
+    const urlVista =
       doc?.OrigenArchivo === 'ENTREVISTA'
         ? `${API_BASE}/retiros-laborales/carpeta-digital/entrevista-retiro/${doc.IdEntrevistaRetiro}/descargar`
-        : `${API_BASE}/rrll/adjuntos/${doc.IdRetiroLaboralAdjunto}/descargar`;
+        : `${API_BASE}/rrll/adjuntos/${doc.IdRetiroLaboralAdjunto}/ver`;
 
-    const response = await fetch(urlDescarga);
+    const response = await fetch(urlVista);
 
     if (!response.ok) {
-      throw new Error('No fue posible visualizar el documento.');
+      const data = await response.json().catch(() => ({}));
+      throw new Error(
+        data?.detail || 'No fue posible visualizar el documento.'
+      );
     }
 
     const blob = await response.blob();
@@ -1475,7 +1610,7 @@ const renderCarpetaSaludOcupacional = () => (
                           id={`file-retiro-${doc.IdTipoDocumentoRetiro}-${aspirante.id}`}
                           className="hidden"
                           onChange={(e) => handleFileUploadRetiro(e, doc)}
-                          accept=".pdf,image/*,.doc,.docx"
+                          accept=".pdf,image/*,.doc,.docx,.xls,.xlsx,.mp3,.wav,.m4a,.ogg"
                         />
 
                         <label
@@ -1490,15 +1625,25 @@ const renderCarpetaSaludOcupacional = () => (
 
                   {hasFile && (
                     <div className="flex flex-col gap-2 w-full">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="text-blue-700 border-blue-300 hover:bg-blue-100 px-3 h-auto w-full font-semibold"
-                        onClick={() => verDocumentoRetiro(doc)}
-                      >
-                        <Eye className="w-4 h-4 mr-2" /> Ver
-                      </Button>
+                      {!esExcelRetiro(doc) && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-blue-700 border-blue-300 hover:bg-blue-100 px-3 h-auto w-full font-semibold"
+                          onClick={() => verDocumentoRetiro(doc)}
+                        >
+                          {esAudioRetiro(doc) ? (
+                            <>
+                              <Play className="w-4 h-4 mr-2" /> Reproducir
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="w-4 h-4 mr-2" /> Ver
+                            </>
+                          )}
+                        </Button>
+                      )}
 
                       <Button
                         type="button"

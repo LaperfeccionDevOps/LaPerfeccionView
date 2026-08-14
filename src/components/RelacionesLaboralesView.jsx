@@ -616,8 +616,30 @@ function viewLocalFile(file) {
 async function viewBackendAdjunto(apiBase, file) {
   if (!file?.IdRetiroLaboralAdjunto) return;
 
+  const nombreArchivo = String(
+    file?.NombreArchivoOriginal ||
+    file?.NombreArchivo ||
+    ""
+  ).toLowerCase();
+
+  const extensionDesdeCampo = String(
+    file?.ExtensionArchivo || ""
+  ).toLowerCase().trim();
+
+  const extension = extensionDesdeCampo
+    ? extensionDesdeCampo.startsWith(".")
+      ? extensionDesdeCampo
+      : `.${extensionDesdeCampo}`
+    : (nombreArchivo.match(/\.[a-z0-9]+$/i)?.[0] || "");
+
+  if ([".xls", ".xlsx"].includes(extension)) {
+    throw new Error(
+      "Los archivos de Excel se encuentran disponibles únicamente para descarga."
+    );
+  }
+
   const res = await fetch(
-    `${apiBase}/rrll/adjuntos/${file.IdRetiroLaboralAdjunto}/descargar`,
+    `${apiBase}/rrll/adjuntos/${file.IdRetiroLaboralAdjunto}/ver`,
     {
       method: "GET",
     }
