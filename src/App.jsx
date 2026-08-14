@@ -83,6 +83,7 @@ function App() {
           <Route path="seguimiento" element={<SeguimientoView />} />
           <Route path="contratacion" element={<ContratacionView />} />
           <Route path="archivos" element={<ArchivosView />} />
+          <Route path="hse-consulta-documentacion" element={<ArchivosView />} />
           <Route path="indicadores-contratacion" element={<IndicadoresContratacionView />} />
           <Route path="relaciones-laborales" element={<RelacionesLaboralesView />} />
           <Route path="nomina-retiros" element={<NominaRetirosView />} />

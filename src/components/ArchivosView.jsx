@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   FolderOpen,
@@ -88,6 +89,22 @@ const documentosOperaciones = [
   { id: 9, label: 'Consulta Rama Judicial' },
 ];
 
+const documentosSaludOcupacional = [
+  { id: 37, label: 'Soporte de inducción' },
+  { id: 34, label: 'Responsabilidades en el SG-SST' },
+  { id: 30, label: 'Certificado de afiliación EPS' },
+  { id: 26, label: 'Certificado de afiliación ARL' },
+  { id: 31, label: 'Certificado de afiliación CCF' },
+  { id: 20, label: 'Descripción del cargo' },
+  { id: 33, label: 'Consentimiento informado' },
+  { id: 35, label: 'Carné de vacunas Hepatitis - Tétano' },
+  { id: 41, label: 'Carné de vacunas COVID' },
+  { id: 65, label: 'Carné de identificación' },
+  { id: 4, label: 'Documento de identidad' },
+  { id: 3, label: 'Hoja de vida' },
+  { id: 38, label: 'Notificación de recomendaciones médicas' },
+];
+
 const docTypes = {
   ingreso: {
     title: 'Documentos de Ingreso',
@@ -117,12 +134,14 @@ const docTypes = {
 };
 
 const ArchivosView = () => {
+  const location = useLocation();
   const { aspirantes, updateAspirante, loadAspirantes } = useAspirantes();
 
   const { user } = useAuth();
   const isOperaciones = user?.role === 'Operaciones';
   const isBienestar = user?.role === 'Bienestar';
   const isHSE = user?.role === 'HSE';
+  const isConsultaSaludOcupacional = isHSE && location.pathname === '/hse-consulta-documentacion';
 
   const [filteredAspirantes, setFilteredAspirantes] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -366,17 +385,21 @@ const ArchivosView = () => {
             <h1 className="text-2xl font-bold text-gray-800">
                 {isBienestar
                   ? 'Gestión de Bienestar'
-                  : isHSE
-                    ? 'Gestión HSE'
-                    : 'Gestión de Archivos'}
+                  : isConsultaSaludOcupacional
+                    ? 'Consulta documentación'
+                    : isHSE
+                      ? 'Gestión HSE'
+                      : 'Gestión de Archivos'}
               </h1>
 
               <p className="text-sm text-gray-500">
                 {isBienestar
                   ? 'Carga y administra documentos de bienestar de los colaboradores.'
-                  : isHSE
-                    ? 'Carga y administra documentos HSE de los colaboradores.'
-                    : 'Repositorio digital de expedientes de colaboradores.'}
+                  : isConsultaSaludOcupacional
+                    ? 'Consulta y descarga documentación autorizada de los colaboradores.'
+                    : isHSE
+                      ? 'Carga y administra documentos HSE de los colaboradores.'
+                      : 'Repositorio digital de expedientes de colaboradores.'}
               </p>
             </div>
           </div>
@@ -513,6 +536,18 @@ const ArchivosView = () => {
             </span>
           </button>
 
+          ) : isConsultaSaludOcupacional ? (
+          <button
+            type="button"
+            title="Consulta Salud Ocupacional"
+            onClick={() => openDocumentosTrabajador(aspirante, 'salud_ocupacional')}
+            className="flex flex-col items-center gap-1 text-emerald-600 hover:scale-105 transition-transform"
+          >
+            <FolderOpen className="w-6 h-6" />
+            <span className="text-[11px] font-semibold text-gray-600">
+              Salud ocupacional
+            </span>
+          </button>
           ) : isHSE ? (
           <button
             type="button"
@@ -639,9 +674,11 @@ const ArchivosView = () => {
         docTypeConfigSeguridad={modalConfigs.seguridad}
         docTypeConfigContratacion={modalConfigs.contratacion}
         tipoCarpeta={modalState.carpeta}
+        documentosSaludOcupacional={documentosSaludOcupacional}
         soloLectura={
           modalState.carpeta === 'ingreso' ||
-          modalState.carpeta === 'operaciones'
+          modalState.carpeta === 'operaciones' ||
+          modalState.carpeta === 'salud_ocupacional'
         }
       />
     </motion.div>

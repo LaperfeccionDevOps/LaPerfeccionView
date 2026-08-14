@@ -40,6 +40,7 @@ const DocumentUploadModal = ({
   docTypeConfigSeguridad,
   docTypeConfigContratacion,
   tipoCarpeta = 'ingreso',
+  documentosSaludOcupacional = [],
   soloLectura = false,
 }) => {
   const [documentos, setDocumentos] = useState([]);
@@ -54,6 +55,7 @@ const DocumentUploadModal = ({
   const esCarpetaOperaciones = tipoCarpeta === 'operaciones';
   const esCarpetaBienestar = tipoCarpeta === 'bienestar';
   const esCarpetaHSE = tipoCarpeta === 'hse';
+  const esCarpetaSaludOcupacional = tipoCarpeta === 'salud_ocupacional';
 
 const tituloModal = esCarpetaActivos
   ? 'Documentos Activos'
@@ -65,7 +67,9 @@ const tituloModal = esCarpetaActivos
       ? 'Documentos Bienestar'
       : esCarpetaHSE
         ? 'Documentos HSE'
-        : 'Documentos del Aspirante';
+        : esCarpetaSaludOcupacional
+          ? 'Documentos Salud Ocupacional'
+          : 'Documentos del Aspirante';
 
   const descripcionVacia = esCarpetaActivos
     ? 'Actualmente no hay documentos activos configurados para este trabajador.'
@@ -106,6 +110,54 @@ const tituloModal = esCarpetaActivos
 
       return;
     }
+
+  if (esCarpetaSaludOcupacional) {
+    setLoading(true);
+    setTab('ingreso');
+
+    Promise.all([
+      getDocumentacionIngreso(id).catch(() => null),
+      obtenerDocumentoSeguridadBase64(id).catch(() => null),
+      obtenerDocumentosContratacion(id).catch(() => null),
+      listarDocumentosActivos(id).catch(() => []),
+    ])
+      .then(([ingreso, seguridad, contratacion, activos]) => {
+        let docs = [];
+
+        if (ingreso && Array.isArray(ingreso.data)) docs = docs.concat(ingreso.data);
+        else if (ingreso?.data) docs.push(ingreso.data);
+
+        if (seguridad && Array.isArray(seguridad.data)) docs = docs.concat(seguridad.data);
+        else if (Array.isArray(seguridad)) docs = docs.concat(seguridad);
+        else if (seguridad?.data) docs.push(seguridad.data);
+
+        if (contratacion && Array.isArray(contratacion.data)) docs = docs.concat(contratacion.data);
+        else if (Array.isArray(contratacion)) docs = docs.concat(contratacion);
+        else if (contratacion?.data) docs.push(contratacion.data);
+
+        if (Array.isArray(activos)) {
+          activos.forEach((grupo) => {
+            const docsGrupo = Array.isArray(grupo?.documentos) ? grupo.documentos : [];
+            docs = docs.concat(
+              docsGrupo.map((doc) => ({
+                ...doc,
+                IdTipoDocumentacion:
+                  doc?.IdTipoDocumentacion ?? grupo?.IdTipoDocumentacion,
+              }))
+            );
+          });
+        }
+
+        setDocumentos(docs);
+      })
+      .catch((error) => {
+        console.error('Error cargando consulta de Salud Ocupacional:', error);
+        setDocumentos([]);
+      })
+      .finally(() => setLoading(false));
+
+    return;
+  }
 
   if (esCarpetaActivos || esCarpetaBienestar || esCarpetaHSE) {
   setLoading(true);
@@ -175,7 +227,7 @@ const tituloModal = esCarpetaActivos
         setDocumentos(docs);
       })
       .finally(() => setLoading(false));
-}, [aspirante, esCarpetaIngreso, esCarpetaActivos, esCarpetaRetiro, esCarpetaOperaciones, esCarpetaBienestar, esCarpetaHSE, API_BASE]);
+}, [aspirante, esCarpetaIngreso, esCarpetaActivos, esCarpetaRetiro, esCarpetaOperaciones, esCarpetaBienestar, esCarpetaHSE, esCarpetaSaludOcupacional, API_BASE]);
 
   if (!aspirante) return null;
 
@@ -1273,6 +1325,106 @@ const renderCarpetaHSE = () => {
   );
 };
 
+const renderCarpetaSaludOcupacional = () => (
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-4 max-h-[50vh] overflow-y-auto pr-2">
+    {documentosSaludOcupacional.map((req) => {
+      const documentosTipo = Array.isArray(documentos)
+        ? documentos.filter(
+            (doc) => String(doc?.IdTipoDocumentacion) === String(req.id)
+          )
+        : [];
+
+      const documentosDisponibles = documentosTipo.filter(
+        (doc) =>
+          doc?.DocumentoBase64 ||
+          doc?.DocumentoCargado ||
+          doc?.IdDocumento
+      );
+
+      const hasFile = documentosDisponibles.length > 0;
+
+      return (
+        <div
+          key={req.id}
+          className="border-2 border-emerald-200 rounded-2xl p-6 bg-white/90 shadow-lg flex flex-col justify-between h-full group w-full hover:shadow-2xl transition-shadow duration-200"
+        >
+          <div>
+            <h4 className="font-bold text-emerald-900 mb-3 text-base leading-tight min-h-[40px] tracking-wide flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
+              {req.label}
+            </h4>
+
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-4 border shadow-sm ${hasFile ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-red-100 text-red-700 border-red-300'}`}>
+              {hasFile ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+              {hasFile
+                ? documentosDisponibles.length > 1
+                  ? `${documentosDisponibles.length} documento(s)`
+                  : 'Disponible'
+                : 'No disponible'}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {hasFile ? (
+              <div className="space-y-3">
+                {documentosDisponibles.map((doc, index) => {
+                  const esDocumentoActivo = !!doc?.IdDocumento && !doc?.DocumentoBase64 && !doc?.DocumentoCargado;
+
+                  return (
+                    <div
+                      key={doc?.IdDocumento || `${req.id}-${index}`}
+                      className="border border-gray-200 bg-gray-50 rounded-xl p-3"
+                    >
+                      <p
+                        className="text-xs text-gray-600 font-semibold truncate mb-2"
+                        title={doc?.Nombre || doc?.NombreArchivo}
+                      >
+                        {doc?.Nombre || doc?.NombreArchivo || `Documento ${index + 1}`}
+                      </p>
+
+                      <div className="flex flex-col gap-2 w-full">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-blue-700 border-blue-300 hover:bg-blue-100 px-3 h-auto w-full font-semibold"
+                          onClick={() =>
+                            esDocumentoActivo
+                              ? verDocumentoActivo(doc)
+                              : verDocumento(doc)
+                          }
+                        >
+                          <Eye className="w-4 h-4 mr-2" /> Ver
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-emerald-700 border-emerald-300 hover:bg-emerald-100 px-3 h-auto w-full font-semibold"
+                          onClick={() =>
+                            esDocumentoActivo
+                              ? descargarDocumentoActivo(doc)
+                              : descargarDocumento(doc)
+                          }
+                        >
+                          <Download className="w-4 h-4 mr-2" /> Descargar
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500 italic">Sin archivo</p>
+            )}
+          </div>
+        </div>
+      );
+    })}
+  </div>
+);
+
   const renderCarpetaRetiro = () => (
     <div className="py-4">
       {loading ? (
@@ -1421,6 +1573,7 @@ const renderCarpetaHSE = () => {
             {esCarpetaActivos && renderCarpetaActivos()}
             {esCarpetaBienestar && renderCarpetaBienestar()}
             {esCarpetaHSE && renderCarpetaHSE()}
+            {esCarpetaSaludOcupacional && renderCarpetaSaludOcupacional()}
 
             {esCarpetaRetiro && renderCarpetaRetiro()}
 

@@ -720,6 +720,10 @@ export default function RelacionesLaboralesView() {
   const [fechaInicioExcel, setFechaInicioExcel] = useState("");
   const [fechaFinExcel, setFechaFinExcel] = useState("");
 
+  const [retirosDevueltosNomina, setRetirosDevueltosNomina] = useState([]);
+  const [loadingDevueltosNomina, setLoadingDevueltosNomina] = useState(false);
+  const [errorDevueltosNomina, setErrorDevueltosNomina] = useState("");
+
   // ✅ filtros
   const [filtroTipoDocumento, setFiltroTipoDocumento] = useState("CC");
   const [filtroDocumento, setFiltroDocumento] = useState("");
@@ -900,6 +904,105 @@ const [mensajeEntrevista, setMensajeEntrevista] = useState({
     return data;
   };
   
+
+ const cargarRetirosDevueltosNomina = async () => {
+   try {
+     setLoadingDevueltosNomina(true);
+     setErrorDevueltosNomina("");
+
+     if (!API_BASE) {
+       setRetirosDevueltosNomina([]);
+       setErrorDevueltosNomina("No se encontró VITE_API_BASE_URL en el .env");
+       return;
+     }
+
+     const token = localStorage.getItem("token");
+
+     const response = await fetch(
+       `${API_BASE}/retiros-laborales/devueltos-nomina`,
+       {
+         method: "GET",
+         headers: {
+           Accept: "application/json",
+           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+         },
+       }
+     );
+
+     const data = await response.json().catch(() => ({}));
+
+     if (!response.ok || !data?.success) {
+       throw new Error(
+         data?.detail ||
+           data?.message ||
+           "No fue posible consultar los retiros devueltos por Nómina."
+       );
+     }
+
+     setRetirosDevueltosNomina(
+       Array.isArray(data?.data) ? data.data : []
+     );
+   } catch (error) {
+     console.error("Error consultando retiros devueltos por Nómina:", error);
+     setRetirosDevueltosNomina([]);
+     setErrorDevueltosNomina(
+       error?.message ||
+         "No fue posible consultar los retiros devueltos por Nómina."
+     );
+   } finally {
+     setLoadingDevueltosNomina(false);
+   }
+ };
+
+ const gestionarRetiroDevuelto = async (retiro) => {
+   const numeroDocumento = String(
+     retiro?.NumeroIdentificacion || retiro?.numeroIdentificacion || ""
+   ).trim();
+
+   if (!numeroDocumento) {
+     setErrorDevueltosNomina(
+       "El retiro devuelto no tiene número de identificación disponible."
+     );
+     return;
+   }
+
+   try {
+     setErrorDevueltosNomina("");
+     setErrorBuscar("");
+     setMsgActualizar("");
+     setResultadosBusqueda([]);
+     setFiltroDocumento(numeroDocumento);
+
+     // No asumimos que el trabajador sea CC.
+     // Primero consultamos el tipo real de identificación y luego reutilizamos
+     // la búsqueda normal de RRLL con los datos completos del trabajador.
+     const trabajadorDetectado =
+       await detectarTipoDocumentoPorNumero(numeroDocumento);
+
+     setStep("retiros");
+
+     await handleBuscar({
+       ...trabajadorDetectado,
+       NumeroDocumento:
+         trabajadorDetectado?.NumeroDocumento ||
+         trabajadorDetectado?.NumeroIdentificacion ||
+         numeroDocumento,
+     });
+   } catch (error) {
+     console.error("Error abriendo retiro devuelto por Nómina:", error);
+     setStep("retiros");
+     setErrorBuscar(
+       error?.message ||
+         "No fue posible abrir el retiro devuelto para su gestión."
+     );
+   }
+ };
+
+ useEffect(() => {
+   if (step === "inicio") {
+     cargarRetirosDevueltosNomina();
+   }
+ }, [step]);
 
  const handleDescargarExcel = async () => {
    try {
@@ -2559,84 +2662,241 @@ const handleActualizarEstadoProceso = async () => {
   // --------------------------
   // VISTA INICIAL
   // --------------------------
- if (step === "inicio") {
-  return (
-    <div className="p-6">
-      <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
-        <div className="mb-1">
-          <h2 className="text-2xl font-bold text-gray-800">
-            Relaciones Laborales
-          </h2>
-          <p className="text-sm text-gray-500">Vista inicial</p>
-        </div>
-
-        <div className="mt-6 bg-gray-50 p-6 rounded-xl border border-gray-100">
-          <p className="text-sm font-semibold text-gray-700 mb-3">
-            Seleccione un flujo:
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <button
-              onClick={() => setStep("retiros")}
-              className="text-left bg-white rounded-xl border border-emerald-100 p-4 hover:border-emerald-300 hover:shadow-sm transition"
-            >
-              <p className="font-bold text-emerald-700">Retiros</p>
-              <p className="text-xs text-gray-500">
-                Gestión de retiros y documentación…
-              </p>
-            </button>
-
-            <button
-              onClick={() =>
-                alert("Pendiente: Procesos disciplinarios (lo hacemos después)")
-              }
-              className="text-left bg-white rounded-xl border border-gray-200 p-4 hover:border-gray-300 hover:shadow-sm transition"
-            >
-              <p className="font-bold text-gray-800">Procesos disciplinarios</p>
-              <p className="text-xs text-gray-500">
-                Citación, descargos, actas y compromisos…
-              </p>
-            </button>
+  if (step === "inicio") {
+    return (
+      <div className="p-6">
+        <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
+          <div className="mb-1">
+            <h2 className="text-2xl font-bold text-gray-800">
+              Relaciones Laborales
+            </h2>
+            <p className="text-sm text-gray-500">Vista inicial</p>
           </div>
 
-          <div className="mt-6 rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-end gap-4">
-              <div className="w-full md:w-auto">
-                <Label className="text-sm font-medium text-gray-700">
-                  Fecha inicio:
-                </Label>
-                <Input
-                  type="date"
-                  value={fechaInicioExcel}
-                  onChange={(e) => setFechaInicioExcel(e.target.value)}
-                  className="bg-white h-12 mt-2 w-full md:w-[190px]"
-                />
-              </div>
+          <div className="mt-6 bg-gray-50 p-6 rounded-xl border border-gray-100">
+            <p className="text-sm font-semibold text-gray-700 mb-3">
+              Seleccione un flujo:
+            </p>
 
-              <div className="w-full md:w-auto">
-                <Label className="text-sm font-medium text-gray-700">
-                  Fecha fin:
-                </Label>
-                <Input
-                  type="date"
-                  value={fechaFinExcel}
-                  onChange={(e) => setFechaFinExcel(e.target.value)}
-                  className="bg-white h-12 mt-2 w-full md:w-[190px]"
-                />
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => setStep("retiros")}
+                className="text-left bg-white rounded-xl border border-emerald-100 p-4 hover:border-emerald-300 hover:shadow-sm transition"
+              >
+                <p className="font-bold text-emerald-700">Retiros</p>
+                <p className="text-xs text-gray-500">
+                  Gestión de retiros y documentación…
+                </p>
+              </button>
 
-              <div className="w-full md:w-auto">
+              <button
+                type="button"
+                onClick={() =>
+                  alert("Pendiente: Procesos disciplinarios (lo hacemos después)")
+                }
+                className="text-left bg-white rounded-xl border border-gray-200 p-4 hover:border-gray-300 hover:shadow-sm transition"
+              >
+                <p className="font-bold text-gray-800">
+                  Procesos disciplinarios
+                </p>
+                <p className="text-xs text-gray-500">
+                  Citación, descargos, actas y compromisos…
+                </p>
+              </button>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+              <div className="flex flex-col md:flex-row md:items-end gap-4">
+                <div className="w-full md:w-auto">
+                  <Label className="text-sm font-medium text-gray-700">
+                    Fecha inicio:
+                  </Label>
+                  <Input
+                    type="date"
+                    value={fechaInicioExcel}
+                    onChange={(e) => setFechaInicioExcel(e.target.value)}
+                    className="bg-white h-12 mt-2 w-full md:w-[190px]"
+                  />
+                </div>
+
+                <div className="w-full md:w-auto">
+                  <Label className="text-sm font-medium text-gray-700">
+                    Fecha fin:
+                  </Label>
+                  <Input
+                    type="date"
+                    value={fechaFinExcel}
+                    onChange={(e) => setFechaFinExcel(e.target.value)}
+                    className="bg-white h-12 mt-2 w-full md:w-[190px]"
+                  />
+                </div>
+
+                <div className="w-full md:w-auto">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleDescargarExcel}
+                    className="w-full md:w-[220px] h-12 border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+                  >
+                    Descargar Excel
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
+              <div className="flex flex-col gap-3 border-b border-amber-100 bg-amber-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-base font-bold text-gray-900">
+                      Devueltos por Nómina
+                    </h3>
+                    <span className="inline-flex min-w-7 items-center justify-center rounded-full bg-amber-200 px-2 py-0.5 text-xs font-bold text-amber-900">
+                      {loadingDevueltosNomina
+                        ? "..."
+                        : retirosDevueltosNomina.length}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-600">
+                    Procesos que requieren corrección por parte de Relaciones Laborales.
+                  </p>
+                </div>
+
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={handleDescargarExcel}
-                  className="w-full md:w-[220px] h-12 border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+                  onClick={cargarRetirosDevueltosNomina}
+                  disabled={loadingDevueltosNomina}
+                  className="border-amber-400 text-amber-800 hover:bg-amber-100"
                 >
-                  Descargar Excel
+                  {loadingDevueltosNomina ? "Actualizando..." : "Actualizar"}
                 </Button>
               </div>
+
+              {errorDevueltosNomina && (
+                <div className="border-b border-red-100 bg-red-50 px-5 py-3 text-sm text-red-700">
+                  {errorDevueltosNomina}
+                </div>
+              )}
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[900px] text-sm">
+                  <thead className="bg-gray-50 text-gray-600">
+                    <tr>
+                      <th className="px-5 py-3 text-left font-semibold">
+                        Identificación
+                      </th>
+                      <th className="px-5 py-3 text-left font-semibold">
+                        Trabajador
+                      </th>
+                      <th className="px-5 py-3 text-left font-semibold">
+                        Fecha devolución
+                      </th>
+                      <th className="px-5 py-3 text-left font-semibold">
+                        Motivo de devolución
+                      </th>
+                      <th className="px-5 py-3 text-center font-semibold">
+                        Acción
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {loadingDevueltosNomina && (
+                      <tr>
+                        <td
+                          colSpan="5"
+                          className="px-5 py-8 text-center text-gray-500"
+                        >
+                          Consultando devoluciones de Nómina...
+                        </td>
+                      </tr>
+                    )}
+
+                    {!loadingDevueltosNomina &&
+                      retirosDevueltosNomina.map((retiro) => {
+                        const fechaDevolucion =
+                          retiro?.FechaDevolucionNomina ||
+                          retiro?.FechaObservacionNomina ||
+                          null;
+
+                        const fechaTexto = fechaDevolucion
+                          ? new Date(fechaDevolucion).toLocaleString("es-CO", {
+                              timeZone: "America/Bogota",
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "numeric",
+                              minute: "2-digit",
+                              hour12: true,
+                            })
+                          : "Sin fecha";
+
+                        const nombreCompleto =
+                          retiro?.NombreCompleto ||
+                          `${retiro?.Nombres || ""} ${retiro?.Apellidos || ""}`
+                            .replace(/\s+/g, " ")
+                            .trim()
+                            .toUpperCase() ||
+                          "Sin información";
+
+                        return (
+                          <tr
+                            key={retiro?.IdRetiroLaboral}
+                            className="border-t border-gray-100 hover:bg-amber-50/40"
+                          >
+                            <td className="px-5 py-4 font-medium text-gray-800">
+                              {retiro?.NumeroIdentificacion || "Sin información"}
+                            </td>
+
+                            <td className="px-5 py-4 font-semibold text-gray-900">
+                              {nombreCompleto}
+                            </td>
+
+                            <td className="px-5 py-4 whitespace-nowrap text-gray-700">
+                              {fechaTexto}
+                            </td>
+
+                            <td className="px-5 py-4 text-gray-700">
+                              <div className="max-w-[460px] whitespace-pre-wrap break-words">
+                                {retiro?.MotivoDevolucion ||
+                                  retiro?.ObservacionNomina ||
+                                  "Sin motivo registrado"}
+                              </div>
+                            </td>
+
+                            <td className="px-5 py-4 text-center">
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => gestionarRetiroDevuelto(retiro)}
+                                disabled={loadingBuscar}
+                                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                              >
+                                Gestionar
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                    {!loadingDevueltosNomina &&
+                      retirosDevueltosNomina.length === 0 &&
+                      !errorDevueltosNomina && (
+                        <tr>
+                          <td
+                            colSpan="5"
+                            className="px-5 py-10 text-center text-gray-500"
+                          >
+                            No hay retiros devueltos por Nómina pendientes de gestión.
+                          </td>
+                        </tr>
+                      )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
           </div>
         </div>
       </div>

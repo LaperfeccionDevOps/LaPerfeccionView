@@ -148,6 +148,8 @@ const NominaRetirosView = () => {
   const [textoObservacionNomina, setTextoObservacionNomina] = useState('');
   const [mostrarModalPagoLiquidacion, setMostrarModalPagoLiquidacion] = useState(false);
   const [fechaPagoLiquidacion, setFechaPagoLiquidacion] = useState('');
+  const [mostrarModalDevolucion, setMostrarModalDevolucion] = useState(false);
+  const [motivoDevolucion, setMotivoDevolucion] = useState('');
 
   const cargarIndicadores = async () => {
     setCargandoIndicadores(true);
@@ -272,75 +274,89 @@ const NominaRetirosView = () => {
     setTextoObservacionNomina('');
     setMostrarModalPagoLiquidacion(false);
     setFechaPagoLiquidacion('');
+    setMostrarModalDevolucion(false);
+    setMotivoDevolucion('');
   };
 
   const ejecutarAccionNomina = async (accion) => {
-  if (!retiroSeleccionado?.idRetiroLaboral) return;
+    if (!retiroSeleccionado?.idRetiroLaboral) return;
 
-  if (accion === 'devolver') {
-  const confirmar = window.confirm('¿Seguro que deseas devolver este retiro a Relaciones Laborales?');
-  if (!confirmar) return;
-}
+    if (accion === 'devolver' && !motivoDevolucion.trim()) {
+      setErrorCarga('Debes registrar el motivo de devolución antes de enviar el retiro a RRLL.');
+      return;
+    }
 
-  setProcesando(true);
-  setMensajeAccion('');
-  setErrorCarga('');
+    setProcesando(true);
+    setMensajeAccion('');
+    setErrorCarga('');
 
-  try {
-    const token = localStorage.getItem('token');
+    try {
+      const token = localStorage.getItem('token');
 
-    const response = await fetch(
-      `${API_BASE_URL}/nomina-retiros/${retiroSeleccionado.idRetiroLaboral}/${accion}`,
-      {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body:
-          accion === 'finalizar'
-            ? JSON.stringify({ fecha_pago_liquidacion: fechaPagoLiquidacion })
-            : undefined,
+      const body =
+        accion === 'finalizar'
+          ? JSON.stringify({ fecha_pago_liquidacion: fechaPagoLiquidacion })
+          : accion === 'devolver'
+            ? JSON.stringify({ motivo_devolucion: motivoDevolucion.trim() })
+            : undefined;
+
+      const response = await fetch(
+        `${API_BASE_URL}/nomina-retiros/${retiroSeleccionado.idRetiroLaboral}/${accion}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body,
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.success) {
+        const detalle = data?.detail;
+
+        if (
+          detalle &&
+          typeof detalle === 'object' &&
+          Array.isArray(detalle.documentos_faltantes)
+        ) {
+          const lista = detalle.documentos_faltantes.join('\n• ');
+
+          throw new Error(
+            `No es posible finalizar el retiro.\n\nFaltan los siguientes documentos obligatorios:\n\n• ${lista}`
+          );
+        }
+
+        throw new Error(
+          data?.detail?.message ||
+            data?.detail ||
+            data?.message ||
+            'No fue posible procesar la acción.'
+        );
       }
-    );
 
-    const data = await response.json().catch(() => ({}));
+      setMensajeAccion(data.message || 'Acción realizada correctamente.');
 
-  if (!response.ok || !data.success) {
+      if (accion === 'devolver') {
+        setMostrarModalDevolucion(false);
+        setMotivoDevolucion('');
+      }
 
-  const detalle = data?.detail;
+      if (accion === 'finalizar') {
+        setMostrarModalPagoLiquidacion(false);
+      }
 
-  if (
-    detalle &&
-    typeof detalle === 'object' &&
-    Array.isArray(detalle.documentos_faltantes)
-  ) {
-
-    const lista = detalle.documentos_faltantes.join('\n• ');
-
-    throw new Error(
-      `No es posible finalizar el retiro.\n\nFaltan los siguientes documentos obligatorios:\n\n• ${lista}`
-    );
-  }
-
-  throw new Error(
-    data?.detail?.message ||
-    data?.detail ||
-    data?.message ||
-    'No fue posible procesar la acción.'
-  );
-}
-    setMensajeAccion(data.message || 'Acción realizada correctamente.');
-    setMostrarModalPagoLiquidacion(false);
-    await cargarRetiros();
-  } catch (error) {
-    console.error(`Error al ${accion} retiro:`, error);
-    setErrorCarga(error.message || 'Error procesando acción de nómina.');
-  } finally {
-    setProcesando(false);
-  }
-};
+      await cargarRetiros();
+    } catch (error) {
+      console.error(`Error al ${accion} retiro:`, error);
+      setErrorCarga(error.message || 'Error procesando acción de nómina.');
+    } finally {
+      setProcesando(false);
+    }
+  };
 
   const handleSubirDocumentoNomina = async (idTipoDocumentoRetiro, archivo) => {
     if (!retiroSeleccionado?.idRetiroLaboral) {
@@ -1516,7 +1532,11 @@ const retiroIndicador = useMemo(() => {
                   type="button"
                   variant="outline"
                   disabled={!puedeGestionar || procesando}
-                  onClick={() => ejecutarAccionNomina('devolver')}
+                  onClick={() => {
+                    setMotivoDevolucion('');
+                    setErrorCarga('');
+                    setMostrarModalDevolucion(true);
+                  }}
                 >
                   <RotateCcw className="w-4 h-4 mr-2" />
                   {procesando ? 'Procesando...' : 'Devolver a RRLL'}
@@ -1538,6 +1558,102 @@ const retiroIndicador = useMemo(() => {
           </div>
         </div>
            )}
+
+      {mostrarModalDevolucion && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border p-6">
+            <div className="flex items-start justify-between gap-4 mb-5">
+              <div>
+                <div className="flex items-center gap-2 text-amber-700 mb-2">
+                  <AlertCircle className="w-5 h-5" />
+                  <span className="text-sm font-bold">Devolución a Relaciones Laborales</span>
+                </div>
+
+                <h3 className="text-xl font-bold text-gray-800">
+                  Motivo de devolución
+                </h3>
+
+                <p className="text-sm text-gray-500 mt-1">
+                  Registra claramente por qué este retiro debe regresar a RRLL.
+                  Esta información será visible para la persona que gestione la devolución.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMostrarModalDevolucion(false);
+                  setMotivoDevolucion('');
+                  setErrorCarga('');
+                }}
+                className="w-9 h-9 rounded-full border flex items-center justify-center hover:bg-gray-100"
+                disabled={procesando}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <label className="text-sm font-semibold text-gray-700">
+              Motivo de devolución <span className="text-red-600">*</span>
+            </label>
+
+            <textarea
+              value={motivoDevolucion}
+              onChange={(e) => {
+                setMotivoDevolucion(e.target.value);
+                if (errorCarga) setErrorCarga('');
+              }}
+              rows={5}
+              maxLength={1000}
+              disabled={procesando}
+              placeholder="Ejemplo: Falta adjuntar el Paz y Salvo firmado o la información registrada requiere corrección..."
+              className="w-full mt-2 border rounded-xl p-3 text-sm text-gray-900 resize-y focus:outline-none focus:ring-2 focus:ring-amber-300"
+            />
+
+            <div className="flex items-center justify-between gap-3 mt-2">
+              <p className="text-xs text-gray-500">
+                El motivo es obligatorio para devolver el retiro.
+              </p>
+              <p className="text-xs text-gray-400">
+                {motivoDevolucion.length}/1000
+              </p>
+            </div>
+
+            {errorCarga && (
+              <div className="mt-4 bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
+                <p className="font-bold mb-1">No se puede devolver el retiro</p>
+                <p className="whitespace-pre-line">{errorCarga}</p>
+              </div>
+            )}
+
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={procesando}
+                onClick={() => {
+                  setMostrarModalDevolucion(false);
+                  setMotivoDevolucion('');
+                  setErrorCarga('');
+                }}
+              >
+                Cancelar
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                disabled={procesando || !motivoDevolucion.trim()}
+                onClick={() => ejecutarAccionNomina('devolver')}
+                className="border-amber-500 text-amber-700 hover:bg-amber-50"
+              >
+                <RotateCcw className="w-4 h-4 mr-2" />
+                {procesando ? 'Devolviendo...' : 'Confirmar devolución'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {mostrarModalPagoLiquidacion && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
