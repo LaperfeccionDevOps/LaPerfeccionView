@@ -30,6 +30,14 @@ const TIPOS_DOCUMENTALES_MULTIPLES = ['36', '64'];
 const esTipoDocumentalMultiple = (tipoId) =>
   TIPOS_DOCUMENTALES_MULTIPLES.includes(String(tipoId));
 
+const TIPOS_ACTIVOS_FORMATOS_AMPLIADOS = ['82', '87'];
+
+const ACCEPT_ACTIVOS_FORMATOS_AMPLIADOS =
+  '.pdf,image/*,.doc,.docx,.xls,.xlsx,.mp3,.wav,.m4a,.ogg';
+
+const permiteFormatosAmpliadosActivo = (tipoId) =>
+  TIPOS_ACTIVOS_FORMATOS_AMPLIADOS.includes(String(tipoId));
+
 
 const DocumentUploadModal = ({
   isOpen,
@@ -236,28 +244,88 @@ const tituloModal = esCarpetaActivos
   };
 
   const obtenerMimeDocumento = (doc) => {
-  const nombre = (doc?.Nombre || doc?.NombreArchivo || '').toLowerCase();
-  const formato = String(doc?.Formato || '').toLowerCase().trim();
+    const nombre = (doc?.Nombre || doc?.NombreArchivo || '').toLowerCase();
+    const formato = String(doc?.Formato || '').toLowerCase().trim();
 
-  if (formato === 'application/pdf') return 'application/pdf';
-  if (formato === 'pdf') return 'application/pdf';
+    if (formato === 'application/pdf' || formato === 'pdf') {
+      return 'application/pdf';
+    }
 
-  if (formato === 'image/jpeg') return 'image/jpeg';
-  if (formato === 'jpg') return 'image/jpeg';
-  if (formato === 'jpeg') return 'image/jpeg';
+    if (formato === 'image/jpeg' || formato === 'jpg' || formato === 'jpeg') {
+      return 'image/jpeg';
+    }
 
-  if (formato === 'image/png') return 'image/png';
-  if (formato === 'png') return 'image/png';
+    if (formato === 'image/png' || formato === 'png') {
+      return 'image/png';
+    }
 
-  if (formato === 'image/webp') return 'image/webp';
-  if (formato === 'webp') return 'image/webp';
+    if (formato === 'image/webp' || formato === 'webp') {
+      return 'image/webp';
+    }
 
-  if (nombre.match(/\.(jpg|jpeg)$/)) return 'image/jpeg';
-  if (nombre.match(/\.png$/)) return 'image/png';
-  if (nombre.match(/\.webp$/)) return 'image/webp';
+    if (formato === 'application/msword' || formato === 'doc') {
+      return 'application/msword';
+    }
 
-  return 'application/pdf';
-};
+    if (
+      formato ===
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      formato === 'docx'
+    ) {
+      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    }
+
+    if (formato === 'application/vnd.ms-excel' || formato === 'xls') {
+      return 'application/vnd.ms-excel';
+    }
+
+    if (
+      formato ===
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      formato === 'xlsx'
+    ) {
+      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    }
+
+    if (formato === 'audio/mpeg' || formato === 'mp3') {
+      return 'audio/mpeg';
+    }
+
+    if (formato === 'audio/wav' || formato === 'audio/x-wav' || formato === 'wav') {
+      return 'audio/wav';
+    }
+
+    if (
+      formato === 'audio/mp4' ||
+      formato === 'audio/x-m4a' ||
+      formato === 'm4a'
+    ) {
+      return 'audio/mp4';
+    }
+
+    if (formato === 'audio/ogg' || formato === 'ogg') {
+      return 'audio/ogg';
+    }
+
+    if (nombre.match(/\.pdf$/)) return 'application/pdf';
+    if (nombre.match(/\.(jpg|jpeg)$/)) return 'image/jpeg';
+    if (nombre.match(/\.png$/)) return 'image/png';
+    if (nombre.match(/\.webp$/)) return 'image/webp';
+    if (nombre.match(/\.doc$/)) return 'application/msword';
+    if (nombre.match(/\.docx$/)) {
+      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    }
+    if (nombre.match(/\.xls$/)) return 'application/vnd.ms-excel';
+    if (nombre.match(/\.xlsx$/)) {
+      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    }
+    if (nombre.match(/\.mp3$/)) return 'audio/mpeg';
+    if (nombre.match(/\.wav$/)) return 'audio/wav';
+    if (nombre.match(/\.m4a$/)) return 'audio/mp4';
+    if (nombre.match(/\.ogg$/)) return 'audio/ogg';
+
+    return 'application/octet-stream';
+  };
 
   const crearBlobDocumento = (doc) => {
     const base64Original = obtenerBase64Documento(doc);
@@ -1096,20 +1164,193 @@ const recargarDocumentosActivos = async () => {
   setDocumentos(Array.isArray(res) ? res : []);
 };
 
+const obtenerExtensionDocumentoActivo = (doc) => {
+  const nombre = String(doc?.Nombre || doc?.NombreArchivo || '').toLowerCase();
+  const match = nombre.match(/\.[a-z0-9]+$/i);
+
+  if (match) return match[0];
+
+  const formato = String(doc?.Formato || '').toLowerCase().trim();
+
+  const extensionPorMime = {
+    'application/pdf': '.pdf',
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/webp': '.webp',
+    'application/msword': '.doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+    'application/vnd.ms-excel': '.xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+    'audio/mpeg': '.mp3',
+    'audio/wav': '.wav',
+    'audio/x-wav': '.wav',
+    'audio/mp4': '.m4a',
+    'audio/x-m4a': '.m4a',
+    'audio/ogg': '.ogg',
+  };
+
+  return extensionPorMime[formato] || '';
+};
+
+const esAudioActivo = (doc) =>
+  ['.mp3', '.wav', '.m4a', '.ogg'].includes(
+    obtenerExtensionDocumentoActivo(doc)
+  );
+
+const esExcelActivo = (doc) =>
+  ['.xls', '.xlsx'].includes(obtenerExtensionDocumentoActivo(doc));
+
+const esWordActivo = (doc) =>
+  ['.doc', '.docx'].includes(obtenerExtensionDocumentoActivo(doc));
+
+const reproducirAudioActivo = async (doc) => {
+  try {
+    if (!doc?.IdDocumento) {
+      return toast({ title: 'No hay audio para reproducir' });
+    }
+
+    const data = await obtenerDocumentoActivo(doc.IdDocumento);
+    const documento = {
+      ...data,
+      DocumentoBase64: data.DocumentoBase64,
+    };
+
+    const blob = crearBlobDocumento(documento);
+
+    if (!blob) {
+      return toast({ title: 'No hay audio para reproducir' });
+    }
+
+    const url = URL.createObjectURL(blob);
+    const ventana = window.open('', '_blank');
+
+    if (!ventana) {
+      URL.revokeObjectURL(url);
+      throw new Error('El navegador bloqueó la ventana de reproducción.');
+    }
+
+    const nombreSeguro = String(
+      data?.Nombre || doc?.Nombre || 'Audio'
+    )
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+
+    ventana.document.write(`
+      <!doctype html>
+      <html lang="es">
+        <head>
+          <meta charset="utf-8" />
+          <title>Reproducir audio</title>
+          <style>
+            body {
+              margin: 0;
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: #f8fafc;
+              font-family: Arial, sans-serif;
+            }
+            .contenedor {
+              width: min(720px, 90vw);
+              background: white;
+              border: 1px solid #e5e7eb;
+              border-radius: 18px;
+              padding: 28px;
+              box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+            }
+            h2 {
+              margin: 0 0 18px;
+              color: #065f46;
+            }
+            p {
+              margin: 0 0 18px;
+              color: #475569;
+              word-break: break-word;
+            }
+            audio {
+              width: 100%;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="contenedor">
+            <h2>Reproducción de audio</h2>
+            <p>${nombreSeguro}</p>
+            <audio controls autoplay src="${url}"></audio>
+          </div>
+        </body>
+      </html>
+    `);
+
+    ventana.document.close();
+
+    setTimeout(() => URL.revokeObjectURL(url), 60 * 60 * 1000);
+  } catch (error) {
+    console.error('Error reproduciendo audio activo:', error);
+    toast({
+      title: 'Error al reproducir audio',
+      description: error.message || 'No fue posible reproducir el audio.',
+      variant: 'destructive',
+    });
+  }
+};
+
 const verDocumentoActivo = async (doc) => {
-  const data = await obtenerDocumentoActivo(doc.IdDocumento);
-  verDocumento({
-    ...data,
-    DocumentoBase64: data.DocumentoBase64,
-  });
+  try {
+    if (esExcelActivo(doc)) {
+      return toast({
+        title: 'Archivo Excel',
+        description: 'Este tipo de archivo se encuentra disponible para descarga.',
+      });
+    }
+
+    if (esWordActivo(doc)) {
+      return toast({
+        title: 'Archivo Word',
+        description: 'Este tipo de archivo se encuentra disponible para descarga.',
+      });
+    }
+
+    if (esAudioActivo(doc)) {
+      return reproducirAudioActivo(doc);
+    }
+
+    const data = await obtenerDocumentoActivo(doc.IdDocumento);
+
+    verDocumento({
+      ...data,
+      DocumentoBase64: data.DocumentoBase64,
+    });
+  } catch (error) {
+    console.error('Error visualizando documento activo:', error);
+    toast({
+      title: 'Error al visualizar documento',
+      description: error.message || 'No fue posible abrir el documento.',
+      variant: 'destructive',
+    });
+  }
 };
 
 const descargarDocumentoActivo = async (doc) => {
-  const data = await obtenerDocumentoActivo(doc.IdDocumento);
-  descargarDocumento({
-    ...data,
-    DocumentoBase64: data.DocumentoBase64,
-  });
+  try {
+    const data = await obtenerDocumentoActivo(doc.IdDocumento);
+
+    descargarDocumento({
+      ...data,
+      DocumentoBase64: data.DocumentoBase64,
+    });
+  } catch (error) {
+    console.error('Error descargando documento activo:', error);
+    toast({
+      title: 'Error al descargar documento',
+      description: error.message || 'No fue posible descargar el documento.',
+      variant: 'destructive',
+    });
+  }
 };
 
 const handleFileUploadActivo = async (e, idTipoDocumentacion) => {
@@ -1219,7 +1460,11 @@ const eliminarDocumentoActivoFront = async (idDocumento) => {
                       id={`file-activo-${grupo.IdTipoDocumentacion}-${aspirante.id}`}
                       className="hidden"
                       onChange={(e) => handleFileUploadActivo(e, grupo.IdTipoDocumentacion)}
-                      accept=".pdf,image/*"
+                      accept={
+                        permiteFormatosAmpliadosActivo(grupo.IdTipoDocumentacion)
+                          ? ACCEPT_ACTIVOS_FORMATOS_AMPLIADOS
+                          : '.pdf,image/*'
+                      }
                     />
 
                     <label
@@ -1241,14 +1486,20 @@ const eliminarDocumentoActivoFront = async (idDocumento) => {
                           {doc.Nombre || 'Documento activo'}
                         </span>
 
-                        <button
-                          type="button"
-                          title="Ver"
-                          className="text-blue-700 hover:text-blue-900"
-                          onClick={() => verDocumentoActivo(doc)}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
+                        {!esExcelActivo(doc) && !esWordActivo(doc) && (
+                          <button
+                            type="button"
+                            title={esAudioActivo(doc) ? 'Reproducir' : 'Ver'}
+                            className="text-blue-700 hover:text-blue-900"
+                            onClick={() => verDocumentoActivo(doc)}
+                          >
+                            {esAudioActivo(doc) ? (
+                              <Play className="w-4 h-4" />
+                            ) : (
+                              <Eye className="w-4 h-4" />
+                            )}
+                          </button>
+                        )}
 
                         <button
                           type="button"
@@ -1346,9 +1597,20 @@ const renderCarpetaBienestar = () => {
                         {doc.Nombre || 'Documento bienestar'}
                       </span>
 
-                      <button type="button" title="Ver" className="text-blue-700 hover:text-blue-900" onClick={() => verDocumentoActivo(doc)}>
-                        <Eye className="w-4 h-4" />
-                      </button>
+                      {!esExcelActivo(doc) && !esWordActivo(doc) && (
+                        <button
+                          type="button"
+                          title={esAudioActivo(doc) ? 'Reproducir' : 'Ver'}
+                          className="text-blue-700 hover:text-blue-900"
+                          onClick={() => verDocumentoActivo(doc)}
+                        >
+                          {esAudioActivo(doc) ? (
+                            <Play className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
+                        </button>
+                      )}
 
                       <button type="button" title="Descargar" className="text-emerald-700 hover:text-emerald-900" onClick={() => descargarDocumentoActivo(doc)}>
                         <Download className="w-4 h-4" />
@@ -1433,9 +1695,20 @@ const renderCarpetaHSE = () => {
                         {doc.Nombre || 'Documento HSE'}
                       </span>
 
-                      <button type="button" title="Ver" className="text-blue-700 hover:text-blue-900" onClick={() => verDocumentoActivo(doc)}>
-                        <Eye className="w-4 h-4" />
-                      </button>
+                      {!esExcelActivo(doc) && !esWordActivo(doc) && (
+                        <button
+                          type="button"
+                          title={esAudioActivo(doc) ? 'Reproducir' : 'Ver'}
+                          className="text-blue-700 hover:text-blue-900"
+                          onClick={() => verDocumentoActivo(doc)}
+                        >
+                          {esAudioActivo(doc) ? (
+                            <Play className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
+                        </button>
+                      )}
 
                       <button type="button" title="Descargar" className="text-emerald-700 hover:text-emerald-900" onClick={() => descargarDocumentoActivo(doc)}>
                         <Download className="w-4 h-4" />

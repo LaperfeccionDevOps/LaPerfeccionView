@@ -300,6 +300,7 @@ const clientesALP = [
    { id: 183, name: "Mantener Ingenieria S Cl 25 32-22 Mantener Dirección Comercial" },
    { id: 184, name: "Mantener Ingenieria S Cl 25 32-22 Mantener Gerencia" },
    { id: 185, name: "Mantener Ingenieria S Cl 25 32-22 Mantener M/miento - Infraestructura" },
+   { id: 223, name: "Mantener Ingenieria SAS S Cl 25 32-22 Mantener Operaciones" },
    { id: 186, name: "Mariano Moreno S Av Cl 127 7a-47 Aseo" },
    { id: 187, name: "Mariano Moreno S Cl 71 Aseo" },
    { id: 188, name: "Mariano Moreno S Cl 71 Supernumerarios" },
