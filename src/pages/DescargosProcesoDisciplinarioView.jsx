@@ -125,6 +125,19 @@ export default function DescargosProcesoDisciplinarioView({
   const [loadingDocumento, setLoadingDocumento] = useState(false);
   const [mensajeDocumento, setMensajeDocumento] = useState("");
 
+  const [cartaDescargosGenerada, setCartaDescargosGenerada] = useState(null);
+  const [cartaDescargosFirmada, setCartaDescargosFirmada] = useState(null);
+  const [evidenciasTrabajador, setEvidenciasTrabajador] = useState([]);
+  const [loadingGenerarCartaDescargos, setLoadingGenerarCartaDescargos] =
+    useState(false);
+  const [loadingCartaFirmada, setLoadingCartaFirmada] = useState(false);
+  const [loadingEvidenciasTrabajador, setLoadingEvidenciasTrabajador] =
+    useState(false);
+  const [idEvidenciaEliminando, setIdEvidenciaEliminando] = useState(null);
+  const [mensajeCartaDescargos, setMensajeCartaDescargos] = useState("");
+  const inputCartaFirmadaRef = useRef(null);
+  const inputEvidenciasTrabajadorRef = useRef(null);
+
   const [asistentes, setAsistentes] = useState(
     Array.isArray(borradorInicial?.Asistentes)
       ? borradorInicial.Asistentes
@@ -337,15 +350,58 @@ export default function DescargosProcesoDisciplinarioView({
         return tipo === "EVIDENCIA_OPERACIONES";
       };
 
+      const obtenerTipoDocumentoNormalizado = (documento) =>
+        String(documento?.TipoDocumento || "")
+          .trim()
+          .toUpperCase();
+
+      const cartasGeneradas = listaDocumentos.filter(
+        (documento) =>
+          obtenerTipoDocumentoNormalizado(documento) ===
+          "CARTA_DESCARGOS_GENERADA"
+      );
+
+      const cartasFirmadas = listaDocumentos.filter(
+        (documento) =>
+          obtenerTipoDocumentoNormalizado(documento) ===
+          "CARTA_DESCARGOS_FIRMADA"
+      );
+
+      const evidenciasDelTrabajador = listaDocumentos.filter(
+        (documento) =>
+          obtenerTipoDocumentoNormalizado(documento) ===
+          "EVIDENCIA_TRABAJADOR"
+      );
+
       setEvidenciasOperaciones(
         listaDocumentos.filter(esEvidenciaOperaciones)
       );
 
+      setCartaDescargosGenerada(
+        cartasGeneradas.length > 0
+          ? cartasGeneradas[cartasGeneradas.length - 1]
+          : null
+      );
+
+      setCartaDescargosFirmada(
+        cartasFirmadas.length > 0
+          ? cartasFirmadas[cartasFirmadas.length - 1]
+          : null
+      );
+
+      setEvidenciasTrabajador(evidenciasDelTrabajador);
+
       setDocumentos(
-        listaDocumentos.filter(
-          (documento) =>
-            !esEvidenciaOperaciones(documento)
-        )
+        listaDocumentos.filter((documento) => {
+          const tipo = obtenerTipoDocumentoNormalizado(documento);
+
+          return ![
+            "EVIDENCIA_OPERACIONES",
+            "CARTA_DESCARGOS_GENERADA",
+            "CARTA_DESCARGOS_FIRMADA",
+            "EVIDENCIA_TRABAJADOR",
+          ].includes(tipo);
+        })
       );
     } catch (error) {
       console.error(error);
@@ -619,22 +675,389 @@ const actualizarAsistente = (
     return `${FILE_BASE_URL}/${rutaLimpia}`;
   };
 
+
+  const esImagenDocumento = (documento) => {
+    const nombre = String(documento?.NombreArchivo || "").toLowerCase();
+    const formato = String(documento?.Formato || "").toLowerCase();
+
+    return (
+      formato.startsWith("image/") ||
+      [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"].some(
+        (extension) => nombre.endsWith(extension)
+      )
+    );
+  };
+
   const abrirDocumento = (rutaArchivo) => {
     const url = obtenerUrlDocumento(rutaArchivo);
     if (!url) return;
     window.open(url, "_blank");
   };
 
-  const descargarDocumento = (rutaArchivo, nombreArchivo) => {
-    const url = obtenerUrlDocumento(rutaArchivo);
-    if (!url) return;
+  const descargarDocumento = async (
+    rutaArchivo,
+    nombreArchivo,
+    idDocumento = null
+  ) => {
+    try {
+      const url = idDocumento
+        ? `${API_URL}/documento-proceso-disciplinario/${idDocumento}/descargar`
+        : obtenerUrlDocumento(rutaArchivo);
 
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = nombreArchivo || "documento";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      if (!url) {
+        throw new Error(
+          "No se encontró la ruta del documento para descargar."
+        );
+      }
+
+      const response = await fetch(url, {
+        method: "GET",
+      });
+
+      if (!response.ok) {
+        let detalle = "";
+
+        try {
+          const data = await response.json();
+
+          detalle =
+            typeof data?.detail === "string"
+              ? data.detail
+              : data?.detail?.mensaje ||
+                data?.message ||
+                "";
+        } catch {
+          detalle = "";
+        }
+
+        throw new Error(
+          detalle ||
+            "No fue posible descargar el documento."
+        );
+      }
+
+      const blob = await response.blob();
+      const urlTemporal = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = urlTemporal;
+      link.download = nombreArchivo || "documento";
+      link.style.display = "none";
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      window.setTimeout(() => {
+        window.URL.revokeObjectURL(urlTemporal);
+      }, 1000);
+    } catch (error) {
+      console.error(
+        "Error descargando documento:",
+        error
+      );
+
+      setMensajeCartaDescargos(
+        error?.message ||
+          "No fue posible descargar el documento."
+      );
+    }
+  };
+
+
+  const subirDocumentoEspecializado = async ({
+    archivo,
+    tipoDocumentoEspecial,
+    observacion,
+  }) => {
+    if (!proceso?.IdProcesoDisciplinario) {
+      throw new Error("No existe un proceso disciplinario asociado.");
+    }
+
+    if (!archivo) {
+      throw new Error("Debe seleccionar un archivo.");
+    }
+
+    const formData = new FormData();
+    formData.append(
+      "IdProcesoDisciplinario",
+      proceso.IdProcesoDisciplinario
+    );
+    formData.append("TipoDocumento", tipoDocumentoEspecial);
+    formData.append("Observacion", observacion || "");
+    formData.append("archivo", archivo);
+
+    const response = await fetch(
+      `${API_URL}/documento-proceso-disciplinario/upload`,
+      {
+        method: "POST",
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      let detalle = "";
+
+      try {
+        const data = await response.json();
+        detalle = data?.detail || data?.message || "";
+      } catch {
+        detalle = "";
+      }
+
+      throw new Error(
+        detalle || "No se pudo cargar el documento."
+      );
+    }
+
+    return response.json();
+  };
+
+  const handleGenerarCartaDescargos = async () => {
+    if (!proceso?.IdProcesoDisciplinario) {
+      setMensajeCartaDescargos(
+        "No existe un proceso disciplinario asociado."
+      );
+      return;
+    }
+
+    if (!String(descargoTrabajador || "").trim()) {
+      setMensajeCartaDescargos(
+        "Debe registrar la manifestación del trabajador antes de generar la carta de descargos."
+      );
+      return;
+    }
+
+    try {
+      setLoadingGenerarCartaDescargos(true);
+      setMensajeCartaDescargos("");
+
+      const borrador =
+        await guardarBorradorDescargoProcesoDisciplinario(
+          construirPayloadDescargo(true)
+        );
+
+      setDescargoExistente(borrador);
+
+      const asistentesGuardados =
+        await handleGuardarAsistentes(
+          borrador?.IdDescargoProcesoDisciplinario || null,
+          false
+        );
+
+      if (!asistentesGuardados) {
+        setMensajeCartaDescargos(
+          "No fue posible guardar los asistentes antes de generar la carta."
+        );
+        return;
+      }
+
+      const response = await fetch(
+        `${API_URL}/documento-proceso-disciplinario/descargos/generar`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            IdProcesoDisciplinario:
+              proceso.IdProcesoDisciplinario,
+            IdDescargoProcesoDisciplinario:
+              borrador?.IdDescargoProcesoDisciplinario || null,
+            Cargo:
+              trabajador?.Cargo || null,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        let detalle = "";
+
+        try {
+          const data = await response.json();
+          detalle = data?.detail || data?.message || "";
+        } catch {
+          detalle = "";
+        }
+
+        throw new Error(
+          detalle ||
+            "No fue posible generar la carta de descargos."
+        );
+      }
+
+      await cargarDocumentos();
+
+      setMensajeCartaDescargos(
+        "Carta de descargos generada correctamente. Ya puede verla o descargarla para firma."
+      );
+      descartarBorradorLocal();
+    } catch (error) {
+      console.error(
+        "Error generando carta de descargos:",
+        error
+      );
+      setMensajeCartaDescargos(
+        error?.message ||
+          "No fue posible generar la carta de descargos."
+      );
+    } finally {
+      setLoadingGenerarCartaDescargos(false);
+    }
+  };
+
+  const handleSeleccionarCartaFirmada = async (event) => {
+    const archivo = event.target.files?.[0] || null;
+    event.target.value = "";
+
+    if (!archivo) {
+      return;
+    }
+
+    try {
+      setLoadingCartaFirmada(true);
+      setMensajeCartaDescargos("");
+
+      await subirDocumentoEspecializado({
+        archivo,
+        tipoDocumentoEspecial: "CARTA_DESCARGOS_FIRMADA",
+        observacion:
+          "Carta de descargos firmada por el trabajador y Relaciones Laborales.",
+      });
+
+      await cargarDocumentos();
+
+      setMensajeCartaDescargos(
+        "Carta de descargos firmada adjuntada correctamente. El documento quedó asociado al proceso disciplinario."
+      );
+    } catch (error) {
+      console.error(
+        "Error adjuntando carta de descargos firmada:",
+        error
+      );
+      setMensajeCartaDescargos(
+        error?.message ||
+          "No fue posible adjuntar la carta de descargos firmada."
+      );
+    } finally {
+      setLoadingCartaFirmada(false);
+    }
+  };
+
+  const handleEliminarEvidenciaTrabajador = async (documento) => {
+    const idDocumento = documento?.IdDocumentoProcesoDisciplinario;
+
+    if (!idDocumento) {
+      setMensajeCartaDescargos(
+        "No fue posible identificar la evidencia que se desea eliminar."
+      );
+      return;
+    }
+
+    const nombreArchivo =
+      documento?.NombreArchivo || "esta evidencia";
+
+    const confirmar = window.confirm(
+      `¿Está seguro de eliminar "${nombreArchivo}"? Esta acción elimina únicamente la evidencia aportada por el trabajador.`
+    );
+
+    if (!confirmar) {
+      return;
+    }
+
+    try {
+      setIdEvidenciaEliminando(idDocumento);
+      setMensajeCartaDescargos("");
+
+      const response = await fetch(
+        `${API_URL}/documento-proceso-disciplinario/rrll/evidencia-trabajador/${idDocumento}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!response.ok) {
+        let detalle = "";
+
+        try {
+          const data = await response.json();
+
+          detalle =
+            typeof data?.detail === "string"
+              ? data.detail
+              : data?.detail?.mensaje ||
+                data?.message ||
+                "";
+        } catch {
+          detalle = "";
+        }
+
+        throw new Error(
+          detalle ||
+            "No fue posible eliminar la evidencia del trabajador."
+        );
+      }
+
+      await cargarDocumentos();
+
+      setMensajeCartaDescargos(
+        "Evidencia del trabajador eliminada correctamente. Si la Carta de Descargos ya había sido generada, debe generarla nuevamente para actualizar sus anexos."
+      );
+    } catch (error) {
+      console.error(
+        "Error eliminando evidencia del trabajador:",
+        error
+      );
+
+      setMensajeCartaDescargos(
+        error?.message ||
+          "No fue posible eliminar la evidencia del trabajador."
+      );
+    } finally {
+      setIdEvidenciaEliminando(null);
+    }
+  };
+
+  const handleSeleccionarEvidenciasTrabajador = async (event) => {
+    const archivos = Array.from(event.target.files || []);
+    event.target.value = "";
+
+    if (archivos.length === 0) {
+      return;
+    }
+
+    try {
+      setLoadingEvidenciasTrabajador(true);
+      setMensajeCartaDescargos("");
+
+      for (const archivo of archivos) {
+        await subirDocumentoEspecializado({
+          archivo,
+          tipoDocumentoEspecial: "EVIDENCIA_TRABAJADOR",
+          observacion:
+            "Evidencia aportada por el trabajador durante la diligencia de descargos.",
+        });
+      }
+
+      await cargarDocumentos();
+
+      setMensajeCartaDescargos(
+        archivos.length === 1
+          ? "Evidencia del trabajador adjuntada correctamente."
+          : `${archivos.length} evidencias del trabajador fueron adjuntadas correctamente.`
+      );
+    } catch (error) {
+      console.error(
+        "Error adjuntando evidencias del trabajador:",
+        error
+      );
+      setMensajeCartaDescargos(
+        error?.message ||
+          "No fue posible adjuntar las evidencias del trabajador."
+      );
+    } finally {
+      setLoadingEvidenciasTrabajador(false);
+    }
   };
 
   const handleSubirDocumento = async () => {
@@ -998,6 +1421,9 @@ function formatearTipoDocumento(valor) {
     descargos: "Descargos",
     suspension: "Suspensión",
     evidencia_operaciones: "Evidencia de Operaciones",
+    carta_descargos_generada: "Carta de descargos generada",
+    carta_descargos_firmada: "Carta de descargos firmada",
+    evidencia_trabajador: "Evidencia del trabajador",
   };
 
   return tiposDocumento[codigo] || valor || "—";
@@ -1454,7 +1880,8 @@ function formatearTipoDocumento(valor) {
                             onClick={() =>
                               descargarDocumento(
                                 doc.RutaArchivo,
-                                doc.NombreArchivo
+                                doc.NombreArchivo,
+                                doc.IdDocumentoProcesoDisciplinario
                               )
                             }
                           >
@@ -1638,19 +2065,291 @@ function formatearTipoDocumento(valor) {
               />
             </div>
 
-            <div>
-              <label className="text-sm font-medium">
-                Manifestación del trabajador
-              </label>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-5">
+              <div className="mb-4">
+                <label className="text-sm font-semibold text-gray-800">
+                  Manifestación del trabajador
+                </label>
+
+                <p className="mt-1 text-sm text-gray-500">
+                  Registre aquí la manifestación del trabajador durante la diligencia.
+                  Esta información será utilizada para generar la Carta de Descargos.
+                </p>
+              </div>
+
               <textarea
-                className="w-full border rounded-lg p-3 min-h-[140px] resize-none"
-                placeholder="Aquí se registrará lo manifestado por el trabajador durante la diligencia..."
+                className="w-full border rounded-lg p-3 min-h-[190px] resize-y bg-white"
+                placeholder="Registre la manifestación del trabajador durante la diligencia..."
                 value={descargoTrabajador}
                 onChange={(e) => {
                   setDescargoTrabajador(e.target.value);
                   marcarCambioLocal();
                 }}
               />
+
+              <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h4 className="font-bold text-blue-900">
+                      Evidencias aportadas por el trabajador
+                    </h4>
+
+                    <p className="mt-1 text-sm text-blue-700">
+                      Adjunte aquí las imágenes o documentos que entregue el trabajador
+                      durante la diligencia. Estas evidencias se incluirán como anexos
+                      cuando se genere la Carta de Descargos.
+                    </p>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="bg-white"
+                    onClick={() =>
+                      inputEvidenciasTrabajadorRef.current?.click()
+                    }
+                    disabled={
+                      loadingEvidenciasTrabajador ||
+                      loadingGenerarCartaDescargos
+                    }
+                  >
+                    {loadingEvidenciasTrabajador
+                      ? "Adjuntando..."
+                      : "Adjuntar evidencias"}
+                  </Button>
+                </div>
+
+                <input
+                  ref={inputEvidenciasTrabajadorRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp"
+                  onChange={handleSeleccionarEvidenciasTrabajador}
+                />
+
+                <div className="mt-4 space-y-2">
+                  {evidenciasTrabajador.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-blue-200 bg-white p-4 text-center text-sm text-gray-500">
+                      No se han adjuntado evidencias del trabajador.
+                    </div>
+                  ) : (
+                    evidenciasTrabajador.map((doc) => {
+                      const esImagen = esImagenDocumento(doc);
+                      const urlDocumento = obtenerUrlDocumento(doc.RutaArchivo);
+
+                      return (
+                        <div
+                          key={doc.IdDocumentoProcesoDisciplinario}
+                          className="rounded-lg border border-blue-200 bg-white p-3"
+                        >
+                          {esImagen && urlDocumento && (
+                            <button
+                              type="button"
+                              className="mb-3 block w-full overflow-hidden rounded-lg border border-blue-100 bg-gray-50"
+                              onClick={() =>
+                                abrirDocumento(doc.RutaArchivo)
+                              }
+                              title="Abrir imagen"
+                            >
+                              <img
+                                src={urlDocumento}
+                                alt={
+                                  doc.NombreArchivo ||
+                                  "Evidencia aportada por el trabajador"
+                                }
+                                className="mx-auto max-h-[320px] w-auto max-w-full object-contain"
+                                loading="lazy"
+                              />
+                            </button>
+                          )}
+
+                          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div className="min-w-0">
+                              <p className="break-all text-sm font-semibold text-gray-800">
+                                {doc.NombreArchivo || "Evidencia del trabajador"}
+                              </p>
+
+                              <p className="mt-1 text-xs text-gray-500">
+                                {formatearFechaColombiana(doc.FechaCreacion)}
+                              </p>
+
+                              {esImagen && (
+                                <p className="mt-1 text-xs font-medium text-blue-700">
+                                  Vista previa de la imagen adjunta
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  abrirDocumento(doc.RutaArchivo)
+                                }
+                              >
+                                Ver
+                              </Button>
+
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  descargarDocumento(
+                                    doc.RutaArchivo,
+                                    doc.NombreArchivo,
+                                    doc.IdDocumentoProcesoDisciplinario
+                                  )
+                                }
+                              >
+                                Descargar
+                              </Button>
+
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="border-red-300 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
+                                onClick={() =>
+                                  handleEliminarEvidenciaTrabajador(doc)
+                                }
+                                disabled={
+                                  idEvidenciaEliminando ===
+                                  doc.IdDocumentoProcesoDisciplinario
+                                }
+                              >
+                                {idEvidenciaEliminando ===
+                                doc.IdDocumentoProcesoDisciplinario
+                                  ? "Eliminando..."
+                                  : "Eliminar"}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <h4 className="font-bold text-gray-800">
+                      Carta de Descargos
+                    </h4>
+
+                    <p className="mt-1 text-sm text-gray-500">
+                      Cuando la manifestación y las evidencias estén completas,
+                      genere el documento para revisarlo, descargarlo y llevarlo a firma.
+                    </p>
+
+                    {cartaDescargosGenerada?.NombreArchivo && (
+                      <p className="mt-2 break-all text-xs font-semibold text-emerald-700">
+                        Documento generado: {cartaDescargosGenerada.NombreArchivo}
+                      </p>
+                    )}
+
+                    {cartaDescargosFirmada?.NombreArchivo && (
+                      <p className="mt-1 break-all text-xs font-semibold text-blue-700">
+                        Documento firmado: {cartaDescargosFirmada.NombreArchivo}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      className="bg-emerald-700 hover:bg-emerald-800"
+                      onClick={handleGenerarCartaDescargos}
+                      disabled={
+                        loadingGenerarCartaDescargos ||
+                        loadingCartaFirmada ||
+                        loadingEvidenciasTrabajador
+                      }
+                    >
+                      {loadingGenerarCartaDescargos
+                        ? "Generando..."
+                        : cartaDescargosGenerada
+                        ? "Generar nuevamente"
+                        : "Generar"}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        abrirDocumento(
+                          cartaDescargosGenerada?.RutaArchivo
+                        )
+                      }
+                      disabled={!cartaDescargosGenerada?.RutaArchivo}
+                    >
+                      Ver
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        descargarDocumento(
+                          cartaDescargosGenerada?.RutaArchivo,
+                          cartaDescargosGenerada?.NombreArchivo,
+                          cartaDescargosGenerada
+                            ?.IdDocumentoProcesoDisciplinario
+                        )
+                      }
+                      disabled={
+                        !cartaDescargosGenerada
+                          ?.IdDocumentoProcesoDisciplinario
+                      }
+                    >
+                      Descargar
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        inputCartaFirmadaRef.current?.click()
+                      }
+                      disabled={
+                        loadingCartaFirmada ||
+                        !cartaDescargosGenerada
+                      }
+                    >
+                      {loadingCartaFirmada
+                        ? "Adjuntando..."
+                        : "Adjuntar firmado"}
+                    </Button>
+                  </div>
+                </div>
+
+                <input
+                  ref={inputCartaFirmadaRef}
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.doc,.docx,image/*"
+                  onChange={handleSeleccionarCartaFirmada}
+                />
+              </div>
+
+              {mensajeCartaDescargos && (
+                <div
+                  className={`mt-4 rounded-lg border p-3 text-sm font-semibold ${
+                    mensajeCartaDescargos
+                      .toLowerCase()
+                      .includes("correctamente")
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-red-200 bg-red-50 text-red-700"
+                  }`}
+                >
+                  {mensajeCartaDescargos}
+                </div>
+              )}
             </div>
 
             <div>
@@ -1844,7 +2543,11 @@ function formatearTipoDocumento(valor) {
                             type="button"
                             variant="outline"
                             onClick={() =>
-                              descargarDocumento(doc.RutaArchivo, doc.NombreArchivo)
+                              descargarDocumento(
+                            doc.RutaArchivo,
+                            doc.NombreArchivo,
+                            doc.IdDocumentoProcesoDisciplinario
+                          )
                             }
                           >
                             Descargar
@@ -1865,9 +2568,9 @@ function formatearTipoDocumento(valor) {
           </h3>
 
           <p className="text-sm text-gray-600 mt-2">
-            El acta de descargos aún no ha sido generada ni firmada. Cuando la
-            diligencia finalice, el sistema permitirá generar el documento para
-            firma y archivo.
+            La Carta de Descargos se genera desde el bloque de Manifestación del
+            trabajador. Después de la firma, Relaciones Laborales debe adjuntar
+            la versión firmada para conservarla dentro del expediente.
           </p>
 
 
