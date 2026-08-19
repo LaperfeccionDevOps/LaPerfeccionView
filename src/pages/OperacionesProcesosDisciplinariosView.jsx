@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   ClipboardList,
+  Download,
   Eye,
   FilePlus2,
   FileText,
@@ -430,7 +431,7 @@ const OperacionesProcesosDisciplinariosView = () => {
       setRespuestaAbierta(null);
 
       const response = await fetch(
-        `${API_URL}/procesos-disciplinarios/${idProceso}/expediente`,
+        `${API_URL}/procesos-disciplinarios/${idProceso}/respuesta-operaciones`,
         {
           method: "GET",
           headers: construirHeaders(),
@@ -456,7 +457,10 @@ const OperacionesProcesosDisciplinariosView = () => {
           .trim()
           .toUpperCase();
 
-        return tipo !== "EVIDENCIA_OPERACIONES";
+        return (
+          tipo ===
+          "DOCUMENTO_CIERRE_DISCIPLINARIO"
+        );
       });
 
       setRespuestaAbierta({
@@ -492,6 +496,65 @@ const OperacionesProcesosDisciplinariosView = () => {
       "_blank",
       "noopener,noreferrer"
     );
+  };
+
+
+  const descargarDocumentoRRLL = async (documento) => {
+    const idDocumento =
+      documento?.IdDocumentoProcesoDisciplinario;
+
+    if (!idDocumento) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_URL}/documento-proceso-disciplinario/${idDocumento}/descargar`,
+        {
+          method: "GET",
+          headers: construirHeaders(),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          "No se pudo descargar el documento de cierre."
+        );
+      }
+
+      const blob = await response.blob();
+
+      const urlTemporal =
+        window.URL.createObjectURL(blob);
+
+      const link =
+        document.createElement("a");
+
+      link.href = urlTemporal;
+      link.download =
+        documento?.NombreArchivo ||
+        "documento_cierre_disciplinario";
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      window.setTimeout(() => {
+        window.URL.revokeObjectURL(
+          urlTemporal
+        );
+      }, 1000);
+    } catch (error) {
+      console.error(
+        "Error descargando documento RRLL:",
+        error
+      );
+
+      setMensajeRespuesta(
+        error?.message ||
+          "No se pudo descargar el documento de cierre."
+      );
+    }
   };
 
   const handleBuscar = async () => {
@@ -1146,7 +1209,7 @@ const OperacionesProcesosDisciplinariosView = () => {
                 </div>
               ) : respuestaAbierta ? (
                 <div className="space-y-5">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-3">
                     <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                       <p className="text-xs font-semibold uppercase text-gray-500">
                         Expediente disciplinario
@@ -1159,40 +1222,15 @@ const OperacionesProcesosDisciplinariosView = () => {
                         )}
                       </p>
                     </div>
-
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                      <p className="text-xs font-semibold uppercase text-gray-500">
-                        Tipo de cierre
-                      </p>
-                      <p className="mt-1 font-semibold text-gray-900">
-                        {formatearTexto(
-                          respuestaAbierta.expediente
-                            ?.Cierre?.TipoCierre
-                        )}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                      <p className="text-xs font-semibold uppercase text-gray-500">
-                        Medida disciplinaria
-                      </p>
-                      <p className="mt-1 font-semibold text-gray-900">
-                        {formatearTexto(
-                          respuestaAbierta.expediente
-                            ?.Cierre
-                            ?.MedidaDisciplinaria
-                        )}
-                      </p>
-                    </div>
                   </div>
 
                   <div>
                     <h3 className="font-bold text-gray-900">
-                      Documentos emitidos por Relaciones Laborales
+                      Respuesta emitida por Relaciones Laborales
                     </h3>
 
                     <p className="mt-1 text-sm text-gray-500">
-                      Esta información es únicamente de consulta para Operaciones.
+                      Aquí se muestran únicamente los documentos de cierre disciplinario emitidos por Relaciones Laborales.
                     </p>
                   </div>
 
@@ -1200,7 +1238,7 @@ const OperacionesProcesosDisciplinariosView = () => {
                     .length === 0 ? (
                     <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center">
                       <p className="font-semibold text-gray-700">
-                        No hay documentos disponibles.
+                        No hay documentos de cierre disciplinario disponibles.
                       </p>
                     </div>
                   ) : (
@@ -1231,19 +1269,35 @@ const OperacionesProcesosDisciplinariosView = () => {
                               </p>
                             </div>
 
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() =>
-                                verDocumentoRRLL(
-                                  documento
-                                )
-                              }
-                              className="w-full rounded-xl border-blue-300 font-semibold text-blue-700 hover:bg-blue-50 sm:w-auto"
-                            >
-                              <Eye className="mr-2 h-4 w-4" />
-                              Ver documento
-                            </Button>
+                            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() =>
+                                  verDocumentoRRLL(
+                                    documento
+                                  )
+                                }
+                                className="w-full rounded-xl border-blue-300 font-semibold text-blue-700 hover:bg-blue-50 sm:w-auto"
+                              >
+                                <Eye className="mr-2 h-4 w-4" />
+                                Ver documento
+                              </Button>
+
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() =>
+                                  descargarDocumentoRRLL(
+                                    documento
+                                  )
+                                }
+                                className="w-full rounded-xl border-emerald-300 font-semibold text-emerald-700 hover:bg-emerald-50 sm:w-auto"
+                              >
+                                <Download className="mr-2 h-4 w-4" />
+                                Descargar
+                              </Button>
+                            </div>
                           </div>
                         )
                       )}

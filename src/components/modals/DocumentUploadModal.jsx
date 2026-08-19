@@ -200,12 +200,76 @@ const tituloModal = esCarpetaActivos
   if (formato === 'image/webp') return 'image/webp';
   if (formato === 'webp') return 'image/webp';
 
+  if (formato === 'image/bmp') return 'image/bmp';
+  if (formato === 'bmp') return 'image/bmp';
+
+  if (formato === 'image/gif') return 'image/gif';
+  if (formato === 'gif') return 'image/gif';
+
+  if (
+    formato === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    formato === 'xlsx'
+  ) {
+    return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  }
+
+  if (formato === 'application/vnd.ms-excel' || formato === 'xls') {
+    return 'application/vnd.ms-excel';
+  }
+
+  if (
+    formato === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    formato === 'docx'
+  ) {
+    return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  }
+
+  if (formato === 'application/msword' || formato === 'doc') {
+    return 'application/msword';
+  }
+
+  if (formato === 'audio/mpeg' || formato === 'mp3') return 'audio/mpeg';
+  if (formato === 'audio/wav' || formato === 'wav') return 'audio/wav';
+  if (formato === 'audio/ogg' || formato === 'ogg') return 'audio/ogg';
+
+  if (formato === 'video/mp4' || formato === 'mp4') return 'video/mp4';
+
   if (nombre.match(/\.(jpg|jpeg)$/)) return 'image/jpeg';
   if (nombre.match(/\.png$/)) return 'image/png';
   if (nombre.match(/\.webp$/)) return 'image/webp';
+  if (nombre.match(/\.bmp$/)) return 'image/bmp';
+  if (nombre.match(/\.gif$/)) return 'image/gif';
+  if (nombre.match(/\.pdf$/)) return 'application/pdf';
 
-  return 'application/pdf';
+  if (nombre.match(/\.xlsx$/)) {
+    return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  }
+
+  if (nombre.match(/\.xls$/)) return 'application/vnd.ms-excel';
+
+  if (nombre.match(/\.docx$/)) {
+    return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  }
+
+  if (nombre.match(/\.doc$/)) return 'application/msword';
+  if (nombre.match(/\.mp3$/)) return 'audio/mpeg';
+  if (nombre.match(/\.wav$/)) return 'audio/wav';
+  if (nombre.match(/\.ogg$/)) return 'audio/ogg';
+  if (nombre.match(/\.mp4$/)) return 'video/mp4';
+
+  return 'application/octet-stream';
 };
+
+  const esDocumentoVisualizableActivo = (doc) => {
+    const nombre = (doc?.Nombre || doc?.NombreArchivo || '').toLowerCase();
+    const mime = obtenerMimeDocumento(doc);
+
+    return (
+      mime === 'application/pdf' ||
+      mime.startsWith('image/') ||
+      nombre.match(/\.(pdf|jpg|jpeg|png|webp|bmp|gif)$/)
+    );
+  };
 
   const crearBlobDocumento = (doc) => {
     const base64Original = obtenerBase64Documento(doc);
@@ -1054,14 +1118,16 @@ const eliminarDocumentoActivoFront = async (idDocumento) => {
                           {doc.Nombre || 'Documento activo'}
                         </span>
 
-                        <button
-                          type="button"
-                          title="Ver"
-                          className="text-blue-700 hover:text-blue-900"
-                          onClick={() => verDocumentoActivo(doc)}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
+                        {esDocumentoVisualizableActivo(doc) && (
+                          <button
+                            type="button"
+                            title="Ver"
+                            className="text-blue-700 hover:text-blue-900"
+                            onClick={() => verDocumentoActivo(doc)}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        )}
 
                         <button
                           type="button"

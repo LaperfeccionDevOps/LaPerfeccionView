@@ -23,24 +23,14 @@ import {
 import { formatearExpedienteDisciplinario } from "@/utils/formatearExpedienteDisciplinario";
 
 
-const TIPOS_CIERRE = [
-  {
-    value: "CON_MEDIDA_DISCIPLINARIA",
-    label: "Con medida disciplinaria",
-  },
-  {
-    value: "SIN_MEDIDA_DISCIPLINARIA",
-    label: "Sin medida disciplinaria",
-  },
-];
+const API_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://127.0.0.1:8000/api";
 
-
-const MEDIDAS_SUGERIDAS = [
-  "Llamado de atención verbal",
-  "Llamado de atención escrito",
-  "Suspensión",
-  "Terminación del contrato",
-];
+const FILE_BASE_URL = API_URL.replace(
+  "/api",
+  ""
+);
 
 
 const VERSION_BORRADOR_LOCAL = 1;
@@ -101,6 +91,51 @@ function limpiarTexto(valor) {
   return String(
     valor || ""
   ).trim();
+}
+
+
+function formatearFechaColombiana(valor) {
+  if (!valor) {
+    return "—";
+  }
+
+  try {
+    return new Intl.DateTimeFormat(
+      "es-CO",
+      {
+        timeZone: "America/Bogota",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      }
+    ).format(new Date(valor));
+  } catch {
+    return String(valor);
+  }
+}
+
+
+function formatearTipoDocumento(valor) {
+  const tipo = String(
+    valor || ""
+  )
+    .trim()
+    .toUpperCase();
+
+  const etiquetas = {
+    PROCESO_DISCIPLINARIO:
+      "Procesos disciplinarios",
+    AUSENTISMO:
+      "Ausentismo",
+    LLAMADO_ATENCION:
+      "Llamados de atención",
+    DESCARGOS:
+      "Descargos",
+    SUSPENSION:
+      "Suspensión",
+  };
+
+  return etiquetas[tipo] || valor || "—";
 }
 
 
@@ -183,18 +218,7 @@ export default function CierreProcesoDisciplinarioView({
   ] = useState(
     fechaActualColombia()
   );
-
-  const [
-    tipoCierre,
-    setTipoCierre,
-  ] = useState("");
-
-  const [
-    medidaDisciplinaria,
-    setMedidaDisciplinaria,
-  ] = useState("");
-
-  const [
+const [
     conclusionRRLL,
     setConclusionRRLL,
   ] = useState("");
@@ -240,6 +264,40 @@ export default function CierreProcesoDisciplinarioView({
 
 
   const [
+    documentos,
+    setDocumentos,
+  ] = useState([]);
+
+  const [
+    mostrarFormularioDocumento,
+    setMostrarFormularioDocumento,
+  ] = useState(false);
+
+  const tipoDocumento =
+    "DOCUMENTO_CIERRE_DISCIPLINARIO";
+
+  const [
+    observacionDocumento,
+    setObservacionDocumento,
+  ] = useState("");
+
+  const [
+    archivoDocumento,
+    setArchivoDocumento,
+  ] = useState(null);
+
+  const [
+    loadingDocumento,
+    setLoadingDocumento,
+  ] = useState(false);
+
+  const [
+    mensajeDocumento,
+    setMensajeDocumento,
+  ] = useState("");
+
+
+  const [
     borradorLocalRecuperado,
     setBorradorLocalRecuperado,
   ] = useState(false);
@@ -248,14 +306,7 @@ export default function CierreProcesoDisciplinarioView({
     fechaUltimoRespaldoLocal,
     setFechaUltimoRespaldoLocal,
   ] = useState(null);
-
-
-  const requiereMedida =
-    tipoCierre ===
-    "CON_MEDIDA_DISCIPLINARIA";
-
-
-  useEffect(() => {
+useEffect(() => {
     async function cargar() {
       if (
         !proceso?.IdProcesoDisciplinario
@@ -322,26 +373,12 @@ export default function CierreProcesoDisciplinarioView({
             dataCierre.FechaCierre ||
             fechaActualColombia()
           );
-
-          setTipoCierre(
-            dataCierre.TipoCierre ===
-              "ARCHIVO_DEL_PROCESO"
-              ? ""
-              : dataCierre.TipoCierre || ""
-          );
-
-          setMedidaDisciplinaria(
-            dataCierre.MedidaDisciplinaria ||
-            ""
-          );
-
-          setConclusionRRLL(
+setConclusionRRLL(
             dataCierre.ConclusionRRLL ||
             ""
           );
 
           setResponsableCierre(
-            dataCierre.ResponsableCierre ||
             nombreResponsable
           );
         } else {
@@ -365,26 +402,12 @@ export default function CierreProcesoDisciplinarioView({
             borradorLocal.fechaCierre ||
               fechaActualColombia()
           );
-
-          setTipoCierre(
-            borradorLocal.tipoCierre ===
-              "ARCHIVO_DEL_PROCESO"
-              ? ""
-              : borradorLocal.tipoCierre || ""
-          );
-
-          setMedidaDisciplinaria(
-            borradorLocal.medidaDisciplinaria ||
-              ""
-          );
-
-          setConclusionRRLL(
+setConclusionRRLL(
             borradorLocal.conclusionRRLL || ""
           );
 
           setResponsableCierre(
-            borradorLocal.responsableCierre ||
-              nombreResponsable
+            nombreResponsable
           );
 
           setBorradorLocalRecuperado(true);
@@ -428,8 +451,7 @@ export default function CierreProcesoDisciplinarioView({
           proceso.IdProcesoDisciplinario,
         pasoActual: 4,
         fechaCierre,
-        tipoCierre,
-        medidaDisciplinaria,
+
         conclusionRRLL,
         responsableCierre,
         fechaGuardado: ahora,
@@ -466,10 +488,10 @@ export default function CierreProcesoDisciplinarioView({
     finalizado,
     loadingInicial,
     loadingResponsable,
-    medidaDisciplinaria,
+
     proceso?.IdProcesoDisciplinario,
     responsableCierre,
-    tipoCierre,
+
   ]);
 
 
@@ -492,8 +514,7 @@ export default function CierreProcesoDisciplinarioView({
           proceso.IdProcesoDisciplinario,
         pasoActual: 4,
         fechaCierre,
-        tipoCierre,
-        medidaDisciplinaria,
+
         conclusionRRLL,
         responsableCierre,
         fechaGuardado: ahora,
@@ -525,22 +546,341 @@ export default function CierreProcesoDisciplinarioView({
     finalizado,
     loadingInicial,
     loadingResponsable,
-    medidaDisciplinaria,
+
     proceso?.IdProcesoDisciplinario,
     responsableCierre,
-    tipoCierre,
+
   ]);
+
+
+  const obtenerUrlDocumento = (
+    rutaArchivo
+  ) => {
+    if (!rutaArchivo) {
+      return "";
+    }
+
+    const rutaLimpia = String(
+      rutaArchivo
+    ).replaceAll("\\", "/");
+
+    return `${FILE_BASE_URL}/${rutaLimpia}`;
+  };
+
+
+  const obtenerUrlArchivoDocumento = (
+    documento
+  ) => {
+    const idDocumento =
+      documento
+        ?.IdDocumentoProcesoDisciplinario ||
+      null;
+
+    if (idDocumento) {
+      return (
+        `${API_URL}/documento-proceso-disciplinario/` +
+        `${idDocumento}/archivo`
+      );
+    }
+
+    return obtenerUrlDocumento(
+      documento?.RutaArchivo
+    );
+  };
+
+
+  const abrirDocumento = (
+    documento
+  ) => {
+    const url =
+      obtenerUrlArchivoDocumento(
+        documento
+      );
+
+    if (!url) {
+      setMensajeDocumento(
+        "No se encontró el archivo del documento para visualizar."
+      );
+      return;
+    }
+
+    window.open(
+      url,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  };
+
+
+  const descargarDocumento = async (
+    rutaArchivo,
+    nombreArchivo,
+    idDocumento = null
+  ) => {
+    try {
+      const url = idDocumento
+        ? (
+            `${API_URL}/documento-proceso-disciplinario/` +
+            `${idDocumento}/descargar`
+          )
+        : obtenerUrlDocumento(
+            rutaArchivo
+          );
+
+      if (!url) {
+        throw new Error(
+          "No se encontró la ruta del documento para descargar."
+        );
+      }
+
+      const response = await fetch(
+        url,
+        {
+          method: "GET",
+        }
+      );
+
+      if (!response.ok) {
+        let detalle = "";
+
+        try {
+          const data =
+            await response.json();
+
+          detalle =
+            typeof data?.detail ===
+            "string"
+              ? data.detail
+              : data?.detail?.mensaje ||
+                data?.message ||
+                "";
+        } catch {
+          detalle = "";
+        }
+
+        throw new Error(
+          detalle ||
+            "No fue posible descargar el documento."
+        );
+      }
+
+      const blob =
+        await response.blob();
+
+      const urlTemporal =
+        window.URL.createObjectURL(
+          blob
+        );
+
+      const link =
+        document.createElement("a");
+
+      link.href = urlTemporal;
+      link.download =
+        nombreArchivo ||
+        "documento";
+      link.style.display = "none";
+
+      document.body.appendChild(
+        link
+      );
+      link.click();
+      document.body.removeChild(
+        link
+      );
+
+      window.setTimeout(() => {
+        window.URL.revokeObjectURL(
+          urlTemporal
+        );
+      }, 1000);
+    } catch (error) {
+      console.error(
+        "Error descargando documento:",
+        error
+      );
+
+      setMensajeDocumento(
+        error?.message ||
+          "No fue posible descargar el documento."
+      );
+    }
+  };
+
+
+  const cargarDocumentosRRLL =
+    async () => {
+      if (
+        !proceso
+          ?.IdProcesoDisciplinario
+      ) {
+        setDocumentos([]);
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `${API_URL}/documento-proceso-disciplinario/proceso/` +
+          `${proceso.IdProcesoDisciplinario}`
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            "No se pudieron consultar los documentos."
+          );
+        }
+
+        const data =
+          await response.json();
+
+        const listaDocumentos =
+          Array.isArray(data)
+            ? data
+            : [];
+
+        setDocumentos(
+          listaDocumentos.filter(
+            (documento) =>
+              String(
+                documento
+                  ?.TipoDocumento ||
+                  ""
+              )
+                .trim()
+                .toUpperCase() ===
+              "DOCUMENTO_CIERRE_DISCIPLINARIO"
+          )
+        );
+      } catch (error) {
+        console.error(
+          "Error cargando documentos aportados por RRLL:",
+          error
+        );
+
+        setDocumentos([]);
+        setMensajeDocumento(
+          "No fue posible consultar los documentos aportados por Relaciones Laborales."
+        );
+      }
+    };
+
+
+  useEffect(() => {
+    cargarDocumentosRRLL();
+  }, [
+    proceso?.IdProcesoDisciplinario,
+  ]);
+
+
+  const handleSubirDocumento =
+    async () => {
+      if (
+        !proceso
+          ?.IdProcesoDisciplinario
+      ) {
+        setMensajeDocumento(
+          "No existe un proceso disciplinario asociado."
+        );
+        return;
+      }
+
+      if (!archivoDocumento) {
+        setMensajeDocumento(
+          "Debe seleccionar un archivo."
+        );
+        return;
+      }
+
+      try {
+        setLoadingDocumento(true);
+        setMensajeDocumento("");
+
+        const formData =
+          new FormData();
+
+        formData.append(
+          "IdProcesoDisciplinario",
+          proceso
+            .IdProcesoDisciplinario
+        );
+
+        formData.append(
+          "TipoDocumento",
+          tipoDocumento
+        );
+
+        formData.append(
+          "Observacion",
+          observacionDocumento
+        );
+
+        formData.append(
+          "archivo",
+          archivoDocumento
+        );
+
+        const response = await fetch(
+          `${API_URL}/documento-proceso-disciplinario/upload`,
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+
+        if (!response.ok) {
+          let detalle = "";
+
+          try {
+            const data =
+              await response.json();
+
+            detalle =
+              typeof data?.detail ===
+              "string"
+                ? data.detail
+                : data?.detail?.mensaje ||
+                  data?.message ||
+                  "";
+          } catch {
+            detalle = "";
+          }
+
+          throw new Error(
+            detalle ||
+              "No se pudo cargar el documento."
+          );
+        }
+
+        setArchivoDocumento(null);
+        setObservacionDocumento("");
+        setMostrarFormularioDocumento(
+          false
+        );
+
+        setMensajeDocumento(
+          "Documento cargado correctamente en el expediente y la Carpeta Digital."
+        );
+
+        await cargarDocumentosRRLL();
+      } catch (error) {
+        console.error(
+          "Error cargando documento de RRLL:",
+          error
+        );
+
+        setMensajeDocumento(
+          error?.message ||
+            "No se pudo cargar el documento."
+        );
+      } finally {
+        setLoadingDocumento(false);
+      }
+    };
 
 
   const errores = useMemo(() => {
     const resultado = {};
-
-    if (!tipoCierre) {
-      resultado.tipoCierre =
-        "Seleccione el tipo de cierre.";
-    }
-
-    if (!fechaCierre) {
+if (!fechaCierre) {
       resultado.fechaCierre =
         "La fecha de cierre es obligatoria.";
     }
@@ -562,25 +902,13 @@ export default function CierreProcesoDisciplinarioView({
       resultado.conclusionRRLL =
         "La conclusión de Relaciones Laborales es obligatoria.";
     }
-
-    if (
-      requiereMedida &&
-      !limpiarTexto(
-        medidaDisciplinaria
-      )
-    ) {
-      resultado.medidaDisciplinaria =
-        "Debe registrar la medida disciplinaria.";
-    }
-
-    return resultado;
+return resultado;
   }, [
     conclusionRRLL,
     fechaCierre,
-    medidaDisciplinaria,
-    requiereMedida,
+
     responsableCierre,
-    tipoCierre,
+
   ]);
 
 
@@ -590,18 +918,7 @@ export default function CierreProcesoDisciplinarioView({
 
     FechaCierre:
       fechaCierre || null,
-
-    TipoCierre:
-      tipoCierre || null,
-
-    MedidaDisciplinaria:
-      requiereMedida
-        ? limpiarTexto(
-            medidaDisciplinaria
-          ) || null
-        : "Sin medida disciplinaria",
-
-    ConclusionRRLL:
+ConclusionRRLL:
       limpiarTexto(
         conclusionRRLL
       ) || null,
@@ -772,8 +1089,7 @@ export default function CierreProcesoDisciplinarioView({
           proceso.IdProcesoDisciplinario,
         pasoActual: 4,
         fechaCierre,
-        tipoCierre,
-        medidaDisciplinaria,
+
         conclusionRRLL,
         responsableCierre,
         fechaGuardado: ahora,
@@ -968,56 +1284,6 @@ export default function CierreProcesoDisciplinarioView({
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-semibold text-gray-800">
-                Tipo de cierre *
-              </label>
-
-              <div className="grid grid-cols-1 gap-2">
-                {TIPOS_CIERRE.map(
-                  (opcion) => (
-                    <button
-                      key={opcion.value}
-                      type="button"
-                      disabled={finalizado}
-                      onClick={() => {
-                        setTipoCierre(
-                          opcion.value
-                        );
-
-                        if (
-                          opcion.value !==
-                          "CON_MEDIDA_DISCIPLINARIA"
-                        ) {
-                          setMedidaDisciplinaria(
-                            ""
-                          );
-                        }
-
-                        setMensaje("");
-                        setTipoMensaje("");
-                      }}
-                      className={`rounded-xl border px-4 py-3 text-left text-sm font-semibold transition ${
-                        tipoCierre ===
-                        opcion.value
-                          ? "border-emerald-500 bg-emerald-50 text-emerald-800"
-                          : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                      } disabled:cursor-not-allowed disabled:opacity-70`}
-                    >
-                      {opcion.label}
-                    </button>
-                  )
-                )}
-              </div>
-
-              {!finalizado &&
-                errores.tipoCierre && (
-                  <p className="mt-2 text-xs text-red-600">
-                    {errores.tipoCierre}
-                  </p>
-                )}
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-gray-800">
                 Fecha de cierre *
               </label>
 
@@ -1038,8 +1304,10 @@ export default function CierreProcesoDisciplinarioView({
                     {errores.fechaCierre}
                   </p>
                 )}
+            </div>
 
-              <label className="mb-2 mt-5 block text-sm font-semibold text-gray-800">
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-gray-800">
                 Responsable del cierre
               </label>
 
@@ -1062,63 +1330,6 @@ export default function CierreProcesoDisciplinarioView({
                   </p>
                 )}
             </div>
-
-            {requiereMedida && (
-              <div className="md:col-span-2">
-                <label className="mb-2 block text-sm font-semibold text-gray-800">
-                  Medida disciplinaria *
-                </label>
-
-                <textarea
-                  value={
-                    medidaDisciplinaria
-                  }
-                  maxLength={500}
-                  disabled={finalizado}
-                  onChange={(event) => {
-                    setMedidaDisciplinaria(
-                      event.target.value
-                    );
-                    setMensaje("");
-                    setTipoMensaje("");
-                  }}
-                  placeholder="Describa la medida disciplinaria aplicada."
-                  className="min-h-[120px] w-full resize-y rounded-xl border border-gray-200 bg-white p-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-gray-50"
-                />
-
-                {!finalizado &&
-                  errores
-                    .medidaDisciplinaria && (
-                    <p className="mt-2 text-xs text-red-600">
-                      {
-                        errores
-                          .medidaDisciplinaria
-                      }
-                    </p>
-                  )}
-
-                {!finalizado && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {MEDIDAS_SUGERIDAS.map(
-                      (medida) => (
-                        <button
-                          key={medida}
-                          type="button"
-                          onClick={() =>
-                            setMedidaDisciplinaria(
-                              medida
-                            )
-                          }
-                          className="rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100"
-                        >
-                          {medida}
-                        </button>
-                      )
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
 
@@ -1161,25 +1372,178 @@ export default function CierreProcesoDisciplinarioView({
         </div>
 
         <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6">
-          <h3 className="mb-4 text-lg font-bold text-gray-800">
-            Documento de cierre
-          </h3>
+          <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-gray-800">
+                Documento de cierre disciplinario
+              </h3>
 
-          <div className="rounded-xl border-2 border-dashed bg-gray-50 p-8 text-center">
-            <h4 className="font-bold text-gray-700">
-              Documento pendiente de integración
-            </h4>
+              <p className="mt-1 text-sm text-gray-500">
+                Adjunte aquí el documento de cierre elaborado por Relaciones Laborales para conservarlo en el expediente disciplinario.
+              </p>
+            </div>
 
-            <p className="mt-2 text-sm text-gray-500">
-              La generación del documento final se habilitará cuando se integre el servicio PDF del cierre.
+            {!finalizado && (
+              <Button
+                className="bg-emerald-700 hover:bg-emerald-800"
+                type="button"
+                onClick={() => {
+                  setMostrarFormularioDocumento(
+                    !mostrarFormularioDocumento
+                  );
+                  setMensajeDocumento("");
+                }}
+              >
+                {mostrarFormularioDocumento
+                  ? "Cancelar carga"
+                  : "Adjuntar documento de cierre"}
+              </Button>
+            )}
+          </div>
+
+          {mostrarFormularioDocumento &&
+            !finalizado && (
+              <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="text-sm font-semibold">
+                      Observación
+                    </label>
+
+                    <Input
+                      value={observacionDocumento}
+                      onChange={(event) =>
+                        setObservacionDocumento(
+                          event.target.value
+                        )
+                      }
+                      placeholder="Observación del documento de cierre"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold">
+                      Archivo
+                    </label>
+
+                    <Input
+                      type="file"
+                      onChange={(event) =>
+                        setArchivoDocumento(
+                          event.target.files?.[0] ||
+                            null
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-4 flex justify-end">
+                  <Button
+                    type="button"
+                    className="bg-emerald-700 hover:bg-emerald-800"
+                    onClick={
+                      handleSubirDocumento
+                    }
+                    disabled={
+                      loadingDocumento
+                    }
+                  >
+                    {loadingDocumento
+                      ? "Cargando..."
+                      : "Guardar documento"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+          {mensajeDocumento && (
+            <p className="mb-4 text-sm font-semibold text-emerald-700">
+              {mensajeDocumento}
             </p>
+          )}
 
-            <Button
-              className="mt-5 bg-emerald-700 hover:bg-emerald-800"
-              disabled
-            >
-              Generar documento próximamente
-            </Button>
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <table className="min-w-full">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-semibold">
+                    Documento
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold">
+                    Fecha
+                  </th>
+                  <th className="px-4 py-3 text-center text-sm font-semibold">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {documentos.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={3}
+                      className="py-12 text-center text-gray-500"
+                    >
+                      No se ha adjuntado el documento de cierre disciplinario.
+                    </td>
+                  </tr>
+                ) : (
+                  documentos.map(
+                    (doc) => (
+                      <tr
+                        key={
+                          doc.IdDocumentoProcesoDisciplinario
+                        }
+                        className="border-t"
+                      >
+                        <td className="px-4 py-3 text-sm font-semibold">
+                          {doc.NombreArchivo ||
+                            "Documento"}
+                        </td>
+
+                        <td className="px-4 py-3 text-sm">
+                          {formatearFechaColombiana(
+                            doc.FechaCreacion
+                          )}
+                        </td>
+
+                        <td className="px-4 py-3 text-center text-sm">
+                          <div className="flex justify-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() =>
+                                abrirDocumento(
+                                  doc
+                                )
+                              }
+                            >
+                              Ver
+                            </Button>
+
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() =>
+                                descargarDocumento(
+                                  doc.RutaArchivo,
+                                  doc.NombreArchivo,
+                                  doc.IdDocumentoProcesoDisciplinario
+                                )
+                              }
+                            >
+                              Descargar
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  )
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 

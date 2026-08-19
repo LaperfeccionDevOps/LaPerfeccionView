@@ -603,7 +603,16 @@ export default function CitacionProcesoDisciplinarioView({
       faltantes.push("hora");
     }
 
-    if (!lugarCitacion.trim()) {
+    const modalidadNormalizada = String(
+      modalidad || ""
+    )
+      .trim()
+      .toUpperCase();
+
+    if (
+      modalidadNormalizada !== "VIRTUAL" &&
+      !lugarCitacion.trim()
+    ) {
       faltantes.push("lugar");
     }
 

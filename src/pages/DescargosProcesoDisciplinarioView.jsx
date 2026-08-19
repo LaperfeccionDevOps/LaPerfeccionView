@@ -675,6 +675,17 @@ const actualizarAsistente = (
     return `${FILE_BASE_URL}/${rutaLimpia}`;
   };
 
+  const obtenerUrlArchivoDocumento = (documento) => {
+    const idDocumento =
+      documento?.IdDocumentoProcesoDisciplinario || null;
+
+    if (idDocumento) {
+      return `${API_URL}/documento-proceso-disciplinario/${idDocumento}/archivo`;
+    }
+
+    return obtenerUrlDocumento(documento?.RutaArchivo);
+  };
+
 
   const esImagenDocumento = (documento) => {
     const nombre = String(documento?.NombreArchivo || "").toLowerCase();
@@ -688,10 +699,21 @@ const actualizarAsistente = (
     );
   };
 
-  const abrirDocumento = (rutaArchivo) => {
-    const url = obtenerUrlDocumento(rutaArchivo);
-    if (!url) return;
-    window.open(url, "_blank");
+  const abrirDocumento = (documento) => {
+    const url = obtenerUrlArchivoDocumento(documento);
+
+    if (!url) {
+      setMensajeCartaDescargos(
+        "No se encontró el archivo del documento para visualizar."
+      );
+      return;
+    }
+
+    window.open(
+      url,
+      "_blank",
+      "noopener,noreferrer"
+    );
   };
 
   const descargarDocumento = async (
@@ -823,7 +845,7 @@ const actualizarAsistente = (
 
     if (!String(descargoTrabajador || "").trim()) {
       setMensajeCartaDescargos(
-        "Debe registrar la manifestación del trabajador antes de generar la carta de descargos."
+        "Debe registrar la manifestación del trabajador antes de generar el acta de descargos."
       );
       return;
     }
@@ -882,24 +904,24 @@ const actualizarAsistente = (
 
         throw new Error(
           detalle ||
-            "No fue posible generar la carta de descargos."
+            "No fue posible generar el acta de descargos."
         );
       }
 
       await cargarDocumentos();
 
       setMensajeCartaDescargos(
-        "Carta de descargos generada correctamente. Ya puede verla o descargarla para firma."
+        "Acta de descargos generada correctamente. Ya puede verla o descargarla para firma."
       );
       descartarBorradorLocal();
     } catch (error) {
       console.error(
-        "Error generando carta de descargos:",
+        "Error generando acta de descargos:",
         error
       );
       setMensajeCartaDescargos(
         error?.message ||
-          "No fue posible generar la carta de descargos."
+          "No fue posible generar el acta de descargos."
       );
     } finally {
       setLoadingGenerarCartaDescargos(false);
@@ -922,22 +944,22 @@ const actualizarAsistente = (
         archivo,
         tipoDocumentoEspecial: "CARTA_DESCARGOS_FIRMADA",
         observacion:
-          "Carta de descargos firmada por el trabajador y Relaciones Laborales.",
+          "Acta de descargos firmada por el trabajador y Relaciones Laborales.",
       });
 
       await cargarDocumentos();
 
       setMensajeCartaDescargos(
-        "Carta de descargos firmada adjuntada correctamente. El documento quedó asociado al proceso disciplinario."
+        "Acta de descargos firmada adjuntada correctamente. El documento quedó asociado al proceso disciplinario."
       );
     } catch (error) {
       console.error(
-        "Error adjuntando carta de descargos firmada:",
+        "Error adjuntando acta de descargos firmada:",
         error
       );
       setMensajeCartaDescargos(
         error?.message ||
-          "No fue posible adjuntar la carta de descargos firmada."
+          "No fue posible adjuntar el acta de descargos firmada."
       );
     } finally {
       setLoadingCartaFirmada(false);
@@ -1001,7 +1023,7 @@ const actualizarAsistente = (
       await cargarDocumentos();
 
       setMensajeCartaDescargos(
-        "Evidencia del trabajador eliminada correctamente. Si la Carta de Descargos ya había sido generada, debe generarla nuevamente para actualizar sus anexos."
+        "Evidencia del trabajador eliminada correctamente. Si el Acta de Descargos ya había sido generada, debe generarla nuevamente para actualizar sus anexos."
       );
     } catch (error) {
       console.error(
@@ -1421,8 +1443,8 @@ function formatearTipoDocumento(valor) {
     descargos: "Descargos",
     suspension: "Suspensión",
     evidencia_operaciones: "Evidencia de Operaciones",
-    carta_descargos_generada: "Carta de descargos generada",
-    carta_descargos_firmada: "Carta de descargos firmada",
+    carta_descargos_generada: "Acta de descargos generada",
+    carta_descargos_firmada: "Acta de descargos firmada",
     evidencia_trabajador: "Evidencia del trabajador",
   };
 
@@ -1869,7 +1891,7 @@ function formatearTipoDocumento(valor) {
                           <Button
                             type="button"
                             variant="outline"
-                            onClick={() => abrirDocumento(doc.RutaArchivo)}
+                            onClick={() => abrirDocumento(doc)}
                           >
                             Ver
                           </Button>
@@ -2073,7 +2095,7 @@ function formatearTipoDocumento(valor) {
 
                 <p className="mt-1 text-sm text-gray-500">
                   Registre aquí la manifestación del trabajador durante la diligencia.
-                  Esta información será utilizada para generar la Carta de Descargos.
+                  Esta información será utilizada para generar el Acta de Descargos.
                 </p>
               </div>
 
@@ -2097,7 +2119,7 @@ function formatearTipoDocumento(valor) {
                     <p className="mt-1 text-sm text-blue-700">
                       Adjunte aquí las imágenes o documentos que entregue el trabajador
                       durante la diligencia. Estas evidencias se incluirán como anexos
-                      cuando se genere la Carta de Descargos.
+                      cuando se genere el Acta de Descargos.
                     </p>
                   </div>
 
@@ -2136,7 +2158,7 @@ function formatearTipoDocumento(valor) {
                   ) : (
                     evidenciasTrabajador.map((doc) => {
                       const esImagen = esImagenDocumento(doc);
-                      const urlDocumento = obtenerUrlDocumento(doc.RutaArchivo);
+                      const urlDocumento = obtenerUrlArchivoDocumento(doc);
 
                       return (
                         <div
@@ -2148,7 +2170,7 @@ function formatearTipoDocumento(valor) {
                               type="button"
                               className="mb-3 block w-full overflow-hidden rounded-lg border border-blue-100 bg-gray-50"
                               onClick={() =>
-                                abrirDocumento(doc.RutaArchivo)
+                                abrirDocumento(doc)
                               }
                               title="Abrir imagen"
                             >
@@ -2187,7 +2209,7 @@ function formatearTipoDocumento(valor) {
                                 size="sm"
                                 variant="outline"
                                 onClick={() =>
-                                  abrirDocumento(doc.RutaArchivo)
+                                  abrirDocumento(doc)
                                 }
                               >
                                 Ver
@@ -2239,7 +2261,7 @@ function formatearTipoDocumento(valor) {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <h4 className="font-bold text-gray-800">
-                      Carta de Descargos
+                      Acta de Descargos
                     </h4>
 
                     <p className="mt-1 text-sm text-gray-500">
@@ -2283,7 +2305,7 @@ function formatearTipoDocumento(valor) {
                       variant="outline"
                       onClick={() =>
                         abrirDocumento(
-                          cartaDescargosGenerada?.RutaArchivo
+                          cartaDescargosGenerada
                         )
                       }
                       disabled={!cartaDescargosGenerada?.RutaArchivo}
@@ -2381,194 +2403,13 @@ function formatearTipoDocumento(valor) {
           </div>
         </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
-            <div>
-              <h3 className="text-lg font-bold text-gray-800">
-                Documentos aportados en descargos
-              </h3>
-
-              <p className="mt-1 text-sm text-gray-500">
-                Documentos adjuntados manualmente por Relaciones Laborales durante la diligencia.
-              </p>
-            </div>
-
-            <Button
-              className="bg-emerald-700 hover:bg-emerald-800"
-              type="button"
-              onClick={() => {
-                setMostrarFormularioDocumento(
-                  !mostrarFormularioDocumento
-                );
-                marcarCambioLocal();
-              }}
-            >
-              {mostrarFormularioDocumento
-                ? "Cancelar carga"
-                : "Adjuntar documento"}
-            </Button>
-          </div>
-
-          {mostrarFormularioDocumento && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 mb-5">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-sm font-semibold">
-                    Tipo de documento
-                  </label>
-                  <select
-                    className="w-full mt-1 border rounded-lg p-3 bg-white"
-                    value={tipoDocumento}
-                    onChange={(e) => {
-                      setTipoDocumento(e.target.value);
-                      marcarCambioLocal();
-                    }}
-                  >
-                    <option value="PROCESO_DISCIPLINARIO">
-                      Procesos disciplinarios
-                    </option>
-                    <option value="AUSENTISMO">
-                      Ausentismo
-                    </option>
-                    <option value="LLAMADO_ATENCION">
-                      Llamados de atención
-                    </option>
-                    <option value="DESCARGOS">
-                      Descargos
-                    </option>
-                    <option value="SUSPENSION">
-                      Suspensión
-                    </option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-sm font-semibold">Observación</label>
-                  <Input
-                    value={observacionDocumento}
-                    onChange={(e) => {
-                      setObservacionDocumento(e.target.value);
-                      marcarCambioLocal();
-                    }}
-                    placeholder="Observación del documento"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-semibold">Archivo</label>
-                  <Input
-                    type="file"
-                    onChange={(e) =>
-                      setArchivoDocumento(e.target.files?.[0] || null)
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end mt-4">
-                <Button
-                  type="button"
-                  className="bg-emerald-700 hover:bg-emerald-800"
-                  onClick={handleSubirDocumento}
-                  disabled={loadingDocumento}
-                >
-                  {loadingDocumento ? "Cargando..." : "Guardar documento"}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {mensajeDocumento && (
-            <p className="text-sm font-semibold text-emerald-700 mb-4">
-              {mensajeDocumento}
-            </p>
-          )}
-
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
-            <table className="min-w-full">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">
-                    Documento
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">
-                    Tipo
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">
-                    Fecha
-                  </th>
-                  <th className="px-4 py-3 text-center text-sm font-semibold">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {documentos.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="text-center text-gray-500 py-12">
-                      No existen documentos aportados por Relaciones Laborales durante la diligencia.
-                    </td>
-                  </tr>
-                ) : (
-                  documentos.map((doc) => (
-                    <tr key={doc.IdDocumentoProcesoDisciplinario} className="border-t">
-                      <td className="px-4 py-3 text-sm font-semibold">
-                        {doc.NombreArchivo || "Documento"}
-                      </td>
-
-                      <td className="px-4 py-3 text-sm">
-                        {formatearTipoDocumento(
-                          doc.TipoDocumento
-                        )}
-                      </td>
-
-                      <td className="px-4 py-3 text-sm">
-                        {formatearFechaColombiana(
-                          doc.FechaCreacion
-                        )}
-                      </td>
-
-                      <td className="px-4 py-3 text-center text-sm">
-                        <div className="flex justify-center gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => abrirDocumento(doc.RutaArchivo)}
-                          >
-                            Ver
-                          </Button>
-
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() =>
-                              descargarDocumento(
-                            doc.RutaArchivo,
-                            doc.NombreArchivo,
-                            doc.IdDocumentoProcesoDisciplinario
-                          )
-                            }
-                          >
-                            Descargar
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
         <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-5 mb-6">
           <h3 className="font-bold text-yellow-800">
             Estado del acta de descargos
           </h3>
 
           <p className="text-sm text-gray-600 mt-2">
-            La Carta de Descargos se genera desde el bloque de Manifestación del
+            El Acta de Descargos se genera desde el bloque de Manifestación del
             trabajador. Después de la firma, Relaciones Laborales debe adjuntar
             la versión firmada para conservarla dentro del expediente.
           </p>
