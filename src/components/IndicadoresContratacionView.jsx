@@ -286,8 +286,11 @@ const IndicadoresContratacionView = () => {
     const avanzan = Number(
       data?.comparativo_avanzan_contratados?.avanzan_contratacion || 0,
     );
-    const contratados = Number(
+    const contratadosCohorte = Number(
       data?.comparativo_avanzan_contratados?.contratados || 0,
+    );
+    const contratados = Number(
+      data?.contrataciones_finalizadas_periodo?.total ?? contratadosCohorte,
     );
     const pendientes = Number(data?.pendientes_contratacion?.total || 0);
     const rechazados = Number(data?.rechazados?.total || 0);
@@ -298,6 +301,7 @@ const IndicadoresContratacionView = () => {
       registrados,
       avanzan,
       contratados,
+      contratadosCohorte,
       pendientes,
       rechazados,
       porcentajeContratacion,
@@ -309,23 +313,23 @@ const IndicadoresContratacionView = () => {
       { nombre: 'Registrados', cantidad: indicadores.registrados, color: '#2563eb' },
       { nombre: 'Avanzan', cantidad: indicadores.avanzan, color: '#f59e0b' },
       { nombre: 'Pendientes', cantidad: indicadores.pendientes, color: '#0ea5e9' },
-      { nombre: 'Contratados', cantidad: indicadores.contratados, color: '#059669' },
+      { nombre: 'Contratados', cantidad: indicadores.contratadosCohorte, color: '#059669' },
     ],
     [indicadores],
   );
 
   const resultadoContratacion = useMemo(() => {
     const total =
-      indicadores.contratados +
+      indicadores.contratadosCohorte +
       indicadores.pendientes +
       indicadores.rechazados;
 
     return [
       {
         estado: 'Contratados',
-        cantidad: indicadores.contratados,
+        cantidad: indicadores.contratadosCohorte,
         porcentaje: total
-          ? Number(((indicadores.contratados / total) * 100).toFixed(2))
+          ? Number(((indicadores.contratadosCohorte / total) * 100).toFixed(2))
           : 0,
         color: '#059669',
       },
@@ -582,7 +586,7 @@ const IndicadoresContratacionView = () => {
             <KpiCard title="Registrados por Selección" value={indicadores.registrados} icon={Users} accentClass="text-blue-600" backgroundClass="bg-blue-50" />
             <KpiCard title="Avanzan a Contratación" value={indicadores.avanzan} icon={ArrowRight} accentClass="text-amber-600" backgroundClass="bg-amber-50" />
             <KpiCard title="Pendientes de Contratación" subtitle="Avanzaron y aún no tienen decisión final C o NC" value={indicadores.pendientes} icon={Hourglass} accentClass="text-sky-600" backgroundClass="bg-sky-50" />
-            <KpiCard title="Contratados" value={indicadores.contratados} icon={UserCheck} accentClass="text-emerald-600" backgroundClass="bg-emerald-50" />
+            <KpiCard title="Contratados" subtitle="Contrataciones finalizadas en el periodo, aunque posteriormente pasen a Retiros" value={indicadores.contratados} icon={UserCheck} accentClass="text-emerald-600" backgroundClass="bg-emerald-50" />
             <KpiCard title="Rechazados" value={indicadores.rechazados} icon={UserX} accentClass="text-red-600" backgroundClass="bg-red-50" />
             <KpiCard title="Porcentaje de contratación" subtitle="Contratados respecto a quienes avanzaron" value={`${indicadores.porcentajeContratacion}%`} icon={TrendingUp} accentClass="text-violet-600" backgroundClass="bg-violet-50" />
           </div>
