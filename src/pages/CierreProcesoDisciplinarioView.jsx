@@ -370,8 +370,14 @@ useEffect(() => {
           );
 
           setFechaCierre(
-            dataCierre.FechaCierre ||
-            fechaActualColombia()
+            String(
+              proceso?.EstadoProceso || ""
+            ).toUpperCase() === "CERRADO"
+              ? (
+                  dataCierre.FechaCierre ||
+                  fechaActualColombia()
+                )
+              : fechaActualColombia()
           );
 setConclusionRRLL(
             dataCierre.ConclusionRRLL ||
@@ -399,8 +405,7 @@ setConclusionRRLL(
           ).toUpperCase() !== "CERRADO"
         ) {
           setFechaCierre(
-            borradorLocal.fechaCierre ||
-              fechaActualColombia()
+            fechaActualColombia()
           );
 setConclusionRRLL(
             borradorLocal.conclusionRRLL || ""
@@ -1035,6 +1040,14 @@ ConclusionRRLL:
         return;
       }
 
+      if (documentos.length === 0) {
+        setTipoMensaje("error");
+        setMensaje(
+          "Debe adjuntar al menos un Documento de cierre disciplinario antes de finalizar el proceso."
+        );
+        return;
+      }
+
       try {
         setGuardando(true);
         setMensaje("");
@@ -1290,12 +1303,9 @@ ConclusionRRLL:
               <Input
                 type="date"
                 value={fechaCierre}
-                onChange={(event) =>
-                  setFechaCierre(
-                    event.target.value
-                  )
-                }
-                disabled={finalizado}
+                readOnly
+                disabled
+                className="bg-gray-50"
               />
 
               {!finalizado &&
@@ -1567,7 +1577,9 @@ ConclusionRRLL:
           <p className="mt-2 text-sm text-gray-600">
             {finalizado
               ? "El proceso se encuentra cerrado y disponible únicamente para consulta."
-              : "Puede guardar un borrador o finalizar el proceso cuando la información esté completa."}
+              : documentos.length === 0
+                ? "Debe adjuntar al menos un Documento de cierre disciplinario antes de finalizar el proceso."
+                : "Puede guardar un borrador o finalizar el proceso cuando la información esté completa."}
           </p>
 
           {!finalizado &&
@@ -1624,6 +1636,7 @@ ConclusionRRLL:
               disabled={
                 guardando ||
                 finalizado ||
+                documentos.length === 0 ||
                 Object.keys(
                   errores
                 ).length > 0
