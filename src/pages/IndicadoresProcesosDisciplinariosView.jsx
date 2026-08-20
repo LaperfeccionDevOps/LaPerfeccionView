@@ -2,27 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 
-function obtenerFechaPrimerDiaMes() {
-  const hoy = new Date();
-
-  const anio = hoy.getFullYear();
-  const mes = String(hoy.getMonth() + 1).padStart(2, "0");
-
-  return `${anio}-${mes}-01`;
-}
-
-
-function obtenerFechaHoy() {
-  const hoy = new Date();
-
-  const anio = hoy.getFullYear();
-  const mes = String(hoy.getMonth() + 1).padStart(2, "0");
-  const dia = String(hoy.getDate()).padStart(2, "0");
-
-  return `${anio}-${mes}-${dia}`;
-}
-
-
 function formatearFecha(fecha) {
   if (!fecha) {
     return "-";
@@ -71,13 +50,8 @@ function formatearFechaHora(fecha) {
 export default function IndicadoresProcesosDisciplinariosView({
   onBack,
 }) {
-  const [fechaInicio, setFechaInicio] = useState(
-    obtenerFechaPrimerDiaMes()
-  );
-
-  const [fechaFin, setFechaFin] = useState(
-    obtenerFechaHoy()
-  );
+  const [fechaInicio, setFechaInicio] = useState("");
+  const [fechaFin, setFechaFin] = useState("");
 
   const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(false);
@@ -95,6 +69,9 @@ export default function IndicadoresProcesosDisciplinariosView({
   const [guardandoCalificacion, setGuardandoCalificacion] = useState(false);
   const [errorGestion, setErrorGestion] = useState("");
   const [mensajeGestion, setMensajeGestion] = useState("");
+
+  const [paginaDetalle, setPaginaDetalle] = useState(1);
+  const registrosPorPagina = 10;
 
 
   const apiBaseUrl = useMemo(() => {
@@ -587,39 +564,48 @@ export default function IndicadoresProcesosDisciplinariosView({
   };
 
 
-  const consultarIndicadores = async () => {
-    if (!fechaInicio || !fechaFin) {
+  const consultarIndicadores = async (forzarGlobal = false) => {
+    const inicioConsulta = forzarGlobal ? "" : fechaInicio;
+    const finConsulta = forzarGlobal ? "" : fechaFin;
+
+    const tieneFechaInicio = Boolean(inicioConsulta);
+    const tieneFechaFin = Boolean(finConsulta);
+
+    if (tieneFechaInicio !== tieneFechaFin) {
       setError(
-        "Debe seleccionar la fecha inicial y la fecha final."
+        "Para filtrar por periodo debe seleccionar la fecha inicial y la fecha final."
       );
       return;
     }
 
-
-    if (fechaFin < fechaInicio) {
+    if (
+      tieneFechaInicio &&
+      tieneFechaFin &&
+      finConsulta < inicioConsulta
+    ) {
       setError(
         "La fecha final no puede ser menor que la fecha inicial."
       );
       return;
     }
 
-
     setCargando(true);
     setError("");
 
-
     try {
-      const parametros = new URLSearchParams({
-        fecha_inicio: fechaInicio,
-        fecha_fin: fechaFin,
-      });
+      const parametros = new URLSearchParams();
 
+      if (tieneFechaInicio && tieneFechaFin) {
+        parametros.set("fecha_inicio", inicioConsulta);
+        parametros.set("fecha_fin", finConsulta);
+      }
+
+      const query = parametros.toString();
 
       const url =
         `${obtenerBaseApi()}` +
         `/indicadores-procesos-disciplinarios/kpi3` +
-        `?${parametros.toString()}`;
-
+        (query ? `?${query}` : "");
 
       const respuesta = await fetch(url, {
         method: "GET",
@@ -627,7 +613,6 @@ export default function IndicadoresProcesosDisciplinariosView({
           Accept: "application/json",
         },
       });
-
 
       if (!respuesta.ok) {
         let mensaje =
@@ -647,19 +632,18 @@ export default function IndicadoresProcesosDisciplinariosView({
         throw new Error(mensaje);
       }
 
-
       const resultado = await respuesta.json();
 
       setDatos(resultado);
+      setPaginaDetalle(1);
 
-      if (periodoMensualSeleccionado) {
+      if (!forzarGlobal && periodoMensualSeleccionado) {
         await consultarGestionMensual(
           periodoMensualSeleccionado
         );
       } else {
         limpiarGestionMensual();
       }
-
     } catch (err) {
       console.error(
         "Error consultando indicadores disciplinarios:",
@@ -672,15 +656,13 @@ export default function IndicadoresProcesosDisciplinariosView({
         err?.message ||
           "Ocurrió un error consultando los indicadores."
       );
-
     } finally {
       setCargando(false);
     }
   };
 
-
   useEffect(() => {
-    consultarIndicadores();
+    consultarIndicadores(true);
   }, []);
 
 
@@ -698,6 +680,63 @@ export default function IndicadoresProcesosDisciplinariosView({
   const detalle = Array.isArray(datos?.detalle)
     ? datos.detalle
     : [];
+
+  const totalPaginasDetalle = Math.max(
+    1,
+    Math.ceil(detalle.length / registrosPorPagina)
+  );
+
+  const paginaDetalleSegura = Math.min(
+    paginaDetalle,
+    totalPaginasDetalle
+  );
+
+  const indiceInicioDetalle =
+    (paginaDetalleSegura - 1) * registrosPorPagina;
+
+  const indiceFinDetalle = Math.min(
+    indiceInicioDetalle + registrosPorPagina,
+    detalle.length
+  );
+
+  const detallePaginado = detalle.slice(
+    indiceInicioDetalle,
+    indiceFinDetalle
+  );
+
+  const paginasVisiblesDetalle = useMemo(() => {
+    if (totalPaginasDetalle <= 5) {
+      return Array.from(
+        { length: totalPaginasDetalle },
+        (_, index) => index + 1
+      );
+    }
+
+    let inicio = Math.max(
+      1,
+      paginaDetalleSegura - 2
+    );
+
+    let fin = Math.min(
+      totalPaginasDetalle,
+      inicio + 4
+    );
+
+    if (fin - inicio < 4) {
+      inicio = Math.max(
+        1,
+        fin - 4
+      );
+    }
+
+    return Array.from(
+      { length: fin - inicio + 1 },
+      (_, index) => inicio + index
+    );
+  }, [
+    paginaDetalleSegura,
+    totalPaginasDetalle,
+  ]);
 
 
   return (
@@ -723,7 +762,18 @@ export default function IndicadoresProcesosDisciplinariosView({
         <div className="p-8">
 
           <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div className="mb-4">
+              <p className="text-sm font-semibold text-gray-700">
+                Consulta de indicadores
+              </p>
+
+              <p className="mt-1 text-xs text-gray-500">
+                Sin fechas seleccionadas se muestra la información global del módulo.
+                Para consultar un periodo específico, seleccione fecha inicial y fecha final.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
 
               <div>
                 <label
@@ -769,7 +819,7 @@ export default function IndicadoresProcesosDisciplinariosView({
                 <Button
                   type="button"
                   className="w-full bg-blue-700 hover:bg-blue-800 text-white"
-                  onClick={consultarIndicadores}
+                  onClick={() => consultarIndicadores(false)}
                   disabled={cargando}
                 >
                   {cargando
@@ -778,9 +828,29 @@ export default function IndicadoresProcesosDisciplinariosView({
                 </Button>
               </div>
 
+
+              <div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={async () => {
+                    setFechaInicio("");
+                    setFechaFin("");
+                    limpiarGestionMensual();
+                    await consultarIndicadores(true);
+                  }}
+                  disabled={
+                    cargando ||
+                    (!fechaInicio && !fechaFin)
+                  }
+                >
+                  Ver información global
+                </Button>
+              </div>
+
             </div>
           </div>
-
 
           {error && (
             <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -882,7 +952,7 @@ export default function IndicadoresProcesosDisciplinariosView({
                   </p>
 
                   <p className="text-xs text-gray-500 mt-1">
-                    Procesos atendidos frente a los procesos agendados.
+                    Trabajadores atendidos frente a los trabajadores agendados.
                   </p>
                 </div>
 
@@ -945,8 +1015,215 @@ export default function IndicadoresProcesosDisciplinariosView({
           </div>
 
 
+          <div className="rounded-2xl border border-gray-200 overflow-hidden">
+
+            <div className="px-5 py-4 bg-gray-50 border-b border-gray-200">
+              <h3 className="font-bold text-gray-800">
+                Detalle de procesos
+              </h3>
+
+              <p className="text-xs text-gray-500 mt-1">
+                {fechaInicio && fechaFin
+                  ? "Procesos que componen los indicadores del periodo seleccionado."
+                  : "Todos los procesos que componen la información global del módulo."}
+              </p>
+            </div>
+
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
+                      Proceso
+                    </th>
+
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
+                      Identificación
+                    </th>
+
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
+                      Trabajador
+                    </th>
+
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
+                      Entrada RRLL
+                    </th>
+
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
+                      Fecha cita
+                    </th>
+
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">
+                      Atendido
+                    </th>
+
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">
+                      Cerrado
+                    </th>
+
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
+                      Fecha cierre
+                    </th>
+                  </tr>
+                </thead>
+
+
+                <tbody className="divide-y divide-gray-100 bg-white">
+
+                  {!cargando && detalle.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={8}
+                        className="px-4 py-10 text-center text-sm text-gray-500"
+                      >
+                        {fechaInicio && fechaFin
+                          ? "No existen procesos disciplinarios para el periodo seleccionado."
+                          : "No existen procesos disciplinarios registrados en el módulo."}
+                      </td>
+                    </tr>
+                  )}
+
+
+                  {detallePaginado.map((registro) => (
+                    <tr
+                      key={registro.IdProcesoDisciplinario}
+                      className="hover:bg-gray-50"
+                    >
+                      <td className="px-4 py-3 text-sm font-semibold text-gray-700 whitespace-nowrap">
+                        #{registro.IdProcesoDisciplinario}
+                      </td>
+
+                      <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                        {registro.NumeroIdentificacion || "-"}
+                      </td>
+
+                      <td className="px-4 py-3 text-sm text-gray-700 min-w-[240px]">
+                        {registro.Trabajador || "-"}
+                      </td>
+
+                      <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                        {formatearFecha(
+                          registro.FechaEntradaRRLL
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                        {formatearFecha(
+                          registro.FechaCita
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3 text-center">
+                        <span
+                          className={
+                            registro.FueAtendido
+                              ? "inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700"
+                              : "inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700"
+                          }
+                        >
+                          {registro.FueAtendido
+                            ? "Sí"
+                            : "Pendiente"}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3 text-center">
+                        <span
+                          className={
+                            registro.FueCerrado
+                              ? "inline-flex rounded-full bg-gray-200 px-3 py-1 text-xs font-semibold text-gray-700"
+                              : "inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-500"
+                          }
+                        >
+                          {registro.FueCerrado
+                            ? "Sí"
+                            : "No"}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                        {formatearFecha(
+                          registro.FechaCierre
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+
+                </tbody>
+              </table>
+            </div>
+
+            {detalle.length > 0 && (
+              <div className="flex flex-col gap-4 border-t border-gray-200 bg-gray-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm font-medium text-gray-600">
+                  {indiceInicioDetalle + 1}-{indiceFinDetalle} de {detalle.length}
+                </p>
+
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPaginaDetalle((paginaActual) =>
+                        Math.max(1, paginaActual - 1)
+                      )
+                    }
+                    disabled={paginaDetalleSegura === 1}
+                    className="flex h-9 min-w-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-bold text-gray-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Página anterior"
+                  >
+                    ‹
+                  </button>
+
+                  {paginasVisiblesDetalle.map((numeroPagina) => (
+                    <button
+                      key={numeroPagina}
+                      type="button"
+                      onClick={() =>
+                        setPaginaDetalle(numeroPagina)
+                      }
+                      className={
+                        numeroPagina === paginaDetalleSegura
+                          ? "flex h-9 min-w-9 items-center justify-center rounded-lg border border-blue-700 bg-blue-700 px-3 text-sm font-bold text-white shadow-sm"
+                          : "flex h-9 min-w-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-bold text-gray-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                      }
+                      aria-current={
+                        numeroPagina === paginaDetalleSegura
+                          ? "page"
+                          : undefined
+                      }
+                    >
+                      {numeroPagina}
+                    </button>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPaginaDetalle((paginaActual) =>
+                        Math.min(
+                          totalPaginasDetalle,
+                          paginaActual + 1
+                        )
+                      )
+                    }
+                    disabled={
+                      paginaDetalleSegura === totalPaginasDetalle
+                    }
+                    className="flex h-9 min-w-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-bold text-gray-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Página siguiente"
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+
           {periodoMensualSeleccionado && (
-            <div className="mb-8 rounded-2xl border border-blue-200 bg-blue-50/40 overflow-hidden">
+            <div className="mt-8 rounded-2xl border border-blue-200 bg-blue-50/40 overflow-hidden">
               <div className="border-b border-blue-100 bg-white px-6 py-5">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
@@ -1274,143 +1551,6 @@ export default function IndicadoresProcesosDisciplinariosView({
             </div>
           )}
 
-
-          <div className="rounded-2xl border border-gray-200 overflow-hidden">
-
-            <div className="px-5 py-4 bg-gray-50 border-b border-gray-200">
-              <h3 className="font-bold text-gray-800">
-                Detalle de procesos
-              </h3>
-
-              <p className="text-xs text-gray-500 mt-1">
-                Procesos que componen los indicadores del periodo seleccionado.
-              </p>
-            </div>
-
-
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
-                      Proceso
-                    </th>
-
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
-                      Identificación
-                    </th>
-
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
-                      Trabajador
-                    </th>
-
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
-                      Entrada RRLL
-                    </th>
-
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
-                      Fecha cita
-                    </th>
-
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">
-                      Atendido
-                    </th>
-
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">
-                      Cerrado
-                    </th>
-
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
-                      Fecha cierre
-                    </th>
-                  </tr>
-                </thead>
-
-
-                <tbody className="divide-y divide-gray-100 bg-white">
-
-                  {!cargando && detalle.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={8}
-                        className="px-4 py-10 text-center text-sm text-gray-500"
-                      >
-                        No existen procesos disciplinarios para el periodo seleccionado.
-                      </td>
-                    </tr>
-                  )}
-
-
-                  {detalle.map((registro) => (
-                    <tr
-                      key={registro.IdProcesoDisciplinario}
-                      className="hover:bg-gray-50"
-                    >
-                      <td className="px-4 py-3 text-sm font-semibold text-gray-700 whitespace-nowrap">
-                        #{registro.IdProcesoDisciplinario}
-                      </td>
-
-                      <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
-                        {registro.NumeroIdentificacion || "-"}
-                      </td>
-
-                      <td className="px-4 py-3 text-sm text-gray-700 min-w-[240px]">
-                        {registro.Trabajador || "-"}
-                      </td>
-
-                      <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                        {formatearFecha(
-                          registro.FechaEntradaRRLL
-                        )}
-                      </td>
-
-                      <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                        {formatearFecha(
-                          registro.FechaCita
-                        )}
-                      </td>
-
-                      <td className="px-4 py-3 text-center">
-                        <span
-                          className={
-                            registro.FueAtendido
-                              ? "inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700"
-                              : "inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700"
-                          }
-                        >
-                          {registro.FueAtendido
-                            ? "Sí"
-                            : "Pendiente"}
-                        </span>
-                      </td>
-
-                      <td className="px-4 py-3 text-center">
-                        <span
-                          className={
-                            registro.FueCerrado
-                              ? "inline-flex rounded-full bg-gray-200 px-3 py-1 text-xs font-semibold text-gray-700"
-                              : "inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-500"
-                          }
-                        >
-                          {registro.FueCerrado
-                            ? "Sí"
-                            : "No"}
-                        </span>
-                      </td>
-
-                      <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                        {formatearFecha(
-                          registro.FechaCierre
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-
-                </tbody>
-              </table>
-            </div>
-          </div>
 
 
           <div className="mt-6 flex flex-col sm:flex-row gap-3">
