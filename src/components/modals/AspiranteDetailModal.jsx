@@ -282,6 +282,7 @@ const clientesALP = [
    { id: 169, name: "Fund Univ Compensar S Campus Ak 68 No. 68 B - 45 Aseo" },
    { id: 170, name: "Fund Univ Compensar S Campus Ak 68 No. 68 B - 45 Obra Civil Menor" },
    { id: 171, name: "Fund Univ Compensar S Campus Ak 68 No. 68 B - 45 Recreacion" },
+   { id: 211, name: "Edif Proyecto Neo S Av Cr 15 145a-31 Aseo" },
    { id: 210, name: "FUNDACIÓN UNIVERSITARIA KONRAD LORENZ CRA 9 BIS 62-43 Aseo" },
    { id: 172, name: "Guala S Cl 17 42-75 Aseo" },
    { id: 216, name: "Hacienda Los Lagos P. H. S Cr 54 d 200 54 Aseo" },
