@@ -28,6 +28,28 @@ const mapApiAspiranteToFront = (item) => {
       ? Number(idRegistroPersonalRaw)
       : null;
 
+  const vinculacionActual =
+    item?.vinculacionActual ??
+    item?.VinculacionActual ??
+    null;
+
+  const idVinculacionLaboralRaw =
+    item?.IdVinculacionLaboral ??
+    item?.idVinculacionLaboral ??
+    item?.id_vinculacion_laboral ??
+    vinculacionActual?.IdVinculacionLaboral ??
+    vinculacionActual?.idVinculacionLaboral ??
+    null;
+
+  const idVinculacionLaboral =
+    typeof idVinculacionLaboralRaw === 'number'
+      ? idVinculacionLaboralRaw
+      : (idVinculacionLaboralRaw != null &&
+          String(idVinculacionLaboralRaw).trim() !== '' &&
+          !isNaN(Number(idVinculacionLaboralRaw)))
+      ? Number(idVinculacionLaboralRaw)
+      : null;
+
       const tuvoContratacionRaw =
       item?.TuvoContratacion ??
       item?.tuvoContratacion ??
@@ -43,6 +65,10 @@ const mapApiAspiranteToFront = (item) => {
  return {
   id: idRegistroPersonal,
   idRegistroPersonal: idRegistroPersonal,
+   IdRegistroPersonal: idRegistroPersonal,
+   IdVinculacionLaboral: idVinculacionLaboral,
+   idVinculacionLaboral: idVinculacionLaboral,
+   vinculacionActual,
   tuvoContratacion,
   nombres: item.Nombres ?? item.nombres ?? '',
   apellidos: item.Apellidos ?? item.apellidos ?? '',

@@ -13,6 +13,8 @@ import {
 import {
   RegistrarDocumentosContratacion,
   obtenerDocumentosContratacion,
+  obtenerDocumentosContratacionPorVinculacion,
+  obtenerDocumentosContratacionPorCiclos,
   eliminarDocumentoContratacion,
 } from '@/services/contratacionService';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -63,12 +65,6 @@ const DocumentUploadModal = ({
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState('ingreso');
 
-  useEffect(() => {
-    if (esHistorico && tab === 'contratacion') {
-      setTab('ingreso');
-    }
-  }, [esHistorico, tab]);
-
   const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
   const esCarpetaIngreso = tipoCarpeta === 'ingreso';
@@ -101,37 +97,72 @@ const DocumentUploadModal = ({
     return obtenerDocumentoSeguridadBase64(id);
   };
 
-  const filtrarContratacionPorCicloSiDisponible = (respuesta) => {
-    if (!idVinculacionLaboral) return respuesta;
+  const obtenerContratacionParaCarpeta = async (id) => {
+    if (!esCarpetaIngreso) {
+      return obtenerDocumentosContratacion(id);
+    }
 
-    const data = Array.isArray(respuesta?.data)
-      ? respuesta.data
-      : Array.isArray(respuesta)
-        ? respuesta
-        : respuesta?.data
-          ? [respuesta.data]
-          : [];
+    if (esHistorico) {
+      const respuestaCiclos =
+        await obtenerDocumentosContratacionPorCiclos(id);
 
-    const soportaCiclo = data.some(
-      (doc) =>
-        doc?.IdVinculacionLaboral !== undefined &&
-        doc?.IdVinculacionLaboral !== null
-    );
+      const dataCiclos =
+        respuestaCiclos?.data || respuestaCiclos || {};
 
-    if (!soportaCiclo) return respuesta;
+      const historico = Array.isArray(dataCiclos?.historico)
+        ? dataCiclos.historico
+        : [];
 
-    const filtrados = data.filter(
-      (doc) =>
-        String(doc?.IdVinculacionLaboral) ===
-        String(idVinculacionLaboral)
-    );
+      const bloqueVinculacion = historico.find(
+        (bloque) =>
+          bloque?.IdVinculacionLaboral !== null &&
+          bloque?.IdVinculacionLaboral !== undefined &&
+          String(bloque.IdVinculacionLaboral) ===
+            String(idVinculacionLaboral)
+      );
 
-    return {
-      ...(respuesta && typeof respuesta === 'object' && !Array.isArray(respuesta)
-        ? respuesta
-        : {}),
-      data: filtrados,
-    };
+      if (
+        bloqueVinculacion &&
+        Array.isArray(bloqueVinculacion.documentos) &&
+        bloqueVinculacion.documentos.length > 0
+      ) {
+        return {
+          data: bloqueVinculacion.documentos,
+        };
+      }
+
+      const bloqueLegacy = historico.find(
+        (bloque) => bloque?.EsHistoricoLegacy === true
+      );
+
+      const esPrimerCiclo =
+        String(numeroCiclo ?? '') === '1';
+
+      if (
+        esPrimerCiclo &&
+        bloqueLegacy &&
+        Array.isArray(bloqueLegacy.documentos)
+      ) {
+        return {
+          data: bloqueLegacy.documentos,
+        };
+      }
+
+      return {
+        data: Array.isArray(bloqueVinculacion?.documentos)
+          ? bloqueVinculacion.documentos
+          : [],
+      };
+    }
+
+    if (idVinculacionLaboral) {
+      return obtenerDocumentosContratacionPorVinculacion(
+        id,
+        idVinculacionLaboral
+      );
+    }
+
+    return obtenerDocumentosContratacion(id);
   };
 
 const tituloModal = esCarpetaActivos
@@ -266,8 +297,7 @@ const tituloModal = esCarpetaActivos
     Promise.all([
       obtenerIngresoParaCarpeta(id).catch(() => null),
       obtenerSeguridadParaCarpeta(id).catch(() => null),
-      obtenerDocumentosContratacion(id)
-        .then(filtrarContratacionPorCicloSiDisponible)
+      obtenerContratacionParaCarpeta(id)
         .catch(() => null),
     ])
       .then(([ingreso, seguridad, contratacion]) => {
@@ -349,6 +379,8 @@ const tituloModal = esCarpetaActivos
   esCarpetaSaludOcupacional,
   API_BASE,
   idVinculacionLaboral,
+  esHistorico,
+  numeroCiclo,
 ]);
 
   if (!aspirante) return null;
@@ -828,8 +860,11 @@ const descargarDocumentoRetiro = async (doc) => {
       throw new Error('No se encontró el IdRegistroPersonal del trabajador.');
     }
 
-    const respuesta = await obtenerDocumentosContratacion(idRegistroPersonal);
-    const documentosContratacion = normalizarRespuestaDocumentos(respuesta);
+    const respuesta = await obtenerContratacionParaCarpeta(
+      idRegistroPersonal
+    );
+    const documentosContratacion =
+      normalizarRespuestaDocumentos(respuesta);
     const idsContratacion = listaDocumentosContratacion.map((item) => String(item.id));
 
     setDocumentos((prev) => {
@@ -891,6 +926,12 @@ const descargarDocumentoRetiro = async (doc) => {
 
       const payload = {
         idRegistroPersonal,
+        ...(idVinculacionLaboral
+          ? {
+              idVinculacionLaboral:
+                Number(idVinculacionLaboral),
+            }
+          : {}),
         documentos_contratacion: docsPayload,
       };
 
@@ -2131,11 +2172,9 @@ const renderCarpetaSaludOcupacional = () => (
                     Documentos de Selección
                   </TabsTrigger>
 
-                  {!esHistorico && (
-                    <TabsTrigger value="contratacion" className="rounded-lg px-6 py-2 text-base font-semibold data-[state=active]:bg-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-emerald-600 data-[state=active]:border">
-                      Documentos de Contratación
-                    </TabsTrigger>
-                  )}
+                  <TabsTrigger value="contratacion" className="rounded-lg px-6 py-2 text-base font-semibold data-[state=active]:bg-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-emerald-600 data-[state=active]:border">
+                    Documentos de Contratación
+                  </TabsTrigger>
                 </TabsList>
               </Tabs>
             )}
