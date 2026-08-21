@@ -23,7 +23,7 @@ const getEstadoFormacionIdFromLabel = (label) => {
    return found ? found.key : '';
 };
 
-import { getAspirante, getDocumentacionIngreso, getDocumentosSeguridad, getListaCargo } from '../../services/detalle_aspirante';
+import { getAspirante, getAspirantePorCiclos, getDocumentacionIngreso, getDocumentacionIngresoPorVinculacion, getDocumentosSeguridad, getListaCargo } from '../../services/detalle_aspirante';
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { upsertObservacionNF } from "@/services/observacionesNucleoFamiliarService";
@@ -47,7 +47,11 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import EntrevistaModal from '@/components/modals/EntrevistaModal';
 import entrevistaCandidatoService from "../../services/entrevistaCandidatoService";
-import { RegistrarDocumentosSeguridad, EliminarDocumentoSeguridadPorTipo } from '../../services/documentosSeguridad';
+import {
+  RegistrarDocumentosSeguridad,
+  EliminarDocumentoSeguridadPorTipo,
+  obtenerDocumentoSeguridadBase64PorVinculacion,
+} from '../../services/documentosSeguridad';
 import { ValidarExperienciaLaboral, ObservacionesExperienciaLaboral, EliminarExperienciaLaboral, GenerarPdfConsolidadoReferencias } from '../../services/experiencia_laboral';
 import { ValidarReferenciaPersonal } from '../../services/referenciaPersonal'
 import { upsertMotivoCierre, getMotivoCierre } from "../../services/motivoCierreService";
@@ -457,6 +461,7 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   // ✅ Estado inicial seguro para evitar uncontrolled inputs
   const initialFormData = {
     IdRegistroPersonal: '',
+    IdVinculacionLaboral: null,
     IdNivelEducativo: '',
     IdTipoIdentificacion: '',
     DescripcionTipoIdentificacion: '',
@@ -523,6 +528,10 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   const [activeTab, setActiveTab] = useState('personal');
   const [lugarNacimiento, setLugarNacimiento] = useState([]);
 
+  // Separación de información por ciclo laboral.
+  // Solo se activa visualmente cuando el backend confirma REINTEGRO.
+  const [detalleCiclos, setDetalleCiclos] = useState(null);
+
   useEffect(() => {
     const fetchDropDownList = async () => {
       try {
@@ -558,14 +567,80 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   useEffect(() => {
     if (!aspirante?.id || !isOpen) return;
 
+    setDetalleCiclos(null);
     setLoadingAspiranteDetalle(true);
 
     const fetchAspiranteDetalle = async () => {
       try {
         const response = await getAspirante(aspirante.id);
-         const documentos = await getDocumentacionIngreso(aspirante.id);
-         const documentosSeguridadResp = await getDocumentosSeguridad(aspirante.id);
-         const responseEntrevista = await entrevistaCandidatoService.listarPorRegistro(aspirante.id);
+
+         // Consulta adicional por ciclos. Si falla, el modal conserva
+         // exactamente el comportamiento legado.
+         let ciclosData = null;
+         try {
+           const responseCiclos = await getAspirantePorCiclos(aspirante.id);
+           ciclosData = responseCiclos?.data || null;
+         } catch (error) {
+           console.error('No fue posible cargar la separación por ciclos:', error);
+           ciclosData = null;
+         }
+
+         const esReintegroActual = Boolean(
+           ciclosData?.esReintegroActual &&
+           ciclosData?.vinculacionActual?.IdVinculacionLaboral
+         );
+
+         const idVinculacionActual = esReintegroActual
+           ? ciclosData.vinculacionActual.IdVinculacionLaboral
+           : null;
+
+         // Documentos de ingreso:
+         // - Aspirante normal: conserva el endpoint legado.
+         // - Reintegro: carga únicamente documentos de la vinculación actual.
+         // Si la consulta por vinculación falla, se usa el endpoint legado
+         // para no bloquear la apertura del modal.
+         let documentos = null;
+
+         if (esReintegroActual) {
+           try {
+             documentos = await getDocumentacionIngresoPorVinculacion(
+               aspirante.id,
+               idVinculacionActual
+             );
+           } catch (error) {
+             console.error(
+               'No fue posible cargar documentos del ciclo actual. Se usa la consulta legado:',
+               error
+             );
+             documentos = await getDocumentacionIngreso(aspirante.id);
+           }
+         } else {
+           documentos = await getDocumentacionIngreso(aspirante.id);
+         }
+
+         let documentosSeguridadResp = null;
+
+         if (esReintegroActual) {
+           try {
+             documentosSeguridadResp = await obtenerDocumentoSeguridadBase64PorVinculacion(
+               aspirante.id,
+               idVinculacionActual
+             );
+           } catch (error) {
+             console.error(
+               'No fue posible cargar documentos de seguridad del ciclo actual. Se usa la consulta legado:',
+               error
+             );
+             documentosSeguridadResp = await getDocumentosSeguridad(aspirante.id);
+           }
+         } else {
+           documentosSeguridadResp = await getDocumentosSeguridad(aspirante.id);
+         }
+
+         const responseEntrevista = await entrevistaCandidatoService.listarPorRegistro(
+           aspirante.id,
+           idVinculacionActual
+         );
 
          let responseMotivoCierre = null;
          try {
@@ -651,17 +726,40 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
           const gs = da0?.grupo_sanguineo?.Descripcion || '';
           const ds0 = fila?.datos_seleccion?.[0] || {};
 
-          const exp0Val0 = fila?.experiencia_laboral?.[0]?.validaciones?.[0] || {};
+          const usarSeparacionCiclos = esReintegroActual;
+
+          const nucleoActual = usarSeparacionCiclos
+            ? (Array.isArray(ciclosData?.actual?.nucleoFamiliar)
+                ? ciclosData.actual.nucleoFamiliar
+                : [])
+            : (fila?.nucleo_familiar || []);
+
+          const referenciasActuales = usarSeparacionCiclos
+            ? (Array.isArray(ciclosData?.actual?.referencias)
+                ? ciclosData.actual.referencias
+                : [])
+            : (fila?.referencias || []);
+
+          const experienciaActual = usarSeparacionCiclos
+            ? (Array.isArray(ciclosData?.actual?.experienciaLaboral)
+                ? ciclosData.actual.experienciaLaboral
+                : [])
+            : (fila?.experiencia_laboral || []);
+
+          const exp0Val0 = experienciaActual?.[0]?.validaciones?.[0] || {};
           const refPers0 = fila?.referencias_personales_validacion?.[0] || {};
 
-         const obsNF =
-         fila?.nucleo_familiar?.[0]?.Observaciones ||
-         fila?.nucleo_familiar?.[0]?.observaciones?.Observaciones ||
-         fila?.nucleo_familiar?.[0]?.observaciones ||
-         '';
+          const obsNF =
+            nucleoActual?.[0]?.Observaciones ||
+            nucleoActual?.[0]?.observaciones?.Observaciones ||
+            nucleoActual?.[0]?.observaciones ||
+            '';
+
+          setDetalleCiclos(usarSeparacionCiclos ? ciclosData : null);
             setFormData(prev => ({
             ...prev,
             IdRegistroPersonal: fila?.IdRegistroPersonal || '',
+            IdVinculacionLaboral: idVinculacionActual || null,
             IdTipoIdentificacion: fila?.IdTipoIdentificacion ? String(fila.IdTipoIdentificacion) : '',
             DescripcionTipoIdentificacion: fila?.tipo_identificacion?.Descripcion || '',
 
@@ -709,9 +807,9 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
             idEstadoProcesoActual: fila?.IdEstadoProceso,
             estado: fila?.IdEstadoProceso?.toString() || '',
 
-            experienciaLaboral: fila?.experiencia_laboral || [],
-            nucleoFamiliar: fila?.nucleo_familiar || [],
-            referencias: fila?.referencias || [],
+            experienciaLaboral: experienciaActual,
+            nucleoFamiliar: nucleoActual,
+            referencias: referenciasActuales,
 
             fondoPensionesObj: fila?.fondo_pensiones || [],
             nivelEducativo: fila?.nivel_educativo || [],
@@ -1913,7 +2011,16 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
       return;
     }
 
-    const response = await EliminarDocumentoSeguridadPorTipo(idRegistroPersonal, docId);
+    const idVinculacionLaboralActual =
+      detalleCiclos?.esReintegroActual
+        ? detalleCiclos?.vinculacionActual?.IdVinculacionLaboral || null
+        : null;
+
+    const response = await EliminarDocumentoSeguridadPorTipo(
+      idRegistroPersonal,
+      docId,
+      idVinculacionLaboralActual
+    );
 
     if (!response.ok) {
       const txt = await response.text();
@@ -1922,7 +2029,13 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
       return;
     }
 
-    const respDocsSeguridad = await getDocumentosSeguridad(idRegistroPersonal);
+    const respDocsSeguridad = idVinculacionLaboralActual
+      ? await obtenerDocumentoSeguridadBase64PorVinculacion(
+          idRegistroPersonal,
+          idVinculacionLaboralActual
+        )
+      : await getDocumentosSeguridad(idRegistroPersonal);
+
     const documentosSeguridadActualizados = respDocsSeguridad?.data || [];
 
     setFormData(prev => ({
@@ -1981,8 +2094,16 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
          }
       }
 
+      const idVinculacionLaboralActual =
+         detalleCiclos?.esReintegroActual
+           ? detalleCiclos?.vinculacionActual?.IdVinculacionLaboral || null
+           : null;
+
       const payload = {
          idRegistroPersonal,
+         ...(idVinculacionLaboralActual
+           ? { idVinculacionLaboral: idVinculacionLaboralActual }
+           : {}),
          documentos_seguridad: docsSeguridadFinal.map(doc => ({
             IdTipoDocumentacion: doc.IdTipoDocumentacion,
             Nombre: doc.Nombre,
@@ -2231,8 +2352,16 @@ if (response && response.status === 201) {
       const dataPdf = await respPdf.json();
 
       if (dataPdf?.ok && dataPdf?.pdf_base64) {
+        const idVinculacionLaboralActual =
+          detalleCiclos?.esReintegroActual
+            ? detalleCiclos?.vinculacionActual?.IdVinculacionLaboral || null
+            : null;
+
         const payloadDocumento = {
           idRegistroPersonal: Number(idRegistroPersonal),
+          ...(idVinculacionLaboralActual
+            ? { idVinculacionLaboral: idVinculacionLaboralActual }
+            : {}),
           documentos_seguridad: [
             {
               IdTipoDocumentacion: 68,
@@ -2251,7 +2380,13 @@ if (response && response.status === 201) {
           const txt = await responseUpload.text();
           console.error('Error adjuntando consolidado de referencias:', txt);
         } else {
-          const respDocsSeguridad = await getDocumentosSeguridad(idRegistroPersonal);
+          const respDocsSeguridad = idVinculacionLaboralActual
+            ? await obtenerDocumentoSeguridadBase64PorVinculacion(
+                idRegistroPersonal,
+                idVinculacionLaboralActual
+              )
+            : await getDocumentosSeguridad(idRegistroPersonal);
+
           const documentosSeguridadActualizados = respDocsSeguridad?.data || [];
 
           setFormData(prev => ({
@@ -2479,8 +2614,26 @@ if (response && response.status === 201) {
   try {
     let documentosSeguridadActualizados = [];
 
+    const idVinculacionLaboralActual =
+      detalleCiclos?.esReintegroActual
+        ? detalleCiclos?.vinculacionActual?.IdVinculacionLaboral || null
+        : null;
+
+    const entrevistaDataCiclo = idVinculacionLaboralActual
+      ? {
+          ...entrevistaData,
+          IdVinculacionLaboral: idVinculacionLaboralActual,
+        }
+      : entrevistaData;
+
     if (aspirante?.id) {
-      const respDocsSeguridad = await getDocumentosSeguridad(aspirante.id);
+      const respDocsSeguridad = idVinculacionLaboralActual
+        ? await obtenerDocumentoSeguridadBase64PorVinculacion(
+            aspirante.id,
+            idVinculacionLaboralActual
+          )
+        : await getDocumentosSeguridad(aspirante.id);
+
       documentosSeguridadActualizados = respDocsSeguridad?.data || [];
     }
 
@@ -2488,15 +2641,15 @@ if (response && response.status === 201) {
       let newEntrevistas = [...(prev.entrevistas || [])];
 
       if (selectedEntrevista && selectedEntrevista._index !== undefined) {
-        newEntrevistas[selectedEntrevista._index] = entrevistaData;
+        newEntrevistas[selectedEntrevista._index] = entrevistaDataCiclo;
       } else {
-        newEntrevistas.push(entrevistaData);
+        newEntrevistas.push(entrevistaDataCiclo);
       }
 
       return {
         ...prev,
         entrevistas: newEntrevistas,
-        entrevista: [entrevistaData],
+        entrevista: [entrevistaDataCiclo],
         documentosSeguridad: documentosSeguridadActualizados,
       };
     });
@@ -2505,19 +2658,31 @@ if (response && response.status === 201) {
   } catch (error) {
     console.error('Error recargando documentos de seguridad después de guardar entrevista:', error);
 
+    const idVinculacionLaboralActual =
+      detalleCiclos?.esReintegroActual
+        ? detalleCiclos?.vinculacionActual?.IdVinculacionLaboral || null
+        : null;
+
+    const entrevistaDataCiclo = idVinculacionLaboralActual
+      ? {
+          ...entrevistaData,
+          IdVinculacionLaboral: idVinculacionLaboralActual,
+        }
+      : entrevistaData;
+
     setFormData(prev => {
       let newEntrevistas = [...(prev.entrevistas || [])];
 
       if (selectedEntrevista && selectedEntrevista._index !== undefined) {
-        newEntrevistas[selectedEntrevista._index] = entrevistaData;
+        newEntrevistas[selectedEntrevista._index] = entrevistaDataCiclo;
       } else {
-        newEntrevistas.push(entrevistaData);
+        newEntrevistas.push(entrevistaDataCiclo);
       }
 
       return {
         ...prev,
         entrevistas: newEntrevistas,
-        entrevista: [entrevistaData],
+        entrevista: [entrevistaDataCiclo],
       };
     });
 
@@ -2814,7 +2979,7 @@ if (response && response.status === 201) {
                                  <Label>Lugar de expedición</Label>
                                  <Input value={formData?.lugarExpedicion || ''} onChange={(e) => handleInputChange('root', 'lugarExpedicion', e.target.value)} />
                               </div>
-													
+                                       
                               {/* ✅ Bloque oculto que sale SOLO si responde SI */}
                               {formData.seleccion.haTrabajadoAntesEmpresa === 'SI' && (
                                 <div className="space-y-2 md:col-span-2 border border-emerald-200 bg-emerald-50/40 rounded-xl p-4">
@@ -3078,7 +3243,18 @@ if (response && response.status === 201) {
                     {/* 3. Núcleo Familiar */}
                     <TabsContent value="familiar" className="mt-0 space-y-6">
                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                          <h3 className="text-lg font-bold text-gray-800 mb-6 border-b pb-2">Núcleo Familiar</h3>
+                          <h3 className="text-lg font-bold text-gray-800 mb-3 border-b pb-2">Núcleo Familiar</h3>
+
+                          {detalleCiclos?.esReintegroActual && (
+                            <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+                              <div className="font-semibold text-emerald-800">
+                                Proceso actual · Reintegro · Ciclo {detalleCiclos?.vinculacionActual?.NumeroCiclo || ''}
+                              </div>
+                              <div className="mt-1 text-sm text-emerald-700">
+                                Esta sección muestra únicamente la información del ciclo laboral actual.
+                              </div>
+                            </div>
+                          )}
                           {/* <div className="flex justify-between items-center mb-4">
                              <Button size="sm" variant="outline" onClick={() => setIsAddingFamiliar(true)}><Plus className="w-4 h-4 mr-2"/> Agregar Familiar</Button>
                           </div> */}
@@ -3154,6 +3330,50 @@ if (response && response.status === 201) {
                               </tbody>
                             </table>
                           </div>
+
+                          {detalleCiclos?.esReintegroActual &&
+                            Array.isArray(detalleCiclos?.historico?.nucleoFamiliar) &&
+                            detalleCiclos.historico.nucleoFamiliar.length > 0 && (
+                              <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                <div className="mb-3">
+                                  <h4 className="font-semibold text-gray-800">Histórico laboral anterior</h4>
+                                  <p className="text-sm text-gray-500">
+                                    Solo consulta. Estos registros pertenecen a ciclos anteriores.
+                                  </p>
+                                </div>
+                                <div className="overflow-x-auto">
+                                  <table className="min-w-[400px] w-full border border-gray-200 bg-white rounded-lg table-auto">
+                                    <thead className="bg-gray-100">
+                                      <tr>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Nombre</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Parentesco</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Edad</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Ocupación</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Teléfono</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Ciclo</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {detalleCiclos.historico.nucleoFamiliar.map((fam, idx) => (
+                                        <tr key={`hist-nf-${fam?.IdNucleoFamiliar || idx}`} className="border-t">
+                                          <td className="px-3 py-2 text-sm">{fam?.Nombre || ''}</td>
+                                          <td className="px-3 py-2 text-sm">{fam?.Parentesco || ''}</td>
+                                          <td className="px-3 py-2 text-sm">{fam?.Edad ?? ''}</td>
+                                          <td className="px-3 py-2 text-sm">{fam?.Ocupacion || ''}</td>
+                                          <td className="px-3 py-2 text-sm">{fam?.Telefono || ''}</td>
+                                          <td className="px-3 py-2 text-xs text-gray-500">
+                                            {fam?.IdVinculacionLaboral
+                                              ? `Vinculación ${fam.IdVinculacionLaboral}`
+                                              : 'Histórico anterior'}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+
                         <div className="mt-6 border-t pt-4">
                         <Label className="text-sm font-semibold text-gray-700 mb-2 block">
                            Observaciones generales del núcleo familiar
@@ -3441,7 +3661,14 @@ if (response && response.status === 201) {
                        {/* Laborales */}
                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                           <div className="flex justify-between items-center mb-4 border-b pb-2">
-                              <h3 className="text-lg font-bold text-gray-800">Experiencia Laboral</h3>
+                              <div>
+                                <h3 className="text-lg font-bold text-gray-800">Experiencia Laboral</h3>
+                                {detalleCiclos?.esReintegroActual && (
+                                  <div className="mt-1 text-xs font-medium text-emerald-700">
+                                    Proceso actual · Reintegro · Ciclo {detalleCiclos?.vinculacionActual?.NumeroCiclo || ''}
+                                  </div>
+                                )}
+                              </div>
                               <div className="mt-1 text-sm text-gray-600">
                                  Validación {indexValidacionExperiencia} Contacto {nombreContacto}
                               </div>
@@ -3988,6 +4215,90 @@ if (response && response.status === 201) {
                               </tbody>
                             </table>
                           </div>
+
+                          {detalleCiclos?.esReintegroActual &&
+                            Array.isArray(detalleCiclos?.historico?.experienciaLaboral) &&
+                            detalleCiclos.historico.experienciaLaboral.length > 0 && (
+                              <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                <div className="mb-3">
+                                  <h4 className="font-semibold text-gray-800">Experiencia laboral histórica</h4>
+                                  <p className="text-sm text-gray-500">
+                                    Solo consulta. No usa acciones de validación ni eliminación del proceso actual.
+                                  </p>
+                                </div>
+                                <div className="overflow-x-auto">
+                                  <table className="min-w-full border border-gray-200 bg-white rounded-lg">
+                                    <thead className="bg-gray-100">
+                                      <tr>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Contacto</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Teléfono</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Empresa</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Cargo</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Duración</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Ciclo</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {detalleCiclos.historico.experienciaLaboral.map((ref, idx) => (
+                                        <tr key={`hist-exp-${ref?.IdExperienciaLaboral || idx}`} className="border-t">
+                                          <td className="px-3 py-2 text-sm">{ref?.JefeInmediato || ''}</td>
+                                          <td className="px-3 py-2 text-sm">{ref?.TelefonoJefe || ''}</td>
+                                          <td className="px-3 py-2 text-sm">{ref?.Compania || ''}</td>
+                                          <td className="px-3 py-2 text-sm">{ref?.Cargo || ''}</td>
+                                          <td className="px-3 py-2 text-sm">{ref?.TiempoDuracion || ''}</td>
+                                          <td className="px-3 py-2 text-xs text-gray-500">
+                                            {ref?.IdVinculacionLaboral
+                                              ? `Vinculación ${ref.IdVinculacionLaboral}`
+                                              : 'Histórico anterior'}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+
+                          {detalleCiclos?.esReintegroActual &&
+                            Array.isArray(detalleCiclos?.historico?.referencias) &&
+                            detalleCiclos.historico.referencias.length > 0 && (
+                              <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                <div className="mb-3">
+                                  <h4 className="font-semibold text-gray-800">Referencias personales históricas</h4>
+                                  <p className="text-sm text-gray-500">
+                                    Solo consulta. Se mantienen separadas del ciclo actual.
+                                  </p>
+                                </div>
+                                <div className="overflow-x-auto">
+                                  <table className="min-w-full border border-gray-200 bg-white rounded-lg">
+                                    <thead className="bg-gray-100">
+                                      <tr>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Nombre</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Teléfono</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Parentesco / Relación</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Tiempo de conocerlo</th>
+                                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Ciclo</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {detalleCiclos.historico.referencias.map((ref, idx) => (
+                                        <tr key={`hist-ref-${ref?.IdReferencia || idx}`} className="border-t">
+                                          <td className="px-3 py-2 text-sm">{ref?.Nombre || ''}</td>
+                                          <td className="px-3 py-2 text-sm">{ref?.Telefono || ''}</td>
+                                          <td className="px-3 py-2 text-sm">{ref?.Parentesco || ''}</td>
+                                          <td className="px-3 py-2 text-sm">{ref?.TiempoConocerlo || ''}</td>
+                                          <td className="px-3 py-2 text-xs text-gray-500">
+                                            {ref?.IdVinculacionLaboral
+                                              ? `Vinculación ${ref.IdVinculacionLaboral}`
+                                              : 'Histórico anterior'}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
                        </div>
                       {/* ✅ Referencias Personales (OCULTO) */}
                         {false && (

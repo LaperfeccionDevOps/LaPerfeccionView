@@ -1,240 +1,439 @@
 // src/services/entrevistaCandidatoService.js
-import { getApiUrl } from '../configFiles/api';
-import axios from "axios";
 
-    /**
- * ✅ Base URL
- * - Prioriza VITE_API_BASE_URL (según tu otro helper)
+import { getApiUrl } from '../configFiles/api';
+import axios from 'axios';
+
+/**
+ * Base URL
+ * - Prioriza VITE_API_BASE_URL
  * - Si no existe, usa VITE_API_URL
- * - Si no existe, http://localhost:8000
+ * - Si no existe, queda vacío y getApiUrl / proxy resuelve según entorno
  */
 const API_BASE = (
   import.meta.env.VITE_API_BASE_URL ||
   import.meta.env.VITE_API_URL ||
-  ""
-).replace(/\/+$/, "");
+  ''
+).replace(/\/+$/, '');
 
 /**
- * ✅ Backend prefix
+ * Backend prefix
  */
-
-const BASE_PATH = "/entrevistas-candidato";
+const BASE_PATH = '/entrevistas-candidato';
 
 const api = axios.create({
   baseURL: API_BASE,
   timeout: 20000,
 });
+
 function getToken() {
-  return (
-    localStorage.getItem("token")
-  );
+  return localStorage.getItem('token');
 }
 
-// ✅ Interceptor: mete Authorization automáticamente
+// Interceptor: agrega Authorization automáticamente.
 api.interceptors.request.use((config) => {
   const token =
-    localStorage.getItem("access_token") ||
-    localStorage.getItem("token") ||
-    "";
+    localStorage.getItem('access_token') ||
+    localStorage.getItem('token') ||
+    '';
 
   if (token) {
     config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
   }
+
   return config;
 });
 
 const is404 = (err) => err?.response?.status === 404;
 
 /**
- * ✅ Evita que se mande [object Object] en la URL
- * Si te llega un objeto, aquí lo detectas de una con error claro
+ * Evita que se mande [object Object] en la URL.
  */
-function ensureId(id, name = "id") {
-  if (id === null || id === undefined || id === "") {
+function ensureId(id, name = 'id') {
+  if (id === null || id === undefined || id === '') {
     throw new Error(`${name} es requerido`);
   }
-  const t = typeof id;
-  if (t === "object") {
-    // Esto es EXACTAMENTE lo que te genera [object Object]
+
+  const tipo = typeof id;
+
+  if (tipo === 'object') {
     throw new Error(
       `${name} NO puede ser objeto. Debe ser string/number. Te llegó: ${Object.prototype.toString.call(
         id
       )}`
     );
   }
+
   return encodeURIComponent(String(id));
 }
 
+/**
+ * Construye params opcionales para trabajar por ciclo.
+ */
+function buildVinculacionParams(idVinculacionLaboral) {
+  if (
+    idVinculacionLaboral === null ||
+    idVinculacionLaboral === undefined ||
+    idVinculacionLaboral === ''
+  ) {
+    return undefined;
+  }
+
+  return {
+    id_vinculacion_laboral: idVinculacionLaboral,
+  };
+}
+
 const entrevistaCandidatoService = {
-  // ✅ Ping (si lo tienes en swagger)
   async ping() {
     const { data } = await api.get(`${BASE_PATH}/ping`);
     return data;
   },
 
   /**
-   * ✅ Prefill
+   * Prefill
    * GET /api/entrevistas-candidato/prefill/{id_registro_perso}
    */
   async prefill(idRegistroPersonal) {
-    const id = ensureId(idRegistroPersonal, "idRegistroPersonal");
-    const { data } = await api.get(`${BASE_PATH}/prefill/${id}`);
+    const id = ensureId(idRegistroPersonal, 'idRegistroPersonal');
+
+    const { data } = await api.get(
+      `${BASE_PATH}/prefill/${id}`
+    );
+
     return data;
   },
 
   /**
-   * ✅ Guardar (según swagger)
+   * Guardar
    * POST /api/entrevistas-candidato/guardar
+   *
+   * Si el payload contiene IdVinculacionLaboral,
+   * el backend trabajará únicamente sobre ese ciclo.
    */
   async guardar(payload) {
-    if (!payload || typeof payload !== "object") {
-      throw new Error("payload es requerido y debe ser un objeto");
+    if (!payload || typeof payload !== 'object') {
+      throw new Error(
+        'payload es requerido y debe ser un objeto'
+      );
     }
-    const { data } = await api.post(`${BASE_PATH}/guardar`, payload);
+
+    const { data } = await api.post(
+      `${BASE_PATH}/guardar`,
+      payload
+    );
+
     return data;
   },
 
   /**
-   * ✅ Listar por registro (según swagger)
-   * GET /api/entrevistas-candidato/por-registro/{id_registro_perso}
+   * Listar por registro.
+   *
+   * Sin idVinculacionLaboral:
+   * conserva el comportamiento legado.
+   *
+   * Con idVinculacionLaboral:
+   * devuelve únicamente entrevistas de ese ciclo.
    */
-  async listarPorRegistro(idRegistroPersonal) {
-    const id = ensureId(idRegistroPersonal, "idRegistroPersonal");
-    const { data } = await api.get(`${BASE_PATH}/por-registro/${id}`);
+  async listarPorRegistro(
+    idRegistroPersonal,
+    idVinculacionLaboral = null
+  ) {
+    const id = ensureId(
+      idRegistroPersonal,
+      'idRegistroPersonal'
+    );
+
+    const params = buildVinculacionParams(
+      idVinculacionLaboral
+    );
+
+    const { data } = await api.get(
+      `${BASE_PATH}/por-registro/${id}`,
+      {
+        params,
+      }
+    );
+
     return data;
   },
 
   /**
-   * ✅ Actualizar última por registro (según swagger)
-   * PUT /api/entrevistas-candidato/por-registro/{id_registro_perso}
+   * Listado separado por ciclos.
+   *
+   * GET /api/entrevistas-candidato/por-registro/{id}/ciclos
    */
-  async actualizarUltimaPorRegistro(idRegistroPersonal, payload) {
-    const id = ensureId(idRegistroPersonal, "idRegistroPersonal");
-    const { data } = await api.put(`${BASE_PATH}/por-registro/${id}`, payload);
+  async listarPorCiclos(idRegistroPersonal) {
+    const id = ensureId(
+      idRegistroPersonal,
+      'idRegistroPersonal'
+    );
+
+    const { data } = await api.get(
+      `${BASE_PATH}/por-registro/${id}/ciclos`
+    );
+
     return data;
   },
 
   /**
-   * ✅ Obtener última por registro (alias según swagger)
-   * GET /api/entrevistas-candidato/{id_registro_perso}
+   * Actualizar última entrevista por registro.
    */
-  async obtenerPorRegistroPersonal(idRegistroPersonal) {
-    const id = ensureId(idRegistroPersonal, "idRegistroPersonal");
-    const { data } = await api.get(`${BASE_PATH}/${id}`);
+  async actualizarUltimaPorRegistro(
+    idRegistroPersonal,
+    payload,
+    idVinculacionLaboral = null
+  ) {
+    const id = ensureId(
+      idRegistroPersonal,
+      'idRegistroPersonal'
+    );
+
+    const params = buildVinculacionParams(
+      idVinculacionLaboral
+    );
+
+    const { data } = await api.put(
+      `${BASE_PATH}/por-registro/${id}`,
+      payload,
+      {
+        params,
+      }
+    );
+
     return data;
   },
 
   /**
-   * ✅ Upsert general (alias según swagger)
-   * PUT /api/entrevistas-candidato/{id_registro_perso}
+   * Obtener última por registro.
    */
-  async upsertEntrevista(idRegistroPersonal, payload) {
-    const id = ensureId(idRegistroPersonal, "idRegistroPersonal");
-    const { data } = await api.put(`${BASE_PATH}/${id}`, payload);
+  async obtenerPorRegistroPersonal(
+    idRegistroPersonal,
+    idVinculacionLaboral = null
+  ) {
+    const id = ensureId(
+      idRegistroPersonal,
+      'idRegistroPersonal'
+    );
+
+    const params = buildVinculacionParams(
+      idVinculacionLaboral
+    );
+
+    const { data } = await api.get(
+      `${BASE_PATH}/${id}`,
+      {
+        params,
+      }
+    );
+
     return data;
   },
 
   /**
-   * ✅ Decisión final (según swagger)
-   * PUT /api/entrevistas-candidato/{id}/decision-final
-   * (y deja fallback por si en tu backend existen variaciones)
+   * Upsert general.
    */
-  async actualizarDecisionFinal(idRegistroPersonal, payload) {
-    const id = ensureId(idRegistroPersonal, "idRegistroPersonal");
+  async upsertEntrevista(
+    idRegistroPersonal,
+    payload,
+    idVinculacionLaboral = null
+  ) {
+    const id = ensureId(
+      idRegistroPersonal,
+      'idRegistroPersonal'
+    );
 
-    // 1) Ruta principal (swagger)
+    const params = buildVinculacionParams(
+      idVinculacionLaboral
+    );
+
+    const { data } = await api.put(
+      `${BASE_PATH}/${id}`,
+      payload,
+      {
+        params,
+      }
+    );
+
+    return data;
+  },
+
+  /**
+   * Actualizar decisión final.
+   */
+  async actualizarDecisionFinal(
+    idRegistroPersonal,
+    payload,
+    idVinculacionLaboral = null
+  ) {
+    const id = ensureId(
+      idRegistroPersonal,
+      'idRegistroPersonal'
+    );
+
+    const params = buildVinculacionParams(
+      idVinculacionLaboral
+    );
+
     try {
-      const { data } = await api.put(`${BASE_PATH}/${id}/decision-final`, payload);
+      const { data } = await api.put(
+        `${BASE_PATH}/${id}/decision-final`,
+        payload,
+        {
+          params,
+        }
+      );
+
       return data;
     } catch (error1) {
-      if (!is404(error1)) throw error1;
+      if (!is404(error1)) {
+        throw error1;
+      }
 
-      // 2) Variante alternativa (por si existe en tu backend)
       try {
         const { data } = await api.put(
           `${BASE_PATH}/${id}/decision-final-entrevista`,
-          payload
+          payload,
+          {
+            params,
+          }
         );
+
         return data;
       } catch (error2) {
-        if (!is404(error2)) throw error2;
+        if (!is404(error2)) {
+          throw error2;
+        }
 
-        // 3) Último fallback: update general
-        const { data } = await api.put(`${BASE_PATH}/${id}`, payload);
+        const { data } = await api.put(
+          `${BASE_PATH}/${id}`,
+          payload,
+          {
+            params,
+          }
+        );
+
         return data;
       }
     }
   },
 
   /**
-   * ✅ Obtener decisión final (si la usas)
-   * GET /api/entrevistas-candidato/{id}/decision-final
+   * Obtener decisión final.
    */
-  async obtenerDecisionFinal(idRegistroPersonal) {
-    const id = ensureId(idRegistroPersonal, "idRegistroPersonal");
-    const { data } = await api.get(`${BASE_PATH}/${id}/decision-final`);
+  async obtenerDecisionFinal(
+    idRegistroPersonal,
+    idVinculacionLaboral = null
+  ) {
+    const id = ensureId(
+      idRegistroPersonal,
+      'idRegistroPersonal'
+    );
+
+    const params = buildVinculacionParams(
+      idVinculacionLaboral
+    );
+
+    const { data } = await api.get(
+      `${BASE_PATH}/${id}/decision-final`,
+      {
+        params,
+      }
+    );
+
     return data;
   },
 
   /**
-   * ✅ Obtener por ID de entrevista (según swagger)
-   * GET /api/entrevistas-candidato/id/{id_entrevista}
+   * Obtener por ID de entrevista.
    */
   async obtenerPorId(idEntrevista) {
-    const id = ensureId(idEntrevista, "idEntrevista");
-    const { data } = await api.get(`${BASE_PATH}/id/${id}`);
+    const id = ensureId(
+      idEntrevista,
+      'idEntrevista'
+    );
+
+    const { data } = await api.get(
+      `${BASE_PATH}/id/${id}`
+    );
+
     return data;
   },
 
   /**
-   * ✅ Actualizar por ID de entrevista (según swagger)
-   * PUT /api/entrevistas-candidato/id/{id_entrevista}
+   * Actualizar por ID de entrevista.
    */
   async actualizarPorId(idEntrevista, payload) {
-    const id = ensureId(idEntrevista, "idEntrevista");
-    const { data } = await api.put(`${BASE_PATH}/id/${id}`, payload);
+    const id = ensureId(
+      idEntrevista,
+      'idEntrevista'
+    );
+
+    const { data } = await api.put(
+      `${BASE_PATH}/id/${id}`,
+      payload
+    );
+
     return data;
   },
 
   /**
-   * 📄 Exportar entrevista a PDF (si tu backend lo tiene)
-   * GET /api/entrevistas-candidato/{idRegistroPersonal}/pdf
+   * Exportar entrevista a PDF.
    */
   async exportarPdf(idRegistroPersonal) {
-    const id = ensureId(idRegistroPersonal, "idRegistroPersonal");
-    const response = await api.get(`${BASE_PATH}/${id}/pdf`, {
-      responseType: "blob",
-    });
+    const id = ensureId(
+      idRegistroPersonal,
+      'idRegistroPersonal'
+    );
+
+    const response = await api.get(
+      `${BASE_PATH}/${id}/pdf`,
+      {
+        responseType: 'blob',
+      }
+    );
+
     return response.data;
   },
 
   /**
-   * (Opcional) Listar entrevistas por aspirante (si tu backend lo tiene)
-   * GET /api/entrevistas-candidato/aspirante/{idAspirante}
+   * Listar entrevistas por aspirante.
    */
   async listarPorAspirante(idAspirante) {
-    const id = ensureId(idAspirante, "idAspirante");
-    const { data } = await api.get(`${BASE_PATH}/aspirante/${id}`);
+    const id = ensureId(
+      idAspirante,
+      'idAspirante'
+    );
+
+    const { data } = await api.get(
+      `${BASE_PATH}/aspirante/${id}`
+    );
+
     return data;
   },
 
   /**
-   * ❗️Tu método "RegistrarEntrevista" estaba duplicado y no registra nada.
-   * Lo dejo por compatibilidad, pero hace lo mismo que listarPorAspirante.
+   * Compatibilidad con el método existente.
+   *
+   * El payload puede incluir IdVinculacionLaboral.
    */
   async RegistrarEntrevista(payload) {
-      const token = getToken();
-      const url = getApiUrl('/entrevistas-candidato/guardar');
-      const resp = await fetch(url, {
-        method: 'POST',
-         headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-      return resp;
+    const token = getToken();
+
+    const url = getApiUrl(
+      '/entrevistas-candidato/guardar'
+    );
+
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    return resp;
   },
 };
 

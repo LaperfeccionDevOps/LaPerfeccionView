@@ -1,4 +1,3 @@
-
 import { RegistroPersonal, getListaLocalidades, getListaLugarNacimiento, getAspirantexNumeroIdentificacion, ActualizarRegistro, getDocumentacionIngreso } from '../services/aspirante';
 import { getAspirante } from '../services/detalle_aspirante';
 import React, { useState, useEffect } from 'react';
@@ -1389,9 +1388,12 @@ const handleTelEmergenciaChange = (e) => {
       let response;
 
       if (!existeAspirante) {
-        response = await RegistroPersonal(payload)
+        response = await RegistroPersonal(payload);
       } else {
-        response = await ActualizarRegistro(formData.IdRegistroPersonal, payload)
+        response = await ActualizarRegistro(
+          formData.IdRegistroPersonal,
+          payload
+        );
       }
 
       if (response.status === 400) {
@@ -1414,7 +1416,20 @@ const handleTelEmergenciaChange = (e) => {
         throw new Error(errorData.message || `Error del servidor: ${response.status}`);
       }
 
-      await response.json();
+      const responseData = await response.json();
+
+      // Para registros existentes, el backend controla de forma transaccional
+      // si corresponde cerrar un reintegro 35 -> 18.
+      // El portal público de Aspirante no llama endpoints corporativos protegidos.
+      if (
+        existeAspirante &&
+        Number(responseData?.IdEstadoProceso) === 18
+      ) {
+        setFormData((prev) => ({
+          ...prev,
+          IdEstadoProceso: 18,
+        }));
+      }
 
       const updated = [...aspirantes, payload];
       setAspirantes(updated);
@@ -1423,7 +1438,10 @@ const handleTelEmergenciaChange = (e) => {
         position: "center",
         icon: "success",
         title: "¡Registro exitoso! ",
-        text: "La información ha sido enviada y guardada correctamente.",
+        text:
+          existeAspirante && Number(responseData?.IdEstadoProceso) === 18
+            ? "La información fue guardada correctamente y el proceso quedó disponible nuevamente para Selección."
+            : "La información ha sido enviada y guardada correctamente.",
         showConfirmButton: false,
         timer: 5000,
         customClass: {

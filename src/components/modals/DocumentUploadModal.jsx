@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { getDocumentacionIngreso } from '@/services/detalle_aspirante';
+import {
+  getDocumentacionIngreso,
+  getDocumentacionIngresoPorVinculacion,
+} from '@/services/detalle_aspirante';
 import {
   obtenerDocumentoSeguridadBase64,
+  obtenerDocumentoSeguridadBase64PorVinculacion,
   RegistrarDocumentosSeguridad,
   EliminarDocumentoSeguridadPorTipo
 } from '@/services/documentosSeguridad';
@@ -49,11 +53,21 @@ const DocumentUploadModal = ({
   docTypeConfigContratacion,
   tipoCarpeta = 'ingreso',
   documentosSaludOcupacional = [],
+  idVinculacionLaboral = null,
+  esHistorico = false,
+  numeroCiclo = null,
+  estadoVinculacion = null,
   soloLectura = false,
 }) => {
   const [documentos, setDocumentos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState('ingreso');
+
+  useEffect(() => {
+    if (esHistorico && tab === 'contratacion') {
+      setTab('ingreso');
+    }
+  }, [esHistorico, tab]);
 
   const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
@@ -64,6 +78,61 @@ const DocumentUploadModal = ({
   const esCarpetaBienestar = tipoCarpeta === 'bienestar';
   const esCarpetaHSE = tipoCarpeta === 'hse';
   const esCarpetaSaludOcupacional = tipoCarpeta === 'salud_ocupacional';
+
+  const obtenerIngresoParaCarpeta = (id) => {
+    if (esCarpetaIngreso && idVinculacionLaboral) {
+      return getDocumentacionIngresoPorVinculacion(
+        id,
+        idVinculacionLaboral
+      );
+    }
+
+    return getDocumentacionIngreso(id);
+  };
+
+  const obtenerSeguridadParaCarpeta = (id) => {
+    if (esCarpetaIngreso && idVinculacionLaboral) {
+      return obtenerDocumentoSeguridadBase64PorVinculacion(
+        id,
+        idVinculacionLaboral
+      );
+    }
+
+    return obtenerDocumentoSeguridadBase64(id);
+  };
+
+  const filtrarContratacionPorCicloSiDisponible = (respuesta) => {
+    if (!idVinculacionLaboral) return respuesta;
+
+    const data = Array.isArray(respuesta?.data)
+      ? respuesta.data
+      : Array.isArray(respuesta)
+        ? respuesta
+        : respuesta?.data
+          ? [respuesta.data]
+          : [];
+
+    const soportaCiclo = data.some(
+      (doc) =>
+        doc?.IdVinculacionLaboral !== undefined &&
+        doc?.IdVinculacionLaboral !== null
+    );
+
+    if (!soportaCiclo) return respuesta;
+
+    const filtrados = data.filter(
+      (doc) =>
+        String(doc?.IdVinculacionLaboral) ===
+        String(idVinculacionLaboral)
+    );
+
+    return {
+      ...(respuesta && typeof respuesta === 'object' && !Array.isArray(respuesta)
+        ? respuesta
+        : {}),
+      data: filtrados,
+    };
+  };
 
 const tituloModal = esCarpetaActivos
   ? 'Documentos Activos'
@@ -195,47 +264,92 @@ const tituloModal = esCarpetaActivos
     setLoading(true);
 
     Promise.all([
-      getDocumentacionIngreso(id).catch(() => null),
-      obtenerDocumentoSeguridadBase64(id).catch(() => null),
-      obtenerDocumentosContratacion(id).catch(() => null),
+      obtenerIngresoParaCarpeta(id).catch(() => null),
+      obtenerSeguridadParaCarpeta(id).catch(() => null),
+      obtenerDocumentosContratacion(id)
+        .then(filtrarContratacionPorCicloSiDisponible)
+        .catch(() => null),
     ])
       .then(([ingreso, seguridad, contratacion]) => {
         let docs = [];
 
+        const marcarOrigen = (lista, origen) =>
+          (Array.isArray(lista) ? lista : [])
+            .filter(Boolean)
+            .map((doc) => ({
+              ...doc,
+              OrigenCarpetaDigital:
+                doc?.OrigenCarpetaDigital || origen,
+              IdVinculacionLaboralConsulta:
+                doc?.IdVinculacionLaboral ??
+                (idVinculacionLaboral || null),
+            }));
+
         if (ingreso && Array.isArray(ingreso.data)) {
-          docs = docs.concat(ingreso.data);
+          docs = docs.concat(
+            marcarOrigen(ingreso.data, 'INGRESO')
+          );
         } else if (ingreso && ingreso.data) {
-          docs.push(ingreso.data);
+          docs = docs.concat(
+            marcarOrigen([ingreso.data], 'INGRESO')
+          );
         }
 
         if (seguridad) {
           if (Array.isArray(seguridad.data)) {
-            docs = docs.concat(seguridad.data);
+            docs = docs.concat(
+              marcarOrigen(seguridad.data, 'SEGURIDAD')
+            );
           } else if (Array.isArray(seguridad)) {
-            docs = docs.concat(seguridad);
+            docs = docs.concat(
+              marcarOrigen(seguridad, 'SEGURIDAD')
+            );
           } else if (seguridad.data) {
-            docs.push(seguridad.data);
+            docs = docs.concat(
+              marcarOrigen([seguridad.data], 'SEGURIDAD')
+            );
           } else if (seguridad) {
-            docs.push(seguridad);
+            docs = docs.concat(
+              marcarOrigen([seguridad], 'SEGURIDAD')
+            );
           }
         }
 
         if (contratacion) {
           if (Array.isArray(contratacion.data)) {
-            docs = docs.concat(contratacion.data);
+            docs = docs.concat(
+              marcarOrigen(contratacion.data, 'CONTRATACION')
+            );
           } else if (Array.isArray(contratacion)) {
-            docs = docs.concat(contratacion);
+            docs = docs.concat(
+              marcarOrigen(contratacion, 'CONTRATACION')
+            );
           } else if (contratacion.data) {
-            docs.push(contratacion.data);
+            docs = docs.concat(
+              marcarOrigen([contratacion.data], 'CONTRATACION')
+            );
           } else if (contratacion) {
-            docs.push(contratacion);
+            docs = docs.concat(
+              marcarOrigen([contratacion], 'CONTRATACION')
+            );
           }
         }
 
         setDocumentos(docs);
       })
       .finally(() => setLoading(false));
-}, [aspirante, esCarpetaIngreso, esCarpetaActivos, esCarpetaRetiro, esCarpetaOperaciones, esCarpetaBienestar, esCarpetaHSE, esCarpetaSaludOcupacional, API_BASE]);
+}, [
+  aspirante,
+  esCarpetaIngreso,
+  esCarpetaActivos,
+  esCarpetaRetiro,
+  esCarpetaOperaciones,
+  esCarpetaBienestar,
+  esCarpetaHSE,
+  esCarpetaSaludOcupacional,
+  API_BASE,
+  idVinculacionLaboral,
+]);
 
   if (!aspirante) return null;
 
@@ -879,7 +993,8 @@ const descargarDocumentoRetiro = async (doc) => {
 
       const response = await EliminarDocumentoSeguridadPorTipo(
         idRegistroPersonal,
-        tipoId
+        tipoId,
+        idVinculacionLaboral || null
       );
 
       if (!response.ok) {
@@ -923,6 +1038,12 @@ const descargarDocumentoRetiro = async (doc) => {
 
         const payload = {
           idRegistroPersonal,
+          ...(idVinculacionLaboral
+            ? {
+                idVinculacionLaboral:
+                  Number(idVinculacionLaboral),
+              }
+            : {}),
           documentos_seguridad: [
             {
               IdTipoDocumentacion: tipoId,
@@ -948,6 +1069,11 @@ const descargarDocumentoRetiro = async (doc) => {
             DocumentoBase64: base64,
             Formato: file.type || 'application/pdf',
             NombreArchivo: file.name,
+            OrigenCarpetaDigital: 'SEGURIDAD',
+            IdVinculacionLaboral:
+              idVinculacionLaboral || null,
+            IdVinculacionLaboralConsulta:
+              idVinculacionLaboral || null,
             EsNuevoDocumentoContratacion: esTipoDocumentalMultiple(tipoId),
             IdTemporalFrontend: `${tipoId}-${Date.now()}-${Math.random()}`,
           };
@@ -1961,6 +2087,32 @@ const renderCarpetaSaludOcupacional = () => (
                 </span>.
               </DialogDescription>
 
+              {(idVinculacionLaboral || esHistorico) && esCarpetaIngreso && (
+                <div
+                  className={`mt-3 rounded-xl border px-4 py-3 ${
+                    esHistorico
+                      ? 'bg-slate-50 border-slate-200'
+                      : 'bg-emerald-50 border-emerald-200'
+                  }`}
+                >
+                  <div className="font-semibold text-sm text-gray-800">
+                    {esHistorico
+                      ? `Carpeta histórica${numeroCiclo ? ` · Ciclo ${numeroCiclo}` : ''}`
+                      : `Carpeta activa${numeroCiclo ? ` · Ciclo ${numeroCiclo}` : ''}`}
+                  </div>
+
+                  <div className="text-xs text-gray-500 mt-1">
+                    {esHistorico
+                      ? `Solo consulta. Esta documentación pertenece a un ciclo anterior${
+                          estadoVinculacion
+                            ? ` con estado ${estadoVinculacion}`
+                            : ''
+                        }.`
+                      : 'Documentación correspondiente al proceso laboral actual.'}
+                  </div>
+                </div>
+              )}
+
               {soloLectura && (
                 <p className="text-sm text-gray-500 mt-2">
                   Modo consulta: en la carpeta digital solo se permite visualizar y descargar documentos.
@@ -1979,9 +2131,11 @@ const renderCarpetaSaludOcupacional = () => (
                     Documentos de Selección
                   </TabsTrigger>
 
-                  <TabsTrigger value="contratacion" className="rounded-lg px-6 py-2 text-base font-semibold data-[state=active]:bg-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-emerald-600 data-[state=active]:border">
-                    Documentos de Contratación
-                  </TabsTrigger>
+                  {!esHistorico && (
+                    <TabsTrigger value="contratacion" className="rounded-lg px-6 py-2 text-base font-semibold data-[state=active]:bg-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-emerald-600 data-[state=active]:border">
+                      Documentos de Contratación
+                    </TabsTrigger>
+                  )}
                 </TabsList>
               </Tabs>
             )}
@@ -2173,13 +2327,69 @@ const renderCarpetaSaludOcupacional = () => (
                     {docTypeConfigSeguridad?.list?.map((req) => {
                       const documentosArray = Array.isArray(documentos) ? documentos : [];
 
-                      const docDirecto = documentosArray.find(
-                        d => String(d.IdTipoDocumentacion) === String(req.id)
+                      const documentosDelTipo = documentosArray.filter(
+                        (d) =>
+                          String(d?.IdTipoDocumentacion) ===
+                          String(req.id)
                       );
 
-                      const docFirma42 = String(req.id) === '73'
-                        ? documentosArray.find(d => String(d.IdTipoDocumentacion) === '42')
-                        : null;
+                      const docMismoCicloYSeleccion =
+                        idVinculacionLaboral
+                          ? documentosDelTipo.find(
+                              (d) =>
+                                d?.OrigenCarpetaDigital === 'SEGURIDAD' &&
+                                String(
+                                  d?.IdVinculacionLaboral ??
+                                  d?.IdVinculacionLaboralConsulta ??
+                                  ''
+                                ) ===
+                                  String(idVinculacionLaboral)
+                            )
+                          : null;
+
+                      const docSeleccion = documentosDelTipo.find(
+                        (d) =>
+                          d?.OrigenCarpetaDigital === 'SEGURIDAD'
+                      );
+
+                      const docDirecto =
+                        docMismoCicloYSeleccion ||
+                        docSeleccion ||
+                        documentosDelTipo[0] ||
+                        null;
+
+                      const documentosFirma42 = String(req.id) === '73'
+                        ? documentosArray.filter(
+                            (d) =>
+                              String(d?.IdTipoDocumentacion) === '42'
+                          )
+                        : [];
+
+                      const docFirma42MismoCicloYSeleccion =
+                        idVinculacionLaboral
+                          ? documentosFirma42.find(
+                              (d) =>
+                                d?.OrigenCarpetaDigital === 'SEGURIDAD' &&
+                                String(
+                                  d?.IdVinculacionLaboral ??
+                                  d?.IdVinculacionLaboralConsulta ??
+                                  ''
+                                ) ===
+                                  String(idVinculacionLaboral)
+                            )
+                          : null;
+
+                      const docFirma42Seleccion =
+                        documentosFirma42.find(
+                          (d) =>
+                            d?.OrigenCarpetaDigital === 'SEGURIDAD'
+                        );
+
+                      const docFirma42 =
+                        docFirma42MismoCicloYSeleccion ||
+                        docFirma42Seleccion ||
+                        documentosFirma42[0] ||
+                        null;
 
                       const doc = docDirecto || docFirma42 || null;
                       const hasFile = !!doc;

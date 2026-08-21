@@ -16,6 +16,7 @@ import { toast } from '@/components/ui/use-toast';
 import { useAspirantes } from '@/hooks/useAspirantes';
 import { useAuth } from '@/context/AuthContext';
 import DocumentUploadModal from '@/components/modals/DocumentUploadModal';
+import { getAspirantePorCiclos } from '@/services/detalle_aspirante';
 import { getEstadoInfo } from '@/utils/statusUtils';
 import { cn } from '@/lib/utils';
 
@@ -151,7 +152,13 @@ const ArchivosView = () => {
     aspirante: null,
     isDemo: false,
     carpeta: 'ingreso',
+    idVinculacionLaboral: null,
+    esHistorico: false,
+    numeroCiclo: null,
+    estadoVinculacion: null,
   });
+
+  const [ciclosPorAspirante, setCiclosPorAspirante] = useState({});
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
@@ -198,7 +205,23 @@ const ArchivosView = () => {
     setCurrentPage(1);
   }, [searchTerm, aspirantes]);
 
-  const openDocumentosTrabajador = (aspirante, carpeta = 'ingreso') => {
+  const obtenerIdRegistroPersonal = (aspirante) =>
+    aspirante?.IdRegistroPersonal ||
+    aspirante?.idRegistroPersonal ||
+    aspirante?.id_registro_personal ||
+    aspirante?.id ||
+    null;
+
+  const obtenerCiclosTrabajador = (aspirante) => {
+    const id = obtenerIdRegistroPersonal(aspirante);
+    return id ? ciclosPorAspirante[String(id)] || null : null;
+  };
+
+  const openDocumentosTrabajador = (
+    aspirante,
+    carpeta = 'ingreso',
+    opciones = {}
+  ) => {
     const isDemo = false;
 
     setModalState({
@@ -206,6 +229,10 @@ const ArchivosView = () => {
       aspirante,
       isDemo,
       carpeta,
+      idVinculacionLaboral: opciones?.idVinculacionLaboral || null,
+      esHistorico: Boolean(opciones?.esHistorico),
+      numeroCiclo: opciones?.numeroCiclo || null,
+      estadoVinculacion: opciones?.estadoVinculacion || null,
     });
   };
 
@@ -215,6 +242,10 @@ const ArchivosView = () => {
       aspirante: null,
       isDemo: false,
       carpeta: 'ingreso',
+      idVinculacionLaboral: null,
+      esHistorico: false,
+      numeroCiclo: null,
+      estadoVinculacion: null,
     });
   };
 
@@ -349,6 +380,77 @@ const ArchivosView = () => {
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = sortedData.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(sortedData.length / itemsPerPage);
+
+  useEffect(() => {
+    if (
+      isOperaciones ||
+      isBienestar ||
+      isHSE ||
+      isConsultaSaludOcupacional ||
+      currentItems.length === 0
+    ) {
+      return;
+    }
+
+    let cancelado = false;
+
+    const cargarCiclosVisibles = async () => {
+      const pendientes = currentItems
+        .map((aspirante) => {
+          const id = obtenerIdRegistroPersonal(aspirante);
+          if (!id || ciclosPorAspirante[String(id)] !== undefined) {
+            return null;
+          }
+
+          return getAspirantePorCiclos(id)
+            .then((response) => ({
+              id: String(id),
+              data: response?.data || response || null,
+            }))
+            .catch((error) => {
+              console.error(
+                `No fue posible cargar ciclos para el trabajador ${id}:`,
+                error
+              );
+
+              return {
+                id: String(id),
+                data: null,
+              };
+            });
+        })
+        .filter(Boolean);
+
+      if (pendientes.length === 0) return;
+
+      const resultados = await Promise.all(pendientes);
+
+      if (cancelado) return;
+
+      setCiclosPorAspirante((prev) => {
+        const siguiente = { ...prev };
+
+        resultados.forEach(({ id, data }) => {
+          siguiente[id] = data;
+        });
+
+        return siguiente;
+      });
+    };
+
+    cargarCiclosVisibles();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [
+    currentItems,
+    isOperaciones,
+    isBienestar,
+    isHSE,
+    isConsultaSaludOcupacional,
+    ciclosPorAspirante,
+  ]);
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
   const SortIcon = ({ columnKey }) => {
@@ -449,9 +551,16 @@ const ArchivosView = () => {
               <tbody className="divide-y divide-gray-100">
                 {currentItems.length > 0 ? (
                   currentItems.map((aspirante) => {
-                   const isDemoRow = false;
+                    const isDemoRow = false;
+                    const ciclos = obtenerCiclosTrabajador(aspirante);
+                    const vinculacionesHistoricas = Array.isArray(
+                      ciclos?.vinculacionesHistoricas
+                    )
+                      ? ciclos.vinculacionesHistoricas
+                      : [];
 
                     return (
+                      <React.Fragment key={aspirante.id}>
                       <motion.tr
                         key={aspirante.id}
                         initial={{ opacity: 0 }}
@@ -565,7 +674,20 @@ const ArchivosView = () => {
         <button
           type="button"
           title="Documentos de ingreso"
-          onClick={() => openDocumentosTrabajador(aspirante, 'ingreso')}
+          onClick={() => {
+            const ciclos = obtenerCiclosTrabajador(aspirante);
+            const vinculacionActual = ciclos?.vinculacionActual || null;
+
+            openDocumentosTrabajador(aspirante, 'ingreso', {
+              idVinculacionLaboral:
+                ciclos?.esReintegroActual
+                  ? vinculacionActual?.IdVinculacionLaboral || null
+                  : null,
+              esHistorico: false,
+              numeroCiclo: vinculacionActual?.NumeroCiclo || null,
+              estadoVinculacion: vinculacionActual?.EstadoVinculacion || null,
+            });
+          }}
           className="flex flex-col items-center gap-1 text-yellow-600 hover:scale-105 transition-transform"
         >
           <Folder className="w-6 h-6" />
@@ -602,6 +724,73 @@ const ArchivosView = () => {
   </div>
 </td>
                       </motion.tr>
+
+                      {!isOperaciones &&
+                        !isBienestar &&
+                        !isHSE &&
+                        !isConsultaSaludOcupacional &&
+                        vinculacionesHistoricas.map((vinculacion) => (
+                          <motion.tr
+                            key={`historico-${aspirante.id}-${vinculacion.IdVinculacionLaboral}`}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="bg-slate-50/80 border-t border-dashed border-slate-300"
+                          >
+                            <td className="p-4">
+                              <div className="font-semibold text-slate-700">
+                                {`${aspirante.nombres || ''} ${aspirante.apellidos || ''}`.toUpperCase()}
+                              </div>
+                              <div className="text-xs text-slate-500 mt-1">
+                                Histórico laboral · Ciclo {vinculacion.NumeroCiclo || '-'}
+                              </div>
+                            </td>
+
+                            <td className="p-4 text-slate-500 font-mono text-sm">
+                              {aspirante.cedula}
+                            </td>
+
+                            <td className="p-4 text-slate-500">
+                              Solo consulta
+                            </td>
+
+                            <td className="p-4 text-center">
+                              <span className="px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide border bg-slate-100 text-slate-700 border-slate-300">
+                                {vinculacion.EstadoVinculacion || 'HISTÓRICO'}
+                              </span>
+                            </td>
+
+                            <td className="p-4 text-center">
+                              <div className="flex justify-center items-center">
+                                <button
+                                  type="button"
+                                  title="Documentos históricos de ingreso"
+                                  onClick={() =>
+                                    openDocumentosTrabajador(
+                                      aspirante,
+                                      'ingreso',
+                                      {
+                                        idVinculacionLaboral:
+                                          vinculacion.IdVinculacionLaboral,
+                                        esHistorico: true,
+                                        numeroCiclo:
+                                          vinculacion.NumeroCiclo || null,
+                                        estadoVinculacion:
+                                          vinculacion.EstadoVinculacion || null,
+                                      }
+                                    )
+                                  }
+                                  className="flex flex-col items-center gap-1 text-slate-600 hover:scale-105 transition-transform"
+                                >
+                                  <FolderOpen className="w-6 h-6" />
+                                  <span className="text-[11px] font-semibold text-slate-600">
+                                    Ingreso histórico
+                                  </span>
+                                </button>
+                              </div>
+                            </td>
+                          </motion.tr>
+                        ))}
+                      </React.Fragment>
                     );
                   })
                 ) : (
@@ -675,7 +864,12 @@ const ArchivosView = () => {
         docTypeConfigContratacion={modalConfigs.contratacion}
         tipoCarpeta={modalState.carpeta}
         documentosSaludOcupacional={documentosSaludOcupacional}
+        idVinculacionLaboral={modalState.idVinculacionLaboral}
+        esHistorico={modalState.esHistorico}
+        numeroCiclo={modalState.numeroCiclo}
+        estadoVinculacion={modalState.estadoVinculacion}
         soloLectura={
+          modalState.esHistorico ||
           modalState.carpeta === 'ingreso' ||
           modalState.carpeta === 'operaciones' ||
           modalState.carpeta === 'salud_ocupacional'

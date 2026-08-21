@@ -141,6 +141,16 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
     );
   };
 
+
+  const getIdVinculacionLaboral = () => {
+    return (
+      aspirante?.IdVinculacionLaboral ??
+      aspirante?.idVinculacionLaboral ??
+      aspirante?.id_vinculacion_laboral ??
+      null
+    );
+  };
+
   const mapTipoDocumentoToLabel = (value) => {
     // Si llega un número desde backend, lo mapeamos con una lógica segura.
     // Si ya llega string, lo dejamos.
@@ -574,8 +584,13 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
       throw new Error('No fue posible generar el PDF de la entrevista.');
     }
 
+    const idVinculacionLaboral = getIdVinculacionLaboral();
+
     const payloadDocumento = {
       idRegistroPersonal: Number(idRegistro),
+      ...(idVinculacionLaboral
+        ? { idVinculacionLaboral: Number(idVinculacionLaboral) }
+        : {}),
       documentos_seguridad: [
         {
           IdTipoDocumentacion: DOCUMENTO_ENTREVISTA_SELECCION_ID,
@@ -620,8 +635,13 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
       return;
     }
 
+    const idVinculacionLaboral = getIdVinculacionLaboral();
+
     const payload = {
       IdRegistroPerso: Number(idRegistro),
+      ...(idVinculacionLaboral
+        ? { IdVinculacionLaboral: Number(idVinculacionLaboral) }
+        : {}),
       Cargo: formData.cargo || null,
       HaTenidoAccide: formData.haTenidoAccidentes === 'Si',
       AccidenteCual: formData.haTenidoAccidentes === 'Si' ? (formData.detalleAccidente || null) : null,
@@ -666,6 +686,9 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
 
         if (typeof onSave === 'function') {
           onSave({
+            ...(idVinculacionLaboral
+              ? { IdVinculacionLaboral: Number(idVinculacionLaboral) }
+              : {}),
             FechaCreacion: formData.fechaActualizacion || new Date().toISOString().split('T')[0],
             ConceptoFinalSeleccion: formData.conceptoFinalPruebaSeleccion || '',
             EntrevistadorPor: formData.entrevistadoPor || '',
