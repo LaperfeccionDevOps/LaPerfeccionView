@@ -215,7 +215,7 @@ const consultarDatosCitacionProceso = async (
 
       // 3. Buscar el trabajador usando su número de identificación
       const respuestaBusqueda = await fetch(
-        `${API_URL}/rrll/trabajador/buscar?texto=${encodeURIComponent(
+        `${API_URL}/rrll/trabajador/buscar-texto?texto=${encodeURIComponent(
           numeroIdentificacion
         )}&limite=20`,
         {
@@ -510,7 +510,7 @@ setProcesoCreado(procesoDesdeAgenda);
       setLoadingBuscar(true);
 
       const response = await fetch(
-        `${API_URL}/rrll/trabajador/buscar?texto=${encodeURIComponent(
+        `${API_URL}/rrll/trabajador/buscar-texto?texto=${encodeURIComponent(
           texto
         )}&limite=20`,
         {
