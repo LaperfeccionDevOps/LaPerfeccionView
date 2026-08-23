@@ -31,6 +31,19 @@ const PanelGerencialRRLLView = () => {
   const [errorConsulta, setErrorConsulta] = useState('');
   const [fechaUltimaConsulta, setFechaUltimaConsulta] = useState(null);
 
+  const [gestionMensual, setGestionMensual] = useState(null);
+  const [analisisMes, setAnalisisMes] = useState('');
+  const [planAccion, setPlanAccion] = useState('');
+  const [analisisGuardado, setAnalisisGuardado] = useState('');
+  const [planAccionGuardado, setPlanAccionGuardado] = useState('');
+  const [calificacionMensual, setCalificacionMensual] = useState('');
+  const [calificacionGuardada, setCalificacionGuardada] = useState('');
+  const [cargandoGestion, setCargandoGestion] = useState(false);
+  const [guardandoGestion, setGuardandoGestion] = useState(false);
+  const [guardandoCalificacion, setGuardandoCalificacion] = useState(false);
+  const [errorGestion, setErrorGestion] = useState('');
+  const [mensajeGestion, setMensajeGestion] = useState('');
+
   const periodos = [
     { id: 'hoy', label: 'Hoy' },
     { id: 'semana', label: 'Esta semana' },
@@ -49,6 +62,26 @@ const PanelGerencialRRLLView = () => {
   const formatearCantidad = (cantidad, singular, plural) => {
     const valor = Number(cantidad ?? 0);
     return `${formatearNumero(valor)} ${valor === 1 ? singular : plural}`;
+  };
+
+  const formatearFechaHora = (fecha) => {
+    if (!fecha) {
+      return '—';
+    }
+
+    try {
+      return new Intl.DateTimeFormat('es-CO', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'America/Bogota',
+      }).format(new Date(fecha));
+    } catch {
+      return String(fecha);
+    }
   };
 
   const formatearDuracion = (dias) => {
@@ -127,8 +160,56 @@ const PanelGerencialRRLLView = () => {
     return 'Seleccione las fechas';
   }, [periodoSeleccionado, fechaInicial, fechaFinal]);
 
+  const periodoMensualSeleccionado = useMemo(() => {
+    if (periodoSeleccionado === 'mes') {
+      const hoy = new Date();
+
+      return {
+        anio: hoy.getFullYear(),
+        mes: hoy.getMonth() + 1,
+      };
+    }
+
+    if (
+      periodoSeleccionado !== 'personalizado' ||
+      !fechaInicial ||
+      !fechaFinal
+    ) {
+      return null;
+    }
+
+    const periodoInicio = String(fechaInicial).substring(0, 7);
+    const periodoFin = String(fechaFinal).substring(0, 7);
+
+    if (
+      periodoInicio.length !== 7 ||
+      periodoFin.length !== 7 ||
+      periodoInicio !== periodoFin
+    ) {
+      return null;
+    }
+
+    const [anioTexto, mesTexto] = periodoInicio.split('-');
+    const anio = Number(anioTexto);
+    const mes = Number(mesTexto);
+
+    if (!anio || !mes || mes < 1 || mes > 12) {
+      return null;
+    }
+
+    return {
+      anio,
+      mes,
+    };
+  }, [
+    periodoSeleccionado,
+    fechaInicial,
+    fechaFinal,
+  ]);
+
   const seleccionarPeriodo = (periodo) => {
     setPeriodoSeleccionado(periodo);
+    limpiarGestionMensual();
 
     if (periodo !== 'personalizado') {
       setFechaInicial('');
@@ -152,6 +233,19 @@ const PanelGerencialRRLLView = () => {
 
   const obtenerUrlBusquedaTrabajadores = () =>
     `${obtenerUrlPanel()}/buscar-trabajadores`;
+
+  const obtenerBaseApi = () => {
+    const baseApi =
+      import.meta.env.VITE_API_URL ||
+      import.meta.env.VITE_API_BASE_URL ||
+      'http://127.0.0.1:8000/api';
+
+    const baseLimpia = String(baseApi).replace(/\/$/, '');
+
+    return baseLimpia.endsWith('/api')
+      ? baseLimpia
+      : `${baseLimpia}/api`;
+  };
 
   useEffect(() => {
     const manejarClicFuera = (event) => {
@@ -259,6 +353,406 @@ const PanelGerencialRRLLView = () => {
     };
   }, [textoBusquedaTrabajador, trabajadorSeleccionado]);
 
+  const limpiarGestionMensual = () => {
+    setGestionMensual(null);
+    setAnalisisMes('');
+    setPlanAccion('');
+    setAnalisisGuardado('');
+    setPlanAccionGuardado('');
+    setCalificacionMensual('');
+    setCalificacionGuardada('');
+    setErrorGestion('');
+    setMensajeGestion('');
+  };
+
+  const consultarGestionMensual = async (periodo) => {
+    if (!periodo) {
+      limpiarGestionMensual();
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+
+    if (!token) {
+      limpiarGestionMensual();
+      setErrorGestion(
+        'No fue posible consultar la gestión mensual porque no se encontró la sesión autenticada.'
+      );
+      return;
+    }
+
+    setCargandoGestion(true);
+    setErrorGestion('');
+    setMensajeGestion('');
+
+    try {
+      const url =
+        `${obtenerBaseApi()}` +
+        `/gestion-mensual-indicadores` +
+        `/RRLL_RETIROS` +
+        `/PANEL_GERENCIAL` +
+        `/${periodo.anio}` +
+        `/${periodo.mes}`;
+
+      const respuesta = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const resultado = await respuesta.json().catch(() => ({}));
+
+      if (!respuesta.ok) {
+        throw new Error(
+          typeof resultado?.detail === 'string'
+            ? resultado.detail
+            : 'No fue posible consultar la gestión mensual del panel.'
+        );
+      }
+
+      const analisisCargado =
+        resultado?.gestionMensual?.analisisMes || '';
+      const planCargado =
+        resultado?.gestionMensual?.planAccion || '';
+      const calificacionCargada =
+        resultado?.gestionMensual?.calificacionMensual;
+
+      const calificacionTexto =
+        calificacionCargada !== null &&
+        calificacionCargada !== undefined
+          ? String(calificacionCargada)
+          : '';
+
+      setGestionMensual(resultado);
+      setAnalisisMes(analisisCargado);
+      setPlanAccion(planCargado);
+      setCalificacionMensual(calificacionTexto);
+      setAnalisisGuardado(analisisCargado);
+      setPlanAccionGuardado(planCargado);
+      setCalificacionGuardada(calificacionTexto);
+    } catch (error) {
+      console.error(
+        'Error consultando gestión mensual del Panel Gerencial RRLL:',
+        error
+      );
+
+      limpiarGestionMensual();
+      setErrorGestion(
+        error instanceof Error
+          ? error.message
+          : 'No fue posible consultar la gestión mensual del panel.'
+      );
+    } finally {
+      setCargandoGestion(false);
+    }
+  };
+
+  const guardarCamposGestionMensual = async (
+    campos,
+    { mostrarConfirmacion = true } = {}
+  ) => {
+    if (!periodoMensualSeleccionado || !gestionMensual) {
+      return false;
+    }
+
+    const token = localStorage.getItem('token');
+
+    if (!token) {
+      setErrorGestion(
+        'No fue posible guardar porque no se encontró la sesión autenticada.'
+      );
+      setMensajeGestion('');
+      return false;
+    }
+
+    setGuardandoGestion(true);
+    setErrorGestion('');
+
+    if (mostrarConfirmacion) {
+      setMensajeGestion('');
+    }
+
+    try {
+      const url =
+        `${obtenerBaseApi()}` +
+        `/gestion-mensual-indicadores` +
+        `/RRLL_RETIROS` +
+        `/PANEL_GERENCIAL` +
+        `/${periodoMensualSeleccionado.anio}` +
+        `/${periodoMensualSeleccionado.mes}` +
+        `/gestion`;
+
+      const respuesta = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(campos),
+      });
+
+      const resultado = await respuesta.json().catch(() => ({}));
+
+      if (!respuesta.ok) {
+        throw new Error(
+          typeof resultado?.detail === 'string'
+            ? resultado.detail
+            : 'No fue posible guardar la gestión mensual.'
+        );
+      }
+
+      const analisisCargado =
+        resultado?.gestionMensual?.analisisMes || '';
+      const planCargado =
+        resultado?.gestionMensual?.planAccion || '';
+      const calificacionCargada =
+        resultado?.gestionMensual?.calificacionMensual;
+
+      const calificacionTexto =
+        calificacionCargada !== null &&
+        calificacionCargada !== undefined
+          ? String(calificacionCargada)
+          : '';
+
+      setGestionMensual(resultado);
+      setAnalisisMes(analisisCargado);
+      setPlanAccion(planCargado);
+      setCalificacionMensual(calificacionTexto);
+      setAnalisisGuardado(analisisCargado);
+      setPlanAccionGuardado(planCargado);
+      setCalificacionGuardada(calificacionTexto);
+
+      if (mostrarConfirmacion) {
+        setMensajeGestion(
+          'La gestión mensual fue guardada correctamente.'
+        );
+      }
+
+      return true;
+    } catch (error) {
+      console.error(
+        'Error guardando gestión mensual del Panel Gerencial RRLL:',
+        error
+      );
+
+      setErrorGestion(
+        error instanceof Error
+          ? error.message
+          : 'No fue posible guardar la gestión mensual.'
+      );
+
+      return false;
+    } finally {
+      setGuardandoGestion(false);
+    }
+  };
+
+  const guardarGestionMensual = async () => {
+    if (!periodoMensualSeleccionado || !gestionMensual) {
+      return;
+    }
+
+    const permisos = gestionMensual?.permisos || {};
+    const body = {};
+
+    const analisisActual = analisisMes.trim();
+    const planActual = planAccion.trim();
+
+    if (
+      permisos.puedeEditarAnalisis &&
+      analisisActual &&
+      analisisActual !== analisisGuardado.trim()
+    ) {
+      body.analisisMes = analisisActual;
+    }
+
+    if (
+      permisos.puedeEditarPlanAccion &&
+      planActual &&
+      planActual !== planAccionGuardado.trim()
+    ) {
+      body.planAccion = planActual;
+    }
+
+    if (Object.keys(body).length === 0) {
+        setErrorGestion('');
+        setMensajeGestion('Los cambios ya se encuentran guardados.');
+        return;
+      }
+
+    await guardarCamposGestionMensual(body);
+  };
+
+  const guardarAnalisisAlSalir = async () => {
+    if (
+      !gestionMensual?.periodo?.esPeriodoActual ||
+      !gestionMensual?.permisos?.puedeEditarAnalisis ||
+      guardandoGestion
+    ) {
+      return;
+    }
+
+    const valorActual = analisisMes.trim();
+
+    if (
+      !valorActual ||
+      valorActual === analisisGuardado.trim()
+    ) {
+      return;
+    }
+
+    await guardarCamposGestionMensual(
+      { analisisMes: valorActual },
+      { mostrarConfirmacion: false }
+    );
+  };
+
+  const guardarPlanAccionAlSalir = async () => {
+    if (
+      !gestionMensual?.periodo?.esPeriodoActual ||
+      !gestionMensual?.permisos?.puedeEditarPlanAccion ||
+      guardandoGestion
+    ) {
+      return;
+    }
+
+    const valorActual = planAccion.trim();
+
+    if (
+      !valorActual ||
+      valorActual === planAccionGuardado.trim()
+    ) {
+      return;
+    }
+
+    await guardarCamposGestionMensual(
+      { planAccion: valorActual },
+      { mostrarConfirmacion: false }
+    );
+  };
+
+  const guardarCalificacionMensual = async () => {
+    if (
+      !periodoMensualSeleccionado ||
+      !gestionMensual?.permisos?.puedeEditarCalificacion
+    ) {
+      return;
+    }
+
+    const valorTexto = String(calificacionMensual).trim();
+
+    if (!valorTexto) {
+      setErrorGestion(
+        'Debe ingresar una calificación mensual entre 0 y 100.'
+      );
+      setMensajeGestion('');
+      return;
+    }
+
+    const valorNumerico = Number(valorTexto.replace(',', '.'));
+
+    if (
+      Number.isNaN(valorNumerico) ||
+      valorNumerico < 0 ||
+      valorNumerico > 100
+    ) {
+      setErrorGestion(
+        'La calificación mensual debe estar entre 0 y 100.'
+      );
+      setMensajeGestion('');
+      return;
+    }
+
+    if (
+      String(valorNumerico) ===
+      String(calificacionGuardada).replace(',', '.')
+    ) {
+      setErrorGestion(
+        'No hay cambios pendientes en la calificación.'
+      );
+      setMensajeGestion('');
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+
+    if (!token) {
+      setErrorGestion(
+        'No fue posible guardar la calificación porque no se encontró la sesión autenticada.'
+      );
+      setMensajeGestion('');
+      return;
+    }
+
+    setGuardandoCalificacion(true);
+    setErrorGestion('');
+    setMensajeGestion('');
+
+    try {
+      const url =
+        `${obtenerBaseApi()}` +
+        `/gestion-mensual-indicadores` +
+        `/RRLL_RETIROS` +
+        `/PANEL_GERENCIAL` +
+        `/${periodoMensualSeleccionado.anio}` +
+        `/${periodoMensualSeleccionado.mes}` +
+        `/calificacion`;
+
+      const respuesta = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          calificacionMensual: valorNumerico,
+        }),
+      });
+
+      const resultado = await respuesta.json().catch(() => ({}));
+
+      if (!respuesta.ok) {
+        throw new Error(
+          typeof resultado?.detail === 'string'
+            ? resultado.detail
+            : 'No fue posible guardar la calificación mensual.'
+        );
+      }
+
+      const calificacionCargada =
+        resultado?.gestionMensual?.calificacionMensual;
+      const calificacionTexto =
+        calificacionCargada !== null &&
+        calificacionCargada !== undefined
+          ? String(calificacionCargada)
+          : '';
+
+      setGestionMensual(resultado);
+      setCalificacionMensual(calificacionTexto);
+      setCalificacionGuardada(calificacionTexto);
+      setMensajeGestion(
+        'La calificación mensual fue guardada correctamente.'
+      );
+    } catch (error) {
+      console.error(
+        'Error guardando calificación mensual del Panel Gerencial RRLL:',
+        error
+      );
+
+      setErrorGestion(
+        error instanceof Error
+          ? error.message
+          : 'No fue posible guardar la calificación mensual.'
+      );
+    } finally {
+      setGuardandoCalificacion(false);
+    }
+  };
+
   const limpiarFiltros = () => {
     setPeriodoSeleccionado('mes');
     setFechaInicial('');
@@ -274,6 +768,7 @@ const PanelGerencialRRLLView = () => {
     setDatosPanel(null);
     setErrorConsulta('');
     setFechaUltimaConsulta(null);
+    limpiarGestionMensual();
   };
 
   const seleccionarTrabajador = (trabajador) => {
@@ -412,10 +907,19 @@ const PanelGerencialRRLLView = () => {
 
       setDatosPanel(datos);
       setFechaUltimaConsulta(new Date());
+
+      if (periodoMensualSeleccionado) {
+        await consultarGestionMensual(
+          periodoMensualSeleccionado
+        );
+      } else {
+        limpiarGestionMensual();
+      }
     } catch (error) {
       console.error('Error consultando Panel Gerencial RRLL:', error);
       setDatosPanel(null);
       setFechaUltimaConsulta(null);
+      limpiarGestionMensual();
       setErrorConsulta(
         error instanceof Error
           ? error.message
@@ -1676,6 +2180,329 @@ const PanelGerencialRRLLView = () => {
             </table>
           </div>
         </section>
+
+        {datosPanel !== null && periodoMensualSeleccionado && (
+          <section className="overflow-hidden rounded-2xl border border-emerald-200 bg-emerald-50/30 shadow-sm">
+            <div className="border-b border-emerald-100 bg-white px-5 py-5 md:px-6">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-sm font-bold text-emerald-700">
+                    Gestión mensual del Panel Gerencial
+                  </p>
+
+                  <h2 className="mt-1 text-xl font-bold text-slate-900">
+                    Análisis, plan de acción y calificación mensual
+                  </h2>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Información asociada exclusivamente al mes y año consultado en el Panel Gerencial de Retiros.
+                  </p>
+                </div>
+
+                <div className="w-fit rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-bold capitalize text-emerald-800">
+                  {new Intl.DateTimeFormat('es-CO', {
+                    month: 'long',
+                    year: 'numeric',
+                    timeZone: 'America/Bogota',
+                  }).format(
+                    new Date(
+                      periodoMensualSeleccionado.anio,
+                      periodoMensualSeleccionado.mes - 1,
+                      1
+                    )
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 md:p-6">
+              {cargandoGestion ? (
+                <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+                  Consultando gestión mensual...
+                </div>
+              ) : (
+                <>
+                  {errorGestion && (
+                    <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                      {errorGestion}
+                    </div>
+                  )}
+
+                  {mensajeGestion && (
+                    <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+                      {mensajeGestion}
+                    </div>
+                  )}
+
+                  {gestionMensual && (
+                    <>
+                      <div className="grid gap-5 xl:grid-cols-2">
+                        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                          <div className="mb-3">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <label
+                                htmlFor="analisisMesPanelRRLL"
+                                className="text-sm font-bold text-slate-900"
+                              >
+                                Análisis del mes
+                              </label>
+
+                              <span
+                                className={
+                                  gestionMensual?.permisos?.puedeEditarAnalisis
+                                    ? 'w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700'
+                                    : 'w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600'
+                                }
+                              >
+                                {gestionMensual?.permisos?.puedeEditarAnalisis
+                                  ? gestionMensual?.periodo?.esPeriodoAnterior
+                                    ? 'Pendiente · un solo guardado'
+                                    : 'Editable'
+                                  : 'Solo lectura'}
+                              </span>
+                            </div>
+
+                            <p className="mt-2 text-xs leading-5 text-slate-500">
+                              Describa el comportamiento de los retiros, las causas relevantes y las situaciones presentadas durante el mes.
+                            </p>
+                          </div>
+
+                          <textarea
+                            id="analisisMesPanelRRLL"
+                            value={analisisMes}
+                            onChange={(event) =>
+                              setAnalisisMes(event.target.value)
+                            }
+                            onBlur={guardarAnalisisAlSalir}
+                            disabled={
+                              !gestionMensual?.permisos?.puedeEditarAnalisis ||
+                              guardandoGestion
+                            }
+                            rows={7}
+                            placeholder="Escriba el análisis del mes..."
+                            className="w-full resize-y rounded-xl border border-slate-300 bg-white p-4 text-sm leading-6 text-slate-700 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-600"
+                          />
+
+                          <p className="mt-3 text-xs text-slate-500">
+                            {gestionMensual?.gestionMensual?.usuarioAnalisis ? (
+                              <>
+                                Registrado por{' '}
+                                <span className="font-semibold text-slate-700">
+                                  {gestionMensual.gestionMensual.usuarioAnalisis}
+                                </span>
+                                {' · '}
+                                {formatearFechaHora(
+                                  gestionMensual.gestionMensual.fechaAnalisis
+                                )}
+                              </>
+                            ) : (
+                              'Pendiente de diligenciar.'
+                            )}
+                          </p>
+                        </article>
+
+                        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                          <div className="mb-3">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <label
+                                htmlFor="planAccionPanelRRLL"
+                                className="text-sm font-bold text-slate-900"
+                              >
+                                Plan de acción
+                              </label>
+
+                              <span
+                                className={
+                                  gestionMensual?.permisos?.puedeEditarPlanAccion
+                                    ? 'w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700'
+                                    : 'w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600'
+                                }
+                              >
+                                {gestionMensual?.permisos?.puedeEditarPlanAccion
+                                  ? gestionMensual?.periodo?.esPeriodoAnterior
+                                    ? 'Pendiente · un solo guardado'
+                                    : 'Editable'
+                                  : 'Solo lectura'}
+                              </span>
+                            </div>
+
+                            <p className="mt-2 text-xs leading-5 text-slate-500">
+                              Registre las acciones definidas para corregir, mejorar o mantener los resultados del Panel Gerencial.
+                            </p>
+                          </div>
+
+                          <textarea
+                            id="planAccionPanelRRLL"
+                            value={planAccion}
+                            onChange={(event) =>
+                              setPlanAccion(event.target.value)
+                            }
+                            onBlur={guardarPlanAccionAlSalir}
+                            disabled={
+                              !gestionMensual?.permisos?.puedeEditarPlanAccion ||
+                              guardandoGestion
+                            }
+                            rows={7}
+                            placeholder="Escriba el plan de acción..."
+                            className="w-full resize-y rounded-xl border border-slate-300 bg-white p-4 text-sm leading-6 text-slate-700 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-600"
+                          />
+
+                          <p className="mt-3 text-xs text-slate-500">
+                            {gestionMensual?.gestionMensual?.usuarioPlanAccion ? (
+                              <>
+                                Registrado por{' '}
+                                <span className="font-semibold text-slate-700">
+                                  {gestionMensual.gestionMensual.usuarioPlanAccion}
+                                </span>
+                                {' · '}
+                                {formatearFechaHora(
+                                  gestionMensual.gestionMensual.fechaPlanAccion
+                                )}
+                              </>
+                            ) : (
+                              'Pendiente de diligenciar.'
+                            )}
+                          </p>
+                        </article>
+                      </div>
+
+                      <article className="mt-5 rounded-2xl border border-violet-200 bg-white p-5 shadow-sm">
+                        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                          <div className="flex-1">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                              <p className="text-sm font-bold text-slate-900">
+                                Calificación mensual
+                              </p>
+
+                              <span
+                                className={
+                                  gestionMensual?.permisos?.puedeEditarCalificacion
+                                    ? 'w-fit rounded-full bg-violet-100 px-3 py-1 text-xs font-bold text-violet-700'
+                                    : 'w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600'
+                                }
+                              >
+                                {gestionMensual?.permisos?.puedeEditarCalificacion
+                                  ? gestionMensual?.periodo?.esPeriodoAnterior
+                                    ? 'Pendiente · un solo guardado'
+                                    : 'Editable por Super Administrador'
+                                  : 'Solo lectura'}
+                              </span>
+                            </div>
+
+                            <p className="mt-2 text-xs leading-5 text-slate-500">
+                              La calificación es registrada manualmente por el Super Administrador y no modifica los cálculos automáticos del Panel Gerencial.
+                            </p>
+
+                            <p className="mt-2 text-xs text-slate-500">
+                              {gestionMensual?.gestionMensual?.usuarioCalificacion ? (
+                                <>
+                                  Calificado por{' '}
+                                  <span className="font-semibold text-slate-700">
+                                    {gestionMensual.gestionMensual.usuarioCalificacion}
+                                  </span>
+                                  {' · '}
+                                  {formatearFechaHora(
+                                    gestionMensual.gestionMensual.fechaCalificacion
+                                  )}
+                                </>
+                              ) : (
+                                'Pendiente de calificación.'
+                              )}
+                            </p>
+
+                            {gestionMensual?.permisos?.puedeEditarCalificacion && (
+                              <div className="mt-5 max-w-md">
+                                <label
+                                  htmlFor="calificacionMensualPanelRRLL"
+                                  className="mb-2 block text-xs font-bold text-slate-700"
+                                >
+                                  Calificación del panel
+                                </label>
+
+                                <div className="flex flex-col gap-3 sm:flex-row">
+                                  <div className="relative flex-1">
+                                    <input
+                                      id="calificacionMensualPanelRRLL"
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      step="0.01"
+                                      value={calificacionMensual}
+                                      onChange={(event) =>
+                                        setCalificacionMensual(event.target.value)
+                                      }
+                                      disabled={guardandoCalificacion}
+                                      placeholder="0 - 100"
+                                      className="h-11 w-full rounded-xl border border-violet-300 bg-white px-4 pr-10 text-sm font-bold text-slate-800 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100 disabled:cursor-not-allowed disabled:bg-slate-50"
+                                    />
+
+                                    <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-violet-700">
+                                      %
+                                    </span>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={guardarCalificacionMensual}
+                                    disabled={guardandoCalificacion}
+                                    className="inline-flex h-11 items-center justify-center rounded-xl bg-violet-700 px-5 text-sm font-bold text-white transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-[190px]"
+                                  >
+                                    {guardandoCalificacion
+                                      ? 'Guardando...'
+                                      : 'Guardar calificación'}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="min-w-[200px] rounded-2xl border border-violet-200 bg-violet-50 px-6 py-5 text-center">
+                            <p className="text-xs font-bold uppercase tracking-wide text-violet-700">
+                              Resultado
+                            </p>
+
+                            <p className="mt-1 text-3xl font-bold text-violet-800">
+                              {gestionMensual?.gestionMensual?.calificacionMensual !== null &&
+                              gestionMensual?.gestionMensual?.calificacionMensual !== undefined
+                                ? `${Number(
+                                    gestionMensual.gestionMensual.calificacionMensual
+                                  )
+                                    .toFixed(2)
+                                    .replace('.', ',')} %`
+                                : 'Pendiente'}
+                            </p>
+                          </div>
+                        </div>
+                      </article>
+
+                      {(gestionMensual?.permisos?.puedeEditarAnalisis ||
+                        gestionMensual?.permisos?.puedeEditarPlanAccion) && (
+                        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="text-xs leading-5 text-slate-500">
+                            {gestionMensual?.periodo?.esPeriodoAnterior
+                              ? 'El periodo ya finalizó. Los campos pendientes pueden diligenciarse una sola vez y quedarán bloqueados después de guardar.'
+                              : 'Mientras el mes se encuentre vigente, los cambios se guardan al salir de cada campo y también puede usar el botón Guardar gestión mensual.'}
+                          </p>
+
+                          <button
+                            type="button"
+                            onClick={guardarGestionMensual}
+                            disabled={guardandoGestion}
+                            className="inline-flex h-11 items-center justify-center rounded-xl bg-emerald-700 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-[220px]"
+                          >
+                            {guardandoGestion
+                              ? 'Guardando...'
+                              : 'Guardar gestión mensual'}
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          </section>
+        )}
 
         <p className="pb-4 text-center text-xs text-slate-400">
           Los indicadores se actualizan al consultar la información del
