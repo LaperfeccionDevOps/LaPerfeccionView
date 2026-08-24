@@ -542,13 +542,37 @@ export default function ProcesoDisciplinarioDetalleView({
   };
 
   const verExpedientePDF = () => {
-    const idProceso =
-      procesoExp?.IdProcesoDisciplinario;
+    const documentoCierre = [...documentos]
+      .reverse()
+      .find(
+        (doc) =>
+          String(doc?.TipoDocumento || "")
+            .trim()
+            .toUpperCase() ===
+          "DOCUMENTO_CIERRE_DISCIPLINARIO"
+      );
 
-    if (!idProceso) return;
+    if (!documentoCierre) {
+      setMensajeDocumento(
+        "Este expediente no tiene un documento de cierre disciplinario disponible."
+      );
+      return;
+    }
+
+    const idDocumento =
+      documentoCierre?.IdDocumentoProcesoDisciplinario;
+
+    if (!idDocumento) {
+      setMensajeDocumento(
+        "El documento de cierre está registrado, pero no fue posible identificar su archivo."
+      );
+      return;
+    }
+
+    setMensajeDocumento("");
 
     window.open(
-      `${API_URL}/procesos-disciplinarios/${idProceso}/pdf`,
+      `${API_URL}/documento-proceso-disciplinario/${idDocumento}/archivo`,
       "_blank"
     );
   };

@@ -1249,44 +1249,64 @@ function CitaAgenda({
           : "cursor-not-allowed opacity-90"
       }`}
     >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex min-w-0 gap-4">
-          <div className="min-w-[105px] rounded-xl border border-white/90 bg-white px-3 py-3 text-center shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-              Horario
-            </p>
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-[86px_minmax(0,1fr)]">
+        <div className="rounded-xl border border-white/90 bg-white px-2 py-3 text-center shadow-sm sm:self-stretch">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+            Horario
+          </p>
 
-            <p className="mt-1 text-sm font-black text-slate-900">
-              {formatearHora(evento?.HoraInicio)}
-            </p>
+          <p className="mt-1 whitespace-nowrap text-[13px] font-black text-slate-900">
+            {formatearHora(evento?.HoraInicio)}
+          </p>
 
-            <div className="my-1 h-px bg-slate-200" />
+          <div className="my-1 h-px bg-slate-200" />
 
-            <p className="text-xs font-bold text-slate-700">
-              {formatearHora(evento?.HoraFin)}
-            </p>
-          </div>
+          <p className="whitespace-nowrap text-[11px] font-bold text-slate-700">
+            {formatearHora(evento?.HoraFin)}
+          </p>
+        </div>
 
-          <div className="min-w-0">
-            <p className="truncate text-lg font-bold text-slate-900">
+        <div className="min-w-0">
+          <div className="grid min-w-0 grid-cols-1 gap-2 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-start">
+            <p className="min-w-0 text-base font-bold leading-5 text-slate-900 [overflow-wrap:normal] [word-break:normal]">
               {evento?.NombreCompleto || "Trabajador sin nombre"}
             </p>
 
-            <div className="mt-2 grid grid-cols-1 gap-1 text-sm text-slate-600 sm:grid-cols-2">
-              <p>
-                Documento:{" "}
-                <b>{evento?.NumeroIdentificacion || "—"}</b>
-              </p>
+            <span
+              className={`inline-flex w-fit shrink-0 items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${estilo.badge}`}
+            >
+              <span
+                className={`h-2 w-2 shrink-0 rounded-full ${estilo.punto}`}
+              />
 
-              <p>
-                Modalidad:{" "}
-                <b>{evento?.Modalidad || "—"}</b>
-              </p>
+              {estilo.etiqueta}
+            </span>
+          </div>
+
+          <div className="mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(96px,0.8fr)] gap-x-3 gap-y-2 text-sm text-slate-600">
+            <div className="min-w-0">
+              <span className="block text-xs font-semibold text-slate-500">
+                Documento
+              </span>
+              <b className="block whitespace-nowrap text-slate-800">
+                {evento?.NumeroIdentificacion || "—"}
+              </b>
             </div>
 
-            <p className="mt-1 text-sm text-slate-600">
-              Expediente:{" "}
-              <b>
+            <div className="min-w-0">
+              <span className="block text-xs font-semibold text-slate-500">
+                Modalidad
+              </span>
+              <b className="block whitespace-nowrap text-slate-800">
+                {evento?.Modalidad || "—"}
+              </b>
+            </div>
+
+            <div className="min-w-0 col-span-2">
+              <span className="block text-xs font-semibold text-slate-500">
+                Expediente
+              </span>
+              <b className="block break-words text-slate-800">
                 {evento?.IdProcesoDisciplinario
                   ? formatearExpedienteDisciplinario(
                       evento.IdProcesoDisciplinario,
@@ -1295,48 +1315,38 @@ function CitaAgenda({
                     )
                   : "—"}
               </b>
-            </p>
-
-            <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
-              <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
-                {evento?.TipoEvento || "Citación"}
-              </span>
-
-              <span
-                className={`rounded-full border px-3 py-1 ${
-                  cerrado
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : "border-slate-200 bg-slate-100 text-slate-600"
-                }`}
-              >
-                {cerrado
-                  ? "Expediente cerrado"
-                  : "Proceso abierto"}
-              </span>
             </div>
           </div>
-        </div>
 
-        <div className="flex flex-row items-center justify-between gap-3 lg:flex-col lg:items-end">
-          <span
-            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${estilo.badge}`}
-          >
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold">
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">
+              {evento?.TipoEvento || "Citación"}
+            </span>
+
             <span
-              className={`h-2 w-2 rounded-full ${estilo.punto}`}
-            />
-
-            {estilo.etiqueta}
-          </span>
-
-          {cerrado ? (
-            <span className="text-xs font-bold text-emerald-700 transition group-hover:text-emerald-900">
-              Consultar expediente
+              className={`rounded-full border px-3 py-1 ${
+                cerrado
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-slate-200 bg-slate-100 text-slate-600"
+              }`}
+            >
+              {cerrado
+                ? "Expediente cerrado"
+                : "Proceso abierto"}
             </span>
-          ) : (
-            <span className="max-w-[190px] text-right text-xs font-semibold leading-5 text-slate-500">
-              Gestión disponible únicamente desde la Agenda Diaria
-            </span>
-          )}
+          </div>
+
+          <div className="mt-3 border-t border-slate-200/80 pt-3">
+            {cerrado ? (
+              <span className="inline-flex text-xs font-bold text-emerald-700 transition group-hover:text-emerald-900">
+                Consultar expediente
+              </span>
+            ) : (
+              <span className="block max-w-full text-xs font-semibold leading-5 text-slate-500">
+                Gestión disponible únicamente desde la Agenda Diaria
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </button>
