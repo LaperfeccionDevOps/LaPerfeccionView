@@ -428,9 +428,18 @@ export default function CitacionProcesoDisciplinarioView({
 
         const [
           dataCitacion,
+          responseAgenda,
           responseEvidencias,
         ] = await Promise.all([
           obtenerCitacionPorProceso(idProceso),
+
+          fetch(
+            `${API_URL}/agenda-disciplinaria/proceso/${idProceso}`,
+            {
+              method: "GET",
+              headers: construirHeaders(),
+            }
+          ),
 
           fetch(
             `${API_URL}/documento-proceso-disciplinario/proceso/${idProceso}`,
@@ -441,19 +450,79 @@ export default function CitacionProcesoDisciplinarioView({
           ),
         ]);
 
+        let eventoCitacionVigente = null;
+
+        if (responseAgenda.ok) {
+          const agendaProceso =
+            await responseAgenda.json().catch(() => []);
+
+          const eventosAgenda = Array.isArray(
+            agendaProceso
+          )
+            ? agendaProceso
+            : [];
+
+          const eventosCitacion =
+            eventosAgenda.filter((evento) => {
+              return (
+                Number(
+                  evento?.IdTipoEventoDisciplinario
+                ) === 1
+              );
+            });
+
+          if (eventosCitacion.length > 0) {
+            eventoCitacionVigente =
+              eventosCitacion.reduce(
+                (eventoVigente, eventoActual) => {
+                  if (!eventoVigente) {
+                    return eventoActual;
+                  }
+
+                  const fechaVigente = String(
+                    eventoVigente?.FechaActualizacion ||
+                      eventoVigente?.FechaCreacion ||
+                      ""
+                  );
+
+                  const fechaActual = String(
+                    eventoActual?.FechaActualizacion ||
+                      eventoActual?.FechaCreacion ||
+                      ""
+                  );
+
+                  return fechaActual > fechaVigente
+                    ? eventoActual
+                    : eventoVigente;
+                },
+                null
+              );
+          }
+        } else {
+          console.warn(
+            `No fue posible consultar la agenda vigente del proceso. HTTP ${responseAgenda.status}. Se utilizará la fecha original de la citación.`
+          );
+        }
+
         if (dataCitacion) {
           setCitacionExistente(dataCitacion);
 
           setFechaCitacion(
-            dataCitacion.FechaCitacion || ""
+            eventoCitacionVigente?.FechaEvento ||
+              dataCitacion.FechaCitacion ||
+              ""
           );
 
           setHoraCitacion(
-            dataCitacion.HoraCitacion
+            eventoCitacionVigente?.HoraInicio
               ? String(
-                  dataCitacion.HoraCitacion
+                  eventoCitacionVigente.HoraInicio
                 ).slice(0, 5)
-              : ""
+              : dataCitacion.HoraCitacion
+                ? String(
+                    dataCitacion.HoraCitacion
+                  ).slice(0, 5)
+                : ""
           );
 
           setModalidad(
