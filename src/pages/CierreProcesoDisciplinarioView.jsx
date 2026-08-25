@@ -139,6 +139,42 @@ function formatearTipoDocumento(valor) {
 }
 
 
+function calcularDiasSuspension(
+  fechaInicio,
+  fechaFin
+) {
+  if (!fechaInicio || !fechaFin) {
+    return "";
+  }
+
+  const inicio = new Date(
+    `${fechaInicio}T00:00:00`
+  );
+
+  const fin = new Date(
+    `${fechaFin}T00:00:00`
+  );
+
+  if (
+    Number.isNaN(inicio.getTime()) ||
+    Number.isNaN(fin.getTime()) ||
+    fin < inicio
+  ) {
+    return "";
+  }
+
+  const diferenciaMilisegundos =
+    fin.getTime() - inicio.getTime();
+
+  const diferenciaDias = Math.floor(
+    diferenciaMilisegundos /
+      (1000 * 60 * 60 * 24)
+  );
+
+  return diferenciaDias + 1;
+}
+
+
 function fechaActualColombia() {
   const partes = new Intl.DateTimeFormat(
     "en-CA",
@@ -218,9 +254,29 @@ export default function CierreProcesoDisciplinarioView({
   ] = useState(
     fechaActualColombia()
   );
-const [
+  const [
     conclusionRRLL,
     setConclusionRRLL,
+  ] = useState("");
+
+  const [
+    medidaDisciplinaria,
+    setMedidaDisciplinaria,
+  ] = useState("");
+
+  const [
+    aplicaSuspension,
+    setAplicaSuspension,
+  ] = useState(false);
+
+  const [
+    fechaInicioSuspension,
+    setFechaInicioSuspension,
+  ] = useState("");
+
+  const [
+    fechaFinSuspension,
+    setFechaFinSuspension,
   ] = useState("");
 
   const [
@@ -261,6 +317,12 @@ const [
     tipoMensaje,
     setTipoMensaje,
   ] = useState("");
+
+  const diasSuspension =
+    calcularDiasSuspension(
+      fechaInicioSuspension,
+      fechaFinSuspension
+    );
 
 
   const [
@@ -389,6 +451,28 @@ setConclusionRRLL(
             ""
           );
 
+          setMedidaDisciplinaria(
+            dataCierre.MedidaDisciplinaria ||
+            ""
+          );
+
+          setFechaInicioSuspension(
+            dataCierre.FechaInicioSuspension ||
+            ""
+          );
+
+          setFechaFinSuspension(
+            dataCierre.FechaFinSuspension ||
+            ""
+          );
+
+          setAplicaSuspension(
+            Boolean(
+              dataCierre.FechaInicioSuspension ||
+              dataCierre.FechaFinSuspension
+            )
+          );
+
           setResponsableCierre(
             nombreResponsable
           );
@@ -414,6 +498,24 @@ setConclusionRRLL(
           );
 setConclusionRRLL(
             borradorLocal.conclusionRRLL || ""
+          );
+
+          setMedidaDisciplinaria(
+            borradorLocal.medidaDisciplinaria || ""
+          );
+
+          setAplicaSuspension(
+            Boolean(
+              borradorLocal.aplicaSuspension
+            )
+          );
+
+          setFechaInicioSuspension(
+            borradorLocal.fechaInicioSuspension || ""
+          );
+
+          setFechaFinSuspension(
+            borradorLocal.fechaFinSuspension || ""
           );
 
           setResponsableCierre(
@@ -463,6 +565,10 @@ setConclusionRRLL(
         fechaCierre,
 
         conclusionRRLL,
+        medidaDisciplinaria,
+        aplicaSuspension,
+        fechaInicioSuspension,
+        fechaFinSuspension,
         responsableCierre,
         fechaGuardado: ahora,
       };
@@ -493,15 +599,17 @@ setConclusionRRLL(
       window.clearTimeout(temporizador);
     };
   }, [
+    aplicaSuspension,
     conclusionRRLL,
     fechaCierre,
+    fechaFinSuspension,
+    fechaInicioSuspension,
     finalizado,
     loadingInicial,
     loadingResponsable,
-
+    medidaDisciplinaria,
     proceso?.IdProcesoDisciplinario,
     responsableCierre,
-
   ]);
 
 
@@ -526,6 +634,10 @@ setConclusionRRLL(
         fechaCierre,
 
         conclusionRRLL,
+        medidaDisciplinaria,
+        aplicaSuspension,
+        fechaInicioSuspension,
+        fechaFinSuspension,
         responsableCierre,
         fechaGuardado: ahora,
       };
@@ -551,15 +663,17 @@ setConclusionRRLL(
       window.clearInterval(intervalo);
     };
   }, [
+    aplicaSuspension,
     conclusionRRLL,
     fechaCierre,
+    fechaFinSuspension,
+    fechaInicioSuspension,
     finalizado,
     loadingInicial,
     loadingResponsable,
-
+    medidaDisciplinaria,
     proceso?.IdProcesoDisciplinario,
     responsableCierre,
-
   ]);
 
 
@@ -992,6 +1106,43 @@ if (!fechaCierre) {
     }
 
     if (
+      aplicaSuspension &&
+      !limpiarTexto(
+        medidaDisciplinaria
+      )
+    ) {
+      resultado.medidaDisciplinaria =
+        "Debe registrar la medida disciplinaria cuando aplica suspensión.";
+    }
+
+    if (
+      aplicaSuspension &&
+      !fechaInicioSuspension
+    ) {
+      resultado.fechaInicioSuspension =
+        "La fecha de inicio de suspensión es obligatoria.";
+    }
+
+    if (
+      aplicaSuspension &&
+      !fechaFinSuspension
+    ) {
+      resultado.fechaFinSuspension =
+        "La fecha de fin de suspensión es obligatoria.";
+    }
+
+    if (
+      aplicaSuspension &&
+      fechaInicioSuspension &&
+      fechaFinSuspension &&
+      fechaFinSuspension <
+        fechaInicioSuspension
+    ) {
+      resultado.fechaFinSuspension =
+        "La fecha fin de suspensión no puede ser anterior a la fecha inicio.";
+    }
+
+    if (
       !limpiarTexto(
         conclusionRRLL
       )
@@ -999,13 +1150,16 @@ if (!fechaCierre) {
       resultado.conclusionRRLL =
         "La conclusión de Relaciones Laborales es obligatoria.";
     }
-return resultado;
+
+    return resultado;
   }, [
+    aplicaSuspension,
     conclusionRRLL,
     fechaCierre,
-
+    fechaFinSuspension,
+    fechaInicioSuspension,
+    medidaDisciplinaria,
     responsableCierre,
-
   ]);
 
 
@@ -1015,7 +1169,23 @@ return resultado;
 
     FechaCierre:
       fechaCierre || null,
-ConclusionRRLL:
+
+    MedidaDisciplinaria:
+      limpiarTexto(
+        medidaDisciplinaria
+      ) || null,
+
+    FechaInicioSuspension:
+      aplicaSuspension
+        ? fechaInicioSuspension || null
+        : null,
+
+    FechaFinSuspension:
+      aplicaSuspension
+        ? fechaFinSuspension || null
+        : null,
+
+    ConclusionRRLL:
       limpiarTexto(
         conclusionRRLL
       ) || null,
@@ -1196,6 +1366,10 @@ ConclusionRRLL:
         fechaCierre,
 
         conclusionRRLL,
+        medidaDisciplinaria,
+        aplicaSuspension,
+        fechaInicioSuspension,
+        fechaFinSuspension,
         responsableCierre,
         fechaGuardado: ahora,
       };
@@ -1433,6 +1607,158 @@ ConclusionRRLL:
                 )}
             </div>
           </div>
+        </div>
+
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50/50 p-6">
+          <div className="mb-5">
+            <h3 className="text-lg font-bold text-gray-800">
+              Medida disciplinaria y suspensión
+            </h3>
+
+            <p className="mt-1 text-sm text-gray-500">
+              Registre la medida definida por Relaciones Laborales. Si la medida incluye suspensión, indique las fechas para calcular automáticamente los días.
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-gray-800">
+              Medida disciplinaria
+            </label>
+
+            <Input
+              value={medidaDisciplinaria}
+              maxLength={500}
+              disabled={finalizado}
+              onChange={(event) => {
+                setMedidaDisciplinaria(
+                  event.target.value
+                );
+                setMensaje("");
+                setTipoMensaje("");
+              }}
+              placeholder="Ejemplo: Suspensión de 3 días, llamado de atención, archivo del proceso..."
+            />
+
+            {!finalizado &&
+              errores.medidaDisciplinaria && (
+                <p className="mt-2 text-xs text-red-600">
+                  {errores.medidaDisciplinaria}
+                </p>
+              )}
+          </div>
+
+          <div className="mt-5 rounded-xl border border-amber-200 bg-white p-4">
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={aplicaSuspension}
+                disabled={finalizado}
+                onChange={(event) => {
+                  const aplica =
+                    event.target.checked;
+
+                  setAplicaSuspension(aplica);
+
+                  if (!aplica) {
+                    setFechaInicioSuspension("");
+                    setFechaFinSuspension("");
+                  }
+
+                  setMensaje("");
+                  setTipoMensaje("");
+                }}
+                className="mt-1 h-4 w-4"
+              />
+
+              <span>
+                <span className="block text-sm font-bold text-gray-800">
+                  La medida incluye suspensión
+                </span>
+
+                <span className="mt-1 block text-xs text-gray-500">
+                  Active esta opción únicamente cuando la decisión final contemple días de suspensión.
+                </span>
+              </span>
+            </label>
+          </div>
+
+          {aplicaSuspension && (
+            <div className="mt-5 rounded-xl border border-amber-200 bg-white p-5">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-800">
+                    Día inicio suspensión *
+                  </label>
+
+                  <Input
+                    type="date"
+                    value={fechaInicioSuspension}
+                    disabled={finalizado}
+                    onChange={(event) => {
+                      setFechaInicioSuspension(
+                        event.target.value
+                      );
+                      setMensaje("");
+                      setTipoMensaje("");
+                    }}
+                  />
+
+                  {!finalizado &&
+                    errores.fechaInicioSuspension && (
+                      <p className="mt-2 text-xs text-red-600">
+                        {errores.fechaInicioSuspension}
+                      </p>
+                    )}
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-800">
+                    Día fin suspensión *
+                  </label>
+
+                  <Input
+                    type="date"
+                    value={fechaFinSuspension}
+                    disabled={finalizado}
+                    onChange={(event) => {
+                      setFechaFinSuspension(
+                        event.target.value
+                      );
+                      setMensaje("");
+                      setTipoMensaje("");
+                    }}
+                  />
+
+                  {!finalizado &&
+                    errores.fechaFinSuspension && (
+                      <p className="mt-2 text-xs text-red-600">
+                        {errores.fechaFinSuspension}
+                      </p>
+                    )}
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase text-gray-500">
+                  Días de suspensión
+                </p>
+
+                <p className="mt-1 text-lg font-bold text-gray-800">
+                  {diasSuspension !== ""
+                    ? `${diasSuspension} ${
+                        diasSuspension === 1
+                          ? "día"
+                          : "días"
+                      }`
+                    : "Pendiente por calcular"}
+                </p>
+
+                <p className="mt-1 text-xs text-gray-500">
+                  Se calcula automáticamente con la fecha de inicio y la fecha de fin de la suspensión.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6">

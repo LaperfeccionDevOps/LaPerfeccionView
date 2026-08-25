@@ -88,12 +88,16 @@ function obtenerTokenAutenticacion() {
 }
 
 
-function construirHeaders() {
+function construirHeaders(incluirJson = false) {
   const token = obtenerTokenAutenticacion();
 
   const headers = {
     Accept: "application/json",
   };
+
+  if (incluirJson) {
+    headers["Content-Type"] = "application/json";
+  }
 
   if (token) {
     headers.Authorization = `Bearer ${token}`;
@@ -205,6 +209,42 @@ function formatearHora(hora) {
   }
 
   return String(hora).slice(0, 5);
+}
+
+
+function calcularDiasAusencia(
+  fechaInicio,
+  fechaFin
+) {
+  if (!fechaInicio || !fechaFin) {
+    return "";
+  }
+
+  const inicio = new Date(
+    `${fechaInicio}T00:00:00`
+  );
+
+  const fin = new Date(
+    `${fechaFin}T00:00:00`
+  );
+
+  if (
+    Number.isNaN(inicio.getTime()) ||
+    Number.isNaN(fin.getTime()) ||
+    fin < inicio
+  ) {
+    return "";
+  }
+
+  const diferenciaMilisegundos =
+    fin.getTime() - inicio.getTime();
+
+  const diferenciaDias = Math.floor(
+    diferenciaMilisegundos /
+      (1000 * 60 * 60 * 24)
+  );
+
+  return diferenciaDias + 1;
 }
 
 
@@ -364,6 +404,21 @@ export default function CitacionProcesoDisciplinarioView({
   ] = useState("");
 
   const [
+    fechaUltimoDiaLaborado,
+    setFechaUltimoDiaLaborado,
+  ] = useState("");
+
+  const [
+    fechaInicioAusencia,
+    setFechaInicioAusencia,
+  ] = useState("");
+
+  const [
+    fechaFinAusencia,
+    setFechaFinAusencia,
+  ] = useState("");
+
+  const [
     relatoHechos,
     setRelatoHechos,
   ] = useState("");
@@ -408,8 +463,25 @@ export default function CitacionProcesoDisciplinarioView({
     setTipoMensaje,
   ] = useState("error");
 
+  const [
+    guardandoAusencia,
+    setGuardandoAusencia,
+  ] = useState(false);
+
   const responsableRRLL =
     obtenerUsuarioAutenticado();
+
+  const esAusenciaInjustificada =
+    String(motivoCitacion || "")
+      .trim()
+      .toUpperCase() ===
+    "AUSENCIA_INJUSTIFICADA";
+
+  const diasAusencia =
+    calcularDiasAusencia(
+      fechaInicioAusencia,
+      fechaFinAusencia
+    );
 
 
   useEffect(() => {
@@ -566,6 +638,21 @@ export default function CitacionProcesoDisciplinarioView({
               ""
           );
 
+          setFechaUltimoDiaLaborado(
+            dataCitacion.FechaUltimoDiaLaborado ||
+              ""
+          );
+
+          setFechaInicioAusencia(
+            dataCitacion.FechaInicioAusencia ||
+              ""
+          );
+
+          setFechaFinAusencia(
+            dataCitacion.FechaFinAusencia ||
+              ""
+          );
+
           setRelatoHechos(
             dataCitacion.RelatoHechos ||
               datosAnteriores.relato ||
@@ -595,6 +682,9 @@ export default function CitacionProcesoDisciplinarioView({
               ""
           );
           setTipoGestion("");
+          setFechaUltimoDiaLaborado("");
+          setFechaInicioAusencia("");
+          setFechaFinAusencia("");
           setDesempenoContinua("");
           setJustificacionDesempeno("");
         }
@@ -651,7 +741,60 @@ export default function CitacionProcesoDisciplinarioView({
   ]);
 
 
-  const handleContinuar = () => {
+  const guardarDatosAusenciaRRLL = async () => {
+    if (
+      !esAusenciaInjustificada ||
+      !citacionExistente
+        ?.IdCitacionProcesoDisciplinario
+    ) {
+      return citacionExistente;
+    }
+
+    const response = await fetch(
+      `${API_URL}/citacion-proceso-disciplinario/${citacionExistente.IdCitacionProcesoDisciplinario}`,
+      {
+        method: "PUT",
+        headers: construirHeaders(true),
+        body: JSON.stringify({
+          FechaUltimoDiaLaborado:
+            fechaUltimoDiaLaborado || null,
+          FechaInicioAusencia:
+            fechaInicioAusencia || null,
+          FechaFinAusencia:
+            fechaFinAusencia || null,
+          UsuarioActualizacion:
+            responsableRRLL,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const detalle = await response
+        .json()
+        .catch(() => null);
+
+      const mensajeError =
+        detalle?.detail?.mensaje ||
+        detalle?.detail ||
+        "No se pudieron actualizar los datos de ausencia.";
+
+      throw new Error(
+        String(mensajeError)
+      );
+    }
+
+    const citacionActualizada =
+      await response.json();
+
+    setCitacionExistente(
+      citacionActualizada
+    );
+
+    return citacionActualizada;
+  };
+
+
+  const handleContinuar = async () => {
     setMensaje("");
     setTipoMensaje("error");
 
@@ -693,16 +836,77 @@ export default function CitacionProcesoDisciplinarioView({
       faltantes.push("relato de los hechos");
     }
 
+    if (esAusenciaInjustificada) {
+      if (!fechaUltimoDiaLaborado) {
+        faltantes.push(
+          "último día laborado"
+        );
+      }
+
+      if (!fechaInicioAusencia) {
+        faltantes.push(
+          "inicio de ausencia"
+        );
+      }
+
+      if (!fechaFinAusencia) {
+        faltantes.push(
+          "fin de ausencia"
+        );
+      }
+    }
+
     if (faltantes.length > 0) {
       setMensaje(
-        `Falta información registrada por Operaciones: ${faltantes.join(
+        `Falta información registrada por Operaciones o pendiente de validar por RRLL: ${faltantes.join(
           ", "
         )}.`
       );
       return;
     }
 
-    setVista("descargos");
+    if (esAusenciaInjustificada) {
+      if (
+        fechaUltimoDiaLaborado >=
+        fechaInicioAusencia
+      ) {
+        setMensaje(
+          "El último día laborado debe ser anterior al inicio de la ausencia."
+        );
+        return;
+      }
+
+      if (
+        fechaFinAusencia <
+        fechaInicioAusencia
+      ) {
+        setMensaje(
+          "La fecha fin de ausencia no puede ser anterior a la fecha inicio."
+        );
+        return;
+      }
+    }
+
+    try {
+      setGuardandoAusencia(true);
+
+      await guardarDatosAusenciaRRLL();
+
+      setVista("descargos");
+    } catch (error) {
+      console.error(
+        "No fue posible actualizar los datos de ausencia:",
+        error
+      );
+
+      setTipoMensaje("error");
+      setMensaje(
+        error?.message ||
+          "No se pudieron guardar los cambios realizados por Relaciones Laborales."
+      );
+    } finally {
+      setGuardandoAusencia(false);
+    }
   };
 
 
@@ -910,8 +1114,8 @@ export default function CitacionProcesoDisciplinarioView({
 
           <p className="mt-2 text-sm text-gray-600">
             Relaciones Laborales revisa la información registrada
-            por Operaciones. Estos datos se muestran únicamente
-            para consulta.
+            por Operaciones. Cuando el motivo es ausencia injustificada,
+            las fechas de ausencia pueden ser validadas y corregidas.
           </p>
         </div>
 
@@ -1027,8 +1231,9 @@ export default function CitacionProcesoDisciplinarioView({
             </h3>
 
             <p className="mt-1 text-sm text-gray-600">
-              Esta información fue registrada por Operaciones y
-              se muestra únicamente para consulta.
+              Esta información fue registrada por Operaciones. Los datos
+              de ausencia injustificada pueden ser ajustados por RRLL si la
+              validación del caso lo requiere.
             </p>
           </div>
 
@@ -1124,6 +1329,110 @@ export default function CitacionProcesoDisciplinarioView({
                     </p>
                   </div>
                 </div>
+
+                {esAusenciaInjustificada && (
+                  <div className="rounded-xl border border-amber-300 bg-amber-50 p-5">
+                    <div className="mb-4">
+                      <p className="text-sm font-semibold text-amber-700">
+                        Datos de ausencia reportados por Operaciones
+                      </p>
+
+                      <h4 className="mt-1 font-bold text-gray-800">
+                        Validación de fechas por Relaciones Laborales
+                      </h4>
+
+                      <p className="mt-1 text-sm text-gray-600">
+                        Puedes corregir estas fechas si la validación de RRLL lo requiere.
+                        Los cambios quedarán guardados sobre la misma citación.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <div>
+                        <label
+                          htmlFor="fechaUltimoDiaLaboradoRRLL"
+                          className="mb-2 block text-sm font-semibold text-gray-700"
+                        >
+                          Último día laborado *
+                        </label>
+
+                        <input
+                          id="fechaUltimoDiaLaboradoRRLL"
+                          type="date"
+                          value={fechaUltimoDiaLaborado}
+                          onChange={(event) =>
+                            setFechaUltimoDiaLaborado(
+                              event.target.value
+                            )
+                          }
+                          className="min-h-11 w-full rounded-lg border border-amber-200 bg-white px-3 text-sm text-gray-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          htmlFor="fechaInicioAusenciaRRLL"
+                          className="mb-2 block text-sm font-semibold text-gray-700"
+                        >
+                          Inicio de ausencia *
+                        </label>
+
+                        <input
+                          id="fechaInicioAusenciaRRLL"
+                          type="date"
+                          value={fechaInicioAusencia}
+                          onChange={(event) =>
+                            setFechaInicioAusencia(
+                              event.target.value
+                            )
+                          }
+                          className="min-h-11 w-full rounded-lg border border-amber-200 bg-white px-3 text-sm text-gray-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          htmlFor="fechaFinAusenciaRRLL"
+                          className="mb-2 block text-sm font-semibold text-gray-700"
+                        >
+                          Fin de ausencia *
+                        </label>
+
+                        <input
+                          id="fechaFinAusenciaRRLL"
+                          type="date"
+                          value={fechaFinAusencia}
+                          onChange={(event) =>
+                            setFechaFinAusencia(
+                              event.target.value
+                            )
+                          }
+                          className="min-h-11 w-full rounded-lg border border-amber-200 bg-white px-3 text-sm text-gray-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-lg border border-amber-200 bg-white px-4 py-3">
+                      <p className="text-xs font-semibold uppercase text-gray-500">
+                        Días de ausencia
+                      </p>
+
+                      <p className="mt-1 text-lg font-bold text-gray-800">
+                        {diasAusencia !== ""
+                          ? `${diasAusencia} ${
+                              diasAusencia === 1
+                                ? "día"
+                                : "días"
+                            }`
+                          : "Pendiente por calcular"}
+                      </p>
+
+                      <p className="mt-1 text-xs text-gray-500">
+                        Se calcula automáticamente con la fecha de inicio y la fecha de fin.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 <div className="rounded-lg border border-blue-200 bg-white p-4">
                   <p className="text-xs font-semibold uppercase text-gray-500">
@@ -1343,10 +1652,13 @@ export default function CitacionProcesoDisciplinarioView({
             disabled={
               loadingCitacion ||
               loadingEvidencias ||
+              guardandoAusencia ||
               !citacionExistente
             }
           >
-            Continuar a Descargos
+            {guardandoAusencia
+              ? "Guardando cambios..."
+              : "Continuar a Descargos"}
           </Button>
         </div>
 

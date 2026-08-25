@@ -333,6 +333,9 @@ const IniciarProcesoOperacionesView =
       sede: obtenerSedeInicial(),
       tipoGestion: '',
       tipoFalta: '',
+      fechaUltimoDiaLaborado: '',
+      fechaInicioAusencia: '',
+      fechaFinAusencia: '',
       relatoHechos: '',
       observacionesAdicionales: '',
       desempenoContinua: '',
@@ -439,6 +442,14 @@ const IniciarProcesoOperacionesView =
         ...(name === 'modalidad'
           ? {
               lugarCitacion: '',
+            }
+          : {}),
+        ...(name === 'tipoFalta' &&
+        value !== 'AUSENCIA_INJUSTIFICADA'
+          ? {
+              fechaUltimoDiaLaborado: '',
+              fechaInicioAusencia: '',
+              fechaFinAusencia: '',
             }
           : {}),
       }));
@@ -1141,6 +1152,29 @@ const IniciarProcesoOperacionesView =
           label:
             'Motivo de citación / presunta falta',
         },
+        ...(formData.tipoFalta ===
+        'AUSENCIA_INJUSTIFICADA'
+          ? [
+              {
+                value:
+                  formData.fechaUltimoDiaLaborado,
+                label:
+                  'Último día laborado',
+              },
+              {
+                value:
+                  formData.fechaInicioAusencia,
+                label:
+                  'Inicio de ausencia',
+              },
+              {
+                value:
+                  formData.fechaFinAusencia,
+                label:
+                  'Fin de ausencia',
+              },
+            ]
+          : []),
         {
           value:
             formData.relatoHechos,
@@ -1180,6 +1214,42 @@ const IniciarProcesoOperacionesView =
         });
 
         return false;
+      }
+
+      if (
+        formData.tipoFalta ===
+        'AUSENCIA_INJUSTIFICADA'
+      ) {
+        const ultimoDiaLaborado =
+          formData.fechaUltimoDiaLaborado;
+        const inicioAusencia =
+          formData.fechaInicioAusencia;
+        const finAusencia =
+          formData.fechaFinAusencia;
+
+        if (ultimoDiaLaborado >= inicioAusencia) {
+          toast({
+            title:
+              'Fechas de ausencia inválidas',
+            description:
+              'El último día laborado debe ser anterior al inicio de la ausencia.',
+            variant: 'destructive',
+          });
+
+          return false;
+        }
+
+        if (finAusencia < inicioAusencia) {
+          toast({
+            title:
+              'Fechas de ausencia inválidas',
+            description:
+              'La fecha fin de ausencia no puede ser anterior a la fecha inicio.',
+            variant: 'destructive',
+          });
+
+          return false;
+        }
       }
 
       const correoSupervisor = String(
@@ -1441,6 +1511,21 @@ const IniciarProcesoOperacionesView =
               tipoFalta:
                 citacion
                   .MotivoCitacion ||
+                '',
+
+              fechaUltimoDiaLaborado:
+                citacion
+                  .FechaUltimoDiaLaborado ||
+                '',
+
+              fechaInicioAusencia:
+                citacion
+                  .FechaInicioAusencia ||
+                '',
+
+              fechaFinAusencia:
+                citacion
+                  .FechaFinAusencia ||
                 '',
 
               relatoHechos:
@@ -1716,6 +1801,30 @@ const IniciarProcesoOperacionesView =
         MotivoCitacion:
           formData.tipoFalta ||
           null,
+
+        FechaUltimoDiaLaborado:
+          formData.tipoFalta ===
+          'AUSENCIA_INJUSTIFICADA'
+            ? formData
+                .fechaUltimoDiaLaborado ||
+              null
+            : null,
+
+        FechaInicioAusencia:
+          formData.tipoFalta ===
+          'AUSENCIA_INJUSTIFICADA'
+            ? formData
+                .fechaInicioAusencia ||
+              null
+            : null,
+
+        FechaFinAusencia:
+          formData.tipoFalta ===
+          'AUSENCIA_INJUSTIFICADA'
+            ? formData
+                .fechaFinAusencia ||
+              null
+            : null,
 
         ResponsableCitacion:
           null,

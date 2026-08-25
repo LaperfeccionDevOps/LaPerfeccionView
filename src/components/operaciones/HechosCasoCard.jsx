@@ -2,10 +2,61 @@ import React from 'react';
 import { MessageSquare } from 'lucide-react';
 
 
+const calcularDiasAusencia = (
+  fechaInicio,
+  fechaFin
+) => {
+  if (!fechaInicio || !fechaFin) {
+    return '';
+  }
+
+  const inicio = new Date(
+    `${fechaInicio}T00:00:00`
+  );
+
+  const fin = new Date(
+    `${fechaFin}T00:00:00`
+  );
+
+  if (
+    Number.isNaN(inicio.getTime()) ||
+    Number.isNaN(fin.getTime()) ||
+    fin < inicio
+  ) {
+    return '';
+  }
+
+  const diferenciaMilisegundos =
+    fin.getTime() - inicio.getTime();
+
+  const diferenciaDias =
+    Math.floor(
+      diferenciaMilisegundos /
+        (1000 * 60 * 60 * 24)
+    );
+
+  return diferenciaDias + 1;
+};
+
+
 const HechosCasoCard = ({
   formData,
   onChange,
 }) => {
+  const esAusenciaInjustificada =
+    String(
+      formData.tipoFalta || ''
+    )
+      .trim()
+      .toUpperCase() ===
+    'AUSENCIA_INJUSTIFICADA';
+
+  const diasAusencia =
+    calcularDiasAusencia(
+      formData.fechaInicioAusencia,
+      formData.fechaFinAusencia
+    );
+
   return (
     <section className="min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex min-w-0 items-start gap-3">
@@ -150,6 +201,111 @@ const HechosCasoCard = ({
             </option>
           </select>
         </div>
+
+        {/* ===================================================== */}
+        {/* DATOS DE AUSENCIA INJUSTIFICADA */}
+        {/* ===================================================== */}
+
+        {esAusenciaInjustificada && (
+          <div className="min-w-0 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5">
+            <div className="min-w-0">
+              <h3 className="text-base font-bold text-gray-800">
+                Datos de la ausencia
+              </h3>
+
+              <p className="mt-1 text-sm leading-relaxed text-gray-500">
+                Registra las fechas reportadas por Operaciones para la
+                ausencia injustificada.
+              </p>
+            </div>
+
+            <div className="mt-5 grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-3">
+              <div className="min-w-0">
+                <label
+                  htmlFor="fechaUltimoDiaLaborado"
+                  className="mb-2 block text-sm font-semibold text-gray-700"
+                >
+                  Último día laborado *
+                </label>
+
+                <input
+                  id="fechaUltimoDiaLaborado"
+                  name="fechaUltimoDiaLaborado"
+                  type="date"
+                  value={
+                    formData.fechaUltimoDiaLaborado ||
+                    ''
+                  }
+                  onChange={onChange}
+                  className="min-h-11 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div className="min-w-0">
+                <label
+                  htmlFor="fechaInicioAusencia"
+                  className="mb-2 block text-sm font-semibold text-gray-700"
+                >
+                  Inicio de ausencia *
+                </label>
+
+                <input
+                  id="fechaInicioAusencia"
+                  name="fechaInicioAusencia"
+                  type="date"
+                  value={
+                    formData.fechaInicioAusencia ||
+                    ''
+                  }
+                  onChange={onChange}
+                  className="min-h-11 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div className="min-w-0">
+                <label
+                  htmlFor="fechaFinAusencia"
+                  className="mb-2 block text-sm font-semibold text-gray-700"
+                >
+                  Fin de ausencia *
+                </label>
+
+                <input
+                  id="fechaFinAusencia"
+                  name="fechaFinAusencia"
+                  type="date"
+                  value={
+                    formData.fechaFinAusencia ||
+                    ''
+                  }
+                  onChange={onChange}
+                  className="min-h-11 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-amber-200 bg-white px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Días de ausencia
+              </p>
+
+              <p className="mt-1 text-lg font-bold text-gray-800">
+                {diasAusencia !== ''
+                  ? `${diasAusencia} ${
+                      diasAusencia === 1
+                        ? 'día'
+                        : 'días'
+                    }`
+                  : 'Pendiente por calcular'}
+              </p>
+
+              <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                Se calcula automáticamente con la fecha de inicio y la fecha
+                de fin de la ausencia.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ===================================================== */}
         {/* RELATO DE LOS HECHOS */}
