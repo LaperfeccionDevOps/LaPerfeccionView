@@ -296,6 +296,11 @@ const [
     setMensajeDocumento,
   ] = useState("");
 
+  const [
+    tipoMensajeDocumento,
+    setTipoMensajeDocumento,
+  ] = useState("");
+
 
   const [
     borradorLocalRecuperado,
@@ -763,6 +768,7 @@ setConclusionRRLL(
         );
 
         setDocumentos([]);
+        setTipoMensajeDocumento("error");
         setMensajeDocumento(
           "No fue posible consultar los documentos aportados por Relaciones Laborales."
         );
@@ -783,6 +789,7 @@ setConclusionRRLL(
         !proceso
           ?.IdProcesoDisciplinario
       ) {
+        setTipoMensajeDocumento("error");
         setMensajeDocumento(
           "No existe un proceso disciplinario asociado."
         );
@@ -790,6 +797,7 @@ setConclusionRRLL(
       }
 
       if (!archivoDocumento) {
+        setTipoMensajeDocumento("error");
         setMensajeDocumento(
           "Debe seleccionar un archivo."
         );
@@ -799,6 +807,7 @@ setConclusionRRLL(
       try {
         setLoadingDocumento(true);
         setMensajeDocumento("");
+        setTipoMensajeDocumento("");
 
         const formData =
           new FormData();
@@ -862,6 +871,7 @@ setConclusionRRLL(
           false
         );
 
+        setTipoMensajeDocumento("exito");
         setMensajeDocumento(
           "Documento cargado correctamente en el expediente y la Carpeta Digital."
         );
@@ -873,9 +883,91 @@ setConclusionRRLL(
           error
         );
 
+        setTipoMensajeDocumento("error");
         setMensajeDocumento(
           error?.message ||
             "No se pudo cargar el documento."
+        );
+      } finally {
+        setLoadingDocumento(false);
+      }
+    };
+
+
+  const handleEliminarDocumentoCierre =
+    async (documento) => {
+      const idDocumento =
+        documento
+          ?.IdDocumentoProcesoDisciplinario;
+
+      if (!idDocumento) {
+        setTipoMensajeDocumento("error");
+        setMensajeDocumento(
+          "No se encontró el identificador del documento de cierre."
+        );
+        return;
+      }
+
+      const confirmado = window.confirm(
+        `¿Desea eliminar "${documento?.NombreArchivo || "este documento"}" del expediente y de la Carpeta Digital?`
+      );
+
+      if (!confirmado) {
+        return;
+      }
+
+      try {
+        setLoadingDocumento(true);
+        setMensajeDocumento("");
+        setTipoMensajeDocumento("");
+
+        const response = await fetch(
+          `${API_URL}/documento-proceso-disciplinario/rrll/documento-cierre/${idDocumento}`,
+          {
+            method: "DELETE",
+          }
+        );
+
+        if (!response.ok) {
+          let detalle = "";
+
+          try {
+            const data =
+              await response.json();
+
+            detalle =
+              typeof data?.detail ===
+              "string"
+                ? data.detail
+                : data?.detail?.mensaje ||
+                  data?.message ||
+                  "";
+          } catch {
+            detalle = "";
+          }
+
+          throw new Error(
+            detalle ||
+              "No fue posible eliminar el documento de cierre."
+          );
+        }
+
+        setTipoMensajeDocumento("exito");
+        setMensajeDocumento(
+          "Documento de cierre eliminado correctamente del expediente y la Carpeta Digital."
+        );
+
+        await cargarDocumentosRRLL();
+      } catch (error) {
+        console.error(
+          "Error eliminando documento de cierre:",
+          error
+        );
+
+        setTipoMensajeDocumento("error");
+        setMensajeDocumento(
+          error?.message ||
+            "No fue posible eliminar el documento de cierre."
         );
       } finally {
         setLoadingDocumento(false);
@@ -1402,6 +1494,7 @@ ConclusionRRLL:
                     !mostrarFormularioDocumento
                   );
                   setMensajeDocumento("");
+                  setTipoMensajeDocumento("");
                 }}
               >
                 {mostrarFormularioDocumento
@@ -1468,7 +1561,13 @@ ConclusionRRLL:
             )}
 
           {mensajeDocumento && (
-            <p className="mb-4 text-sm font-semibold text-emerald-700">
+            <p
+              className={`mb-4 text-sm font-semibold ${
+                tipoMensajeDocumento === "error"
+                  ? "text-red-600"
+                  : "text-emerald-700"
+              }`}
+            >
               {mensajeDocumento}
             </p>
           )}
@@ -1546,6 +1645,22 @@ ConclusionRRLL:
                             >
                               Descargar
                             </Button>
+
+                            {!finalizado && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                disabled={loadingDocumento}
+                                onClick={() =>
+                                  handleEliminarDocumentoCierre(
+                                    doc
+                                  )
+                                }
+                              >
+                                Eliminar
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>

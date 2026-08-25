@@ -109,6 +109,7 @@ export default function DescargosProcesoDisciplinarioView({
   const [mensaje, setMensaje] = useState("");
   const [descargoExistente, setDescargoExistente] = useState(null);
   const [citacionExistente, setCitacionExistente] = useState(null);
+  const [eventoCitacionVigente, setEventoCitacionVigente] = useState(null);
 
   const [documentos, setDocumentos] = useState([]);
   const [evidenciasOperaciones, setEvidenciasOperaciones] = useState([]);
@@ -503,101 +504,175 @@ const actualizarAsistente = (
   }, [asistentes]);
 
   useEffect(() => {
-  async function cargarCitacionExistente() {
-    if (!proceso?.IdProcesoDisciplinario) {
-      return;
-    }
-
-    try {
-      const citacion =
-        await obtenerCitacionPorProceso(
-          proceso.IdProcesoDisciplinario
-        );
-
-      if (!citacion) {
-        setCitacionExistente(null);
+    async function cargarCitacionExistente() {
+      if (!proceso?.IdProcesoDisciplinario) {
         return;
       }
 
-      setCitacionExistente(citacion);
+      try {
+        const idProcesoActual =
+          proceso.IdProcesoDisciplinario;
 
-      setFechaDescargo((valorActual) =>
-        valorActual ||
-        citacion.FechaCitacion ||
-        ""
-      );
+        const [
+          citacion,
+          responseAgenda,
+        ] = await Promise.all([
+          obtenerCitacionPorProceso(
+            idProcesoActual
+          ),
+          fetch(
+            `${API_URL}/agenda-disciplinaria/proceso/${idProcesoActual}`
+          ),
+        ]);
 
-      setHoraDescargo((valorActual) =>
-        valorActual ||
-        (
-          citacion.HoraCitacion
-            ? String(
-                citacion.HoraCitacion
-              ).slice(0, 5)
-            : ""
-        )
-      );
-
-      setManifestacionSupervisor(
-        (valorActual) =>
-          valorActual ||
-          citacion.ObservacionOperaciones ||
-          citacion.ManifestacionSupervisor ||
-          ""
-      );
-
-      setAsistentes((actuales) => {
-        const supervisorReporta =
-          String(
-            citacion.SupervisorReporta || ""
-          ).trim();
-
-        if (!supervisorReporta) {
-          return actuales;
+        if (!citacion) {
+          setCitacionExistente(null);
+          setEventoCitacionVigente(null);
+          return;
         }
 
-        const copia = [...actuales];
+        setCitacionExistente(citacion);
 
-        const indice = copia.findIndex(
-          (asistente) =>
-            asistente.TipoAsistente ===
-            "SUPERVISOR_REPORTA"
+        let eventoVigente = null;
+
+        if (responseAgenda.ok) {
+          const agendaProceso =
+            await responseAgenda
+              .json()
+              .catch(() => []);
+
+          const eventosAgenda = Array.isArray(
+            agendaProceso
+          )
+            ? agendaProceso
+            : [];
+
+          const eventosCitacion =
+            eventosAgenda.filter((evento) => {
+              return (
+                Number(
+                  evento?.IdTipoEventoDisciplinario
+                ) === 1
+              );
+            });
+
+          if (eventosCitacion.length > 0) {
+            eventoVigente =
+              eventosCitacion.reduce(
+                (eventoMasReciente, eventoActual) => {
+                  if (!eventoMasReciente) {
+                    return eventoActual;
+                  }
+
+                  const fechaReciente = String(
+                    eventoMasReciente?.FechaActualizacion ||
+                      eventoMasReciente?.FechaCreacion ||
+                      ""
+                  );
+
+                  const fechaActual = String(
+                    eventoActual?.FechaActualizacion ||
+                      eventoActual?.FechaCreacion ||
+                      ""
+                  );
+
+                  return fechaActual > fechaReciente
+                    ? eventoActual
+                    : eventoMasReciente;
+                },
+                null
+              );
+          }
+        } else {
+          console.warn(
+            `No fue posible consultar la agenda vigente del proceso. HTTP ${responseAgenda.status}. Se utilizará la fecha original de la citación.`
+          );
+        }
+
+        setEventoCitacionVigente(eventoVigente);
+
+        const fechaVigente =
+          eventoVigente?.FechaEvento ||
+          citacion.FechaCitacion ||
+          "";
+
+        const horaVigente =
+          eventoVigente?.HoraInicio
+            ? String(
+                eventoVigente.HoraInicio
+              ).slice(0, 5)
+            : citacion.HoraCitacion
+              ? String(
+                  citacion.HoraCitacion
+                ).slice(0, 5)
+              : "";
+
+        // La fecha y hora de la diligencia deben reflejar siempre
+        // la última programación vigente de la citación.
+        setFechaDescargo(fechaVigente);
+        setHoraDescargo(horaVigente);
+
+        setManifestacionSupervisor(
+          (valorActual) =>
+            valorActual ||
+            citacion.ObservacionOperaciones ||
+            citacion.ManifestacionSupervisor ||
+            ""
         );
 
-        if (indice >= 0) {
-          copia[indice] = {
-            ...copia[indice],
+        setAsistentes((actuales) => {
+          const supervisorReporta =
+            String(
+              citacion.SupervisorReporta || ""
+            ).trim();
+
+          if (!supervisorReporta) {
+            return actuales;
+          }
+
+          const copia = [...actuales];
+
+          const indice = copia.findIndex(
+            (asistente) =>
+              asistente.TipoAsistente ===
+              "SUPERVISOR_REPORTA"
+          );
+
+          if (indice >= 0) {
+            copia[indice] = {
+              ...copia[indice],
+              NombreAsistente:
+                copia[indice].NombreAsistente ||
+                supervisorReporta,
+              Asistio: true,
+            };
+
+            return copia;
+          }
+
+          copia.push({
+            TipoAsistente:
+              "SUPERVISOR_REPORTA",
             NombreAsistente:
-              copia[indice].NombreAsistente ||
               supervisorReporta,
             Asistio: true,
-          };
+          });
 
           return copia;
-        }
-
-        copia.push({
-          TipoAsistente:
-            "SUPERVISOR_REPORTA",
-          NombreAsistente:
-            supervisorReporta,
-          Asistio: true,
         });
+      } catch (error) {
+        console.error(
+          "Error cargando la citación:",
+          error
+        );
 
-        return copia;
-      });
-    } catch (error) {
-      console.error(
-        "Error cargando la citación:",
-        error
-      );
-
-      setCitacionExistente(null);
+        setCitacionExistente(null);
+        setEventoCitacionVigente(null);
+      }
     }
-  }
 
-  cargarCitacionExistente();
-}, [proceso]);
+    cargarCitacionExistente();
+  }, [proceso]);
 
   useEffect(() => {
   async function cargarDescargoExistente() {
@@ -1744,7 +1819,8 @@ function formatearTipoDocumento(valor) {
 
                 <p className="mt-1 font-semibold text-gray-800">
                   {formatearFechaColombiana(
-                    citacionExistente.FechaCitacion
+                    eventoCitacionVigente?.FechaEvento ||
+                      citacionExistente.FechaCitacion
                   )}
                 </p>
               </div>
@@ -1755,9 +1831,15 @@ function formatearTipoDocumento(valor) {
                 </p>
 
                 <p className="mt-1 font-semibold text-gray-800">
-                  {citacionExistente.HoraCitacion
-                    ? String(citacionExistente.HoraCitacion).slice(0, 5)
-                    : "—"}
+                  {eventoCitacionVigente?.HoraInicio
+                    ? String(
+                        eventoCitacionVigente.HoraInicio
+                      ).slice(0, 5)
+                    : citacionExistente.HoraCitacion
+                      ? String(
+                          citacionExistente.HoraCitacion
+                        ).slice(0, 5)
+                      : "—"}
                 </p>
               </div>
 
