@@ -2269,7 +2269,7 @@ const renderCarpetaSaludOcupacional = () => (
       { id: 3, label: 'Hoja de vida' },
       { id: 4, label: 'Documento de identidad' },
       { id: 65, label: 'Carnet de la empresa' },
-      { id: 30, label: 'Certificado EPS' },
+      { id: 27, label: 'Certificado EPS' },
       { id: 26, label: 'Certificado ARL' },
       { id: 36, label: 'Entrega de dotación' },
       { id: 41, label: 'Vacunación COVID' },

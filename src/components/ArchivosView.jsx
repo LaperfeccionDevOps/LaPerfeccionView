@@ -79,7 +79,7 @@ const documentosOperaciones = [
   { id: 3, label: 'Hoja de vida' },
   { id: 4, label: 'Documento de identidad' },
   { id: 65, label: 'Carnet de la empresa' },
-  { id: 30, label: 'Certificado EPS' },
+  { id: 27, label: 'Certificado EPS' },
   { id: 26, label: 'Certificado ARL' },
   { id: 36, label: 'Entrega de dotación' },
   { id: 41, label: 'Vacunación COVID' },
@@ -93,7 +93,7 @@ const documentosOperaciones = [
 const documentosSaludOcupacional = [
   { id: 37, label: 'Soporte de inducción' },
   { id: 34, label: 'Responsabilidades en el SG-SST' },
-  { id: 30, label: 'Certificado de afiliación EPS' },
+  { id: 27, label: 'Certificado de afiliación EPS' },
   { id: 26, label: 'Certificado de afiliación ARL' },
   { id: 31, label: 'Certificado de afiliación CCF' },
   { id: 20, label: 'Descripción del cargo' },
