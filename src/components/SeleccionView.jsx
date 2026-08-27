@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { motion } from 'framer-motion';
-import { Search, Filter, UserCheck, Eye, ChevronLeft, ChevronRight, ArrowUpDown, FileText } from 'lucide-react';
+import { Search, Filter, UserCheck, Eye, ChevronLeft, ChevronRight, ArrowUpDown, FileText, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -15,7 +14,7 @@ import StatusUpdateModal from '@/components/modals/StatusUpdateModal';
 import AspiranteDetailModal from '@/components/modals/AspiranteDetailModal';
 
 const SeleccionView = () => {
-  const { aspirantes, updateAspirante, token } = useAspirantes();
+  const { aspirantes, updateAspirante, loadAspirantes, token } = useAspirantes();
   const [filteredAspirantes, setFilteredAspirantes] = useState([]);
   
   // Filter UI State
@@ -27,6 +26,7 @@ const SeleccionView = () => {
   const [statusModalState, setStatusModalState] = useState({ isOpen: false, aspirante: null, newStatus: null });
   const [detailModalState, setDetailModalState] = useState({ isOpen: false, aspirante: null });
   
+    const [reintegroLoadingId, setReintegroLoadingId] = useState(null);
   // Pagination & Sorting State
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
@@ -90,6 +90,195 @@ const SeleccionView = () => {
       updateAspirante(updatedAspiranteData);
       toast({ title: "💾 Información Actualizada", description: "Los detalles del aspirante han sido guardados." });
       setDetailModalState({ isOpen: false, aspirante: null });
+  };
+
+  const esEstadoRetirado = (estado) => {
+    const normalizado = String(estado ?? '')
+      .trim()
+      .toUpperCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+    return normalizado === 'RETIRADO' || normalizado === '35';
+  };
+
+  const obtenerUsuarioReintegro = () => {
+    const candidatos = [
+      localStorage.getItem('usuario'),
+      localStorage.getItem('username'),
+      localStorage.getItem('user'),
+      localStorage.getItem('currentUser'),
+    ];
+
+    for (const valor of candidatos) {
+      if (!valor) continue;
+
+      try {
+        const parsed = JSON.parse(valor);
+
+        if (parsed && typeof parsed === 'object') {
+          const usuario =
+            parsed.username ||
+            parsed.usuario ||
+            parsed.email ||
+            parsed.nombreUsuario ||
+            parsed.name ||
+            parsed.sub;
+
+          if (usuario && String(usuario).trim()) {
+            return String(usuario).trim().slice(0, 120);
+          }
+        }
+      } catch (_) {
+        const limpio = String(valor).trim();
+
+        if (limpio && limpio.length <= 120) {
+          return limpio;
+        }
+      }
+    }
+
+    return 'seleccion_frontend';
+  };
+
+  const leerErrorApi = async (response) => {
+    const data = await response.json().catch(() => null);
+
+    if (!data) {
+      return `Error del servidor (${response.status}).`;
+    }
+
+    const detail = data?.detail;
+
+    if (typeof detail === 'string' && detail.trim()) {
+      return detail;
+    }
+
+    if (detail && typeof detail === 'object') {
+      const mensaje = detail?.mensaje || '';
+      const motivos = Array.isArray(detail?.motivos) ? detail.motivos : [];
+
+      return [mensaje, ...motivos].filter(Boolean).join(' ');
+    }
+
+    return data?.mensaje || `Error del servidor (${response.status}).`;
+  };
+
+  const handleIniciarReintegro = async (aspirante) => {
+    const idRegistroPersonal =
+      aspirante?.IdRegistroPersonal ??
+      aspirante?.idRegistroPersonal ??
+      aspirante?.id ??
+      null;
+
+    if (!idRegistroPersonal) {
+      toast({
+        title: 'No se pudo iniciar el reintegro',
+        description: 'No se encontró el IdRegistroPersonal del trabajador.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!esEstadoRetirado(aspirante?.estado)) {
+      toast({
+        title: 'Reintegro no disponible',
+        description: 'La acción solo está disponible para trabajadores retirados.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+    const headers = {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+
+    setReintegroLoadingId(idRegistroPersonal);
+
+    try {
+      const validarResponse = await fetch(
+        `${apiBase}/reintegros/validar/${idRegistroPersonal}`,
+        {
+          method: 'GET',
+          headers,
+        }
+      );
+
+      if (!validarResponse.ok) {
+        throw new Error(await leerErrorApi(validarResponse));
+      }
+
+      const validacion = await validarResponse.json();
+
+      if (!validacion?.puedeReintegrarse) {
+        const motivos = Array.isArray(validacion?.motivosBloqueo)
+          ? validacion.motivosBloqueo.filter(Boolean)
+          : [];
+
+        toast({
+          title: 'No es posible iniciar el reintegro',
+          description:
+            motivos.length > 0
+              ? motivos.join(' ')
+              : validacion?.mensaje || 'El trabajador no cumple las condiciones para iniciar un reintegro.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const nombreCompleto = `${aspirante?.nombres || ''} ${aspirante?.apellidos || ''}`.trim();
+      const confirmado = window.confirm(
+        `¿Deseas iniciar el reintegro de ${nombreCompleto || 'este trabajador'}?\n\n` +
+        'Se abrirá un nuevo ciclo laboral de reintegro. El retiro anterior permanecerá intacto.'
+      );
+
+      if (!confirmado) {
+        return;
+      }
+
+      const iniciarResponse = await fetch(
+        `${apiBase}/reintegros/iniciar/${idRegistroPersonal}`,
+        {
+          method: 'POST',
+          headers: {
+            ...headers,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            UsuarioActualizacion: obtenerUsuarioReintegro(),
+          }),
+        }
+      );
+
+      if (!iniciarResponse.ok) {
+        throw new Error(await leerErrorApi(iniciarResponse));
+      }
+
+      const resultado = await iniciarResponse.json();
+
+      toast({
+        title: 'Reintegro iniciado',
+        description:
+          resultado?.mensaje ||
+          'El reintegro fue iniciado correctamente. El trabajador debe actualizar nuevamente su información en Aspirante.',
+      });
+
+      await loadAspirantes();
+    } catch (error) {
+      console.error('[SeleccionView] Error iniciando reintegro:', error);
+
+      toast({
+        title: 'Error iniciando reintegro',
+        description:
+          error?.message ||
+          'No fue posible iniciar el reintegro. No se realizaron cambios adicionales desde la interfaz.',
+        variant: 'destructive',
+      });
+    } finally {
+      setReintegroLoadingId(null);
+    }
   };
 
   // Sorting Logic
@@ -271,10 +460,40 @@ return (
                             <span className="text-gray-500">Desconocido</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-right">
-                          <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-blue-200 text-blue-600 hover:bg-blue-50" title="Ver Detalle Completo" onClick={() => openDetailModal(item)}>
-                            <Eye className="w-4 h-4" />
-                          </Button>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 rounded-lg border-blue-200 text-blue-600 hover:bg-blue-50"
+                              title="Ver Detalle Completo"
+                              onClick={() => openDetailModal(item)}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+
+                            {esEstadoRetirado(item.estado) && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                                title="Validar e iniciar reintegro"
+                                onClick={() => handleIniciarReintegro(item)}
+                                disabled={reintegroLoadingId === item.id}
+                              >
+                                <RefreshCw
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    reintegroLoadingId === item.id && "animate-spin"
+                                  )}
+                                />
+                                {reintegroLoadingId === item.id
+                                  ? 'Procesando...'
+                                  : 'Iniciar reintegro'}
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                   )})}

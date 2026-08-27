@@ -395,6 +395,10 @@ const Sidebar = ({
   ) => {
     if (menuItem?.to) {
       navigate(menuItem.to);
+
+      if (typeof closeMobileSidebar === "function") {
+        closeMobileSidebar();
+      }
     }
 
     toggleSubmenu(claveMenu);
@@ -402,10 +406,7 @@ const Sidebar = ({
 
 
   const handleNavigation = () => {
-    if (
-      isOperaciones &&
-      typeof closeMobileSidebar === "function"
-    ) {
+    if (typeof closeMobileSidebar === "function") {
       closeMobileSidebar();
     }
   };
@@ -413,15 +414,11 @@ const Sidebar = ({
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-30 flex h-full flex-col overflow-hidden border-r border-emerald-800 bg-emerald-900 font-sans shadow-2xl transition-all duration-300 ease-in-out",
+        "fixed left-0 top-0 z-50 flex h-full flex-col overflow-hidden border-r border-emerald-800 bg-emerald-900 font-sans shadow-2xl transition-all duration-300 ease-in-out",
 
-        isOperaciones
-          ? isOpen
-            ? "w-72 translate-x-0 md:w-72"
-            : "-translate-x-full w-72 md:w-20 md:translate-x-0"
-          : isOpen
-            ? "w-72 translate-x-0"
-            : "w-20 translate-x-0"
+        isOpen
+          ? "w-[86vw] max-w-72 translate-x-0 md:w-72 md:max-w-none"
+          : "-translate-x-full w-[86vw] max-w-72 md:w-20 md:max-w-none md:translate-x-0"
       )}
     >
       <div

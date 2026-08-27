@@ -607,8 +607,8 @@ const AspiranteView = () => {
           PesoKilogramos: response.data[0].PesoKilogramos || 0,
           AlturaMetros: response.data[0].AlturaMetros || 0,
           IdTipoEps: response.data[0].IdTipoEps || 1,
-          IdFondoPensiones: response.data[0].IdFondoPensiones || 1,
-          IdFondoCesantias: response.data[0].IdFondoCesantias || '',
+          IdFondoPensiones: response.data[0].IdFondoPensiones || 6,
+          IdFondoCesantias: response.data[0].IdFondoCesantias || 1,
           DescripcionFormacionAcademica: response.data[0].DescripcionFormacionAcademica || '',
           IdNivelEducativo: response.data[0].IdNivelEducativo || 1,
           EstudiaActualmente: response.data[0].EstudiaActualmente || '',
@@ -775,8 +775,8 @@ const buildDireccionEstructurada = (p) => {
     PesoKilogramos: 0,
     AlturaMetros: 0,
     IdTipoEps: 1,
-    IdFondoPensiones: 1,
-    IdFondoCesantias: '',
+    IdFondoPensiones: 6,
+    IdFondoCesantias: 1,
     DescripcionFormacionAcademica: '',
     IdNivelEducativo: 1,
     EstudiaActualmente: '',
@@ -1502,12 +1502,12 @@ const handleTelEmergenciaChange = (e) => {
   };
 
   const renderSection = (title, icon, children) => (
-    <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600 mb-8">
-      <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-        <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700">
+    <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-6 md:p-8 border-t-4 border-emerald-600 mb-6 md:mb-8 min-w-0 overflow-hidden">
+      <div className="flex items-center gap-3 mb-5 md:mb-6 pb-4 border-b border-gray-100 min-w-0">
+        <div className="w-10 h-10 shrink-0 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700">
           {icon}
         </div>
-        <h2 className="text-xl font-bold text-gray-800">{title}</h2>
+        <h2 className="text-lg sm:text-xl font-bold text-gray-800 leading-tight break-words">{title}</h2>
       </div>
       {children}
     </div>
@@ -1555,9 +1555,9 @@ const tieneFirmaCargada = () => {
  
       {/* ✅ BLOQUEANTE OBLIGATORIO (SIEMPRE AL ENTRAR) */}
       {showConsentGate && (
-        <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4">
-          <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
-            <div className="p-6 border-b bg-emerald-50">
+        <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-2 sm:p-4">
+          <div className="w-full max-w-xl max-h-[92vh] rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-y-auto">
+            <div className="p-4 sm:p-6 border-b bg-emerald-50">
               <h2 className="text-lg md:text-xl font-bold text-emerald-900">
                 Consentimientos obligatorios
               </h2>
@@ -1569,7 +1569,7 @@ const tieneFirmaCargada = () => {
               </p>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-4">
               <label className="flex gap-3 items-start cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -1611,7 +1611,7 @@ const tieneFirmaCargada = () => {
               </label>
             </div>
 
-            <div className="p-6 border-t flex flex-col md:flex-row gap-3 md:justify-end">
+            <div className="p-4 sm:p-6 border-t flex flex-col sm:flex-row gap-3 sm:justify-end">
               <Button
                 type="button"
                 variant="outline"
@@ -1662,15 +1662,15 @@ const tieneFirmaCargada = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         onSubmit={handleSubmit}
-        className={`space-y-6 max-w-6xl mx-auto ${showConsentGate ? 'pointer-events-none select-none blur-[1px]' : ''}`}
+        className={`w-full max-w-6xl min-w-0 mx-auto space-y-4 sm:space-y-6 px-3 sm:px-4 md:px-0 overflow-x-hidden ${showConsentGate ? 'pointer-events-none select-none blur-[1px]' : ''}`}
       >
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 sm:gap-4 mb-5 md:mb-6 min-w-0">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Registro de Personal</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight">Registro de Personal</h1>
             <p className="text-gray-500">Diligencie la información del aspirante</p>
           </div>
-          <div className="flex gap-2">
-            <div className="text-right text-xs text-gray-400">
+          <div className="flex gap-2 sm:justify-end">
+            <div className="text-left sm:text-right text-xs text-gray-400 break-words">
               <p>Creado: {formData.FechaCreacion}</p>
               <p>Usuario: {formData.UsuarioActualizacion}</p>
             </div>
@@ -1678,32 +1678,32 @@ const tieneFirmaCargada = () => {
         </div>
 
         {/* 1. Identificación y Registro (con foto grande y cuadrada) */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600 mb-8">
-          <div className="flex items-center justify-between gap-4 mb-6 pb-4 border-b border-gray-100">
-            <div className="flex items-center gap-4">
+        <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-6 md:p-8 border-t-4 border-emerald-600 mb-6 md:mb-8 min-w-0 overflow-hidden">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5 mb-6 pb-4 border-b border-gray-100 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 min-w-0 w-full md:w-auto">
               <div className="relative">
                 {fotoDoc ? (
                   <img
                     src={fotoDoc.DocumentoCargado || fotoDoc.url || ''}
                     alt="Foto del aspirante"
-                    className="w-32 h-32 rounded-xl object-cover border-2 border-emerald-500 shadow-md"
+                    className="w-28 h-28 sm:w-32 sm:h-32 rounded-xl object-cover border-2 border-emerald-500 shadow-md shrink-0"
                   />
                 ) : (
-                  <div className="w-32 h-32 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 border-2 border-dashed border-emerald-300">
+                  <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 border-2 border-dashed border-emerald-300 shrink-0">
                     <User className="w-12 h-12" />
                   </div>
                 )}
               </div>
 
               <div>
-                <h2 className="text-xl font-bold text-gray-800">Identificación y Registro</h2>
-                <p className="text-xs text-gray-500">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-800 leading-tight break-words">Identificación y Registro</h2>
+                <p className="text-xs text-gray-500 leading-relaxed break-words">
                   Cargue la foto del aspirante. Esta imagen se usará en todo el proceso Documento obligatorio
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-col items-end gap-2">
+            <div className="flex flex-col items-start md:items-end gap-2 w-full md:w-auto">
               <div className="relative">
                 <input
                   id="fotoAspiranteInput"
@@ -1714,13 +1714,13 @@ const tieneFirmaCargada = () => {
                 />
                 <label
                   htmlFor="fotoAspiranteInput"
-                  className="cursor-pointer inline-flex items-center justify-center px-4 py-2 border border-emerald-600 text-emerald-700 text-xs font-semibold rounded-full bg-white hover:bg-emerald-50 transition-colors"
+                  className="cursor-pointer inline-flex w-full sm:w-auto items-center justify-center px-4 py-2 border border-emerald-600 text-emerald-700 text-xs font-semibold rounded-full bg-white hover:bg-emerald-50 transition-colors"
                 >
                   Cargar / Cambiar foto
                 </label>
               </div>
               {fotoDoc && (
-                <p className="text-[11px] text-gray-400 max-w-[180px] text-right truncate">
+                <p className="text-[11px] text-gray-400 max-w-full md:max-w-[180px] text-left md:text-right truncate">
                   Archivo: {fotoDoc.Nombre}
                 </p>
               )}
@@ -2667,57 +2667,39 @@ const tieneFirmaCargada = () => {
                     value={
                       formData.IdFondoPensiones !== undefined && formData.IdFondoPensiones !== null
                         ? String(formData.IdFondoPensiones)
-                        : ''
+                        : '6'
                     }
-                    onValueChange={(v) => {
-                      if (v === 'Otro') {
-                        handleSelectChange('IdFondoPensiones', v);
-                      } else {
-                        handleSelectChange('IdFondoPensiones', parseInt(v, 10));
-                      }
-                    }}
+                    onValueChange={(v) =>
+                      handleSelectChange('IdFondoPensiones', parseInt(v, 10))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar Fondo de Pensiones" />
                     </SelectTrigger>
                     <SelectContent className="max-h-60 overflow-y-auto">
+                      <SelectItem value="6">SIN DEFINIR</SelectItem>
                       <SelectItem value="1">Colfondos</SelectItem>
                       <SelectItem value="2">Colpensiones</SelectItem>
                       <SelectItem value="3">Horizontes</SelectItem>
                       <SelectItem value="4">Porvenir</SelectItem>
                       <SelectItem value="5">Protección + I.N.G</SelectItem>
                       <SelectItem value="7">Skandia Pensiones y Cesantías S.A</SelectItem>
-                      <SelectItem value="Otro">Otro</SelectItem>
                     </SelectContent>
                   </Select>
-
-                  {formData.IdFondoPensiones === 'Otro' && (
-                    <Input
-                      name="IdFondoPensionesOtro"
-                      value={formData.IdFondoPensionesOtro || ''}
-                      onChange={handleInputChange}
-                      placeholder="Especifique el fondo..."
-                      className="mt-2"
-                    />
-                  )}
                 </div>
 
-                {/* ✅ NUEVO: Fondo de Cesantías (tipo lista, aunque aún no tengas la lista real) */}
+                {/* Fondo de Cesantías */}
                 <div className="space-y-2">
                   <Label>Fondo de Cesantías</Label>
                   <Select
                     value={
                       formData.IdFondoCesantias !== undefined && formData.IdFondoCesantias !== null
                         ? String(formData.IdFondoCesantias)
-                        : ''
+                        : '1'
                     }
-                    onValueChange={(v) => {
-                      if (v === 'Otro') {
-                        handleSelectChange('IdFondoCesantias', v);
-                      } else {
-                        handleSelectChange('IdFondoCesantias', parseInt(v, 10));
-                      }
-                    }}
+                    onValueChange={(v) =>
+                      handleSelectChange('IdFondoCesantias', parseInt(v, 10))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar Fondo de Cesantías" />
@@ -2734,21 +2716,8 @@ const tieneFirmaCargada = () => {
                       <SelectItem value="8">CESANTÍAS SKANDIA</SelectItem>
                       <SelectItem value="9">CESANTÍAS SANTANDER</SelectItem>
                       <SelectItem value="10">CESANTÍAS OLD MUTUAL</SelectItem>
-                      <SelectItem value="Otro">Otro</SelectItem>
                     </SelectContent>
-
                   </Select>
-
-                  {/* ✅ Si quieres también la opción "Otro" para cesantías, cuando metas la lista, deja esto listo */}
-                  {formData.IdFondoCesantias === 'Otro' && (
-                    <Input
-                      name="IdFondoCesantiasOtro"
-                      value={formData.IdFondoCesantiasOtro || ''}
-                      onChange={handleInputChange}
-                      placeholder="Especifique el fondo..."
-                      className="mt-2"
-                    />
-                  )}
                 </div>
               </div>
 
@@ -2807,7 +2776,7 @@ const tieneFirmaCargada = () => {
           <Users className="w-5 h-5" />,
           <div className="space-y-4">
             {/* Familiares en la empresa */}
-            <div className="p-4 border rounded-lg bg-white">
+            <div className="p-4 border rounded-lg bg-white min-w-0 overflow-hidden">
               <div className="space-y-2">
                 <Label>¿Tiene familiares que actualmente trabajen en Aseos La Perfección?</Label>
                 <Select
@@ -2920,7 +2889,7 @@ const tieneFirmaCargada = () => {
             </div>
 
             {formData.NucleoFamiliar.map((familiar, index) => (
-              <div key={index} className="p-4 border rounded-lg bg-gray-50/50 relative">
+              <div key={index} className="p-4 border rounded-lg bg-gray-50/50 relative min-w-0 overflow-hidden">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-1">
                     <Label>Nombres y Apellidos Completos del familiar</Label>
@@ -3057,7 +3026,7 @@ const tieneFirmaCargada = () => {
               </div>
             ))}
 
-            <Button type="button" variant="outline" onClick={addFamiliar}>
+            <Button type="button" variant="outline" onClick={addFamiliar} className="w-full sm:w-auto">
               Añadir Familiar
             </Button>
           </div>
@@ -3166,7 +3135,7 @@ const tieneFirmaCargada = () => {
             {showExperienciaLaboral && (
               <>
                 {formData.ExperienciaLaboral.map((exp, index) => (
-                  <div key={index} className="p-4 border rounded-lg bg-gray-50/50 relative">
+                  <div key={index} className="p-4 border rounded-lg bg-gray-50/50 relative min-w-0 overflow-hidden">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="space-y-1">
                         <Label>Empresa</Label>
@@ -3262,7 +3231,7 @@ const tieneFirmaCargada = () => {
                   </div>
                 ))}
 
-                <Button type="button" variant="outline" onClick={addExperiencia}>
+                <Button type="button" variant="outline" onClick={addExperiencia} className="w-full sm:w-auto">
                   Añadir Experiencia
                 </Button>
               </>
@@ -3277,7 +3246,7 @@ const tieneFirmaCargada = () => {
               <BookOpen className="w-5 h-5" />,
               <div className="space-y-4">
                 {formData.Referencias.map((ref, index) => (
-                  <div key={index} className="p-4 border rounded-lg bg-gray-50/50 relative">
+                  <div key={index} className="p-4 border rounded-lg bg-gray-50/50 relative min-w-0 overflow-hidden">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <Label>Nombre Completo</Label>
@@ -3417,7 +3386,7 @@ const tieneFirmaCargada = () => {
                     </div>
 
                     <div className="space-y-3">
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 sm:justify-end">
                         <div className="relative flex-1">
                           <input
                             type="file"
@@ -3452,7 +3421,7 @@ const tieneFirmaCargada = () => {
 
                       {/* NUEVO: enlace para VER y DESCARGAR el archivo */}
                       {hasFile && (
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 sm:justify-end">
                           <button
                             type="button"
                             className="text-[11px] text-emerald-700 underline hover:text-emerald-900 transition-colors"

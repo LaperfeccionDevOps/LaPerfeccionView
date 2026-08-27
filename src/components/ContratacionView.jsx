@@ -463,6 +463,7 @@ const RegistroContratacionModal = ({
   tiposLabelToId = {},
 }) => {
   const [fechaIngreso, setFechaIngreso] = useState('');
+  const [fechaIngresoProtegida, setFechaIngresoProtegida] = useState(false);
   const [banco, setBanco] = useState('');
   const [riesgoLaboral, setRiesgoLaboral] = useState('');
   const [tipoContrato, setTipoContrato] = useState('');
@@ -490,6 +491,7 @@ const RegistroContratacionModal = ({
 
       // reset
       setFechaIngreso('');
+      setFechaIngresoProtegida(false);
       setBanco('');
       setTipoContrato('');
       setRiesgoLaboral('');
@@ -506,6 +508,13 @@ const RegistroContratacionModal = ({
       setHepatitisDescontable('');
 
       const idReg = getIdRegistroPersonal(aspirante);
+
+      // La FechaIngreso histórica de un trabajador retirado queda
+      // protegida en la interfaz. El backend mantiene la protección
+      // definitiva aunque otro cliente intente enviar una fecha distinta.
+      const estadoActual = normalizeText(aspirante?.estado);
+      const esRetirado = estadoActual === 'retirado';
+      setFechaIngresoProtegida(esRetirado);
 
       // 1) Precargar desde BD (API real)
       if (idReg) {
@@ -583,6 +592,7 @@ const RegistroContratacionModal = ({
 
        const payload = {
       fechaInicio: fechaIngreso,
+      fechaInicioProtegida: fechaIngresoProtegida,
       bancoId: banco,
       riesgoLaboral,
       tipoContratoId: tipoContrato,
@@ -659,9 +669,14 @@ const RegistroContratacionModal = ({
                 type="date"
                 value={fechaIngreso}
                 onChange={(e) => setFechaIngreso(e.target.value)}
+                disabled={fechaIngresoProtegida}
                 className="rounded-xl"
               />
-              <p className="text-xs text-gray-500 mt-2">Puedes seleccionarla desde el calendario.</p>
+              <p className="text-xs text-gray-500 mt-2">
+                {fechaIngresoProtegida
+                  ? 'Fecha protegida porque el trabajador ya tiene un retiro cerrado.'
+                  : 'Puedes seleccionarla desde el calendario.'}
+              </p>
             </div>
 
             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -1485,7 +1500,7 @@ const ContratacionView = () => {
       return;
     }
 
-    if (!payload.fechaInicio) {
+    if (!payload.fechaInicio && !payload.fechaInicioProtegida) {
       toast({
         title: "❌ Falta fecha",
         description: "La fecha de ingreso es obligatoria.",
@@ -1507,7 +1522,7 @@ const ContratacionView = () => {
       IdRegistroPersonal: Number(idRegistroPersonal),
       IdBanco: Number(idBanco),
       IdTipoContrato: Number(idTipoContrato),
-      FechaIngreso: payload.fechaInicio,
+      FechaIngreso: payload.fechaInicioProtegida ? null : payload.fechaInicio,
       RiesgoLaboral: payload.riesgoLaboral,
 
       Posicion: (payload.posicion ?? '').trim() || null,
