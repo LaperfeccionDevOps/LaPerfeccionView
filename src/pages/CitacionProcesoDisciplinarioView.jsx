@@ -477,6 +477,15 @@ export default function CitacionProcesoDisciplinarioView({
       .toUpperCase() ===
     "AUSENCIA_INJUSTIFICADA";
 
+  const esCitacionExtraordinaria =
+    Boolean(citacionExistente?.EsExtraordinaria);
+
+  const justificacionExtraordinaria =
+    String(
+      citacionExistente?.JustificacionExtraordinaria ||
+        ""
+    ).trim();
+
   const diasAusencia =
     calcularDiasAusencia(
       fechaInicioAusencia,
@@ -1306,6 +1315,24 @@ export default function CitacionProcesoDisciplinarioView({
                   </p>
                 </div>
               </div>
+
+              {esCitacionExtraordinaria && (
+                <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-5">
+                  <p className="text-sm font-bold uppercase tracking-wide text-red-700">
+                    Cita extraordinaria
+                  </p>
+
+                  <div className="mt-3 rounded-lg border border-red-200 bg-white p-4">
+                    <p className="text-xs font-semibold uppercase text-gray-500">
+                      Justificación de la cita extraordinaria
+                    </p>
+
+                    <p className="mt-2 whitespace-pre-wrap text-sm font-semibold text-gray-800">
+                      {justificacionExtraordinaria || "—"}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="mt-4 space-y-4">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

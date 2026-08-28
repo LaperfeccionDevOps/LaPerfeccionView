@@ -2,6 +2,31 @@ import React from 'react';
 import { MessageSquare } from 'lucide-react';
 
 
+const obtenerFechaSiguiente = (fecha) => {
+  if (!fecha) {
+    return '';
+  }
+
+  const fechaBase = new Date(`${fecha}T00:00:00`);
+
+  if (Number.isNaN(fechaBase.getTime())) {
+    return '';
+  }
+
+  fechaBase.setDate(fechaBase.getDate() + 1);
+
+  const anio = fechaBase.getFullYear();
+  const mes = String(
+    fechaBase.getMonth() + 1
+  ).padStart(2, '0');
+  const dia = String(
+    fechaBase.getDate()
+  ).padStart(2, '0');
+
+  return `${anio}-${mes}-${dia}`;
+};
+
+
 const calcularDiasAusencia = (
   fechaInicio,
   fechaFin
@@ -258,6 +283,9 @@ const HechosCasoCard = ({
                     ''
                   }
                   onChange={onChange}
+                  min={obtenerFechaSiguiente(
+                    formData.fechaUltimoDiaLaborado
+                  )}
                   className="min-h-11 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                 />
               </div>

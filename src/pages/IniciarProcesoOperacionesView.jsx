@@ -321,6 +321,11 @@ const IniciarProcesoOperacionesView =
     ] = useState({
       fechaCitacion: '',
       horaCitacion: '',
+      esExtraordinaria: false,
+      fechaCitacionExtraordinaria: '',
+      horaCitacionExtraordinaria: '',
+      motivoExtraordinario: '',
+      justificacionExtraordinaria: '',
       modalidad: '',
       lugarCitacion: '',
       supervisorReporta:
@@ -418,6 +423,31 @@ const IniciarProcesoOperacionesView =
       setErrorProgramacion,
     ] = useState('');
 
+    const [
+      configuracionExtraordinaria,
+      setConfiguracionExtraordinaria,
+    ] = useState(null);
+
+    const [
+      horariosExtraordinarios,
+      setHorariosExtraordinarios,
+    ] = useState([]);
+
+    const [
+      cargandoConfiguracionExtraordinaria,
+      setCargandoConfiguracionExtraordinaria,
+    ] = useState(false);
+
+    const [
+      cargandoHorariosExtraordinarios,
+      setCargandoHorariosExtraordinarios,
+    ] = useState(false);
+
+    const [
+      errorProgramacionExtraordinaria,
+      setErrorProgramacionExtraordinaria,
+    ] = useState('');
+
     const handleChange = (event) => {
       const {
         name,
@@ -433,6 +463,42 @@ const IniciarProcesoOperacionesView =
 
         setHorariosDisponibles([]);
         setErrorProgramacion('');
+        return;
+      }
+
+      if (name === 'esExtraordinaria') {
+        const activar = Boolean(value);
+        setFormData((prev) => ({
+          ...prev,
+          esExtraordinaria: activar,
+          fechaCitacion: activar ? '' : prev.fechaCitacion,
+          horaCitacion: activar ? '' : prev.horaCitacion,
+          fechaCitacionExtraordinaria: activar
+            ? prev.fechaCitacionExtraordinaria
+            : '',
+          horaCitacionExtraordinaria: activar
+            ? prev.horaCitacionExtraordinaria
+            : '',
+          motivoExtraordinario: activar ? prev.motivoExtraordinario : '',
+          justificacionExtraordinaria: activar
+            ? prev.justificacionExtraordinaria
+            : '',
+        }));
+        setHorariosDisponibles([]);
+        setHorariosExtraordinarios([]);
+        setErrorProgramacion('');
+        setErrorProgramacionExtraordinaria('');
+        return;
+      }
+
+      if (name === 'fechaCitacionExtraordinaria') {
+        setFormData((prev) => ({
+          ...prev,
+          fechaCitacionExtraordinaria: value,
+          horaCitacionExtraordinaria: '',
+        }));
+        setHorariosExtraordinarios([]);
+        setErrorProgramacionExtraordinaria('');
         return;
       }
 
@@ -851,6 +917,88 @@ const IniciarProcesoOperacionesView =
         }
       };
 
+    const consultarConfiguracionExtraordinaria = async () => {
+      try {
+        setCargandoConfiguracionExtraordinaria(true);
+        setErrorProgramacionExtraordinaria('');
+        const response = await fetch(
+          `${API_URL}/agenda-disciplinaria/configuracion-citacion-extraordinaria`,
+          { method: 'GET', headers: construirHeaders() }
+        );
+        if (!response.ok) {
+          throw new Error(
+            await obtenerMensajeError(
+              response,
+              'No se pudo consultar la configuración extraordinaria'
+            )
+          );
+        }
+        setConfiguracionExtraordinaria(await response.json());
+      } catch (error) {
+        setConfiguracionExtraordinaria(null);
+        setErrorProgramacionExtraordinaria(
+          error?.message || 'No fue posible consultar las fechas extraordinarias.'
+        );
+      } finally {
+        setCargandoConfiguracionExtraordinaria(false);
+      }
+    };
+
+    const consultarHorariosExtraordinarios = async (fechaCitacion) => {
+      if (!fechaCitacion) {
+        setHorariosExtraordinarios([]);
+        setErrorProgramacionExtraordinaria('');
+        return;
+      }
+      try {
+        setCargandoHorariosExtraordinarios(true);
+        setErrorProgramacionExtraordinaria('');
+        const parametros = new URLSearchParams();
+        if (idProcesoDisciplinario) {
+          parametros.set('id_proceso_disciplinario', String(idProcesoDisciplinario));
+        }
+        const query = parametros.toString() ? `?${parametros.toString()}` : '';
+        const response = await fetch(
+          `${API_URL}/agenda-disciplinaria/horarios-extraordinarios/${fechaCitacion}${query}`,
+          { method: 'GET', headers: construirHeaders() }
+        );
+        if (!response.ok) {
+          throw new Error(
+            await obtenerMensajeError(
+              response,
+              'La fecha extraordinaria seleccionada no está disponible'
+            )
+          );
+        }
+        const resultado = await response.json();
+        const horarios = Array.isArray(resultado?.horarios)
+          ? resultado.horarios
+          : [];
+        setHorariosExtraordinarios(horarios);
+        setFormData((prev) => ({
+          ...prev,
+          horaCitacionExtraordinaria: horarios.some(
+            (item) => item.HoraInicio === prev.horaCitacionExtraordinaria
+          )
+            ? prev.horaCitacionExtraordinaria
+            : '',
+        }));
+        if (!horarios.length) {
+          setErrorProgramacionExtraordinaria(
+            'La fecha seleccionada no tiene horarios extraordinarios disponibles.'
+          );
+        }
+      } catch (error) {
+        setHorariosExtraordinarios([]);
+        setFormData((prev) => ({ ...prev, horaCitacionExtraordinaria: '' }));
+        setErrorProgramacionExtraordinaria(
+          error?.message || 'No fue posible consultar los horarios extraordinarios.'
+        );
+      } finally {
+        setCargandoHorariosExtraordinarios(false);
+      }
+    };
+
     const horaSeleccionadaDisponible =
       horariosDisponibles.some(
         (horario) =>
@@ -858,13 +1006,25 @@ const IniciarProcesoOperacionesView =
           formData.horaCitacion
       );
 
+    const horaExtraordinariaDisponible = horariosExtraordinarios.some(
+      (horario) => horario.HoraInicio === formData.horaCitacionExtraordinaria
+    );
+
     const programacionValida =
-      Boolean(
-        formData.fechaCitacion &&
-        formData.horaCitacion &&
-        horaSeleccionadaDisponible &&
-        !errorProgramacion
-      );
+      formData.esExtraordinaria
+        ? Boolean(
+            formData.fechaCitacionExtraordinaria &&
+              formData.horaCitacionExtraordinaria &&
+              formData.justificacionExtraordinaria?.trim() &&
+              horaExtraordinariaDisponible &&
+              !errorProgramacionExtraordinaria
+          )
+        : Boolean(
+            formData.fechaCitacion &&
+              formData.horaCitacion &&
+              horaSeleccionadaDisponible &&
+              !errorProgramacion
+          );
 
     const agregarEvidencias = (
       archivos
@@ -1088,17 +1248,27 @@ const IniciarProcesoOperacionesView =
     const validarPasoDos = () => {
       const camposObligatorios = [
         {
-          value:
-            formData.fechaCitacion,
+          value: formData.esExtraordinaria
+            ? formData.fechaCitacionExtraordinaria
+            : formData.fechaCitacion,
           label:
             'Fecha de la citación',
         },
         {
-          value:
-            formData.horaCitacion,
+          value: formData.esExtraordinaria
+            ? formData.horaCitacionExtraordinaria
+            : formData.horaCitacion,
           label:
             'Hora de la citación',
         },
+        ...(formData.esExtraordinaria
+          ? [
+              {
+                value: formData.justificacionExtraordinaria,
+                label: 'Justificación de la cita extraordinaria',
+              },
+            ]
+          : []),
         {
           value:
             formData.modalidad,
@@ -1450,14 +1620,22 @@ const IniciarProcesoOperacionesView =
             setFormData((prev) => ({
               ...prev,
 
-              fechaCitacion:
-                citacion.FechaCitacion ||
-                '',
-
-              horaCitacion:
-                normalizarHoraBackend(
-                  citacion.HoraCitacion
-                ),
+              esExtraordinaria: Boolean(citacion.EsExtraordinaria),
+              fechaCitacion: citacion.EsExtraordinaria
+                ? ''
+                : citacion.FechaCitacion || '',
+              horaCitacion: citacion.EsExtraordinaria
+                ? ''
+                : normalizarHoraBackend(citacion.HoraCitacion),
+              fechaCitacionExtraordinaria: citacion.EsExtraordinaria
+                ? citacion.FechaCitacion || ''
+                : '',
+              horaCitacionExtraordinaria: citacion.EsExtraordinaria
+                ? normalizarHoraBackend(citacion.HoraCitacion)
+                : '',
+              motivoExtraordinario: citacion.MotivoExtraordinario || '',
+              justificacionExtraordinaria:
+                citacion.JustificacionExtraordinaria || '',
 
               modalidad:
                 citacion.Modalidad ||
@@ -1583,6 +1761,7 @@ const IniciarProcesoOperacionesView =
 
     useEffect(() => {
       consultarConfiguracionCitacion();
+      consultarConfiguracionExtraordinaria();
 
       // La configuración se consulta una sola vez al abrir la vista.
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1602,6 +1781,17 @@ const IniciarProcesoOperacionesView =
       // Se consulta cada vez que cambia la fecha seleccionada.
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [formData.fechaCitacion]);
+
+    useEffect(() => {
+      if (!formData.esExtraordinaria || !formData.fechaCitacionExtraordinaria) {
+        setHorariosExtraordinarios([]);
+        setErrorProgramacionExtraordinaria('');
+        return;
+      }
+      consultarHorariosExtraordinarios(formData.fechaCitacionExtraordinaria);
+
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [formData.esExtraordinaria, formData.fechaCitacionExtraordinaria]);
 
     useEffect(() => {
       consultarBorradorExistente();
@@ -1780,12 +1970,22 @@ const IniciarProcesoOperacionesView =
           idProceso,
 
         FechaCitacion:
-          formData.fechaCitacion ||
+          (formData.esExtraordinaria
+            ? formData.fechaCitacionExtraordinaria
+            : formData.fechaCitacion) ||
           null,
 
         HoraCitacion:
-          formData.horaCitacion ||
+          (formData.esExtraordinaria
+            ? formData.horaCitacionExtraordinaria
+            : formData.horaCitacion) ||
           null,
+
+        EsExtraordinaria: Boolean(formData.esExtraordinaria),
+        MotivoExtraordinario: null,
+        JustificacionExtraordinaria: formData.esExtraordinaria
+          ? String(formData.justificacionExtraordinaria || '').trim() || null
+          : null,
 
         LugarCitacion:
           formData.modalidad ===
@@ -2349,7 +2549,9 @@ const IniciarProcesoOperacionesView =
                 Borrador de Operaciones recuperado. Expediente disciplinario{" "}
                 {formatearExpedienteDisciplinario(
                   idProcesoDisciplinario,
-                  formData.fechaCitacion
+                  formData.esExtraordinaria
+                    ? formData.fechaCitacionExtraordinaria
+                    : formData.fechaCitacion
                 )}.
               </div>
             )}
@@ -2389,6 +2591,13 @@ const IniciarProcesoOperacionesView =
             programacionValida={
               programacionValida
             }
+            configuracionExtraordinaria={configuracionExtraordinaria}
+            horariosExtraordinarios={horariosExtraordinarios}
+            cargandoConfiguracionExtraordinaria={
+              cargandoConfiguracionExtraordinaria
+            }
+            cargandoHorariosExtraordinarios={cargandoHorariosExtraordinarios}
+            errorProgramacionExtraordinaria={errorProgramacionExtraordinaria}
           />
 
           {programacionValida && (
@@ -2438,7 +2647,14 @@ const IniciarProcesoOperacionesView =
                 disabled={
                   guardando ||
                   cargandoBorrador ||
-                  eliminandoEvidencia
+                  eliminandoEvidencia ||
+                  (
+                    formData.esExtraordinaria &&
+                    (
+                      cargandoConfiguracionExtraordinaria ||
+                      cargandoHorariosExtraordinarios
+                    )
+                  )
                 }
                 className="min-h-11 w-full rounded-xl border-emerald-300 px-5 font-semibold text-emerald-700 hover:bg-emerald-50 sm:w-auto"
               >
@@ -2464,6 +2680,8 @@ const IniciarProcesoOperacionesView =
                   eliminandoEvidencia ||
                   cargandoConfiguracion ||
                   cargandoHorarios ||
+                  cargandoConfiguracionExtraordinaria ||
+                  cargandoHorariosExtraordinarios ||
                   !programacionValida
                 }
                 className="min-h-11 w-full rounded-xl bg-emerald-600 px-5 font-semibold text-white shadow-md hover:bg-emerald-700 sm:w-auto"

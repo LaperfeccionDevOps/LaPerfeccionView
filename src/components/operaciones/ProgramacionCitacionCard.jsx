@@ -31,6 +31,11 @@ const ProgramacionCitacionCard = ({
   cargandoHorarios,
   errorProgramacion,
   programacionValida,
+  configuracionExtraordinaria = null,
+  horariosExtraordinarios = [],
+  cargandoConfiguracionExtraordinaria = false,
+  cargandoHorariosExtraordinarios = false,
+  errorProgramacionExtraordinaria = '',
 }) => {
   const esVirtual =
     formData.modalidad === 'VIRTUAL';
@@ -162,7 +167,7 @@ const ProgramacionCitacionCard = ({
             value={formData.fechaCitacion}
             min={fechaMinimaPermitida || undefined}
             onChange={onChange}
-            disabled={cargandoConfiguracion}
+            disabled={cargandoConfiguracion || formData.esExtraordinaria}
             className="min-h-11 w-full"
           />
 
@@ -194,7 +199,8 @@ const ProgramacionCitacionCard = ({
             disabled={
               !formData.fechaCitacion ||
               cargandoHorarios ||
-              Boolean(errorProgramacion)
+              Boolean(errorProgramacion) ||
+              formData.esExtraordinaria
             }
             className="min-h-11 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition-colors disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
           >
@@ -243,7 +249,131 @@ const ProgramacionCitacionCard = ({
         </div>
       </div>
 
-      {errorProgramacion &&
+      <div className="mt-6 rounded-2xl border border-red-200 bg-red-50/60 p-4 sm:p-5">
+        <label className="flex cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            name="esExtraordinaria"
+            checked={Boolean(formData.esExtraordinaria)}
+            onChange={(event) =>
+              onChange({
+                target: {
+                  name: 'esExtraordinaria',
+                  value: event.target.checked,
+                },
+              })
+            }
+            className="mt-1 h-4 w-4"
+          />
+          <span>
+            <span className="block text-sm font-bold text-red-800">
+              Programar como cita extraordinaria
+            </span>
+            <span className="mt-1 block text-xs leading-relaxed text-red-700">
+              Úsala únicamente cuando el caso no pueda esperar los cinco días hábiles del flujo normal. Existe un máximo global de 6 citas extraordinarias por semana.
+            </span>
+          </span>
+        </label>
+
+        {formData.esExtraordinaria && (
+          <div className="mt-5 space-y-5 border-t border-red-200 pt-5">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              <div>
+                <label htmlFor="fechaCitacionExtraordinaria" className="mb-2 block text-sm font-semibold text-gray-700">
+                  Fecha extraordinaria *
+                </label>
+                <select
+                  id="fechaCitacionExtraordinaria"
+                  name="fechaCitacionExtraordinaria"
+                  value={formData.fechaCitacionExtraordinaria || ''}
+                  onChange={onChange}
+                  disabled={cargandoConfiguracionExtraordinaria}
+                  className="min-h-11 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none disabled:bg-gray-100"
+                >
+                  <option value="">
+                    {cargandoConfiguracionExtraordinaria
+                      ? 'Consultando fechas...'
+                      : 'Selecciona uno de los próximos 5 días hábiles'}
+                  </option>
+                  {(configuracionExtraordinaria?.fechasPermitidas || []).map((fecha) => (
+                    <option key={fecha} value={fecha}>
+                      {formatearFechaColombia(fecha)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="horaCitacionExtraordinaria" className="mb-2 block text-sm font-semibold text-gray-700">
+                  Hora extraordinaria *
+                </label>
+                <select
+                  id="horaCitacionExtraordinaria"
+                  name="horaCitacionExtraordinaria"
+                  value={formData.horaCitacionExtraordinaria || ''}
+                  onChange={onChange}
+                  disabled={
+                    !formData.fechaCitacionExtraordinaria ||
+                    cargandoHorariosExtraordinarios ||
+                    Boolean(errorProgramacionExtraordinaria)
+                  }
+                  className="min-h-11 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none disabled:bg-gray-100"
+                >
+                  <option value="">
+                    {!formData.fechaCitacionExtraordinaria
+                      ? 'Selecciona primero una fecha extraordinaria'
+                      : cargandoHorariosExtraordinarios
+                        ? 'Consultando horarios...'
+                        : horariosExtraordinarios.length
+                          ? 'Selecciona una hora disponible'
+                          : 'No hay horarios disponibles'}
+                  </option>
+                  {horariosExtraordinarios.map((horario) => (
+                    <option
+                      key={`${horario.HoraInicio}-${horario.HoraFin}`}
+                      value={horario.HoraInicio}
+                    >
+                      {horario.Etiqueta || `${horario.HoraInicio} - ${horario.HoraFin}`}
+                      {horario.EsContingencia ? ' (cupo urgente)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="justificacionExtraordinaria" className="mb-2 block text-sm font-semibold text-gray-700">
+                Justificación de la cita extraordinaria *
+              </label>
+              <textarea
+                id="justificacionExtraordinaria"
+                name="justificacionExtraordinaria"
+                value={formData.justificacionExtraordinaria || ''}
+                onChange={onChange}
+                rows={3}
+                maxLength={2000}
+                placeholder="Explique brevemente por qué el caso requiere atención antes de los cinco días hábiles."
+                className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+              />
+            </div>
+
+            {errorProgramacionExtraordinaria && (
+              <div className="rounded-xl border border-red-300 bg-white px-4 py-3 text-sm text-red-700" role="alert">
+                {errorProgramacionExtraordinaria}
+              </div>
+            )}
+
+            {!errorProgramacionExtraordinaria && configuracionExtraordinaria && (
+              <p className="text-xs leading-relaxed text-red-700">
+                Se muestran únicamente los próximos 5 días hábiles. El cupo máximo es de {configuracionExtraordinaria.maximoSemanal || 6} citas extraordinarias por semana.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {!formData.esExtraordinaria &&
+        errorProgramacion &&
         esViernesSeleccionado && (
           <div
             className="mt-5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-4 text-sm text-amber-900"
@@ -265,7 +395,8 @@ const ProgramacionCitacionCard = ({
           </div>
         )}
 
-      {errorProgramacion &&
+      {!formData.esExtraordinaria &&
+        errorProgramacion &&
         !esViernesSeleccionado && (
           <div
             className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
@@ -276,9 +407,13 @@ const ProgramacionCitacionCard = ({
         )}
 
       {!programacionValida &&
-        !errorProgramacion && (
+        !(formData.esExtraordinaria
+          ? errorProgramacionExtraordinaria
+          : errorProgramacion) && (
           <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Selecciona una fecha válida y una hora disponible para habilitar el resto del formulario.
+            {formData.esExtraordinaria
+              ? 'Selecciona la fecha y la hora extraordinarias, e ingresa la justificación para habilitar el resto del formulario.'
+              : 'Selecciona una fecha válida y una hora disponible para habilitar el resto del formulario.'}
           </div>
         )}
 
