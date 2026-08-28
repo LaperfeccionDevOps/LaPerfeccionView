@@ -415,6 +415,14 @@ const GRUPOS_SANGUINEOS = [
 ];
 
 
+const TIPOS_IDENTIFICACION = [
+   { key: 1, value: 'Cédula de Ciudadania' },
+   { key: 2, value: 'Cédula de Extranjería' },
+   { key: 3, value: 'Permiso Protección (PPT)' },
+   { key: 4, value: 'Tarjeta de Identidad' },
+];
+
+
 const MOTIVOS_CIERRE_PREDEFINIDOS = [
   'Desiste del Proceso',
   'No Cumple Perfil',
@@ -465,6 +473,7 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
     IdNivelEducativo: '',
     IdTipoIdentificacion: '',
     DescripcionTipoIdentificacion: '',
+    NumeroIdentificacion: '',
     nombres: '',
     apellidos: '',
     email: '',
@@ -762,6 +771,7 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
             IdVinculacionLaboral: idVinculacionActual || null,
             IdTipoIdentificacion: fila?.IdTipoIdentificacion ? String(fila.IdTipoIdentificacion) : '',
             DescripcionTipoIdentificacion: fila?.tipo_identificacion?.Descripcion || '',
+            NumeroIdentificacion: fila?.NumeroIdentificacion || '',
 
             nombres: fila?.Nombres || '',
             apellidos: fila?.Apellidos || '',
@@ -1342,27 +1352,59 @@ if (experienciasValidas.length > 0) {
         exp?.id ||
         null;
 
-      if (!idExp) continue;
+      const empresa = String(
+        exp?.Compania ||
+        exp?.compania ||
+        exp?.Compañia ||
+        exp?.compañia ||
+        ''
+      ).trim();
 
-      const resObs = await GetObservacionesExperienciaLaboral(idExp);
+      const funciones = String(
+        exp?.Funciones ||
+        exp?.funciones ||
+        ''
+      ).trim();
 
-      if (!resObs?.ok) continue;
+      let observacion = '';
 
-      const dataObs = await resObs.json();
+      if (idExp) {
+        const resObs = await GetObservacionesExperienciaLaboral(idExp);
 
-      const observacion = String(dataObs?.Observaciones || '').trim();
-      const empresa = String(exp?.Compania || '').trim();
+        if (resObs?.ok) {
+          const dataObs = await resObs.json();
+          observacion = String(
+            dataObs?.Observaciones ||
+            dataObs?.observaciones ||
+            ''
+          ).trim();
+        }
+      }
 
-      if (observacion) {
-        observacionesExperiencias.push(
+      if (empresa || funciones || observacion) {
+        const partesExperiencia = [];
+
+        partesExperiencia.push(
           empresa
-            ? `${i + 1}. ${empresa}: ${observacion}`
-            : `${i + 1}. ${observacion}`
+            ? `${i + 1}. ${empresa}`
+            : `${i + 1}. EXPERIENCIA LABORAL`
         );
+
+        partesExperiencia.push(
+          `FUNCIONES: ${funciones || 'NO REGISTRA'}`
+        );
+
+        if (observacion) {
+          partesExperiencia.push(
+            `OBSERVACIONES EXPERIENCIA LABORAL: ${observacion}`
+          );
+        }
+
+        observacionesExperiencias.push(partesExperiencia.join('<br>'));
       }
     }
 
-    observacionExperiencia = observacionesExperiencias.join(' | ');
+    observacionExperiencia = observacionesExperiencias.join('<br><br>');
   } catch (e) {
     console.error('Error consultando observaciones de experiencia laboral para entrevista:', e);
   }
@@ -2476,7 +2518,7 @@ if (response && response.status === 201) {
       }
       const payloadDatosSeleccion = {
          IdTipoIdentificacion: formData.IdTipoIdentificacion || '',
-         NumeroIdentificacion: formData.cedula || '',
+         NumeroIdentificacion: formData.NumeroIdentificacion || '',
          FechaExpedicion: formData.fechaExpedicion || '',
          LugarExpedicion: formData.lugarExpedicion || '',
          Nombres: formData.nombres || '',
@@ -2924,8 +2966,8 @@ if (response && response.status === 201) {
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden flex">
-           <Tabs value={activeTab} onValueChange={setActiveTab} orientation="vertical" className="flex-1 flex h-full">
+        <div className="flex-1 min-h-0 overflow-hidden flex">
+           <Tabs value={activeTab} onValueChange={setActiveTab} orientation="vertical" className="flex-1 flex h-full min-h-0">
               {/* Sidebar Navigation for Tabs */}
               <div className="w-64 bg-white border-r border-gray-200 h-full overflow-y-auto shrink-0 py-2">
                  <TabsList className="flex flex-col h-auto w-full bg-transparent space-y-1 p-2">
@@ -2953,7 +2995,32 @@ if (response && response.status === 201) {
               </div>
 
               {/* Content Area */}
-              <ScrollArea className="flex-1 h-full bg-gray-50/50">
+              <div className="aspirante-detail-scroll flex-1 h-full min-h-0 overflow-y-scroll bg-gray-50/50">
+                  <style>{`
+                    .aspirante-detail-scroll {
+                      scrollbar-width: auto;
+                      scrollbar-color: #6b7280 #f3f4f6;
+                    }
+
+                    .aspirante-detail-scroll::-webkit-scrollbar {
+                      width: 14px;
+                      display: block;
+                    }
+
+                    .aspirante-detail-scroll::-webkit-scrollbar-track {
+                      background: #f3f4f6;
+                    }
+
+                    .aspirante-detail-scroll::-webkit-scrollbar-thumb {
+                      background: #6b7280;
+                      border-radius: 8px;
+                      border: 3px solid #f3f4f6;
+                    }
+
+                    .aspirante-detail-scroll::-webkit-scrollbar-thumb:hover {
+                      background: #4b5563;
+                    }
+                  `}</style>
                  <div className="p-6 max-w-4xl mx-auto pb-20">
                     {/* 2. Datos Personales */}
                     <TabsContent value="personal" className="mt-0 space-y-6">
@@ -2963,11 +3030,39 @@ if (response && response.status === 201) {
                               {/* Identificación y Registro */}
                               <div className="space-y-2">
                                  <Label>Tipo de identificación</Label>
-                                 <Input value={formData?.DescripcionTipoIdentificacion ? String(formData.DescripcionTipoIdentificacion) : ''} className="bg-gray-50" />
+                                 <Select
+                                    value={formData?.IdTipoIdentificacion ? String(formData.IdTipoIdentificacion) : ''}
+                                    onValueChange={(value) => {
+                                       const tipoSeleccionado = TIPOS_IDENTIFICACION.find(
+                                          (tipo) => String(tipo.key) === String(value)
+                                       );
+
+                                       setFormData(prev => ({
+                                          ...prev,
+                                          IdTipoIdentificacion: String(value),
+                                          DescripcionTipoIdentificacion: tipoSeleccionado?.value || '',
+                                       }));
+                                    }}
+                                 >
+                                    <SelectTrigger>
+                                       <SelectValue placeholder="Seleccione tipo de identificación" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                       {TIPOS_IDENTIFICACION.map((tipo) => (
+                                          <SelectItem key={tipo.key} value={String(tipo.key)}>
+                                             {tipo.value}
+                                          </SelectItem>
+                                       ))}
+                                    </SelectContent>
+                                 </Select>
                               </div>
                               <div className="space-y-2">
                                  <Label>Número de identificación</Label>
-                                 <Input value={formData.seleccion.identificacion} onChange={(e) => handleInputChange('seleccion', 'identificacion', e.target.value)} className="bg-gray-50" />
+                                 <Input
+                                    value={formData?.NumeroIdentificacion || ''}
+                                    onChange={(e) => handleInputChange('root', 'NumeroIdentificacion', e.target.value)}
+                                    className="bg-gray-50"
+                                 />
                               </div>
                               <div className="space-y-2">
                                  <Label>Fecha de expedición</Label>
@@ -5238,7 +5333,7 @@ if (response && response.status === 201) {
                        </div>
                     </TabsContent>
                  </div>
-              </ScrollArea>
+              </div>
            </Tabs>
         </div>
       </DialogContent>
