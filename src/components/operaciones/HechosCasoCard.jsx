@@ -82,6 +82,80 @@ const HechosCasoCard = ({
       formData.fechaFinAusencia
     );
 
+  const fechaMinimaInicioAusencia =
+    obtenerFechaSiguiente(
+      formData.fechaUltimoDiaLaborado
+    );
+
+  const handleFechaUltimoDiaLaboradoChange = (
+    event
+  ) => {
+    const nuevaFecha =
+      event.target.value;
+
+    onChange(event);
+
+    const fechaInicioActual =
+      String(
+        formData.fechaInicioAusencia || ''
+      );
+
+    if (
+      fechaInicioActual &&
+      nuevaFecha &&
+      fechaInicioActual <= nuevaFecha
+    ) {
+      onChange({
+        target: {
+          name: 'fechaInicioAusencia',
+          value: '',
+        },
+      });
+
+      onChange({
+        target: {
+          name: 'fechaFinAusencia',
+          value: '',
+        },
+      });
+    }
+  };
+
+  const handleFechaInicioAusenciaChange = (
+    event
+  ) => {
+    const nuevaFecha =
+      event.target.value;
+
+    if (
+      fechaMinimaInicioAusencia &&
+      nuevaFecha &&
+      nuevaFecha < fechaMinimaInicioAusencia
+    ) {
+      return;
+    }
+
+    onChange(event);
+
+    const fechaFinActual =
+      String(
+        formData.fechaFinAusencia || ''
+      );
+
+    if (
+      fechaFinActual &&
+      nuevaFecha &&
+      fechaFinActual < nuevaFecha
+    ) {
+      onChange({
+        target: {
+          name: 'fechaFinAusencia',
+          value: '',
+        },
+      });
+    }
+  };
+
   return (
     <section className="min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex min-w-0 items-start gap-3">
@@ -261,7 +335,9 @@ const HechosCasoCard = ({
                     formData.fechaUltimoDiaLaborado ||
                     ''
                   }
-                  onChange={onChange}
+                  onChange={
+                    handleFechaUltimoDiaLaboradoChange
+                  }
                   className="min-h-11 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                 />
               </div>
@@ -282,11 +358,17 @@ const HechosCasoCard = ({
                     formData.fechaInicioAusencia ||
                     ''
                   }
-                  onChange={onChange}
-                  min={obtenerFechaSiguiente(
-                    formData.fechaUltimoDiaLaborado
-                  )}
-                  className="min-h-11 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  onChange={
+                    handleFechaInicioAusenciaChange
+                  }
+                  min={
+                    fechaMinimaInicioAusencia ||
+                    undefined
+                  }
+                  disabled={
+                    !formData.fechaUltimoDiaLaborado
+                  }
+                  className="min-h-11 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition-colors disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                 />
               </div>
 
@@ -307,7 +389,14 @@ const HechosCasoCard = ({
                     ''
                   }
                   onChange={onChange}
-                  className="min-h-11 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  min={
+                    formData.fechaInicioAusencia ||
+                    undefined
+                  }
+                  disabled={
+                    !formData.fechaInicioAusencia
+                  }
+                  className="min-h-11 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none transition-colors disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                 />
               </div>
             </div>

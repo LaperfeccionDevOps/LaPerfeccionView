@@ -36,6 +36,8 @@ const ProgramacionCitacionCard = ({
   cargandoConfiguracionExtraordinaria = false,
   cargandoHorariosExtraordinarios = false,
   errorProgramacionExtraordinaria = '',
+  onSolicitarViernes = null,
+  enviandoSolicitudViernes = false,
 }) => {
   const esVirtual =
     formData.modalidad === 'VIRTUAL';
@@ -97,6 +99,12 @@ const ProgramacionCitacionCard = ({
         .toLowerCase()
         .includes('solicitud enviada')
     );
+
+  const viernesAprobadoRRLL =
+    esViernesSeleccionado &&
+    !cargandoHorarios &&
+    !errorProgramacion &&
+    horariosDisponibles.length > 0;
 
   const fechaMinimaTexto =
     formatearFechaColombia(
@@ -241,15 +249,77 @@ const ProgramacionCitacionCard = ({
             !errorProgramacion &&
             horariosDisponibles.length > 0 && (
               <p className="mt-2 text-xs text-gray-500">
-                {esHorarioViernesAutorizado
-                  ? 'Se habilitó el horario autorizado por Relaciones Laborales.'
-                  : `Se encontraron ${horariosDisponibles.length} horario(s) disponible(s).`}
+                {viernesAprobadoRRLL
+                  ? `Relaciones Laborales aprobó este viernes. Se encontraron ${horariosDisponibles.length} horario(s) disponible(s) para seleccionar.`
+                  : esHorarioViernesAutorizado
+                    ? 'Se habilitó el horario autorizado por Relaciones Laborales.'
+                    : `Se encontraron ${horariosDisponibles.length} horario(s) disponible(s).`}
               </p>
             )}
         </div>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-red-200 bg-red-50/60 p-4 sm:p-5">
+      {!formData.esExtraordinaria &&
+        esViernesSeleccionado &&
+        !viernesAprobadoRRLL &&
+        !esHorarioViernesAutorizado &&
+        !solicitudViernesPendiente && (
+          <div className="mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 sm:p-5">
+            <div className="mb-4">
+              <p className="text-sm font-bold text-amber-900">
+                Solicitud de atención para viernes
+              </p>
+
+              <p className="mt-1 text-xs leading-relaxed text-amber-800">
+                Explique por qué este caso requiere atención el viernes seleccionado.
+                La solicitud será enviada a Relaciones Laborales para su aprobación.
+              </p>
+            </div>
+
+            <label
+              htmlFor="motivoSolicitudViernes"
+              className="mb-2 block text-sm font-semibold text-gray-700"
+            >
+              Motivo de la solicitud para atención en viernes *
+            </label>
+
+            <textarea
+              id="motivoSolicitudViernes"
+              name="motivoSolicitudViernes"
+              value={formData.motivoSolicitudViernes || ''}
+              onChange={onChange}
+              rows={3}
+              maxLength={2000}
+              placeholder="Explique brevemente por qué el caso requiere ser atendido el viernes seleccionado."
+              className="w-full rounded-md border border-amber-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+            />
+
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-gray-500">
+                {(formData.motivoSolicitudViernes || '').length}/2000
+              </p>
+
+              <button
+                type="button"
+                onClick={onSolicitarViernes || undefined}
+                disabled={
+                  enviandoSolicitudViernes ||
+                  String(
+                    formData.motivoSolicitudViernes || ''
+                  ).trim().length < 5
+                }
+                className="inline-flex min-h-10 items-center justify-center rounded-lg bg-amber-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-amber-300"
+              >
+                {enviandoSolicitudViernes
+                  ? 'Enviando solicitud...'
+                  : 'Enviar solicitud a RRLL'}
+              </button>
+            </div>
+          </div>
+        )}
+
+      {!viernesAprobadoRRLL && (
+        <div className="mt-6 rounded-2xl border border-red-200 bg-red-50/60 p-4 sm:p-5">
         <label className="flex cursor-pointer items-start gap-3">
           <input
             type="checkbox"
@@ -370,9 +440,22 @@ const ProgramacionCitacionCard = ({
             )}
           </div>
         )}
-      </div>
+        </div>
+      )}
+
+      {viernesAprobadoRRLL && (
+        <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <p className="font-semibold">
+            Viernes aprobado por Relaciones Laborales
+          </p>
+          <p className="mt-1 leading-relaxed">
+            La fecha ya está autorizada. Selecciona uno de los horarios disponibles y continúa con el diligenciamiento de la citación.
+          </p>
+        </div>
+      )}
 
       {!formData.esExtraordinaria &&
+        !viernesAprobadoRRLL &&
         errorProgramacion &&
         esViernesSeleccionado && (
           <div

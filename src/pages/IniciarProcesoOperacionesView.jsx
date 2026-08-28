@@ -281,6 +281,25 @@ const IniciarProcesoOperacionesView =
           0
       );
 
+    const continuarSolicitudViernesAprobada =
+      location.state
+        ?.continuarSolicitudViernesAprobada ===
+      true;
+
+    const idProcesoViernesAprobado =
+      Number(
+        location.state
+          ?.idProcesoDisciplinario ||
+          0
+      );
+
+    const fechaViernesAprobada =
+      String(
+        location.state
+          ?.fechaViernesAprobada ||
+        ''
+      ).slice(0, 10);
+
     const obtenerClienteInicial = () =>
       trabajador?.ClienteNombre ||
       trabajador?.Cliente ||
@@ -319,13 +338,17 @@ const IniciarProcesoOperacionesView =
       formData,
       setFormData,
     ] = useState({
-      fechaCitacion: '',
+      fechaCitacion:
+        continuarSolicitudViernesAprobada
+          ? fechaViernesAprobada
+          : '',
       horaCitacion: '',
       esExtraordinaria: false,
       fechaCitacionExtraordinaria: '',
       horaCitacionExtraordinaria: '',
       motivoExtraordinario: '',
       justificacionExtraordinaria: '',
+      motivoSolicitudViernes: '',
       modalidad: '',
       lugarCitacion: '',
       supervisorReporta:
@@ -355,7 +378,12 @@ const IniciarProcesoOperacionesView =
     const [
       idProcesoDisciplinario,
       setIdProcesoDisciplinario,
-    ] = useState(null);
+    ] = useState(
+      continuarSolicitudViernesAprobada &&
+      idProcesoViernesAprobado
+        ? idProcesoViernesAprobado
+        : null
+    );
 
     const [
       idCitacionProcesoDisciplinario,
@@ -448,6 +476,11 @@ const IniciarProcesoOperacionesView =
       setErrorProgramacionExtraordinaria,
     ] = useState('');
 
+    const [
+      enviandoSolicitudViernes,
+      setEnviandoSolicitudViernes,
+    ] = useState(false);
+
     const handleChange = (event) => {
       const {
         name,
@@ -459,6 +492,7 @@ const IniciarProcesoOperacionesView =
           ...prev,
           fechaCitacion: value,
           horaCitacion: '',
+          motivoSolicitudViernes: '',
         }));
 
         setHorariosDisponibles([]);
@@ -483,6 +517,9 @@ const IniciarProcesoOperacionesView =
           justificacionExtraordinaria: activar
             ? prev.justificacionExtraordinaria
             : '',
+          motivoSolicitudViernes: activar
+            ? ''
+            : prev.motivoSolicitudViernes,
         }));
         setHorariosDisponibles([]);
         setHorariosExtraordinarios([]);
@@ -621,7 +658,7 @@ const IniciarProcesoOperacionesView =
               const mensaje =
                 await obtenerMensajeError(
                   responseHistorial,
-                  'No se pudo validar la autorización del viernes'
+                  'No se pudo validar la aprobación del viernes'
                 );
 
               throw new Error(mensaje);
@@ -636,14 +673,14 @@ const IniciarProcesoOperacionesView =
               ? historial
               : [];
 
-            const autorizacion =
+            const solicitudAprobada =
               procesos.find((proceso) => {
-                const fechaAutorizada =
+                const fechaSolicitud =
                   String(
                     proceso
-                      ?.FechaAutorizadaViernes ||
-                    proceso
                       ?.FechaSolicitadaViernes ||
+                    proceso
+                      ?.FechaAutorizadaViernes ||
                     ''
                   ).slice(0, 10);
 
@@ -656,62 +693,71 @@ const IniciarProcesoOperacionesView =
                     .trim()
                     .toUpperCase();
 
-                const estadoAutorizacion =
-                  String(
-                    proceso
-                      ?.EstadoAutorizacionViernes ||
-                    ''
-                  )
-                    .trim()
-                    .toUpperCase();
+                const mismoProceso =
+                  idProcesoDisciplinario
+                    ? Number(
+                        proceso
+                          ?.IdProcesoDisciplinario ||
+                        0
+                      ) ===
+                      Number(
+                        idProcesoDisciplinario
+                      )
+                    : true;
 
                 return (
-                  fechaAutorizada ===
+                  fechaSolicitud ===
                     fechaCitacion &&
-                  proceso
-                    ?.AutorizacionViernesDisponible ===
-                    true &&
                   estadoSolicitud ===
                     'APROBADA' &&
-                  estadoAutorizacion ===
-                    'ACTIVA' &&
-                  proceso
-                    ?.HoraInicioAutorizadaViernes &&
-                  proceso
-                    ?.HoraFinAutorizadaViernes
+                  mismoProceso
                 );
               });
 
-            if (autorizacion) {
-              const horaInicio =
-                normalizarHoraBackend(
-                  autorizacion
-                    .HoraInicioAutorizadaViernes
+            if (solicitudAprobada) {
+              const parametros =
+                new URLSearchParams({
+                  id_registro_personal:
+                    String(
+                      idRegistroPersonal
+                    ),
+                  id_proceso_disciplinario:
+                    String(
+                      solicitudAprobada
+                        .IdProcesoDisciplinario
+                    ),
+                });
+
+              const response =
+                await fetch(
+                  `${API_URL}/agenda-disciplinaria/horarios-disponibles/${fechaCitacion}?${parametros.toString()}`,
+                  {
+                    method: 'GET',
+                    headers:
+                      construirHeaders(),
+                  }
                 );
 
-              const horaFin =
-                normalizarHoraBackend(
-                  autorizacion
-                    .HoraFinAutorizadaViernes
-                );
+              if (!response.ok) {
+                const mensaje =
+                  await obtenerMensajeError(
+                    response,
+                    'No fue posible consultar los horarios disponibles del viernes aprobado'
+                  );
 
-              horarios = [
-                {
-                  HoraInicio: horaInicio,
-                  HoraFin: horaFin,
-                  Etiqueta:
-                    `${horaInicio} - ${horaFin}`,
-                  EsAutorizacionViernes: true,
-                  IdAutorizacionAgendaDisciplinaria:
-                    autorizacion
-                      .IdAutorizacionAgendaDisciplinaria ||
-                    null,
-                  IdProcesoAutorizado:
-                    autorizacion
-                      .IdProcesoDisciplinario ||
-                    null,
-                },
-              ];
+                throw new Error(mensaje);
+              }
+
+              const resultado =
+                await response.json();
+
+              horarios = Array.isArray(
+                resultado?.horarios
+              )
+                ? resultado.horarios
+                : [];
+
+              setErrorProgramacion('');
             } else {
               setHorariosDisponibles([]);
               setFormData((prev) => ({
@@ -781,53 +827,9 @@ const IniciarProcesoOperacionesView =
                 return;
               }
 
-              const usuario =
-                obtenerUsuarioSesion();
-
-              const responseSolicitud =
-                await fetch(
-                  `${API_URL}/solicitudes-autorizacion-agenda-disciplinaria/`,
-                  {
-                    method: 'POST',
-                    headers:
-                      construirHeaders(true),
-                    body: JSON.stringify({
-                      IdRegistroPersonal:
-                        idRegistroPersonal,
-                      IdProcesoDisciplinario:
-                        procesoId,
-                      FechaSolicitada:
-                        fechaCitacion,
-                      MotivoSolicitud:
-                        'Solicitud automática enviada desde Operaciones para programar una citación disciplinaria en viernes.',
-                      UsuarioSolicita:
-                        usuario,
-                    }),
-                  }
-                );
-
-              if (!responseSolicitud.ok) {
-                const mensaje =
-                  await obtenerMensajeError(
-                    responseSolicitud,
-                    'No fue posible enviar la solicitud de autorización a Relaciones Laborales'
-                  );
-
-                throw new Error(mensaje);
-              }
-
-              await responseSolicitud.json();
-
               setErrorProgramacion(
-                'Solicitud enviada a Relaciones Laborales. Está pendiente de aprobación.'
+                'Para solicitar atención el viernes, diligencie el motivo de la urgencia y envíe la solicitud a Relaciones Laborales.'
               );
-
-              toast({
-                title:
-                  'Solicitud enviada',
-                description:
-                  'Relaciones Laborales recibió la solicitud para autorizar la citación del viernes.',
-              });
 
               return;
             }
@@ -914,6 +916,203 @@ const IniciarProcesoOperacionesView =
           );
         } finally {
           setCargandoHorarios(false);
+        }
+      };
+
+    const solicitarAutorizacionViernes =
+      async () => {
+        const fechaCitacion =
+          String(
+            formData.fechaCitacion || ''
+          ).trim();
+
+        const motivoSolicitud =
+          String(
+            formData.motivoSolicitudViernes || ''
+          ).trim();
+
+        if (!fechaCitacion) {
+          toast({
+            title:
+              'Fecha requerida',
+            description:
+              'Selecciona primero el viernes que requiere autorización.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        const partesFecha = fechaCitacion
+          .split('-')
+          .map(Number);
+
+        const esViernes =
+          partesFecha.length === 3 &&
+          !partesFecha.some((parte) =>
+            Number.isNaN(parte)
+          ) &&
+          new Date(
+            partesFecha[0],
+            partesFecha[1] - 1,
+            partesFecha[2]
+          ).getDay() === 5;
+
+        if (!esViernes) {
+          toast({
+            title:
+              'Fecha inválida',
+            description:
+              'La solicitud especial aplica únicamente para una fecha viernes.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        if (motivoSolicitud.length < 5) {
+          toast({
+            title:
+              'Motivo requerido',
+            description:
+              'Debes indicar un motivo de al menos 5 caracteres para solicitar atención el viernes.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        try {
+          setEnviandoSolicitudViernes(true);
+
+          let procesoId =
+            idProcesoDisciplinario;
+
+          if (!procesoId) {
+            const proceso =
+              await crearProcesoBorrador(
+                'BORRADOR_OPERACIONES'
+              );
+
+            procesoId =
+              proceso
+                ?.IdProcesoDisciplinario ||
+              null;
+          }
+
+          if (!procesoId) {
+            throw new Error(
+              'No fue posible crear o recuperar el expediente disciplinario para solicitar la autorización.'
+            );
+          }
+
+          const parametrosPendiente =
+            new URLSearchParams({
+              id_proceso_disciplinario:
+                String(procesoId),
+              fecha_solicitada:
+                fechaCitacion,
+            });
+
+          const responsePendiente =
+            await fetch(
+              `${API_URL}/solicitudes-autorizacion-agenda-disciplinaria/trabajador/${idRegistroPersonal}/pendiente?${parametrosPendiente.toString()}`,
+              {
+                method: 'GET',
+                headers:
+                  construirHeaders(),
+              }
+            );
+
+          if (!responsePendiente.ok) {
+            throw new Error(
+              await obtenerMensajeError(
+                responsePendiente,
+                'No fue posible validar si ya existe una solicitud pendiente'
+              )
+            );
+          }
+
+          const solicitudPendiente =
+            await responsePendiente.json();
+
+          if (
+            solicitudPendiente
+              ?.IdSolicitudAutorizacion
+          ) {
+            setErrorProgramacion(
+              'La solicitud para este viernes ya fue enviada a Relaciones Laborales y está pendiente de aprobación.'
+            );
+
+            toast({
+              title:
+                'Solicitud pendiente',
+              description:
+                'Relaciones Laborales ya tiene una solicitud pendiente para este viernes.',
+            });
+
+            return;
+          }
+
+          const usuario =
+            obtenerUsuarioSesion();
+
+          const responseSolicitud =
+            await fetch(
+              `${API_URL}/solicitudes-autorizacion-agenda-disciplinaria/`,
+              {
+                method: 'POST',
+                headers:
+                  construirHeaders(true),
+                body: JSON.stringify({
+                  IdRegistroPersonal:
+                    idRegistroPersonal,
+                  IdProcesoDisciplinario:
+                    procesoId,
+                  FechaSolicitada:
+                    fechaCitacion,
+                  MotivoSolicitud:
+                    motivoSolicitud,
+                  UsuarioSolicita:
+                    usuario,
+                }),
+              }
+            );
+
+          if (!responseSolicitud.ok) {
+            throw new Error(
+              await obtenerMensajeError(
+                responseSolicitud,
+                'No fue posible enviar la solicitud de autorización a Relaciones Laborales'
+              )
+            );
+          }
+
+          await responseSolicitud.json();
+
+          setErrorProgramacion(
+            'Solicitud enviada a Relaciones Laborales. Está pendiente de aprobación.'
+          );
+
+          toast({
+            title:
+              'Solicitud enviada',
+            description:
+              'Relaciones Laborales recibió la solicitud para autorizar la citación del viernes.',
+          });
+        } catch (error) {
+          console.error(
+            'Error enviando solicitud de viernes:',
+            error
+          );
+
+          toast({
+            title:
+              'No se pudo enviar la solicitud',
+            description:
+              error?.message ||
+              'Ocurrió un error enviando la solicitud de autorización a Relaciones Laborales.',
+            variant: 'destructive',
+          });
+        } finally {
+          setEnviandoSolicitudViernes(false);
         }
       };
 
@@ -1561,28 +1760,40 @@ const IniciarProcesoOperacionesView =
         try {
           setCargandoBorrador(true);
 
-          const response =
-            await fetch(
-              `${API_URL}/procesos-disciplinarios/trabajador/${idRegistroPersonal}/borrador-operaciones`,
-              {
-                method: 'GET',
-                headers:
-                  construirHeaders(),
-              }
-            );
+          let proceso = null;
 
-          if (!response.ok) {
-            const mensaje =
-              await obtenerMensajeError(
-                response,
-                'No se pudo consultar el borrador'
+          if (
+            continuarSolicitudViernesAprobada &&
+            idProcesoViernesAprobado
+          ) {
+            proceso = {
+              IdProcesoDisciplinario:
+                idProcesoViernesAprobado,
+            };
+          } else {
+            const response =
+              await fetch(
+                `${API_URL}/procesos-disciplinarios/trabajador/${idRegistroPersonal}/borrador-operaciones`,
+                {
+                  method: 'GET',
+                  headers:
+                    construirHeaders(),
+                }
               );
 
-            throw new Error(mensaje);
-          }
+            if (!response.ok) {
+              const mensaje =
+                await obtenerMensajeError(
+                  response,
+                  'No se pudo consultar el borrador'
+                );
 
-          const proceso =
-            await response.json();
+              throw new Error(mensaje);
+            }
+
+            proceso =
+              await response.json();
+          }
 
           if (
             !proceso ||
@@ -1620,22 +1831,45 @@ const IniciarProcesoOperacionesView =
             setFormData((prev) => ({
               ...prev,
 
-              esExtraordinaria: Boolean(citacion.EsExtraordinaria),
-              fechaCitacion: citacion.EsExtraordinaria
-                ? ''
-                : citacion.FechaCitacion || '',
-              horaCitacion: citacion.EsExtraordinaria
-                ? ''
-                : normalizarHoraBackend(citacion.HoraCitacion),
-              fechaCitacionExtraordinaria: citacion.EsExtraordinaria
-                ? citacion.FechaCitacion || ''
-                : '',
-              horaCitacionExtraordinaria: citacion.EsExtraordinaria
-                ? normalizarHoraBackend(citacion.HoraCitacion)
-                : '',
+              esExtraordinaria:
+                continuarSolicitudViernesAprobada
+                  ? false
+                  : Boolean(
+                      citacion.EsExtraordinaria
+                    ),
+              fechaCitacion:
+                continuarSolicitudViernesAprobada
+                  ? fechaViernesAprobada
+                  : citacion.EsExtraordinaria
+                    ? ''
+                    : citacion.FechaCitacion || '',
+              horaCitacion:
+                continuarSolicitudViernesAprobada
+                  ? ''
+                  : citacion.EsExtraordinaria
+                    ? ''
+                    : normalizarHoraBackend(
+                        citacion.HoraCitacion
+                      ),
+              fechaCitacionExtraordinaria:
+                continuarSolicitudViernesAprobada
+                  ? ''
+                  : citacion.EsExtraordinaria
+                    ? citacion.FechaCitacion || ''
+                    : '',
+              horaCitacionExtraordinaria:
+                continuarSolicitudViernesAprobada
+                  ? ''
+                  : citacion.EsExtraordinaria
+                    ? normalizarHoraBackend(
+                        citacion.HoraCitacion
+                      )
+                    : '',
               motivoExtraordinario: citacion.MotivoExtraordinario || '',
               justificacionExtraordinaria:
                 citacion.JustificacionExtraordinaria || '',
+              motivoSolicitudViernes:
+                prev.motivoSolicitudViernes || '',
 
               modalidad:
                 citacion.Modalidad ||
@@ -2556,6 +2790,18 @@ const IniciarProcesoOperacionesView =
               </div>
             )}
 
+          {continuarSolicitudViernesAprobada &&
+            fechaViernesAprobada && (
+              <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <p className="font-bold">
+                  Viernes aprobado por Relaciones Laborales
+                </p>
+                <p className="mt-1">
+                  La fecha ya fue cargada automáticamente. Selecciona uno de los horarios disponibles para continuar.
+                </p>
+              </div>
+            )}
+
           <TrabajadorSeleccionadoCard
             trabajador={trabajador}
             idRegistroPersonal={
@@ -2598,6 +2844,8 @@ const IniciarProcesoOperacionesView =
             }
             cargandoHorariosExtraordinarios={cargandoHorariosExtraordinarios}
             errorProgramacionExtraordinaria={errorProgramacionExtraordinaria}
+            onSolicitarViernes={solicitarAutorizacionViernes}
+            enviandoSolicitudViernes={enviandoSolicitudViernes}
           />
 
           {programacionValida && (

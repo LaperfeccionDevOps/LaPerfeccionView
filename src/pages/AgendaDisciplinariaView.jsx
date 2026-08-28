@@ -142,15 +142,12 @@ export default function AgendaDisciplinariaView({
     useState(false);
   const [eventoAutorizacion, setEventoAutorizacion] = useState(null);
   const [fechaAutorizada, setFechaAutorizada] = useState("");
-  const [horaAutorizada, setHoraAutorizada] = useState("");
-  const [horariosAutorizables, setHorariosAutorizables] = useState([]);
   const [observacionAutorizacion, setObservacionAutorizacion] =
     useState("");
-  const [loadingConfiguracionAutorizacion, setLoadingConfiguracionAutorizacion] =
-    useState(false);
   const [guardandoAutorizacion, setGuardandoAutorizacion] =
     useState(false);
   const [errorAutorizacion, setErrorAutorizacion] = useState("");
+  const [notificacionRechazo, setNotificacionRechazo] = useState(null);
 
   const usuarioMovimiento = useMemo(
     () => obtenerUsuarioMovimiento(),
@@ -832,48 +829,11 @@ export default function AgendaDisciplinariaView({
     setModalAutorizacionAbierto(false);
     setEventoAutorizacion(null);
     setFechaAutorizada("");
-    setHoraAutorizada("");
     setObservacionAutorizacion("");
     setErrorAutorizacion("");
   };
 
-  const cargarConfiguracionAutorizacion = async () => {
-    try {
-      setLoadingConfiguracionAutorizacion(true);
-      setErrorAutorizacion("");
-
-      const res = await fetch(
-        `${API_BASE}/solicitudes-autorizacion-agenda-disciplinaria/configuracion`
-      );
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        throw new Error(
-          obtenerMensajeBackend(
-            data,
-            "No se pudo consultar la configuración de autorizaciones."
-          )
-        );
-      }
-
-      setHorariosAutorizables(
-        Array.isArray(data?.horariosPermitidos)
-          ? data.horariosPermitidos
-          : []
-      );
-    } catch (err) {
-      setHorariosAutorizables([]);
-      setErrorAutorizacion(
-        err?.message ||
-          "Error consultando los horarios autorizables."
-      );
-    } finally {
-      setLoadingConfiguracionAutorizacion(false);
-    }
-  };
-
-  const abrirModalAutorizacion = async (solicitud) => {
+  const abrirModalAutorizacion = (solicitud) => {
     setEventoAutorizacion({
       ...solicitud,
       NumeroIdentificacion:
@@ -889,12 +849,9 @@ export default function AgendaDisciplinariaView({
       solicitud?.FechaSolicitada ||
       ""
     );
-    setHoraAutorizada("");
     setObservacionAutorizacion("");
     setErrorAutorizacion("");
     setModalAutorizacionAbierto(true);
-
-    await cargarConfiguracionAutorizacion();
   };
 
   const crearAutorizacionViernes = async () => {
@@ -927,26 +884,6 @@ export default function AgendaDisciplinariaView({
       return;
     }
 
-    if (!horaAutorizada) {
-      setErrorAutorizacion(
-        "Seleccione el bloque horario que desea autorizar."
-      );
-      return;
-    }
-
-    const bloqueSeleccionado = horariosAutorizables.find(
-      (horario) =>
-        String(horario?.HoraInicio || "").slice(0, 5) ===
-        horaAutorizada
-    );
-
-    if (!bloqueSeleccionado) {
-      setErrorAutorizacion(
-        "No se encontró el bloque horario seleccionado."
-      );
-      return;
-    }
-
     try {
       setGuardandoAutorizacion(true);
       setErrorAutorizacion("");
@@ -959,12 +896,6 @@ export default function AgendaDisciplinariaView({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            HoraInicio: `${String(
-              bloqueSeleccionado.HoraInicio
-            ).slice(0, 5)}:00`,
-            HoraFin: `${String(
-              bloqueSeleccionado.HoraFin
-            ).slice(0, 5)}:00`,
             UsuarioResuelve: usuarioMovimiento,
             ObservacionResolucion:
               observacionAutorizacion.trim() || null,
@@ -992,16 +923,13 @@ export default function AgendaDisciplinariaView({
         );
 
       const fechaAprobada = fechaAutorizada;
-      const etiquetaHorario =
-        bloqueSeleccionado.Etiqueta ||
-        `${bloqueSeleccionado.HoraInicio} - ${bloqueSeleccionado.HoraFin}`;
 
       cerrarModalAutorizacion();
 
       setMensajeExito(
         `Solicitud aprobada. Viernes ${formatearFechaVisual(
           fechaAprobada
-        )}, ${etiquetaHorario}, autorizado para el expediente ${expediente}.`
+        )} autorizado para el expediente ${expediente}. Operaciones podrá seleccionar un horario disponible.`
       );
 
       await cargarSolicitudesPendientes();
@@ -1015,10 +943,104 @@ export default function AgendaDisciplinariaView({
     }
   };
 
+  const rechazarSolicitudViernes = async () => {
+    if (!eventoAutorizacion?.IdSolicitudAutorizacion) {
+      setErrorAutorizacion(
+        "No se encontró la solicitud excepcional que desea rechazar."
+      );
+      return;
+    }
+
+    const observacion = observacionAutorizacion.trim();
+
+    if (observacion.length < 3) {
+      setErrorAutorizacion(
+        "Para rechazar la solicitud, registre en Observación de RRLL el motivo del rechazo."
+      );
+      return;
+    }
+
+    try {
+      setGuardandoAutorizacion(true);
+      setErrorAutorizacion("");
+
+      const res = await fetch(
+        `${API_BASE}/solicitudes-autorizacion-agenda-disciplinaria/${eventoAutorizacion.IdSolicitudAutorizacion}/rechazar`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            UsuarioResuelve: usuarioMovimiento,
+            ObservacionResolucion: observacion,
+          }),
+        }
+      );
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(
+          obtenerMensajeBackend(
+            data,
+            "No se pudo rechazar la solicitud excepcional de viernes."
+          )
+        );
+      }
+
+      const expediente =
+        eventoAutorizacion?.IdProcesoDisciplinario
+          ? formatearExpedienteDisciplinario(
+              eventoAutorizacion.IdProcesoDisciplinario,
+              eventoAutorizacion.FechaCreacion ||
+                eventoAutorizacion.FechaSolicitud ||
+                eventoAutorizacion.FechaSolicitada
+            )
+          : "";
+
+      cerrarModalAutorizacion();
+
+      setMensajeExito(
+        expediente
+          ? `Solicitud de viernes rechazada para el expediente ${expediente}.`
+          : "Solicitud de viernes rechazada correctamente."
+      );
+
+      setNotificacionRechazo({
+        titulo: "Solicitud rechazada",
+        mensaje: expediente
+          ? `La solicitud excepcional de viernes del expediente ${expediente} fue rechazada correctamente.`
+          : "La solicitud excepcional de viernes fue rechazada correctamente.",
+      });
+
+      await cargarSolicitudesPendientes();
+    } catch (err) {
+      setErrorAutorizacion(
+        err?.message ||
+          "Error rechazando la solicitud excepcional."
+      );
+    } finally {
+      setGuardandoAutorizacion(false);
+    }
+  };
+
   useEffect(() => {
     cargarAgendaHoy();
     cargarSolicitudesPendientes();
   }, []);
+
+  useEffect(() => {
+    if (!notificacionRechazo) {
+      return undefined;
+    }
+
+    const temporizador = window.setTimeout(() => {
+      setNotificacionRechazo(null);
+    }, 5000);
+
+    return () => window.clearTimeout(temporizador);
+  }, [notificacionRechazo]);
 
   return (
     <div className="p-6 bg-slate-50 min-h-screen">
@@ -1134,7 +1156,7 @@ export default function AgendaDisciplinariaView({
                 Solicitudes excepcionales de viernes
               </h3>
               <p className="mt-1 text-sm text-amber-800">
-                Operaciones envía estas solicitudes para que RRLL autorice el bloque de atención del viernes.
+                Operaciones envía estas solicitudes para que RRLL apruebe o rechace el viernes solicitado. El horario será seleccionado posteriormente por Operaciones.
               </p>
             </div>
 
@@ -1684,7 +1706,7 @@ export default function AgendaDisciplinariaView({
               </h3>
 
               <p className="mt-1 text-sm text-gray-500">
-                Operaciones solicitó atención para este viernes. Seleccione el bloque horario que RRLL autoriza.
+                Operaciones solicitó atención para este viernes. RRLL debe aprobar o rechazar la fecha; el horario será seleccionado posteriormente por Operaciones.
               </p>
             </div>
 
@@ -1736,46 +1758,25 @@ export default function AgendaDisciplinariaView({
                   {formatearFechaVisual(fechaAutorizada)}
                 </p>
 
-                <p className="mt-2 text-sm leading-relaxed text-amber-800">
-                  {eventoAutorizacion.MotivoSolicitud ||
-                    "Solicitud excepcional enviada por Operaciones."}
-                </p>
+                <div className="mt-3 rounded-lg border border-amber-200 bg-white/70 p-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-amber-700">
+                    Motivo informado por Operaciones
+                  </p>
+
+                  <p className="mt-1 text-sm leading-relaxed text-gray-800">
+                    {eventoAutorizacion.MotivoSolicitud ||
+                      "Solicitud excepcional enviada por Operaciones."}
+                  </p>
+                </div>
               </div>
 
-              <div>
-                <label className="text-sm font-semibold text-gray-700">
-                  Bloque horario autorizado *
-                </label>
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                <p className="font-semibold text-blue-800">
+                  Aprobación de fecha
+                </p>
 
-                <select
-                  value={horaAutorizada}
-                  onChange={(event) => {
-                    setHoraAutorizada(event.target.value);
-                    setErrorAutorizacion("");
-                  }}
-                  disabled={loadingConfiguracionAutorizacion}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 disabled:bg-gray-100"
-                >
-                  <option value="">
-                    {loadingConfiguracionAutorizacion
-                      ? "Consultando horarios..."
-                      : "Seleccione un horario"}
-                  </option>
-
-                  {horariosAutorizables.map((horario) => (
-                    <option
-                      key={`${horario.HoraInicio}-${horario.HoraFin}`}
-                      value={String(
-                        horario.HoraInicio
-                      ).slice(0, 5)}
-                    >
-                      {horario.Etiqueta}
-                    </option>
-                  ))}
-                </select>
-
-                <p className="mt-2 text-xs text-gray-500">
-                  Los bloques disponibles son definidos por Relaciones Laborales y tienen una duración de 40 minutos.
+                <p className="mt-1 text-sm leading-relaxed text-blue-700">
+                  Al aprobar, RRLL autoriza únicamente el viernes solicitado. Operaciones seleccionará después uno de los horarios que se encuentre disponible para esa fecha.
                 </p>
               </div>
 
@@ -1784,6 +1785,10 @@ export default function AgendaDisciplinariaView({
                   Observación de RRLL
                 </label>
 
+                <p className="mt-1 text-xs text-gray-500">
+                  Opcional para aprobar. Obligatoria si la solicitud será rechazada.
+                </p>
+
                 <textarea
                   value={observacionAutorizacion}
                   onChange={(event) =>
@@ -1791,7 +1796,7 @@ export default function AgendaDisciplinariaView({
                       event.target.value
                     )
                   }
-                  placeholder="Registra una observación sobre la aprobación, si aplica."
+                  placeholder="Registra una observación. Si vas a rechazar la solicitud, explica aquí el motivo del rechazo."
                   className="mt-1 min-h-[100px] w-full resize-none rounded-lg border border-gray-300 p-3"
                   maxLength={2000}
                 />
@@ -1820,18 +1825,55 @@ export default function AgendaDisciplinariaView({
 
               <Button
                 type="button"
-                className="bg-emerald-700 hover:bg-emerald-800"
-                onClick={crearAutorizacionViernes}
-                disabled={
-                  guardandoAutorizacion ||
-                  loadingConfiguracionAutorizacion
-                }
+                variant="outline"
+                className="border-red-300 text-red-700 hover:bg-red-50"
+                onClick={rechazarSolicitudViernes}
+                disabled={guardandoAutorizacion}
               >
                 {guardandoAutorizacion
-                  ? "Aprobando..."
+                  ? "Procesando..."
+                  : "Rechazar solicitud"}
+              </Button>
+
+              <Button
+                type="button"
+                className="bg-emerald-700 hover:bg-emerald-800"
+                onClick={crearAutorizacionViernes}
+                disabled={guardandoAutorizacion}
+              >
+                {guardandoAutorizacion
+                  ? "Procesando..."
                   : "Aprobar viernes"}
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {notificacionRechazo && (
+        <div className="fixed bottom-5 right-5 z-[70] w-[calc(100%-2.5rem)] max-w-sm rounded-2xl border border-red-200 bg-white p-5 shadow-2xl">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-xl font-bold text-red-700">
+              !
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="font-bold text-gray-900">
+                {notificacionRechazo.titulo}
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-gray-600">
+                {notificacionRechazo.mensaje}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setNotificacionRechazo(null)}
+              className="shrink-0 rounded-md px-2 py-1 text-lg leading-none text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+              aria-label="Cerrar notificación"
+            >
+              ×
+            </button>
           </div>
         </div>
       )}

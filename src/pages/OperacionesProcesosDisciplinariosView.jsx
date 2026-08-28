@@ -693,6 +693,93 @@ const OperacionesProcesosDisciplinariosView = () => {
     );
   };
 
+  const handleContinuarViernesAprobado = (
+    trabajador,
+    proceso
+  ) => {
+    const estadoSolicitudViernes = String(
+      proceso?.EstadoSolicitudViernes || ""
+    )
+      .trim()
+      .toUpperCase();
+
+    const estadoProceso = String(
+      proceso?.EstadoProceso || ""
+    )
+      .trim()
+      .toUpperCase();
+
+    if (
+      estadoSolicitudViernes !== "APROBADA" ||
+      estadoProceso === "CERRADO"
+    ) {
+      return;
+    }
+
+    if (!esTrabajadorContratado(trabajador)) {
+      setMensaje(
+        "El trabajador seleccionado no se encuentra contratado y no puede continuar el proceso disciplinario."
+      );
+      return;
+    }
+
+    const idRegistroPersonal =
+      obtenerIdRegistroPersonal(trabajador);
+
+    const idProcesoDisciplinario =
+      proceso?.IdProcesoDisciplinario;
+
+    const fechaViernesAprobada =
+      proceso?.FechaSolicitadaViernes ||
+      proceso?.FechaAutorizadaViernes ||
+      "";
+
+    if (
+      !idRegistroPersonal ||
+      !idProcesoDisciplinario ||
+      !fechaViernesAprobada
+    ) {
+      setMensaje(
+        "No fue posible identificar el trabajador, el expediente o el viernes aprobado."
+      );
+      return;
+    }
+
+    const trabajadorFinal = {
+      ...trabajador,
+      IdRegistroPersonal: idRegistroPersonal,
+      NombreCompleto:
+        obtenerNombreCompleto(trabajador),
+      NumeroDocumento:
+        obtenerIdentificacion(trabajador),
+      Cargo: obtenerCargo(trabajador),
+      FechaIngreso:
+        trabajador?.FechaIngreso ||
+        trabajador?.fechaIngreso ||
+        trabajador?.FechaInicio ||
+        trabajador?.fechaInicio ||
+        trabajador?.FechaIngresoContrato ||
+        trabajador?.fechaIngresoContrato ||
+        null,
+      Estado: "CONTRATADO",
+      IdEstadoProceso: 25,
+    };
+
+    navigate(
+      "/operaciones/procesos-disciplinarios/iniciar",
+      {
+        state: {
+          trabajador: trabajadorFinal,
+          idRegistroPersonal,
+          idProcesoDisciplinario,
+          fechaViernesAprobada:
+            String(fechaViernesAprobada).slice(0, 10),
+          continuarSolicitudViernesAprobada: true,
+        },
+      }
+    );
+  };
+
   return (
     <motion.div
       initial={{
@@ -950,6 +1037,20 @@ const OperacionesProcesosDisciplinariosView = () => {
                                       .trim()
                                       .toUpperCase();
 
+                                  const viernesAprobado =
+                                    estadoSolicitudViernes ===
+                                    "APROBADA";
+
+                                  const procesoCerrado =
+                                    String(
+                                      proceso
+                                        ?.EstadoProceso ||
+                                      ""
+                                    )
+                                      .trim()
+                                      .toUpperCase() ===
+                                    "CERRADO";
+
                                   return (
                                     <div
                                       key={
@@ -1006,9 +1107,12 @@ const OperacionesProcesosDisciplinariosView = () => {
                                             <span
                                               className={cn(
                                                 "mt-1 inline-flex rounded-full border px-2.5 py-1 text-xs font-bold",
-                                                autorizacionViernesDisponible
-                                                  ? "border-emerald-200 bg-emerald-100 text-emerald-700"
-                                                  : estadoSolicitudViernes ===
+                                                procesoCerrado &&
+                                                respuestaDisponible
+                                                  ? "border-blue-200 bg-blue-100 text-blue-700"
+                                                  : viernesAprobado
+                                                    ? "border-emerald-200 bg-emerald-100 text-emerald-700"
+                                                    : estadoSolicitudViernes ===
                                                       "RECHAZADA"
                                                     ? "border-red-200 bg-red-100 text-red-700"
                                                     : respuestaDisponible
@@ -1016,9 +1120,12 @@ const OperacionesProcesosDisciplinariosView = () => {
                                                       : "border-amber-200 bg-amber-100 text-amber-800"
                                               )}
                                             >
-                                              {autorizacionViernesDisponible
-                                                ? "Aprobada"
-                                                : estadoSolicitudViernes ===
+                                              {procesoCerrado &&
+                                              respuestaDisponible
+                                                ? "Disponible"
+                                                : viernesAprobado
+                                                  ? "Aprobada"
+                                                  : estadoSolicitudViernes ===
                                                     "RECHAZADA"
                                                   ? "Rechazada"
                                                   : respuestaDisponible
@@ -1048,8 +1155,50 @@ const OperacionesProcesosDisciplinariosView = () => {
                                         )}
                                       </div>
 
-                                      {tieneSolicitudViernes && (
-                                        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                                      {tieneSolicitudViernes &&
+                                      !procesoCerrado && (
+                                        <div
+                                          role={
+                                            viernesAprobado
+                                              ? "button"
+                                              : undefined
+                                          }
+                                          tabIndex={
+                                            viernesAprobado
+                                              ? 0
+                                              : undefined
+                                          }
+                                          onClick={() => {
+                                            if (viernesAprobado) {
+                                              handleContinuarViernesAprobado(
+                                                trabajador,
+                                                proceso
+                                              );
+                                            }
+                                          }}
+                                          onKeyDown={(event) => {
+                                            if (
+                                              viernesAprobado &&
+                                              (
+                                                event.key ===
+                                                  "Enter" ||
+                                                event.key ===
+                                                  " "
+                                              )
+                                            ) {
+                                              event.preventDefault();
+                                              handleContinuarViernesAprobado(
+                                                trabajador,
+                                                proceso
+                                              );
+                                            }
+                                          }}
+                                          className={cn(
+                                            "mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 transition",
+                                            viernesAprobado &&
+                                              "cursor-pointer hover:border-amber-300 hover:bg-amber-100/70 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                                          )}
+                                        >
                                           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                             <div className="min-w-0">
                                               <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
@@ -1060,7 +1209,7 @@ const OperacionesProcesosDisciplinariosView = () => {
                                                 <span
                                                   className={cn(
                                                     "inline-flex rounded-full border px-2.5 py-1 text-xs font-bold",
-                                                    autorizacionViernesDisponible
+                                                    viernesAprobado
                                                       ? "border-emerald-200 bg-emerald-100 text-emerald-700"
                                                       : estadoSolicitudViernes ===
                                                           "RECHAZADA"
@@ -1068,7 +1217,7 @@ const OperacionesProcesosDisciplinariosView = () => {
                                                         : "border-amber-200 bg-amber-100 text-amber-800"
                                                   )}
                                                 >
-                                                  {autorizacionViernesDisponible
+                                                  {viernesAprobado
                                                     ? "Aprobada"
                                                     : estadoSolicitudViernes
                                                       ? formatearTexto(
@@ -1091,14 +1240,19 @@ const OperacionesProcesosDisciplinariosView = () => {
                                             <div className="grid min-w-0 grid-cols-1 gap-2 text-sm sm:grid-cols-2">
                                               <div className="rounded-lg border border-amber-100 bg-white px-3 py-2">
                                                 <p className="text-xs font-semibold uppercase text-gray-500">
-                                                  Viernes autorizado
+                                                  {estadoSolicitudViernes ===
+                                                  "RECHAZADA"
+                                                    ? "Viernes solicitado"
+                                                    : viernesAprobado
+                                                      ? "Viernes aprobado"
+                                                      : "Viernes solicitado"}
                                                 </p>
                                                 <p className="mt-1 font-semibold text-gray-900">
                                                   {formatearFecha(
                                                     proceso
-                                                      ?.FechaAutorizadaViernes ||
+                                                      ?.FechaSolicitadaViernes ||
                                                       proceso
-                                                        ?.FechaSolicitadaViernes
+                                                        ?.FechaAutorizadaViernes
                                                   )}
                                                 </p>
                                               </div>
@@ -1108,19 +1262,35 @@ const OperacionesProcesosDisciplinariosView = () => {
                                                   Horario
                                                 </p>
                                                 <p className="mt-1 font-semibold text-gray-900">
-                                                  {formatearHora(
-                                                    proceso
-                                                      ?.HoraInicioAutorizadaViernes
-                                                  )}{" "}
-                                                  -{" "}
-                                                  {formatearHora(
-                                                    proceso
-                                                      ?.HoraFinAutorizadaViernes
-                                                  )}
+                                                  {viernesAprobado &&
+                                                  !proceso
+                                                    ?.HoraInicioAutorizadaViernes &&
+                                                  !proceso
+                                                    ?.HoraFinAutorizadaViernes
+                                                    ? "Por seleccionar"
+                                                    : (
+                                                        <>
+                                                          {formatearHora(
+                                                            proceso
+                                                              ?.HoraInicioAutorizadaViernes
+                                                          )}{" "}
+                                                          -{" "}
+                                                          {formatearHora(
+                                                            proceso
+                                                              ?.HoraFinAutorizadaViernes
+                                                          )}
+                                                        </>
+                                                      )}
                                                 </p>
                                               </div>
                                             </div>
                                           </div>
+
+                                          {viernesAprobado && (
+                                            <div className="mt-3 rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm font-semibold text-amber-800">
+                                              Haz clic en cualquier parte de este bloque para continuar con la programación y seleccionar un horario disponible.
+                                            </div>
+                                          )}
 
                                           {proceso
                                             ?.ObservacionResolucionViernes && (
