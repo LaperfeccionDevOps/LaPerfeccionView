@@ -21,6 +21,23 @@ import { Input } from '@/components/ui/input';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '';
 
+const REGISTROS_POR_PAGINA = 10;
+
+const MESES_FILTRO = [
+  { value: 1, label: 'Enero' },
+  { value: 2, label: 'Febrero' },
+  { value: 3, label: 'Marzo' },
+  { value: 4, label: 'Abril' },
+  { value: 5, label: 'Mayo' },
+  { value: 6, label: 'Junio' },
+  { value: 7, label: 'Julio' },
+  { value: 8, label: 'Agosto' },
+  { value: 9, label: 'Septiembre' },
+  { value: 10, label: 'Octubre' },
+  { value: 11, label: 'Noviembre' },
+  { value: 12, label: 'Diciembre' },
+];
+
 const indicadoresIniciales = {
   totales: {
     abiertos: 0,
@@ -150,6 +167,37 @@ const NominaRetirosView = () => {
   const [fechaPagoLiquidacion, setFechaPagoLiquidacion] = useState('');
   const [mostrarModalDevolucion, setMostrarModalDevolucion] = useState(false);
   const [motivoDevolucion, setMotivoDevolucion] = useState('');
+
+  const [paginaActual, setPaginaActual] = useState(1);
+
+  const fechaActual = new Date();
+  const [anioFiltro, setAnioFiltro] = useState('');
+  const [mesFiltro, setMesFiltro] = useState('');
+
+  const periodoSeleccionado = useMemo(
+    () => {
+      if (!anioFiltro || !mesFiltro) return null;
+
+      return {
+        anio: Number(anioFiltro),
+        mes: Number(mesFiltro),
+      };
+    },
+    [anioFiltro, mesFiltro],
+  );
+
+  const aniosDisponibles = useMemo(() => {
+    const anioActual = fechaActual.getFullYear();
+    const aniosRetiros = retiros
+      .map((retiro) => Number(String(retiro.fechaRetiro || '').slice(0, 4)))
+      .filter((anio) => Number.isInteger(anio) && anio > 0);
+
+    return [...new Set([anioActual, anioActual + 1, ...aniosRetiros])]
+      .sort((a, b) => b - a);
+  }, [retiros]);
+
+  const periodoCompletoSeleccionado = Boolean(periodoSeleccionado);
+
 
   const cargarIndicadores = async () => {
     setCargandoIndicadores(true);
@@ -755,11 +803,6 @@ const enviarCartaCesantias = async (retiro) => {
     }
   };
 
-  const totalGeneral = indicadores?.totales?.total || 0;
-  const totalAbiertos = indicadores?.totales?.abiertos || 0;
-  const totalNomina = indicadores?.totales?.cerrados || 0;
-  const totalRetirados = indicadores?.totales?.retirados || 0;
-
 const grupoEstadoRetiro = (r) => {
   const estadoId = Number(r.estado);
   const texto = String(r.estadoTexto || r.estadoCasoRRLL || '').toLowerCase();
@@ -778,10 +821,54 @@ const grupoEstadoRetiro = (r) => {
   return 'abiertos';
 };
 
+const retirosPeriodo = useMemo(() => {
+  if (!periodoSeleccionado) return retiros;
+
+  return retiros.filter((retiro) => {
+    const fechaRetiro = String(retiro.fechaRetiro || '').slice(0, 10);
+    const [anioRetiro, mesRetiro] = fechaRetiro.split('-').map(Number);
+
+    return (
+      anioRetiro === periodoSeleccionado.anio
+      && mesRetiro === periodoSeleccionado.mes
+    );
+  });
+}, [retiros, periodoSeleccionado]);
+
+const totalesPeriodo = useMemo(() => {
+  if (!periodoCompletoSeleccionado) {
+    return {
+      total: indicadores?.totales?.total || 0,
+      abiertos: indicadores?.totales?.abiertos || 0,
+      cerrados: indicadores?.totales?.cerrados || 0,
+      retirados: indicadores?.totales?.retirados || 0,
+    };
+  }
+
+  return retirosPeriodo.reduce(
+    (totales, retiro) => {
+      const grupo = grupoEstadoRetiro(retiro);
+
+      totales.total += 1;
+      if (grupo === 'abiertos') totales.abiertos += 1;
+      if (grupo === 'nomina') totales.cerrados += 1;
+      if (grupo === 'retirados') totales.retirados += 1;
+
+      return totales;
+    },
+    { total: 0, abiertos: 0, cerrados: 0, retirados: 0 },
+  );
+}, [indicadores, periodoCompletoSeleccionado, retirosPeriodo]);
+
+const totalGeneral = totalesPeriodo.total;
+const totalAbiertos = totalesPeriodo.abiertos;
+const totalNomina = totalesPeriodo.cerrados;
+const totalRetirados = totalesPeriodo.retirados;
+
 const retirosFiltrados = useMemo(() => {
   const q = busqueda.trim().toLowerCase();
 
-  return retiros.filter((r) => {
+  return retirosPeriodo.filter((r) => {
     const coincideBusqueda =
       !q ||
       String(r.identificacion || '').toLowerCase().includes(q) ||
@@ -796,18 +883,50 @@ const retirosFiltrados = useMemo(() => {
 
       return coincideEstado;
         });
-}, [busqueda, retiros, filtroEstado]);
+}, [busqueda, retirosPeriodo, filtroEstado]);
+
+useEffect(() => {
+  setPaginaActual(1);
+}, [busqueda, filtroEstado, anioFiltro, mesFiltro]);
+
+const totalPaginas = Math.max(
+  1,
+  Math.ceil(retirosFiltrados.length / REGISTROS_POR_PAGINA),
+);
+
+useEffect(() => {
+  if (paginaActual > totalPaginas) {
+    setPaginaActual(totalPaginas);
+  }
+}, [paginaActual, totalPaginas]);
+
+const retirosPaginados = useMemo(() => {
+  const inicio = (paginaActual - 1) * REGISTROS_POR_PAGINA;
+  const fin = inicio + REGISTROS_POR_PAGINA;
+
+  return retirosFiltrados.slice(inicio, fin);
+}, [retirosFiltrados, paginaActual]);
+
+const primerRegistroPagina =
+  retirosFiltrados.length === 0
+    ? 0
+    : (paginaActual - 1) * REGISTROS_POR_PAGINA + 1;
+
+const ultimoRegistroPagina = Math.min(
+  paginaActual * REGISTROS_POR_PAGINA,
+  retirosFiltrados.length,
+);
 
 const retiroIndicador = useMemo(() => {
   const q = busquedaIndicador.trim().toLowerCase();
 
   if (!q) return null;
 
-  return retiros.find((r) =>
+  return retirosPeriodo.find((r) =>
     String(r.identificacion || '').toLowerCase().includes(q) ||
     String(r.nombre || '').toLowerCase().includes(q)
   ) || null;
-}, [busquedaIndicador, retiros]);
+}, [busquedaIndicador, retirosPeriodo]);
 
   const puedeGestionar =
     retiroSeleccionado?.puedeGestionarNomina === true ||
@@ -838,6 +957,75 @@ const retiroIndicador = useMemo(() => {
             </p>
           </div>
         </div>
+      </div>
+
+      <div className="rounded-2xl border bg-white p-6 shadow-md">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-gray-800">
+              Consultar retiros por periodo
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Selecciona el año y el mes para consultar los retiros del periodo.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[180px_200px_auto]">
+            <label className="text-xs font-bold text-gray-600">
+              Año
+              <select
+                value={anioFiltro}
+                onChange={(e) => setAnioFiltro(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-emerald-500"
+              >
+                <option value="">Seleccionar año</option>
+                {aniosDisponibles.map((anioItem) => (
+                  <option key={anioItem} value={anioItem}>
+                    {anioItem}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="text-xs font-bold text-gray-600">
+              Mes
+              <select
+                value={mesFiltro}
+                onChange={(e) => setMesFiltro(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-emerald-500"
+              >
+                <option value="">Seleccionar mes</option>
+                {MESES_FILTRO.map((mesItem) => (
+                  <option key={mesItem.value} value={mesItem.value}>
+                    {mesItem.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!anioFiltro && !mesFiltro}
+              onClick={() => {
+                setAnioFiltro('');
+                setMesFiltro('');
+                setBusqueda('');
+                setBusquedaIndicador('');
+              }}
+              className="self-end"
+            >
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Limpiar
+            </Button>
+          </div>
+        </div>
+
+        {!periodoCompletoSeleccionado && (anioFiltro || mesFiltro) && (
+          <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-700">
+            Selecciona tanto el año como el mes para realizar la consulta mensual.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1034,7 +1222,7 @@ const retiroIndicador = useMemo(() => {
               </tr>
             )}
 
-            {!cargando && retirosFiltrados.map((r) => (
+            {!cargando && retirosPaginados.map((r) => (
               <tr key={r.id} className="border-t hover:bg-gray-50">
                 <td className="p-4 whitespace-nowrap">{r.identificacion}</td>
 
@@ -1139,6 +1327,47 @@ const retiroIndicador = useMemo(() => {
             )}
           </tbody>
         </table>
+
+        {!cargando && retirosFiltrados.length > 0 && (
+          <div className="flex flex-col gap-3 border-t bg-gray-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs font-medium text-gray-500">
+              Mostrando {primerRegistroPagina} - {ultimoRegistroPagina} de{' '}
+              {retirosFiltrados.length} retiros
+            </p>
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={paginaActual <= 1}
+                onClick={() =>
+                  setPaginaActual((actual) => Math.max(1, actual - 1))
+                }
+              >
+                Anterior
+              </Button>
+
+              <span className="min-w-[110px] text-center text-sm font-semibold text-gray-700">
+                Página {paginaActual} de {totalPaginas}
+              </span>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={paginaActual >= totalPaginas}
+                onClick={() =>
+                  setPaginaActual((actual) =>
+                    Math.min(totalPaginas, actual + 1),
+                  )
+                }
+              >
+                Siguiente
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {retiroSeleccionado && (
@@ -1732,5 +1961,6 @@ const retiroIndicador = useMemo(() => {
     </div>
   );
 };
+
 
 export default NominaRetirosView;

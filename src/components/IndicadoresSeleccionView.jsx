@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   BarChart3, Users, Filter, RotateCcw, CalendarDays,
@@ -144,13 +144,25 @@ const IndicadoresSeleccionView = () => {
 
   const [gestionMensual, setGestionMensual] = useState(null);
   const [analisisMes, setAnalisisMes] = useState('');
-  const [planAccion, setPlanAccion] = useState('');
-  const [calificacionMensual, setCalificacionMensual] = useState('');
+  const [actividadesPlanAccion, setActividadesPlanAccion] = useState([
+    { idActividad: null, actividad: '', fechaCompromiso: '' },
+  ]);
   const [cargandoGestion, setCargandoGestion] = useState(false);
   const [guardandoGestion, setGuardandoGestion] = useState(false);
-  const [guardandoCalificacion, setGuardandoCalificacion] = useState(false);
+  const [guardandoCalificaciones, setGuardandoCalificaciones] = useState(false);
   const [errorGestion, setErrorGestion] = useState('');
   const [mensajeGestion, setMensajeGestion] = useState('');
+
+  const rolUsuarioActual = obtenerRolUsuario();
+  const rolNormalizado = String(rolUsuarioActual || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, ' ');
+
+  const esSuperAdministradorLocal =
+    rolNormalizado === 'SUPER ADMINISTRADOR'
+    || rolNormalizado === 'SUPERADMIN'
+    || rolNormalizado === 'SUPER ADMIN';
 
   const periodoMensualSeleccionado = useMemo(() => {
     const anio = Number(filtrosAplicados.anio);
@@ -265,8 +277,9 @@ const IndicadoresSeleccionView = () => {
     if (!periodo) {
       setGestionMensual(null);
       setAnalisisMes('');
-      setPlanAccion('');
-      setCalificacionMensual('');
+      setActividadesPlanAccion([
+        { idActividad: null, actividad: '', fechaCompromiso: '' },
+      ]);
       setErrorGestion('');
       setMensajeGestion('');
       return;
@@ -304,20 +317,27 @@ const IndicadoresSeleccionView = () => {
 
       setGestionMensual(result);
       setAnalisisMes(result?.gestionMensual?.analisisMes || '');
-      setPlanAccion(result?.gestionMensual?.planAccion || '');
-
-      const calificacion = result?.gestionMensual?.calificacionMensual;
-      setCalificacionMensual(
-        calificacion !== null && calificacion !== undefined
-          ? String(calificacion)
-          : '',
+      const actividades = result?.gestionMensual?.actividadesPlanAccion || [];
+      setActividadesPlanAccion(
+        actividades.length > 0
+          ? actividades.map((item) => ({
+              idActividad: item.idActividad ?? null,
+              actividad: item.actividad || '',
+              fechaCompromiso: item.fechaCompromiso || '',
+              calificacion: item.calificacion ?? null,
+              usuarioCalificacion: item.usuarioCalificacion || null,
+              fechaCalificacion: item.fechaCalificacion || null,
+              puedeCalificar: Boolean(item.puedeCalificar),
+            }))
+          : [{ idActividad: null, actividad: '', fechaCompromiso: '' }],
       );
     } catch (error) {
       console.error('Error consultando gestión mensual de Selección:', error);
       setGestionMensual(null);
       setAnalisisMes('');
-      setPlanAccion('');
-      setCalificacionMensual('');
+      setActividadesPlanAccion([
+        { idActividad: null, actividad: '', fechaCompromiso: '' },
+      ]);
       setErrorGestion(error.message || 'No fue posible consultar la gestión mensual.');
     } finally {
       setCargandoGestion(false);
@@ -328,8 +348,11 @@ const IndicadoresSeleccionView = () => {
     consultarGestionMensual(periodoMensualSeleccionado);
   }, [periodoMensualSeleccionado]);
 
-  const guardarGestionMensual = async () => {
+  const guardarAnalisisAlSalir = async () => {
     if (!periodoMensualSeleccionado) return;
+
+    const permisos = gestionMensual?.permisos || {};
+    if (!permisos.puedeEditarAnalisis) return;
 
     try {
       setGuardandoGestion(true);
@@ -337,7 +360,122 @@ const IndicadoresSeleccionView = () => {
       setMensajeGestion('');
 
       const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error(
+          'No fue posible guardar porque no se encontró la sesión autenticada.',
+        );
+      }
 
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/gestion-mensual-indicadores/${GESTION_MENSUAL_MODULO}/${GESTION_MENSUAL_INDICADOR}/${periodoMensualSeleccionado.anio}/${periodoMensualSeleccionado.mes}/gestion`,
+        {
+          method: 'PUT',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ analisisMes }),
+        },
+      );
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result?.detail || 'No fue posible guardar el análisis.');
+      }
+
+      setGestionMensual(result);
+      setAnalisisMes(result?.gestionMensual?.analisisMes || '');
+      setMensajeGestion('Análisis guardado correctamente.');
+    } catch (error) {
+      console.error('Error guardando análisis mensual:', error);
+      setErrorGestion(error.message || 'No fue posible guardar el análisis.');
+    } finally {
+      setGuardandoGestion(false);
+    }
+  };
+
+  const actualizarActividadLocal = (index, campo, valor) => {
+    setActividadesPlanAccion((actuales) =>
+      actuales.map((item, itemIndex) =>
+        itemIndex === index
+          ? { ...item, [campo]: valor }
+          : item,
+      ),
+    );
+  };
+
+  const agregarActividad = () => {
+    setErrorGestion('');
+
+    if (actividadesPlanAccion.length >= 5) {
+      setErrorGestion('El plan de acción permite máximo 5 actividades.');
+      return;
+    }
+
+    setActividadesPlanAccion((actuales) => [
+      ...actuales,
+      { idActividad: null, actividad: '', fechaCompromiso: '' },
+    ]);
+  };
+
+  const eliminarActividad = (index) => {
+    if (actividadesPlanAccion.length <= 1) {
+      setErrorGestion('El plan de acción debe conservar al menos una actividad.');
+      return;
+    }
+
+    setActividadesPlanAccion((actuales) =>
+      actuales.filter((_, itemIndex) => itemIndex !== index),
+    );
+  };
+
+  const validarActividades = () => {
+    if (
+      actividadesPlanAccion.length < 1
+      || actividadesPlanAccion.length > 5
+    ) {
+      return 'El plan de acción debe contener entre 1 y 5 actividades.';
+    }
+
+    const incompleta = actividadesPlanAccion.some(
+      (item) => !item.actividad.trim() || !item.fechaCompromiso,
+    );
+
+    if (incompleta) {
+      return 'Cada actividad debe tener actividad y fecha de compromiso.';
+    }
+
+    return '';
+  };
+
+  const guardarPlanAccion = async () => {
+    if (!periodoMensualSeleccionado) return;
+
+    const permisos = gestionMensual?.permisos || {};
+
+    if (
+      !permisos.puedeEditarPlanAccion
+      || esSuperAdministradorLocal
+    ) {
+      setErrorGestion(
+        'El plan de acción está en solo lectura para este periodo o usuario.',
+      );
+      return;
+    }
+
+    const errorValidacion = validarActividades();
+    if (errorValidacion) {
+      setErrorGestion(errorValidacion);
+      return;
+    }
+
+    try {
+      setGuardandoGestion(true);
+      setErrorGestion('');
+      setMensajeGestion('');
+
+      const token = localStorage.getItem('token');
       if (!token) {
         throw new Error(
           'No fue posible guardar porque no se encontró la sesión autenticada.',
@@ -354,37 +492,72 @@ const IndicadoresSeleccionView = () => {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            analisisMes,
-            planAccion,
+            actividadesPlanAccion: actividadesPlanAccion.map((item) => ({
+              idActividad: item.idActividad || undefined,
+              actividad: item.actividad.trim(),
+              fechaCompromiso: item.fechaCompromiso,
+            })),
           }),
         },
       );
 
       const result = await response.json();
-
       if (!response.ok) {
-        throw new Error(result?.detail || 'No fue posible guardar la gestión mensual.');
+        throw new Error(result?.detail || 'No fue posible guardar el plan de acción.');
       }
 
       setGestionMensual(result);
-      setAnalisisMes(result?.gestionMensual?.analisisMes || '');
-      setPlanAccion(result?.gestionMensual?.planAccion || '');
-      setMensajeGestion('Gestión mensual guardada correctamente.');
+
+      const actividades = result?.gestionMensual?.actividadesPlanAccion || [];
+      setActividadesPlanAccion(
+        actividades.map((item) => ({
+          ...item,
+          actividad: item.actividad || '',
+          fechaCompromiso: item.fechaCompromiso || '',
+        })),
+      );
+
+      setMensajeGestion('Plan de acción guardado correctamente.');
     } catch (error) {
-      console.error('Error guardando gestión mensual de Selección:', error);
-      setErrorGestion(error.message || 'No fue posible guardar la gestión mensual.');
+      console.error('Error guardando plan de acción:', error);
+      setErrorGestion(error.message || 'No fue posible guardar el plan de acción.');
     } finally {
       setGuardandoGestion(false);
     }
   };
 
-  const guardarCampoGestion = async (campo) => {
+  const guardarGestionMensualCompleta = async () => {
     if (!periodoMensualSeleccionado) return;
 
     const permisos = gestionMensual?.permisos || {};
+    const payload = {};
 
-    if (campo === 'analisisMes' && !permisos.puedeEditarAnalisis) return;
-    if (campo === 'planAccion' && !permisos.puedeEditarPlanAccion) return;
+    if (permisos.puedeEditarAnalisis) {
+      if (!analisisMes.trim()) {
+        setErrorGestion('El análisis del mes no puede quedar vacío.');
+        return;
+      }
+      payload.analisisMes = analisisMes;
+    }
+
+    if (
+      permisos.puedeEditarPlanAccion
+      && !esSuperAdministradorLocal
+    ) {
+      const errorValidacion = validarActividades();
+      if (errorValidacion) {
+        setErrorGestion(errorValidacion);
+        return;
+      }
+
+      payload.actividadesPlanAccion = actividadesPlanAccion.map((item) => ({
+        idActividad: item.idActividad || undefined,
+        actividad: item.actividad.trim(),
+        fechaCompromiso: item.fechaCompromiso,
+      }));
+    }
+
+    if (Object.keys(payload).length === 0) return;
 
     try {
       setGuardandoGestion(true);
@@ -392,17 +565,11 @@ const IndicadoresSeleccionView = () => {
       setMensajeGestion('');
 
       const token = localStorage.getItem('token');
-
       if (!token) {
         throw new Error(
           'No fue posible guardar porque no se encontró la sesión autenticada.',
         );
       }
-
-      const payload = {};
-
-      if (campo === 'analisisMes') payload.analisisMes = analisisMes;
-      if (campo === 'planAccion') payload.planAccion = planAccion;
 
       const response = await fetch(
         `${import.meta.env.VITE_API_BASE_URL}/gestion-mensual-indicadores/${GESTION_MENSUAL_MODULO}/${GESTION_MENSUAL_INDICADOR}/${periodoMensualSeleccionado.anio}/${periodoMensualSeleccionado.mes}/gestion`,
@@ -418,43 +585,103 @@ const IndicadoresSeleccionView = () => {
       );
 
       const result = await response.json();
-
       if (!response.ok) {
-        throw new Error(result?.detail || 'No fue posible guardar el campo.');
+        throw new Error(result?.detail || 'No fue posible guardar la gestión mensual.');
       }
 
       setGestionMensual(result);
       setAnalisisMes(result?.gestionMensual?.analisisMes || '');
-      setPlanAccion(result?.gestionMensual?.planAccion || '');
-      setMensajeGestion('Cambio guardado correctamente.');
+
+      const actividades = result?.gestionMensual?.actividadesPlanAccion || [];
+      setActividadesPlanAccion(
+        actividades.map((item) => ({
+          ...item,
+          actividad: item.actividad || '',
+          fechaCompromiso: item.fechaCompromiso || '',
+        })),
+      );
+
+      setMensajeGestion('Gestión mensual guardada correctamente.');
     } catch (error) {
-      console.error('Error guardando campo de gestión mensual:', error);
-      setErrorGestion(error.message || 'No fue posible guardar el cambio.');
+      console.error('Error guardando gestión mensual de Selección:', error);
+      setErrorGestion(error.message || 'No fue posible guardar la gestión mensual.');
     } finally {
       setGuardandoGestion(false);
     }
   };
 
-  const guardarAnalisisAlSalir = () => guardarCampoGestion('analisisMes');
-  const guardarPlanAccionAlSalir = () => guardarCampoGestion('planAccion');
-
-  const guardarCalificacionMensual = async () => {
+  const guardarCalificacionesActividades = async () => {
     if (!periodoMensualSeleccionado) return;
 
-    const valor = Number(calificacionMensual);
+    const permisos = gestionMensual?.permisos || {};
+    const actividadesGuardadas = actividadesPlanAccion.filter(
+      (item) => Boolean(item.idActividad),
+    );
 
     if (
-      calificacionMensual === '' ||
-      Number.isNaN(valor) ||
-      valor < 0 ||
-      valor > 100
+      !esSuperAdministradorLocal
+      || !permisos.puedeCalificarActividades
     ) {
-      setErrorGestion('Ingrese una calificación válida entre 0 y 100.');
+      setErrorGestion(
+        'Las calificaciones solo pueden ser registradas por el Super Administrador.',
+      );
+      return;
+    }
+
+    if (actividadesGuardadas.length === 0) {
+      setErrorGestion(
+        'El plan de acción todavía no tiene actividades guardadas para calificar.',
+      );
+      return;
+    }
+
+    const actividadesPayload = [];
+    let existeCalificacion = false;
+
+    for (const item of actividadesGuardadas) {
+      const valorEntrada =
+        item.calificacion === null
+        || item.calificacion === undefined
+        || String(item.calificacion).trim() === ''
+          ? null
+          : Number(String(item.calificacion).replace(',', '.'));
+
+      if (
+        valorEntrada !== null
+        && (
+          Number.isNaN(valorEntrada)
+          || valorEntrada < 0
+          || valorEntrada > 100
+        )
+      ) {
+        setErrorGestion(
+          `La calificación de "${item.actividad}" debe estar entre 0 y 100 %.`,
+        );
+        return;
+      }
+
+      if (valorEntrada !== null) {
+        existeCalificacion = true;
+      }
+
+      actividadesPayload.push({
+        idActividad: item.idActividad,
+        calificacion:
+          valorEntrada === null
+            ? null
+            : Number(valorEntrada.toFixed(2)),
+      });
+    }
+
+    if (!existeCalificacion) {
+      setErrorGestion(
+        'Debe registrar al menos una calificación antes de guardar la evaluación.',
+      );
       return;
     }
 
     try {
-      setGuardandoCalificacion(true);
+      setGuardandoCalificaciones(true);
       setErrorGestion('');
       setMensajeGestion('');
 
@@ -462,12 +689,12 @@ const IndicadoresSeleccionView = () => {
 
       if (!token) {
         throw new Error(
-          'No fue posible guardar la calificación porque no se encontró la sesión autenticada.',
+          'No fue posible guardar las calificaciones porque no se encontró la sesión autenticada.',
         );
       }
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/gestion-mensual-indicadores/${GESTION_MENSUAL_MODULO}/${GESTION_MENSUAL_INDICADOR}/${periodoMensualSeleccionado.anio}/${periodoMensualSeleccionado.mes}/calificacion`,
+        `${import.meta.env.VITE_API_BASE_URL}/gestion-mensual-indicadores/${GESTION_MENSUAL_MODULO}/${GESTION_MENSUAL_INDICADOR}/${periodoMensualSeleccionado.anio}/${periodoMensualSeleccionado.mes}/actividades/calificaciones`,
         {
           method: 'PUT',
           headers: {
@@ -476,7 +703,7 @@ const IndicadoresSeleccionView = () => {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            calificacionMensual: valor,
+            actividades: actividadesPayload,
           }),
         },
       );
@@ -484,26 +711,47 @@ const IndicadoresSeleccionView = () => {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result?.detail || 'No fue posible guardar la calificación.');
+        throw new Error(
+          result?.detail
+          || 'No fue posible guardar las calificaciones de las actividades.',
+        );
       }
 
       setGestionMensual(result);
 
-      const calificacion = result?.gestionMensual?.calificacionMensual;
-      setCalificacionMensual(
-        calificacion !== null && calificacion !== undefined
-          ? String(calificacion)
-          : '',
+      const actividades =
+        result?.gestionMensual?.actividadesPlanAccion || [];
+
+      setActividadesPlanAccion(
+        actividades.map((item) => ({
+          idActividad: item.idActividad ?? null,
+          actividad: item.actividad || '',
+          fechaCompromiso: item.fechaCompromiso || '',
+          calificacion: item.calificacion ?? null,
+          usuarioCalificacion: item.usuarioCalificacion || null,
+          fechaCalificacion: item.fechaCalificacion || null,
+          puedeCalificar: Boolean(item.puedeCalificar),
+        })),
       );
 
-      setMensajeGestion('Calificación mensual guardada correctamente.');
+      setMensajeGestion(
+        'Calificaciones guardadas correctamente. El plan de acción quedó cerrado para el área.',
+      );
     } catch (error) {
-      console.error('Error guardando calificación mensual:', error);
-      setErrorGestion(error.message || 'No fue posible guardar la calificación.');
+      console.error(
+        'Error guardando calificaciones de actividades:',
+        error,
+      );
+
+      setErrorGestion(
+        error.message
+        || 'No fue posible guardar las calificaciones de las actividades.',
+      );
     } finally {
-      setGuardandoCalificacion(false);
+      setGuardandoCalificaciones(false);
     }
   };
+
 
   const estadosTabla = useMemo(() => {
     return (data?.estados || []).map((item) => ({
@@ -678,14 +926,11 @@ const IndicadoresSeleccionView = () => {
         ...config,
         corteDias: corte?.corte_dias,
         evaluables: Number(corte?.evaluables || 0),
-        evaluablesNaturales: Number(corte?.evaluables_naturales || 0),
         retiros: Number(corte?.retiros || 0),
         tasa:
           corte?.tasa === null || corte?.tasa === undefined
             ? null
             : Number(corte.tasa),
-        porcentajeMaduracion: Number(corte?.porcentaje_maduracion || 0),
-        umbralMaduracion: Number(corte?.umbral_maduracion || 80),
         estado: corte?.estado || 'PENDIENTE_MADURACION',
       };
     });
@@ -1080,8 +1325,8 @@ const IndicadoresSeleccionView = () => {
 
               <p className="mt-2 max-w-4xl text-sm leading-6 text-gray-600">
                 Mide la permanencia inicial del personal nuevo contratado y los retiros
-                ocurridos dentro de los primeros 7, 15, 30 y 60 días. Cada tasa se publica
-                cuando al menos el 80 % de la cohorte válida ya alcanzó naturalmente el corte.
+                ocurridos dentro de los primeros 7, 15, 30 y 60 días. Cada tasa usa
+                únicamente las personas que ya pueden ser evaluadas para ese corte.
               </p>
             </div>
 
@@ -1121,9 +1366,9 @@ const IndicadoresSeleccionView = () => {
               <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-4">
                 <p className="text-xs leading-5 text-gray-600">
                   <span className="font-black text-gray-800">Cómo leer este KPI:</span>{' '}
-                  “Retiros” es el numerador y “Evaluables” es el grupo cuyo resultado ya puede
-                  observarse. La tasa solo se publica cuando al menos el 80 % de la cohorte válida
-                  ya alcanzó naturalmente el corte; de lo contrario se muestra “Pendiente de maduración”.
+                  “Retiros” es el numerador y “Evaluables” es el grupo que ya tuvo
+                  oportunidad real de alcanzar el corte. Cuando todavía no existe población
+                  evaluable, se muestra “Pendiente de maduración” y no se presenta 0 %.
                 </p>
               </div>
 
@@ -1277,19 +1522,20 @@ const IndicadoresSeleccionView = () => {
           gestionMensual={gestionMensual}
           analisisMes={analisisMes}
           setAnalisisMes={setAnalisisMes}
-          planAccion={planAccion}
-          setPlanAccion={setPlanAccion}
-          calificacionMensual={calificacionMensual}
-          setCalificacionMensual={setCalificacionMensual}
+          actividadesPlanAccion={actividadesPlanAccion}
           cargando={cargandoGestion}
           guardandoGestion={guardandoGestion}
-          guardandoCalificacion={guardandoCalificacion}
+          guardandoCalificaciones={guardandoCalificaciones}
           error={errorGestion}
           mensaje={mensajeGestion}
-          onGuardarGestion={guardarGestionMensual}
+          onGuardarGestion={guardarGestionMensualCompleta}
           onGuardarAnalisisBlur={guardarAnalisisAlSalir}
-          onGuardarPlanBlur={guardarPlanAccionAlSalir}
-          onGuardarCalificacion={guardarCalificacionMensual}
+          onActualizarActividad={actualizarActividadLocal}
+          onAgregarActividad={agregarActividad}
+          onEliminarActividad={eliminarActividad}
+          onGuardarPlan={guardarPlanAccion}
+          onGuardarCalificaciones={guardarCalificacionesActividades}
+          esSuperAdministradorLocal={esSuperAdministradorLocal}
         />
       )}
     </motion.div>
@@ -1339,11 +1585,7 @@ const KpiCorteRotacion = ({ corte }) => {
             Pendiente de maduración
           </p>
           <p className="mt-2 text-xs leading-5 text-gray-500">
-            {corte.evaluablesNaturales} personas ya alcanzaron naturalmente este corte.
-          </p>
-          <p className="mt-1 text-xs font-semibold text-amber-700">
-            Maduración: {formatearPorcentaje(corte.porcentajeMaduracion)}% ·
-            se publica desde {formatearPorcentaje(corte.umbralMaduracion)}%.
+            Aún no hay personas evaluables para este corte.
           </p>
         </div>
       ) : (
@@ -1358,9 +1600,6 @@ const KpiCorteRotacion = ({ corte }) => {
             {corte.retiros} retiro{corte.retiros === 1 ? '' : 's'} de{' '}
             {corte.evaluables} persona{corte.evaluables === 1 ? '' : 's'} evaluable
             {corte.evaluables === 1 ? '' : 's'}.
-          </p>
-          <p className="mt-1 text-xs font-semibold text-emerald-700">
-            Maduración de cohorte: {formatearPorcentaje(corte.porcentajeMaduracion)}%.
           </p>
         </>
       )}
@@ -1546,7 +1785,7 @@ const TooltipMensualRotacion = ({ active, payload }) => {
 
               <p className="mt-1 text-xs text-gray-500">
                 {pendiente
-                  ? 'Corte aún pendiente de maduración de la cohorte.'
+                  ? 'Sin población evaluable todavía.'
                   : `${fila.retiros || 0} retiros / ${fila.evaluables || 0} evaluables`}
               </p>
             </div>
@@ -1567,19 +1806,20 @@ const GestionMensualSeleccion = ({
   gestionMensual,
   analisisMes,
   setAnalisisMes,
-  planAccion,
-  setPlanAccion,
-  calificacionMensual,
-  setCalificacionMensual,
+  actividadesPlanAccion,
   cargando,
   guardandoGestion,
-  guardandoCalificacion,
+  guardandoCalificaciones,
   error,
   mensaje,
   onGuardarGestion,
   onGuardarAnalisisBlur,
-  onGuardarPlanBlur,
-  onGuardarCalificacion,
+  onActualizarActividad,
+  onAgregarActividad,
+  onEliminarActividad,
+  onGuardarPlan,
+  onGuardarCalificaciones,
+  esSuperAdministradorLocal,
 }) => {
   const permisos = gestionMensual?.permisos || {};
   const detalle = gestionMensual?.gestionMensual || {};
@@ -1596,6 +1836,60 @@ const GestionMensualSeleccion = ({
     }
     return 'Editable';
   };
+
+  const actividadesGuardadas = Array.isArray(detalle.actividadesPlanAccion)
+    ? detalle.actividadesPlanAccion
+    : [];
+
+  // El frontend no inventa reglas de fechas.
+  // Usa exactamente los permisos calculados por el backend:
+  // - periodo actual: editable
+  // - periodo anterior vacío: un solo guardado
+  // - periodo anterior ya diligenciado: solo lectura
+  // - periodo futuro: solo lectura
+  const puedeEditarPlanLocal =
+    Boolean(permisos.puedeEditarPlanAccion)
+    && !esSuperAdministradorLocal;
+
+  const actividadesVisibles = puedeEditarPlanLocal
+    ? actividadesPlanAccion
+    : actividadesPlanAccion.filter(
+        (item) =>
+          item?.idActividad
+          || String(item?.actividad || '').trim()
+          || item?.fechaCompromiso,
+      );
+
+  const esPlanLegacy =
+    Boolean(detalle.planAccionLegacy)
+    && Boolean(String(detalle.planAccion || '').trim())
+    && actividadesGuardadas.length === 0;
+
+  const totalActividades = actividadesGuardadas.length;
+
+  const actividadesCalificadas = actividadesGuardadas.filter(
+    (item) =>
+      item?.calificacion !== null
+      && item?.calificacion !== undefined
+      && !Number.isNaN(Number(item.calificacion)),
+  ).length;
+
+  const sumaCalificaciones = actividadesGuardadas.reduce(
+    (acumulado, item) => {
+      const valor = Number(item?.calificacion);
+      return acumulado + (Number.isNaN(valor) ? 0 : valor);
+    },
+    0,
+  );
+
+  const resultadoMensualAutomatico =
+    totalActividades > 0
+      ? Number((sumaCalificaciones / totalActividades).toFixed(2))
+      : null;
+
+  const puedeCalificarActividades =
+    Boolean(permisos.puedeCalificarActividades)
+    && esSuperAdministradorLocal;
 
   if (cargando) {
     return (
@@ -1641,7 +1935,7 @@ const GestionMensualSeleccion = ({
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)]">
           <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-base font-bold text-gray-900">
@@ -1668,7 +1962,7 @@ const GestionMensualSeleccion = ({
               onBlur={onGuardarAnalisisBlur}
               disabled={!permisos.puedeEditarAnalisis || guardandoGestion}
               placeholder="ESCRIBA EL ANÁLISIS DEL MES..."
-              className="mt-4 min-h-[220px] w-full resize-y rounded-2xl border border-gray-300 bg-white p-4 text-sm text-gray-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-gray-50"
+              className="mt-4 min-h-[180px] w-full resize-y rounded-2xl border border-gray-300 bg-white p-4 text-sm text-gray-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-gray-50"
             />
 
             <p className="mt-3 text-xs text-gray-500">
@@ -1688,33 +1982,259 @@ const GestionMensualSeleccion = ({
           </div>
 
           <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-base font-bold text-gray-900">
-                Plan de acción
-              </h3>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">
+                  Plan de acción
+                </h3>
+                <p className="mt-1 text-xs text-gray-500">
+                  Registre de 1 a 5 actividades con su fecha de compromiso. Se aplica la misma validación mensual ya existente del indicador.
+                </p>
+              </div>
+
               <span
-                className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                  permisos.puedeEditarPlanAccion
+                className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${
+                  puedeEditarPlanLocal
                     ? 'bg-blue-100 text-blue-700'
                     : 'bg-gray-100 text-gray-600'
                 }`}
               >
-                {textoPermiso(permisos.puedeEditarPlanAccion)}
+                {esSuperAdministradorLocal
+                  ? 'Solo lectura · califica actividades'
+                  : detalle.planCerrado
+                    ? 'Cerrado · calificado'
+                    : textoPermiso(puedeEditarPlanLocal)}
               </span>
             </div>
 
-            <p className="mt-3 text-sm leading-6 text-gray-500">
-              Registre las acciones definidas para mejorar, corregir o mantener el resultado del indicador.
-            </p>
+            {esPlanLegacy && (
+              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-xs font-black uppercase tracking-wide text-amber-800">
+                  Plan de acción registrado con el formato anterior
+                </p>
+                <p className="mt-2 text-xs leading-5 text-amber-700">
+                  Este periodo ya tiene un plan guardado. Se conserva en solo lectura
+                  y no se reemplaza automáticamente por actividades.
+                </p>
+                <div className="mt-3 whitespace-pre-wrap rounded-xl border border-amber-200 bg-white p-4 text-sm leading-6 text-gray-800">
+                  {detalle.planAccion}
+                </div>
+              </div>
+            )}
 
-            <textarea
-              value={planAccion}
-              onChange={(event) => setPlanAccion(event.target.value)}
-              onBlur={onGuardarPlanBlur}
-              disabled={!permisos.puedeEditarPlanAccion || guardandoGestion}
-              placeholder="ESCRIBA EL PLAN DE ACCIÓN..."
-              className="mt-4 min-h-[220px] w-full resize-y rounded-2xl border border-gray-300 bg-white p-4 text-sm text-gray-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-gray-50"
-            />
+            <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200">
+              <div className="hidden grid-cols-[minmax(260px,1.55fr)_180px_160px] gap-3 bg-gray-900 px-4 py-3 text-xs font-bold uppercase tracking-wide text-white md:grid">
+                <span>Actividad</span>
+                <span>Fecha de compromiso</span>
+                <span>Calificación</span>
+              </div>
+
+              <div className="divide-y divide-gray-100">
+                {!puedeEditarPlanLocal
+                  && actividadesVisibles.length === 0
+                  && !esPlanLegacy && (
+                    <div className="bg-white p-5 text-center text-sm font-semibold text-gray-500">
+                      No hay actividades registradas en el plan de acción para este periodo.
+                    </div>
+                  )}
+
+                {actividadesVisibles.map((item, index) => {
+                  const guardada = Boolean(item.idActividad);
+                  const puedeCalificar = Boolean(item.puedeCalificar);
+
+                  return (
+                    <div
+                      key={item.idActividad || `actividad-nueva-${index}`}
+                      className="grid grid-cols-1 gap-3 bg-white p-4 md:grid-cols-[minmax(260px,1.55fr)_180px_160px]"
+                    >
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-gray-500 md:hidden">
+                          Actividad
+                        </label>
+                        {puedeEditarPlanLocal ? (
+                          <div className="flex gap-2">
+                            <textarea
+                              value={item.actividad}
+                              onChange={(event) =>
+                                onActualizarActividad(index, 'actividad', event.target.value)
+                              }
+                              disabled={guardandoGestion}
+                              maxLength={1000}
+                              rows={2}
+                              placeholder={`Actividad ${index + 1}`}
+                              className="min-h-[70px] flex-1 resize-y rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-gray-50"
+                            />
+
+                            {actividadesPlanAccion.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => onEliminarActividad(index)}
+                                disabled={guardandoGestion}
+                                className="h-10 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                                title="Eliminar actividad"
+                              >
+                                Quitar
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="rounded-xl bg-gray-50 px-3 py-3 text-sm font-semibold text-gray-800">
+                            {item.actividad || 'Sin actividad'}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-gray-500 md:hidden">
+                          Fecha de compromiso
+                        </label>
+                        {puedeEditarPlanLocal ? (
+                          <input
+                            type="date"
+                            value={item.fechaCompromiso || ''}
+                            onChange={(event) =>
+                              onActualizarActividad(
+                                index,
+                                'fechaCompromiso',
+                                event.target.value,
+                              )
+                            }
+                            disabled={guardandoGestion}
+                            className="w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm font-semibold text-gray-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-gray-50"
+                          />
+                        ) : (
+                          <p className="rounded-xl bg-gray-50 px-3 py-3 text-sm font-semibold text-gray-800">
+                            {item.fechaCompromiso || 'Sin fecha'}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-gray-500 md:hidden">
+                          Calificación
+                        </label>
+
+                        {guardada && puedeCalificarActividades && puedeCalificar ? (
+                          <div>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value={
+                                  item.calificacion === null
+                                  || item.calificacion === undefined
+                                    ? ''
+                                    : item.calificacion
+                                }
+                                onChange={(event) =>
+                                  onActualizarActividad(
+                                    index,
+                                    'calificacion',
+                                    event.target.value,
+                                  )
+                                }
+                                disabled={guardandoCalificaciones}
+                                placeholder="0 - 100"
+                                className="w-full rounded-xl border border-violet-300 bg-white px-3 py-3 pr-8 text-sm font-bold text-gray-800 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100 disabled:cursor-not-allowed disabled:bg-gray-50"
+                              />
+                              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-black text-violet-700">
+                                %
+                              </span>
+                            </div>
+
+                            <p className="mt-1 text-[11px] leading-4 text-gray-500">
+                              {item.calificacion === null
+                              || item.calificacion === undefined
+                              || String(item.calificacion).trim() === ''
+                                ? 'Sin calificación: contará como 0 %'
+                                : 'Calificación lista para guardar'}
+                            </p>
+                          </div>
+                        ) : item.calificacion !== null &&
+                          item.calificacion !== undefined ? (
+                          <div>
+                            <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-3 text-center text-lg font-black text-violet-800">
+                              {Number(item.calificacion)
+                                .toFixed(2)
+                                .replace('.', ',')} %
+                            </div>
+                            {item.usuarioCalificacion && (
+                              <p className="mt-1 text-[11px] leading-4 text-gray-500">
+                                {item.usuarioCalificacion}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-3 py-3 text-center text-xs font-semibold text-gray-500">
+                            {guardada
+                              ? 'Pendiente de calificación'
+                              : 'Guarde el plan primero'}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {esSuperAdministradorLocal
+              && puedeCalificarActividades
+              && actividadesGuardadas.length > 0 && (
+                <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-violet-200 bg-violet-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-black text-violet-900">
+                      Calificación del plan de acción
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-violet-700">
+                      Ingrese las calificaciones que correspondan y guárdelas todas en un solo paso.
+                      Las actividades sin nota cuentan como 0 % en el resultado mensual.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={onGuardarCalificaciones}
+                    disabled={guardandoCalificaciones}
+                    className="shrink-0 rounded-xl bg-violet-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:bg-violet-300"
+                  >
+                    {guardandoCalificaciones
+                      ? 'Guardando calificaciones...'
+                      : 'Guardar calificaciones'}
+                  </button>
+                </div>
+              )}
+
+            {puedeEditarPlanLocal && (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={onAgregarActividad}
+                  disabled={guardandoGestion || actividadesPlanAccion.length >= 5}
+                  className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Agregar actividad
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onGuardarPlan}
+                  disabled={guardandoGestion}
+                  className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                >
+                  {guardandoGestion ? 'Guardando...' : 'Guardar plan de acción'}
+                </button>
+              </div>
+            )}
+
+            {!esSuperAdministradorLocal && detalle.planCerrado && (
+              <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-xs font-semibold leading-5 text-violet-800">
+                Este plan ya fue calificado por Super Administrador. El análisis,
+                las actividades y las fechas quedaron cerrados en modo lectura.
+              </div>
+            )}
 
             <p className="mt-3 text-xs text-gray-500">
               {detalle.usuarioPlanAccion ? (
@@ -1736,115 +2256,69 @@ const GestionMensualSeleccion = ({
         <div className="mt-5 rounded-2xl border border-violet-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex-1">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <h3 className="text-base font-bold text-gray-900">
                   Calificación mensual
                 </h3>
 
-                <span
-                  className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${
-                    permisos.puedeEditarCalificacion
-                      ? 'bg-violet-100 text-violet-700'
-                      : 'bg-gray-100 text-gray-600'
-                  }`}
-                >
-                  {permisos.puedeEditarCalificacion
-                    ? estadoPeriodo.esPeriodoAnterior
-                      ? 'Pendiente · un solo guardado'
-                      : 'Editable por Super Administrador'
-                    : 'Solo lectura'}
+                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
+                  Resultado automático
                 </span>
               </div>
 
               <p className="mt-3 text-sm leading-6 text-gray-500">
-                Calificación mensual del indicador. Solo el Super Administrador puede registrarla o modificarla cuando el periodo lo permita.
+                El resultado mensual se calcula automáticamente sumando las
+                calificaciones registradas y dividiendo siempre entre el total de
+                actividades comprometidas. Una actividad sin calificación cuenta
+                como 0 % para el resultado.
               </p>
 
-              <p className="mt-2 text-xs text-gray-500">
-                {detalle.usuarioCalificacion ? (
-                  <>
-                    Calificado por{' '}
-                    <span className="font-semibold text-gray-700">
-                      {detalle.usuarioCalificacion}
-                    </span>
-                    {' · '}
-                    {formatearFechaColombia(detalle.fechaCalificacion)}
-                  </>
-                ) : (
-                  'Pendiente de calificación.'
-                )}
+              <p className="mt-2 text-xs font-semibold text-gray-600">
+                {totalActividades > 0
+                  ? `${actividadesCalificadas} de ${totalActividades} actividades calificadas.`
+                  : 'El plan de acción aún no tiene actividades guardadas.'}
               </p>
 
-              {permisos.puedeEditarCalificacion && (
-                <div className="mt-5 max-w-md">
-                  <label
-                    htmlFor="calificacionMensualSeleccion"
-                    className="mb-2 block text-xs font-semibold text-gray-700"
-                  >
-                    Calificación del indicador
-                  </label>
-
-                  <div className="flex flex-col gap-3 sm:flex-row">
-                    <div className="relative flex-1">
-                      <input
-                        id="calificacionMensualSeleccion"
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={calificacionMensual}
-                        onChange={(event) =>
-                          setCalificacionMensual(event.target.value)
-                        }
-                        disabled={guardandoCalificacion}
-                        placeholder="0 - 100"
-                        className="w-full rounded-xl border border-violet-300 bg-white px-4 py-3 pr-10 text-sm font-semibold text-gray-800 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100 disabled:cursor-not-allowed disabled:bg-gray-50"
-                      />
-                      <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-violet-700">
-                        %
-                      </span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={onGuardarCalificacion}
-                      disabled={guardandoCalificacion}
-                      className="rounded-xl bg-violet-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:bg-violet-300"
-                    >
-                      {guardandoCalificacion
-                        ? 'Guardando...'
-                        : 'Guardar calificación'}
-                    </button>
-                  </div>
-
-                  <p className="mt-2 text-xs leading-5 text-gray-500">
-                    Ingrese un valor entre 0 y 100. En un periodo cerrado, una calificación pendiente solo podrá registrarse una vez.
-                  </p>
-                </div>
+              {detalle.usuarioCalificacion && actividadesCalificadas > 0 && (
+                <p className="mt-2 text-xs text-gray-500">
+                  Última calificación registrada por{' '}
+                  <span className="font-semibold text-gray-700">
+                    {detalle.usuarioCalificacion}
+                  </span>
+                  {' · '}
+                  {formatearFechaColombia(detalle.fechaCalificacion)}
+                </p>
               )}
             </div>
 
-            <div className="min-w-[190px] rounded-2xl border border-violet-200 bg-violet-50 px-6 py-5 text-center">
+            <div className="min-w-[210px] rounded-2xl border border-violet-200 bg-violet-50 px-6 py-5 text-center">
               <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">
                 Resultado
               </p>
               <p className="mt-1 text-3xl font-bold text-violet-800">
-                {detalle.calificacionMensual !== null &&
-                detalle.calificacionMensual !== undefined
-                  ? `${Number(detalle.calificacionMensual)
+                {resultadoMensualAutomatico !== null
+                  ? `${resultadoMensualAutomatico
                       .toFixed(2)
                       .replace('.', ',')} %`
                   : 'Pendiente'}
               </p>
+
+              {totalActividades > 0 && actividadesCalificadas < totalActividades && (
+                <p className="mt-2 text-[11px] font-semibold text-violet-600">
+                  Las actividades sin calificación se toman como 0 %
+                </p>
+              )}
             </div>
           </div>
         </div>
 
         {(permisos.puedeEditarAnalisis ||
-          permisos.puedeEditarPlanAccion) && (
+          puedeEditarPlanLocal) && (
           <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs leading-5 text-gray-500">
-              Mientras el mes se encuentre vigente, los cambios se guardan al salir de cada campo y también puede usar el botón Guardar gestión mensual.
+              El plan de acción usa la misma validación mensual del análisis:
+              cuando el periodo lo permite, el líder registra las actividades y fechas;
+              las calificaciones individuales son registradas por el Super Administrador.
             </p>
 
             <button
@@ -1863,6 +2337,7 @@ const GestionMensualSeleccion = ({
     </section>
   );
 };
+
 
 
 const KpiPrincipal = ({ title, value, percentage, subtitle }) => (
