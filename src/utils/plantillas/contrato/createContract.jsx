@@ -145,12 +145,6 @@ headerLogoLeft: {
   objectFit: "contain",
 },
 
-headerLogoRight: {
-  width: 200,
-  height: 70,
-  objectFit: "contain",
-},
-
  headerTitleWrap: {
   flex: 1,
   alignItems: "center",
@@ -620,16 +614,15 @@ console.log("registro_personal:", data?.registro_personal);
         {/* HEADER */}
         <View fixed style={styles.headerFixed}>
           {/* Logo izquierda (ASEOS) */}
-          <Image style={styles.headerLogoLeft} src="/LOGO/LOGO_EMPRESA.jpeg" />
+          <Image style={styles.headerLogoLeft} src="/LOGO/LOGOPRINCIPAL.png" />
 
           {/* Título centrado */}
           <View style={styles.headerTitleWrap}>
             <Text style={styles.headerTitle}>{tituloHeader}</Text>
           </View>
 
-          {/* Bloque derecho: Logo MANTENER + versión debajo */}
+          {/* Bloque derecho: versión del contrato */}
           <View style={styles.headerRightWrap}>
-            <Image style={styles.headerLogoRight} src="/LOGO/LOGO_EMPRESA2.jpeg" />
             <Text style={styles.headerVersionRight}>{versionContrato}</Text>
           </View>
         </View>
