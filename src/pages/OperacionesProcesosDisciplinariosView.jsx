@@ -202,30 +202,53 @@ const OperacionesProcesosDisciplinariosView = () => {
       .trim()
       .toLowerCase();
 
-  const resultados = useMemo(() => {
-    const criterio = normalizarTexto(searchApplied);
+  const coincideConCriterio = (
+    trabajador,
+    criterioBusqueda
+  ) => {
+    const criterio =
+      normalizarTexto(criterioBusqueda);
 
     if (!criterio) {
-      return [];
+      return false;
     }
 
-    return trabajadores.filter((trabajador) => {
-      const nombreCompleto = normalizarTexto(
+    const nombreCompleto =
+      normalizarTexto(
         obtenerNombreCompleto(trabajador)
       );
 
-      const identificacion = normalizarTexto(
+    const identificacion =
+      normalizarTexto(
         obtenerIdentificacion(trabajador)
       );
 
-      return (
-        nombreCompleto.includes(criterio) ||
-        identificacion.includes(criterio)
-      );
-    });
+    const terminos = criterio
+      .split(/\s+/)
+      .filter(Boolean);
+
+    return terminos.every(
+      (termino) =>
+        nombreCompleto.includes(termino) ||
+        identificacion.includes(termino)
+    );
+  };
+
+  const resultados = useMemo(() => {
+    if (!normalizarTexto(searchApplied)) {
+      return [];
+    }
+
+    return trabajadores.filter(
+      (trabajador) =>
+        coincideConCriterio(
+          trabajador,
+          searchApplied
+        )
+    );
   }, [trabajadores, searchApplied]);
 
-  const cargarTrabajadoresQA = async (criterio) => {
+  const cargarTrabajadores = async (criterio) => {
     const token = obtenerTokenAutenticacion();
 
     if (!token) {
@@ -579,35 +602,25 @@ const OperacionesProcesosDisciplinariosView = () => {
     try {
       setLoadingSearch(true);
 
-      const listaQA = await cargarTrabajadoresQA(criterio);
+      const listaTrabajadores =
+        await cargarTrabajadores(criterio);
 
-      setTrabajadores(listaQA);
+      setTrabajadores(listaTrabajadores);
       setSearchApplied(criterio);
       setBusquedaRealizada(true);
 
-      const criterioNormalizado =
-        normalizarTexto(criterio);
-
-      const encontrados = listaQA.filter(
-        (trabajador) => {
-          const nombre = normalizarTexto(
-            obtenerNombreCompleto(trabajador)
-          );
-
-          const documento = normalizarTexto(
-            obtenerIdentificacion(trabajador)
-          );
-
-          return (
-            nombre.includes(criterioNormalizado) ||
-            documento.includes(criterioNormalizado)
-          );
-        }
-      );
+      const encontrados =
+        listaTrabajadores.filter(
+          (trabajador) =>
+            coincideConCriterio(
+              trabajador,
+              criterio
+            )
+        );
 
       if (encontrados.length === 0) {
         setMensaje(
-          'No se encontró un trabajador con ese criterio en QA.'
+          'No se encontró un trabajador con ese criterio.'
         );
       } else {
         await Promise.all(
@@ -620,7 +633,7 @@ const OperacionesProcesosDisciplinariosView = () => {
       }
     } catch (error) {
       console.error(
-        'Error consultando trabajadores de QA:',
+        'Error consultando trabajadores:',
         error
       );
 
