@@ -36,7 +36,7 @@ const MAX_FILE_SIZE_MB = 20;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 /* ✅ NUEVO: URLs de PDFs (deben existir en /public/docs/) */
-const PDF_TRATAMIENTO_DATOS_URL = '/PDF/POLITICA DE PRIVACIDAD.pdf';
+const PDF_TRATAMIENTO_DATOS_URL = '/PDF/POLITICA DE PRIVACIDAD.pdf?v=20260831';
 const PDF_CONFLICTO_INTERES_URL = '/PDF/CONFLICTOS DE INTERÉS.pdf';
 
 /* =========================================================
