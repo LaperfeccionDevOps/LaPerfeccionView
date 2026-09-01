@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Calendar,
   Loader2,
@@ -38,6 +38,9 @@ const ProgramacionCitacionCard = ({
   errorProgramacionExtraordinaria = '',
   onSolicitarViernes = null,
   enviandoSolicitudViernes = false,
+  supervisoresCatalogo = [],
+  onSeleccionarSupervisor = null,
+  onBuscarPersonaEmpresa = null,
 }) => {
   const esVirtual =
     formData.modalidad === 'VIRTUAL';
@@ -139,6 +142,52 @@ const ProgramacionCitacionCard = ({
         },
       });
     }
+  };
+
+
+  const [mostrarOpcionesSupervisor, setMostrarOpcionesSupervisor] = useState(false);
+  const [resultadosEmpresa, setResultadosEmpresa] = useState([]);
+  const [cargandoPersonasEmpresa, setCargandoPersonasEmpresa] = useState(false);
+
+  const textoSupervisor = String(formData.supervisorReporta || '').trim();
+
+  const supervisoresFiltrados = useMemo(() => {
+    const terminos = textoSupervisor.toLocaleLowerCase().split(/\s+/).filter(Boolean);
+    if (!terminos.length) return supervisoresCatalogo;
+
+    return supervisoresCatalogo.filter((item) => {
+      const texto = `${item?.NombreCompleto || ''} ${item?.Correo || ''} ${item?.Cargo || ''} ${item?.Sede || ''}`.toLocaleLowerCase();
+      return terminos.every((termino) => texto.includes(termino));
+    });
+  }, [supervisoresCatalogo, textoSupervisor]);
+
+  useEffect(() => {
+    if (!mostrarOpcionesSupervisor || textoSupervisor.length < 2 || !onBuscarPersonaEmpresa) {
+      setResultadosEmpresa([]);
+      return undefined;
+    }
+
+    let activo = true;
+    const temporizador = window.setTimeout(async () => {
+      try {
+        setCargandoPersonasEmpresa(true);
+        const resultados = await onBuscarPersonaEmpresa(textoSupervisor);
+        if (activo) setResultadosEmpresa(Array.isArray(resultados) ? resultados : []);
+      } finally {
+        if (activo) setCargandoPersonasEmpresa(false);
+      }
+    }, 350);
+
+    return () => {
+      activo = false;
+      window.clearTimeout(temporizador);
+    };
+  }, [mostrarOpcionesSupervisor, textoSupervisor, onBuscarPersonaEmpresa]);
+
+  const seleccionarSupervisor = (item) => {
+    if (onSeleccionarSupervisor) onSeleccionarSupervisor(item);
+    setMostrarOpcionesSupervisor(false);
+    setResultadosEmpresa([]);
   };
 
   return (
@@ -604,67 +653,94 @@ const ProgramacionCitacionCard = ({
               </div>
             )}
 
-            <div className="min-w-0">
-              <label
-                htmlFor="supervisorReporta"
-                className="mb-2 block text-sm font-semibold text-gray-700"
-              >
-                Supervisor que reporta *
+            <div className="relative min-w-0">
+              <label htmlFor="supervisorReporta" className="mb-2 block text-sm font-semibold text-gray-700">
+                Supervisor o líder que reporta *
               </label>
-
               <Input
                 id="supervisorReporta"
                 name="supervisorReporta"
                 type="text"
                 value={formData.supervisorReporta || ''}
-                onChange={onChange}
-                placeholder="Nombre del supervisor"
+                onChange={(event) => {
+                  onChange(event);
+                  onChange({ target: { name: 'correoSupervisorReporta', value: '' } });
+                  onChange({ target: { name: 'cargoSupervisorReporta', value: '' } });
+                  onChange({ target: { name: 'sedeSupervisorReporta', value: '' } });
+                  setMostrarOpcionesSupervisor(true);
+                }}
+                onFocus={() => setMostrarOpcionesSupervisor(true)}
+                placeholder="Busca por nombre o identificación"
+                autoComplete="off"
                 className="min-h-11 w-full"
               />
+
+              {mostrarOpcionesSupervisor && (
+                <div className="absolute z-30 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl">
+                  {supervisoresFiltrados.length > 0 && (
+                    <>
+                      <p className="px-2 py-1 text-xs font-bold uppercase text-emerald-700">Supervisores y líderes frecuentes</p>
+                      {supervisoresFiltrados.slice(0, 12).map((item) => (
+                        <button key={`catalogo-${item.IdSupervisorLider}`} type="button" onClick={() => seleccionarSupervisor(item)} className="w-full rounded-lg px-3 py-2 text-left hover:bg-emerald-50">
+                          <span className="block text-sm font-semibold text-gray-800">{item.NombreCompleto}</span>
+                          <span className="block text-xs text-gray-500">{item.Cargo} · {item.Sede} · {item.Correo}</span>
+                        </button>
+                      ))}
+                    </>
+                  )}
+
+                  {textoSupervisor.length >= 2 && (
+                    <div className="mt-2 border-t border-gray-100 pt-2">
+                      <p className="px-2 py-1 text-xs font-bold uppercase text-blue-700">Otras personas de la empresa</p>
+                      {cargandoPersonasEmpresa ? (
+                        <p className="flex items-center gap-2 px-3 py-2 text-xs text-gray-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Buscando...</p>
+                      ) : resultadosEmpresa.length > 0 ? (
+                        resultadosEmpresa.slice(0, 12).map((item) => (
+                          <button key={`empresa-${item.IdRegistroPersonal}`} type="button" onClick={() => seleccionarSupervisor(item)} className="w-full rounded-lg px-3 py-2 text-left hover:bg-blue-50">
+                            <span className="block text-sm font-semibold text-gray-800">{item.NombreCompleto}</span>
+                            <span className="block text-xs text-gray-500">ID {item.NumeroIdentificacion || 'Sin identificación'} · {item.Cargo || 'Sin cargo'} · {item.Sede || 'Sin sede'}</span>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="px-3 py-2 text-xs text-gray-500">No hay coincidencias adicionales. Si la persona no está registrada, puedes diligenciar los datos manualmente.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="min-w-0">
-              <label
-                htmlFor="correoSupervisorReporta"
-                className="mb-2 block text-sm font-semibold text-gray-700"
-              >
-                Correo del supervisor que reporta *
-              </label>
+              <label htmlFor="cargoSupervisorReporta" className="mb-2 block text-sm font-semibold text-gray-700">Cargo *</label>
+              <Input id="cargoSupervisorReporta" name="cargoSupervisorReporta" type="text" value={formData.cargoSupervisorReporta || ''} onChange={onChange} placeholder="Cargo de quien reporta" className="min-h-11 w-full" />
+            </div>
 
-              <Input
-                id="correoSupervisorReporta"
-                name="correoSupervisorReporta"
-                type="email"
-                value={formData.correoSupervisorReporta || ''}
-                onChange={onChange}
-                placeholder="correo@empresa.com"
-                autoComplete="email"
-                required
-                className="min-h-11 w-full"
-              />
+            <div className="min-w-0">
+              <label htmlFor="correoSupervisorReporta" className="mb-2 block text-sm font-semibold text-gray-700">Correo del supervisor que reporta *</label>
+              <Input id="correoSupervisorReporta" name="correoSupervisorReporta" type="email" value={formData.correoSupervisorReporta || ''} onChange={onChange} placeholder="correo@empresa.com" autoComplete="email" required className="min-h-11 w-full" />
+            </div>
+
+            <div className="min-w-0">
+              <label htmlFor="sedeSupervisorReporta" className="mb-2 block text-sm font-semibold text-gray-700">Sede *</label>
+              <Input id="sedeSupervisorReporta" name="sedeSupervisorReporta" type="text" value={formData.sedeSupervisorReporta || ''} onChange={onChange} placeholder="Sede de quien reporta" className="min-h-11 w-full" />
             </div>
 
             <div className="min-w-0 lg:col-span-2">
-              <div
-                className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"
-                role="alert"
-              >
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3" role="alert">
                 <div className="flex items-start gap-3">
                   <Mail className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
-
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-amber-900">
-                      Verifique el correo del supervisor
-                    </p>
-
-                    <p className="mt-1 text-sm leading-relaxed text-amber-800">
-                      Verifique que este correo corresponda al supervisor que
-                      reporta. Si está desactualizado o no corresponde,
-                      modifíquelo antes de continuar.
-                    </p>
+                    <p className="text-sm font-bold text-amber-900">Verifique los datos de quien reporta</p>
+                    <p className="mt-1 text-sm leading-relaxed text-amber-800">Si selecciona una persona del catálogo, el sistema completa correo, cargo y sede. Si registra otra persona, verifique estos datos antes de continuar.</p>
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="min-w-0 lg:col-span-2">
+              <label htmlFor="enunciacionPruebas" className="mb-2 block text-sm font-semibold text-gray-700">Enunciación de pruebas *</label>
+              <textarea id="enunciacionPruebas" name="enunciacionPruebas" value={formData.enunciacionPruebas || ''} onChange={onChange} rows={4} maxLength={4000} placeholder="Describa las pruebas o evidencias que sustentan el reporte disciplinario." className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" />
+              <p className="mt-1 text-right text-xs text-gray-400">{(formData.enunciacionPruebas || '').length}/4000</p>
             </div>
 
             <div className="min-w-0 lg:col-span-2">
