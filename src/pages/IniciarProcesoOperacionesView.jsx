@@ -354,6 +354,9 @@ const IniciarProcesoOperacionesView =
       supervisorReporta:
         obtenerSupervisorInicial(),
       correoSupervisorReporta: '',
+      cargoSupervisorReporta: '',
+      sedeSupervisorReporta: '',
+      enunciacionPruebas: '',
       telefonoTrabajador:
         obtenerTelefonoInicial(),
       cliente:
@@ -481,6 +484,61 @@ const IniciarProcesoOperacionesView =
       setEnviandoSolicitudViernes,
     ] = useState(false);
 
+    const [
+      supervisoresCatalogo,
+      setSupervisoresCatalogo,
+    ] = useState([]);
+
+    const consultarSupervisoresCatalogo = async () => {
+      try {
+        const response = await fetch(
+          `${API_URL}/procesos-disciplinarios/supervisores-lideres`,
+          { method: 'GET', headers: construirHeaders() }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            await obtenerMensajeError(response, 'No se pudo consultar el catálogo de supervisores')
+          );
+        }
+
+        const data = await response.json();
+        setSupervisoresCatalogo(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error('Error consultando supervisores y líderes:', error);
+        setSupervisoresCatalogo([]);
+      }
+    };
+
+    const buscarPersonaEmpresa = async (criterio) => {
+      const search = String(criterio || '').trim();
+      if (search.length < 2) return [];
+
+      try {
+        const response = await fetch(
+          `${API_URL}/procesos-disciplinarios/personas-reportantes?search=${encodeURIComponent(search)}`,
+          { method: 'GET', headers: construirHeaders() }
+        );
+
+        if (!response.ok) return [];
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error('Error buscando persona reportante:', error);
+        return [];
+      }
+    };
+
+    const seleccionarSupervisorReportante = (persona) => {
+      setFormData((prev) => ({
+        ...prev,
+        supervisorReporta: String(persona?.NombreCompleto || '').trim(),
+        correoSupervisorReporta: String(persona?.Correo || '').trim(),
+        cargoSupervisorReporta: String(persona?.Cargo || '').trim(),
+        sedeSupervisorReporta: String(persona?.Sede || '').trim(),
+      }));
+    };
+
     const handleChange = (event) => {
       const {
         name,
@@ -557,6 +615,10 @@ const IniciarProcesoOperacionesView =
           : {}),
       }));
     };
+
+    useEffect(() => {
+      consultarSupervisoresCatalogo();
+    }, []);
 
     const consultarConfiguracionCitacion =
       async () => {
@@ -1498,6 +1560,18 @@ const IniciarProcesoOperacionesView =
             'Correo del supervisor que reporta',
         },
         {
+          value: formData.cargoSupervisorReporta,
+          label: 'Cargo de quien reporta',
+        },
+        {
+          value: formData.sedeSupervisorReporta,
+          label: 'Sede de quien reporta',
+        },
+        {
+          value: formData.enunciacionPruebas,
+          label: 'Enunciación de pruebas',
+        },
+        {
           value:
             formData
               .telefonoTrabajador,
@@ -1898,6 +1972,21 @@ const IniciarProcesoOperacionesView =
                 prev.correoSupervisorReporta ||
                 '',
 
+              cargoSupervisorReporta:
+                citacion.CargoSupervisorReporta ||
+                prev.cargoSupervisorReporta ||
+                '',
+
+              sedeSupervisorReporta:
+                citacion.SedeSupervisorReporta ||
+                prev.sedeSupervisorReporta ||
+                '',
+
+              enunciacionPruebas:
+                citacion.EnunciacionPruebas ||
+                prev.enunciacionPruebas ||
+                '',
+
               telefonoTrabajador:
                 citacion
                   .TelefonoTrabajador ||
@@ -2295,6 +2384,15 @@ const IniciarProcesoOperacionesView =
             formData.correoSupervisorReporta ||
             ''
           ).trim() || null,
+
+        CargoSupervisorReporta:
+          String(formData.cargoSupervisorReporta || '').trim() || null,
+
+        SedeSupervisorReporta:
+          String(formData.sedeSupervisorReporta || '').trim() || null,
+
+        EnunciacionPruebas:
+          String(formData.enunciacionPruebas || '').trim() || null,
 
         TelefonoTrabajador:
           String(
@@ -2846,6 +2944,9 @@ const IniciarProcesoOperacionesView =
             errorProgramacionExtraordinaria={errorProgramacionExtraordinaria}
             onSolicitarViernes={solicitarAutorizacionViernes}
             enviandoSolicitudViernes={enviandoSolicitudViernes}
+            supervisoresCatalogo={supervisoresCatalogo}
+            onSeleccionarSupervisor={seleccionarSupervisorReportante}
+            onBuscarPersonaEmpresa={buscarPersonaEmpresa}
           />
 
           {programacionValida && (
