@@ -38,7 +38,9 @@ const TrabajadorSeleccionadoCard = ({
   trabajador,
   idRegistroPersonal,
   telefonoTrabajador = '',
+  correoTrabajador = '',
   onTelefonoChange,
+  onCorreoChange,
 }) => {
   const nombreCompleto =
     trabajador?.NombreCompleto ||
@@ -178,6 +180,33 @@ const TrabajadorSeleccionadoCard = ({
 
               <p className="mt-1 text-xs text-gray-500">
                 Se precarga desde la información del trabajador cuando está disponible.
+              </p>
+            </div>
+
+
+            <div className="min-w-0">
+              <label
+                htmlFor="correoTrabajador"
+                className="text-xs font-semibold uppercase text-gray-500"
+              >
+                Correo electrónico del trabajador *
+              </label>
+
+              <input
+                id="correoTrabajador"
+                name="correoTrabajador"
+                type="email"
+                inputMode="email"
+                value={correoTrabajador || ''}
+                onChange={onCorreoChange}
+                maxLength={150}
+                placeholder="Ej. trabajador@correo.com"
+                autoComplete="email"
+                className="mt-1 min-h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-800 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+              />
+
+              <p className="mt-1 text-xs text-gray-500">
+                Se precarga desde la información del trabajador cuando está disponible y puede corregirse si es necesario.
               </p>
             </div>
 
