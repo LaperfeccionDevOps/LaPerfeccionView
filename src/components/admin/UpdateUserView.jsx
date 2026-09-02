@@ -1,185 +1,1160 @@
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
-import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+
 import { toast } from '@/components/ui/use-toast';
-import { getUsers, updateUser } from '@/utils/userManagement';
-import { Users, Edit2, CheckCircle, XCircle, Search } from 'lucide-react';
+
+import {
+  getAvailableRoles,
+  getPermissions,
+  getUsers,
+  resetUserPassword,
+  updateUser,
+} from '@/utils/userManagement';
+
+import {
+  CheckCircle,
+  Edit2,
+  KeyRound,
+  Loader2,
+  Search,
+  Users,
+  XCircle,
+} from 'lucide-react';
+
 
 const UpdateUserView = () => {
   const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [isEditOpen, setIsEditOpen] = useState(false);
 
-  const loadUsers = () => {
-    setUsers(getUsers());
-  };
+  const [selectedUser, setSelectedUser] =
+    useState(null);
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
+  const [isEditOpen, setIsEditOpen] =
+    useState(false);
 
-  const handleSearch = (e) => {
-    setSearchTerm(e.target.value.toLowerCase());
-  };
+  const [isPasswordOpen, setIsPasswordOpen] =
+    useState(false);
 
-  const filteredUsers = users.filter(user => 
-    user.name.toLowerCase().includes(searchTerm) || 
-    user.username.toLowerCase().includes(searchTerm) ||
-    user.role.toLowerCase().includes(searchTerm)
+  const [isLoading, setIsLoading] =
+    useState(true);
+
+  const [permissions, setPermissions] =
+    useState([]);
+
+  const [isSaving, setIsSaving] =
+    useState(false);
+
+  const [isResettingPassword, setIsResettingPassword] =
+    useState(false);
+
+  const [newPassword, setNewPassword] =
+    useState('');
+
+  const [confirmPassword, setConfirmPassword] =
+    useState('');
+
+
+  const roles = useMemo(
+    () => getAvailableRoles(),
+    []
   );
 
-  const handleEditClick = (user) => {
-    setSelectedUser({ ...user });
-    setIsEditOpen(true);
-  };
 
-  const handleEditSave = () => {
+  const loadUsers = async () => {
+    setIsLoading(true);
+
     try {
-      updateUser(selectedUser.username, selectedUser);
-      toast({ title: "✅ Usuario actualizado", description: "Los cambios han sido guardados exitosamente." });
-      setIsEditOpen(false);
-      loadUsers();
+      const data = await getUsers();
+
+      setUsers(
+        Array.isArray(data)
+          ? data
+          : []
+      );
     } catch (error) {
-      toast({ title: "Error", description: "No se pudo actualizar el usuario.", variant: "destructive" });
+      setUsers([]);
+
+      toast({
+        title: 'Error',
+        description:
+          error?.message ||
+          'No fue posible consultar los usuarios.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
+
+  const loadPermissions = async () => {
+    try {
+      const data = await getPermissions();
+
+      setPermissions(
+        Array.isArray(data)
+          ? data
+          : []
+      );
+    } catch (error) {
+      setPermissions([]);
+
+      toast({
+        title: 'Error',
+        description:
+          error?.message ||
+          'No fue posible consultar los permisos disponibles.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+
+  useEffect(() => {
+    loadUsers();
+    loadPermissions();
+  }, []);
+
+
+  const handleSearch = (e) => {
+    setSearchTerm(
+      e.target.value
+        .toLowerCase()
+        .trimStart()
+    );
+  };
+
+
+  const filteredUsers = useMemo(() => {
+    const term =
+      searchTerm
+        .trim()
+        .toLowerCase();
+
+    if (!term) {
+      return users;
+    }
+
+    return users.filter((user) => {
+      const name =
+        String(user?.name || '')
+          .toLowerCase();
+
+      const username =
+        String(user?.username || '')
+          .toLowerCase();
+
+      const email =
+        String(user?.email || '')
+          .toLowerCase();
+
+      const role =
+        String(user?.role || '')
+          .toLowerCase();
+
+      const status =
+        String(user?.status || '')
+          .toLowerCase();
+
+      return (
+        name.includes(term) ||
+        username.includes(term) ||
+        email.includes(term) ||
+        role.includes(term) ||
+        status.includes(term)
+      );
+    });
+  }, [
+    users,
+    searchTerm,
+  ]);
+
+
+  const handleEditClick = (user) => {
+    setSelectedUser({
+      ...user,
+      name:
+        user?.name || '',
+      username:
+        user?.username || '',
+      email:
+        user?.email || '',
+      role:
+        user?.role || '',
+      status:
+        String(
+          user?.status || 'ACTIVO'
+        )
+          .trim()
+          .toUpperCase(),
+      permissions:
+        Array.isArray(user?.permissions)
+          ? [...user.permissions]
+          : [],
+    });
+
+    setIsEditOpen(true);
+  };
+
+
+  const handleEditDialogChange = (open) => {
+    if (isSaving) {
+      return;
+    }
+
+    setIsEditOpen(open);
+
+    if (!open) {
+      setSelectedUser(null);
+    }
+  };
+
+
+  const handleEditSave = async () => {
+    if (!selectedUser?.id) {
+      toast({
+        title: 'Error',
+        description:
+          'No fue posible identificar el usuario.',
+        variant: 'destructive',
+      });
+
+      return;
+    }
+
+    const name =
+      String(
+        selectedUser.name || ''
+      ).trim();
+
+    const username =
+      String(
+        selectedUser.username || ''
+      ).trim();
+
+    const email =
+      String(
+        selectedUser.email || ''
+      )
+        .trim()
+        .toLowerCase();
+
+    const role =
+      String(
+        selectedUser.role || ''
+      ).trim();
+
+    const status =
+      String(
+        selectedUser.status || ''
+      )
+        .trim()
+        .toUpperCase();
+
+
+    if (!name) {
+      toast({
+        title: 'Campo obligatorio',
+        description:
+          'Debes ingresar el nombre completo.',
+        variant: 'destructive',
+      });
+
+      return;
+    }
+
+
+    if (!username) {
+      toast({
+        title: 'Campo obligatorio',
+        description:
+          'Debes ingresar el usuario de ingreso.',
+        variant: 'destructive',
+      });
+
+      return;
+    }
+
+
+    if (!role) {
+      toast({
+        title: 'Campo obligatorio',
+        description:
+          'Debes seleccionar un rol.',
+        variant: 'destructive',
+      });
+
+      return;
+    }
+
+
+    if (
+      status !== 'ACTIVO' &&
+      status !== 'INACTIVO'
+    ) {
+      toast({
+        title: 'Estado inválido',
+        description:
+          'Selecciona un estado válido.',
+        variant: 'destructive',
+      });
+
+      return;
+    }
+
+
+    if (
+      email &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    ) {
+      toast({
+        title: 'Correo inválido',
+        description:
+          'Ingresa un correo corporativo válido.',
+        variant: 'destructive',
+      });
+
+      return;
+    }
+
+
+    setIsSaving(true);
+
+    try {
+      await updateUser(
+        selectedUser.id,
+        {
+          ...selectedUser,
+          name,
+          username,
+          email,
+          role,
+          status,
+          permissions:
+            Array.isArray(selectedUser.permissions)
+              ? selectedUser.permissions
+              : [],
+        }
+      );
+
+      toast({
+        title: 'Usuario actualizado',
+        description:
+          'Los cambios fueron guardados correctamente.',
+      });
+
+      setIsEditOpen(false);
+      setSelectedUser(null);
+
+      await loadUsers();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description:
+          error?.message ||
+          'No fue posible actualizar el usuario.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+
+  const handlePasswordClick = (user) => {
+    setSelectedUser(user);
+
+    setNewPassword('');
+    setConfirmPassword('');
+
+    setIsPasswordOpen(true);
+  };
+
+
+  const handlePasswordDialogChange = (open) => {
+    if (isResettingPassword) {
+      return;
+    }
+
+    setIsPasswordOpen(open);
+
+    if (!open) {
+      setNewPassword('');
+      setConfirmPassword('');
+      setSelectedUser(null);
+    }
+  };
+
+
+  const handlePasswordSave = async () => {
+    if (!selectedUser?.id) {
+      toast({
+        title: 'Error',
+        description:
+          'No fue posible identificar el usuario.',
+        variant: 'destructive',
+      });
+
+      return;
+    }
+
+
+    if (!newPassword) {
+      toast({
+        title: 'Campo obligatorio',
+        description:
+          'Debes ingresar la nueva contraseña.',
+        variant: 'destructive',
+      });
+
+      return;
+    }
+
+
+    if (newPassword.length < 8) {
+      toast({
+        title: 'Contraseña inválida',
+        description:
+          'La contraseña debe tener mínimo 8 caracteres.',
+        variant: 'destructive',
+      });
+
+      return;
+    }
+
+
+    if (
+      newPassword !==
+      confirmPassword
+    ) {
+      toast({
+        title: 'Las contraseñas no coinciden',
+        description:
+          'Verifica la confirmación de la nueva contraseña.',
+        variant: 'destructive',
+      });
+
+      return;
+    }
+
+
+    setIsResettingPassword(true);
+
+    try {
+      await resetUserPassword(
+        selectedUser.id,
+        newPassword
+      );
+
+      toast({
+        title: 'Contraseña actualizada',
+        description:
+          `La contraseña de ${selectedUser.username} fue restablecida correctamente.`,
+      });
+
+      setIsPasswordOpen(false);
+
+      setNewPassword('');
+      setConfirmPassword('');
+      setSelectedUser(null);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description:
+          error?.message ||
+          'No fue posible restablecer la contraseña.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
+
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+    <div className="mx-auto max-w-6xl space-y-6 animate-in fade-in duration-500">
+
+      <div className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between">
+
         <div className="flex items-center gap-4">
-          <div className="bg-purple-100 p-3 rounded-xl text-purple-600">
-            <Users className="w-8 h-8" />
+
+          <div className="rounded-xl bg-purple-100 p-3 text-purple-600">
+            <Users className="h-8 w-8" />
           </div>
+
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">Gestión de Usuarios</h2>
-            <p className="text-gray-500">Consultar y actualizar información</p>
+            <h2 className="text-2xl font-bold text-gray-800">
+              Gestión de Usuarios
+            </h2>
+
+            <p className="text-gray-500">
+              Consultar y actualizar usuarios registrados
+            </p>
           </div>
+
         </div>
-        <div className="relative w-full md:w-72">
-          <Input 
-            placeholder="Buscar usuarios..." 
+
+
+        <div className="relative w-full md:w-80">
+
+          <Input
+            value={searchTerm}
+            placeholder="Buscar usuarios..."
             className="pl-10"
             onChange={handleSearch}
           />
-          <Search className="w-4 h-4 absolute left-3 top-3.5 text-gray-400" />
+
+          <Search className="absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
+
         </div>
+
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+
         <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-            <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
-                <tr>
-                <th className="px-6 py-3">Usuario</th>
-                <th className="px-6 py-3">Nombre</th>
-                <th className="px-6 py-3">Rol</th>
-                <th className="px-6 py-3">Estado</th>
-                <th className="px-6 py-3 text-right">Acciones</th>
-                </tr>
+
+          <table className="w-full min-w-[1050px] text-left text-sm">
+
+            <thead className="border-b bg-gray-50 text-xs uppercase text-gray-700">
+
+              <tr>
+                <th className="px-6 py-3">
+                  Usuario
+                </th>
+
+                <th className="px-6 py-3">
+                  Nombre
+                </th>
+
+                <th className="px-6 py-3">
+                  Correo
+                </th>
+
+                <th className="px-6 py-3">
+                  Rol
+                </th>
+
+                <th className="px-6 py-3">
+                  Estado
+                </th>
+
+                <th className="px-6 py-3 text-right">
+                  Acciones
+                </th>
+              </tr>
+
             </thead>
+
+
             <tbody>
-                {filteredUsers.length > 0 ? (
-                filteredUsers.map((user) => (
-                    <tr key={user.username} className="bg-white border-b hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-gray-900">{user.username}</td>
-                    <td className="px-6 py-4 text-gray-600">{user.name}</td>
-                    <td className="px-6 py-4">
-                        <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-md text-xs font-medium border border-blue-100">
-                        {user.role}
-                        </span>
-                    </td>
-                    <td className="px-6 py-4">
-                        <div className={`flex items-center gap-2 ${user.status === 'Activo' ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {user.status === 'Activo' ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                        <span className="text-sm font-medium">{user.status}</span>
-                        </div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                        <Button variant="ghost" size="sm" onClick={() => handleEditClick(user)} className="text-gray-500 hover:text-blue-600">
-                        <Edit2 className="w-4 h-4" />
-                        </Button>
-                    </td>
-                    </tr>
-                ))
-                ) : (
+
+              {isLoading ? (
+
                 <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                    No se encontraron usuarios registrados
-                    </td>
+                  <td
+                    colSpan={6}
+                    className="px-6 py-12 text-center"
+                  >
+                    <div className="flex items-center justify-center gap-3 text-gray-500">
+
+                      <Loader2 className="h-5 w-5 animate-spin" />
+
+                      <span>
+                        Consultando usuarios...
+                      </span>
+
+                    </div>
+                  </td>
                 </tr>
-                )}
+
+              ) : filteredUsers.length > 0 ? (
+
+                filteredUsers.map((user) => {
+
+                  const isActive =
+                    String(user.status || '')
+                      .trim()
+                      .toUpperCase() === 'ACTIVO';
+
+                  return (
+                    <tr
+                      key={user.id}
+                      className="border-b bg-white transition-colors last:border-b-0 hover:bg-gray-50"
+                    >
+
+                      <td className="px-6 py-4 font-medium text-gray-900">
+                        {user.username || '—'}
+                      </td>
+
+
+                      <td className="px-6 py-4 text-gray-600">
+                        {user.name || '—'}
+                      </td>
+
+
+                      <td className="px-6 py-4 text-gray-600">
+                        {user.email || '—'}
+                      </td>
+
+
+                      <td className="px-6 py-4">
+
+                        <span className="rounded-md border border-blue-100 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
+                          {user.role || 'Sin rol'}
+                        </span>
+
+                      </td>
+
+
+                      <td className="px-6 py-4">
+
+                        <div
+                          className={`flex items-center gap-2 ${
+                            isActive
+                              ? 'text-emerald-600'
+                              : 'text-red-600'
+                          }`}
+                        >
+
+                          {isActive ? (
+                            <CheckCircle className="h-4 w-4" />
+                          ) : (
+                            <XCircle className="h-4 w-4" />
+                          )}
+
+                          <span className="text-sm font-medium">
+                            {isActive
+                              ? 'Activo'
+                              : 'Inactivo'}
+                          </span>
+
+                        </div>
+
+                      </td>
+
+
+                      <td className="px-6 py-4">
+
+                        <div className="flex items-center justify-end gap-1">
+
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            title="Editar usuario"
+                            className="text-gray-500 hover:text-blue-600"
+                            onClick={() =>
+                              handleEditClick(user)
+                            }
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+
+
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            title="Restablecer contraseña"
+                            className="text-gray-500 hover:text-purple-600"
+                            onClick={() =>
+                              handlePasswordClick(user)
+                            }
+                          >
+                            <KeyRound className="h-4 w-4" />
+                          </Button>
+
+                        </div>
+
+                      </td>
+
+                    </tr>
+                  );
+                })
+
+              ) : (
+
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-6 py-10 text-center text-gray-500"
+                  >
+                    No se encontraron usuarios registrados
+                  </td>
+                </tr>
+
+              )}
+
             </tbody>
-            </table>
+
+          </table>
+
         </div>
+
       </div>
 
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="sm:max-w-[500px] bg-white">
+
+      {/* ================================================================
+          EDITAR USUARIO
+      ================================================================= */}
+
+      <Dialog
+        open={isEditOpen}
+        onOpenChange={handleEditDialogChange}
+      >
+
+        <DialogContent className="bg-white sm:max-w-[560px]">
+
           <DialogHeader>
-            <DialogTitle>Editar Usuario</DialogTitle>
+            <DialogTitle>
+              Editar Usuario
+            </DialogTitle>
           </DialogHeader>
+
+
           {selectedUser && (
+
             <div className="grid gap-4 py-4">
+
+
               <div className="grid gap-2">
-                <Label htmlFor="edit-name">Nombre</Label>
-                <Input 
-                  id="edit-name" 
-                  value={selectedUser.name} 
-                  onChange={(e) => setSelectedUser({ ...selectedUser, name: e.target.value })} 
+
+                <Label htmlFor="edit-name">
+                  Nombre completo
+                </Label>
+
+                <Input
+                  id="edit-name"
+                  value={selectedUser.name || ''}
+                  disabled={isSaving}
+                  onChange={(e) =>
+                    setSelectedUser({
+                      ...selectedUser,
+                      name: e.target.value,
+                    })
+                  }
                 />
+
               </div>
+
+
               <div className="grid gap-2">
-                <Label htmlFor="edit-pass">Contraseña</Label>
-                <Input 
-                  id="edit-pass" 
-                  type="text"
-                  value={selectedUser.pass} 
-                  onChange={(e) => setSelectedUser({ ...selectedUser, pass: e.target.value })} 
+
+                <Label htmlFor="edit-username">
+                  Usuario de ingreso
+                </Label>
+
+                <Input
+                  id="edit-username"
+                  value={selectedUser.username || ''}
+                  disabled={isSaving}
+                  onChange={(e) =>
+                    setSelectedUser({
+                      ...selectedUser,
+                      username: e.target.value,
+                    })
+                  }
                 />
+
               </div>
+
+
               <div className="grid gap-2">
-                <Label>Rol</Label>
-                <Select value={selectedUser.role} onValueChange={(v) => setSelectedUser({ ...selectedUser, role: v })}>
+
+                <Label htmlFor="edit-email">
+                  Correo corporativo
+                </Label>
+
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={selectedUser.email || ''}
+                  disabled={isSaving}
+                  placeholder="usuario@empresa.com"
+                  onChange={(e) =>
+                    setSelectedUser({
+                      ...selectedUser,
+                      email: e.target.value,
+                    })
+                  }
+                />
+
+              </div>
+
+
+              <div className="grid gap-2">
+
+                <Label>
+                  Rol
+                </Label>
+
+                <Select
+                  value={selectedUser.role || ''}
+                  disabled={isSaving}
+                  onValueChange={(value) =>
+                    setSelectedUser({
+                      ...selectedUser,
+                      role: value,
+                    })
+                  }
+                >
+
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar rol" />
+                  </SelectTrigger>
+
+                  <SelectContent>
+
+                    {roles.map((role) => (
+                      <SelectItem
+                        key={role}
+                        value={role}
+                      >
+                        {role}
+                      </SelectItem>
+                    ))}
+
+                  </SelectContent>
+
+                </Select>
+
+              </div>
+
+
+              <div className="grid gap-2">
+
+                <Label>
+                  Estado
+                </Label>
+
+                <Select
+                  value={
+                    String(
+                      selectedUser.status ||
+                      'ACTIVO'
+                    )
+                      .trim()
+                      .toUpperCase()
+                  }
+                  disabled={isSaving}
+                  onValueChange={(value) =>
+                    setSelectedUser({
+                      ...selectedUser,
+                      status: value,
+                    })
+                  }
+                >
+
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
+
                   <SelectContent>
-                    <SelectItem value="Aspirante">Aspirante</SelectItem>
-                    <SelectItem value="Selección">Selección</SelectItem>
-                    <SelectItem value="Contratación">Contratación</SelectItem>
-                    <SelectItem value="Administrador">Administrador</SelectItem>
+
+                    <SelectItem value="ACTIVO">
+                      Activo
+                    </SelectItem>
+
+                    <SelectItem value="INACTIVO">
+                      Inactivo
+                    </SelectItem>
+
                   </SelectContent>
+
                 </Select>
+
               </div>
-              <div className="grid gap-2">
-                <Label>Estado</Label>
-                <Select value={selectedUser.status} onValueChange={(v) => setSelectedUser({ ...selectedUser, status: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Activo">Activo</SelectItem>
-                    <SelectItem value="Inactivo">Inactivo</SelectItem>
-                  </SelectContent>
-                </Select>
+
+
+              <div className="grid gap-3">
+
+                <div>
+                  <Label>
+                    Permisos adicionales
+                  </Label>
+
+                  <p className="mt-1 text-xs text-gray-500">
+                    Estos permisos amplían el acceso sin cambiar el rol principal del usuario.
+                  </p>
+                </div>
+
+                {permissions.length > 0 ? (
+
+                  <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+
+                    {permissions.map((permission) => {
+
+                      const isChecked =
+                        Array.isArray(selectedUser.permissions) &&
+                        selectedUser.permissions.includes(
+                          permission.code
+                        );
+
+                      return (
+                        <label
+                          key={permission.id || permission.code}
+                          className="flex cursor-pointer items-start gap-3 rounded-md bg-white p-3 transition-colors hover:bg-gray-50"
+                        >
+
+                          <input
+                            type="checkbox"
+                            className="mt-1 h-4 w-4 rounded border-gray-300"
+                            checked={isChecked}
+                            disabled={isSaving}
+                            onChange={(e) => {
+
+                              const currentPermissions =
+                                Array.isArray(selectedUser.permissions)
+                                  ? selectedUser.permissions
+                                  : [];
+
+                              const nextPermissions =
+                                e.target.checked
+                                  ? [
+                                      ...new Set([
+                                        ...currentPermissions,
+                                        permission.code,
+                                      ]),
+                                    ]
+                                  : currentPermissions.filter(
+                                      (code) =>
+                                        code !== permission.code
+                                    );
+
+                              setSelectedUser({
+                                ...selectedUser,
+                                permissions: nextPermissions,
+                              });
+                            }}
+                          />
+
+                          <div className="min-w-0">
+
+                            <p className="text-sm font-medium text-gray-800">
+                              {permission.name || permission.code}
+                            </p>
+
+                            {permission.description && (
+                              <p className="mt-1 text-xs leading-5 text-gray-500">
+                                {permission.description}
+                              </p>
+                            )}
+
+                          </div>
+
+                        </label>
+                      );
+                    })}
+
+                  </div>
+
+                ) : (
+
+                  <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-3 text-xs text-gray-500">
+                    No hay permisos adicionales disponibles.
+                  </div>
+
+                )}
+
               </div>
+
             </div>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancelar</Button>
-            <Button onClick={handleEditSave} className="bg-purple-600 hover:bg-purple-700">Guardar Cambios</Button>
+
+
+          <DialogFooter className="gap-2 sm:gap-0">
+
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSaving}
+              onClick={() =>
+                handleEditDialogChange(false)
+              }
+            >
+              Cancelar
+            </Button>
+
+
+            <Button
+              type="button"
+              disabled={isSaving}
+              onClick={handleEditSave}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                'Guardar Cambios'
+              )}
+
+            </Button>
+
           </DialogFooter>
+
         </DialogContent>
+
       </Dialog>
+
+
+      {/* ================================================================
+          RESTABLECER CONTRASEÑA
+      ================================================================= */}
+
+      <Dialog
+        open={isPasswordOpen}
+        onOpenChange={handlePasswordDialogChange}
+      >
+
+        <DialogContent className="bg-white sm:max-w-[500px]">
+
+          <DialogHeader>
+
+            <DialogTitle>
+              Restablecer contraseña
+            </DialogTitle>
+
+          </DialogHeader>
+
+
+          {selectedUser && (
+
+            <div className="grid gap-4 py-4">
+
+              <div className="rounded-lg border border-purple-100 bg-purple-50 p-3">
+
+                <p className="text-sm font-medium text-gray-800">
+                  {selectedUser.name}
+                </p>
+
+                <p className="mt-1 text-xs text-gray-500">
+                  Usuario: {selectedUser.username}
+                </p>
+
+              </div>
+
+
+              <div className="grid gap-2">
+
+                <Label htmlFor="new-password">
+                  Nueva contraseña
+                </Label>
+
+                <Input
+                  id="new-password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={newPassword}
+                  disabled={isResettingPassword}
+                  onChange={(e) =>
+                    setNewPassword(
+                      e.target.value
+                    )
+                  }
+                />
+
+                <p className="text-xs text-gray-500">
+                  Mínimo 8 caracteres.
+                </p>
+
+              </div>
+
+
+              <div className="grid gap-2">
+
+                <Label htmlFor="confirm-password">
+                  Confirmar contraseña
+                </Label>
+
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  disabled={isResettingPassword}
+                  onChange={(e) =>
+                    setConfirmPassword(
+                      e.target.value
+                    )
+                  }
+                />
+
+              </div>
+
+            </div>
+          )}
+
+
+          <DialogFooter className="gap-2 sm:gap-0">
+
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isResettingPassword}
+              onClick={() =>
+                handlePasswordDialogChange(false)
+              }
+            >
+              Cancelar
+            </Button>
+
+
+            <Button
+              type="button"
+              disabled={isResettingPassword}
+              onClick={handlePasswordSave}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+
+              {isResettingPassword ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Restableciendo...
+                </>
+              ) : (
+                'Restablecer contraseña'
+              )}
+
+            </Button>
+
+          </DialogFooter>
+
+        </DialogContent>
+
+      </Dialog>
+
     </div>
   );
 };
+
 
 export default UpdateUserView;

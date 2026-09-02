@@ -98,12 +98,13 @@ const LoginPage = () => {
       }
 
       // Guardamos la información devuelta por la API
-      // data: { access_token, token_type, usuario, id_usuario, roles, roles_ids, message }
+      // data: { access_token, token_type, usuario, id_usuario, roles, roles_ids, permisos, message }
       localStorage.setItem('token', finalToken);
       localStorage.setItem('usuario', data.usuario || username.trim());
       localStorage.setItem('id_usuario', data.id_usuario || '');
       localStorage.setItem('roles', JSON.stringify(data.roles || []));
       localStorage.setItem('roles_ids', JSON.stringify(data.roles_ids || []));
+      localStorage.setItem('permisos', JSON.stringify(data.permisos || []));
 
       // Rol principal para el contexto
       const mainRole =
@@ -117,6 +118,7 @@ const LoginPage = () => {
         role: mainRole,
         name: data.usuario || username.trim(),
         token: finalToken,
+        permisos: Array.isArray(data.permisos) ? data.permisos : [],
       });
 
       toast({
@@ -145,6 +147,7 @@ const LoginPage = () => {
       username: 'nuevo_aspirante',
       role: 'Aspirante',
       name: 'Nuevo Aspirante',
+      permisos: [],
     });
 
     toast({

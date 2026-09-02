@@ -28,6 +28,15 @@ const Sidebar = ({
 
   const rolUsuario = user?.role || "";
 
+  const permisosUsuario =
+    Array.isArray(user?.permisos)
+      ? user.permisos
+      : [];
+
+  const tienePermiso = (codigoPermiso) => {
+    return permisosUsuario.includes(codigoPermiso);
+  };
+
   const isOperaciones =
     rolUsuario === "Operaciones";
 
@@ -137,11 +146,13 @@ const Sidebar = ({
           to: "/operaciones/procesos-disciplinarios",
           label: "Procesos Disciplinarios",
           roles: ["Operaciones"],
+          permiso: "OPERACIONES_PROCESOS_DISCIPLINARIOS",
         },
         {
           to: "/operaciones/retiros",
           label: "Retiros",
           roles: ["Operaciones"],
+          permiso: "OPERACIONES_RETIROS",
         },
         {
           to: "/indicadores-contratacion",
@@ -337,9 +348,16 @@ const Sidebar = ({
   ];
 
   const filtrarItemPorRol = (item) => {
-    if (!item || !puedeVerPorRol(item.roles)) {
+    if (!item) {
       return null;
     }
+
+    const tieneAccesoDirecto =
+      puedeVerPorRol(item.roles) ||
+      (
+        item.permiso &&
+        tienePermiso(item.permiso)
+      );
 
     if (Array.isArray(item.children)) {
       const childrenFiltrados = item.children
@@ -350,10 +368,21 @@ const Sidebar = ({
         return null;
       }
 
+      if (!tieneAccesoDirecto) {
+        return {
+          ...item,
+          children: childrenFiltrados,
+        };
+      }
+
       return {
         ...item,
         children: childrenFiltrados,
       };
+    }
+
+    if (!tieneAccesoDirecto) {
+      return null;
     }
 
     return item;
