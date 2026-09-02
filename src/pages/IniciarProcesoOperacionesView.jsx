@@ -334,6 +334,19 @@ const IniciarProcesoOperacionesView =
         ''
       ).trim();
 
+    const obtenerCorreoInicial = () =>
+      String(
+        trabajador?.CorreoElectronico ||
+        trabajador?.correoElectronico ||
+        trabajador?.Correo ||
+        trabajador?.correo ||
+        trabajador?.Email ||
+        trabajador?.email ||
+        trabajador?.CorreoPersonal ||
+        trabajador?.correoPersonal ||
+        ''
+      ).trim();
+
     const [
       formData,
       setFormData,
@@ -359,6 +372,8 @@ const IniciarProcesoOperacionesView =
       enunciacionPruebas: '',
       telefonoTrabajador:
         obtenerTelefonoInicial(),
+      correoTrabajador:
+        obtenerCorreoInicial(),
       cliente:
         obtenerClienteInicial(),
       sede: obtenerSedeInicial(),
@@ -1580,6 +1595,13 @@ const IniciarProcesoOperacionesView =
         },
         {
           value:
+            formData
+              .correoTrabajador,
+          label:
+            'Correo electrónico del trabajador',
+        },
+        {
+          value:
             formData.cliente,
           label: 'Cliente',
         },
@@ -1710,6 +1732,27 @@ const IniciarProcesoOperacionesView =
             'Correo inválido',
           description:
             'Debes registrar un correo válido para el supervisor que reporta.',
+          variant: 'destructive',
+        });
+
+        return false;
+      }
+
+      const correoTrabajador = String(
+        formData.correoTrabajador || ''
+      ).trim();
+
+      const correoTrabajadorValido =
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+          correoTrabajador
+        );
+
+      if (!correoTrabajadorValido) {
+        toast({
+          title:
+            'Correo inválido',
+          description:
+            'Debes registrar un correo electrónico válido para el trabajador.',
           variant: 'destructive',
         });
 
@@ -1992,6 +2035,13 @@ const IniciarProcesoOperacionesView =
                   .TelefonoTrabajador ||
                 prev.telefonoTrabajador ||
                 obtenerTelefonoInicial() ||
+                '',
+
+              correoTrabajador:
+                citacion
+                  .CorreoTrabajador ||
+                prev.correoTrabajador ||
+                obtenerCorreoInicial() ||
                 '',
 
               cliente:
@@ -2400,6 +2450,12 @@ const IniciarProcesoOperacionesView =
             ''
           ).trim() || null,
 
+        CorreoTrabajador:
+          String(
+            formData.correoTrabajador ||
+            ''
+          ).trim() || null,
+
         ManifestacionSupervisor:
           null,
 
@@ -2728,10 +2784,16 @@ const IniciarProcesoOperacionesView =
             '/operaciones/procesos-disciplinarios/revision',
             {
               state: {
-                trabajador,
+                trabajador: {
+                  ...trabajador,
+                  CorreoElectronico:
+                    formData.correoTrabajador,
+                },
                 idRegistroPersonal,
                 idProcesoDisciplinario:
                   procesoId,
+                correoTrabajador:
+                  formData.correoTrabajador,
               },
             }
           );
@@ -2908,7 +2970,13 @@ const IniciarProcesoOperacionesView =
             telefonoTrabajador={
               formData.telefonoTrabajador
             }
+            correoTrabajador={
+              formData.correoTrabajador
+            }
             onTelefonoChange={
+              handleChange
+            }
+            onCorreoChange={
               handleChange
             }
           />

@@ -401,6 +401,20 @@ const RevisionProcesoOperacionesView =
           0
       );
 
+    const correoTrabajadorPasoDos =
+      String(
+        location.state?.correoTrabajador ||
+        trabajador?.CorreoElectronico ||
+        trabajador?.correoElectronico ||
+        trabajador?.Correo ||
+        trabajador?.correo ||
+        trabajador?.Email ||
+        trabajador?.email ||
+        trabajador?.CorreoPersonal ||
+        trabajador?.correoPersonal ||
+        ''
+      ).trim();
+
     const [
       citacion,
       setCitacion,
@@ -555,8 +569,19 @@ const RevisionProcesoOperacionesView =
         '/operaciones/procesos-disciplinarios/iniciar',
         {
           state: {
-            trabajador,
+            trabajador: {
+              ...trabajador,
+              CorreoElectronico:
+                citacion?.CorreoTrabajador ||
+                correoTrabajadorPasoDos ||
+                trabajador?.CorreoElectronico ||
+                '',
+            },
             idRegistroPersonal,
+            correoTrabajador:
+              citacion?.CorreoTrabajador ||
+              correoTrabajadorPasoDos ||
+              '',
           },
         }
       );
@@ -942,7 +967,7 @@ const RevisionProcesoOperacionesView =
               Trabajador seleccionado
             </h2>
 
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               <TarjetaDato
                 titulo="Nombre"
                 valor={nombreTrabajador}
@@ -964,6 +989,16 @@ const RevisionProcesoOperacionesView =
                   '—'
                 }
                 icono={Phone}
+              />
+
+              <TarjetaDato
+                titulo="Correo electrónico"
+                valor={
+                  citacion?.CorreoTrabajador ||
+                  correoTrabajadorPasoDos ||
+                  '—'
+                }
+                icono={Mail}
               />
 
               <TarjetaDato
