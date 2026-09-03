@@ -306,13 +306,17 @@ const CreateUserForm = () => {
                   Desarrollador
                 </SelectItem>
 
-                <SelectItem value="Bienestar">
-                  Bienestar
-                </SelectItem>
+              <SelectItem value="Bienestar">
+                Bienestar
+              </SelectItem>
 
-                <SelectItem value="Nómina">
-                  Nómina
-                </SelectItem>
+              <SelectItem value="Nómina">
+                Nómina
+              </SelectItem>
+
+              <SelectItem value="Administrativo">
+                Administrativo
+              </SelectItem>
               </SelectContent>
             </Select>
           </div>

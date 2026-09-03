@@ -27,6 +27,7 @@ const ROLE_IDS = {
   Desarrollador: 15,
   Bienestar: 16,
   Nómina: 17,
+  Administrativo: 18,
 };
 
 

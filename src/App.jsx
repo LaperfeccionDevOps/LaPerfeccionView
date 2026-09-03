@@ -50,6 +50,11 @@ const RoleBasedRedirect = () => {
     return <Navigate to="/login" replace />;
   }
 
+  const permissions =
+    Array.isArray(user?.permisos)
+      ? user.permisos
+      : [];
+
   switch (user.role) {
     case "Aspirante":
       return <Navigate to="/aspirantes" replace />;
@@ -76,6 +81,35 @@ const RoleBasedRedirect = () => {
     case "Nómina":
     case "Nomina":
       return <Navigate to="/nomina-retiros" replace />;
+
+    case "Administrativo":
+      if (
+        permissions.includes(
+          "OPERACIONES_PROCESOS_DISCIPLINARIOS"
+        )
+      ) {
+        return (
+          <Navigate
+            to="/operaciones/procesos-disciplinarios"
+            replace
+          />
+        );
+      }
+
+      if (
+        permissions.includes(
+          "OPERACIONES_RETIROS"
+        )
+      ) {
+        return (
+          <Navigate
+            to="/operaciones/retiros"
+            replace
+          />
+        );
+      }
+
+      return <Navigate to="/login" replace />;
 
     default:
       return <Navigate to="/seleccion" replace />;
