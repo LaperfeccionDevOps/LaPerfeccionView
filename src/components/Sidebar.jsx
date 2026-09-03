@@ -295,6 +295,22 @@ const Sidebar = ({
             },
           ],
         },
+        ...(tienePermiso("OPERACIONES_PROCESOS_DISCIPLINARIOS")
+          ? [
+              {
+                to: "/operaciones/procesos-disciplinarios",
+                label: "Procesos Disciplinarios",
+              },
+            ]
+          : []),
+        ...(tienePermiso("OPERACIONES_RETIROS")
+          ? [
+              {
+                to: "/operaciones/retiros",
+                label: "Retiros",
+              },
+            ]
+          : []),
         {
           to: "/relaciones-laborales",
           label: "Relaciones Laborales",
