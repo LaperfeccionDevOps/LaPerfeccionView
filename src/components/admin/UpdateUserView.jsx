@@ -37,6 +37,8 @@ import {
 import {
   CheckCircle,
   Edit2,
+  Eye,
+  EyeOff,
   KeyRound,
   Loader2,
   Search,
@@ -75,6 +77,12 @@ const UpdateUserView = () => {
 
   const [confirmPassword, setConfirmPassword] =
     useState('');
+
+  const [showNewPassword, setShowNewPassword] =
+    useState(false);
+
+  const [showConfirmPassword, setShowConfirmPassword] =
+    useState(false);
 
 
   const roles = useMemo(
@@ -389,6 +397,8 @@ const UpdateUserView = () => {
 
     setNewPassword('');
     setConfirmPassword('');
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
 
     setIsPasswordOpen(true);
   };
@@ -404,6 +414,8 @@ const UpdateUserView = () => {
     if (!open) {
       setNewPassword('');
       setConfirmPassword('');
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
       setSelectedUser(null);
     }
   };
@@ -479,6 +491,8 @@ const UpdateUserView = () => {
 
       setNewPassword('');
       setConfirmPassword('');
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
       setSelectedUser(null);
     } catch (error) {
       toast({
@@ -1069,18 +1083,54 @@ const UpdateUserView = () => {
                   Nueva contraseña
                 </Label>
 
-                <Input
-                  id="new-password"
-                  type="password"
-                  autoComplete="new-password"
-                  value={newPassword}
-                  disabled={isResettingPassword}
-                  onChange={(e) =>
-                    setNewPassword(
-                      e.target.value
-                    )
-                  }
-                />
+                <div className="relative">
+
+                  <Input
+                    id="new-password"
+                    type={
+                      showNewPassword
+                        ? 'text'
+                        : 'password'
+                    }
+                    autoComplete="new-password"
+                    value={newPassword}
+                    disabled={isResettingPassword}
+                    className="pr-10"
+                    onChange={(e) =>
+                      setNewPassword(
+                        e.target.value
+                      )
+                    }
+                  />
+
+                  <button
+                    type="button"
+                    disabled={isResettingPassword}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label={
+                      showNewPassword
+                        ? 'Ocultar nueva contraseña'
+                        : 'Mostrar nueva contraseña'
+                    }
+                    title={
+                      showNewPassword
+                        ? 'Ocultar contraseña'
+                        : 'Mostrar contraseña'
+                    }
+                    onClick={() =>
+                      setShowNewPassword(
+                        (current) => !current
+                      )
+                    }
+                  >
+                    {showNewPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+
+                </div>
 
                 <p className="text-xs text-gray-500">
                   Mínimo 8 caracteres.
@@ -1095,18 +1145,54 @@ const UpdateUserView = () => {
                   Confirmar contraseña
                 </Label>
 
-                <Input
-                  id="confirm-password"
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  disabled={isResettingPassword}
-                  onChange={(e) =>
-                    setConfirmPassword(
-                      e.target.value
-                    )
-                  }
-                />
+                <div className="relative">
+
+                  <Input
+                    id="confirm-password"
+                    type={
+                      showConfirmPassword
+                        ? 'text'
+                        : 'password'
+                    }
+                    autoComplete="new-password"
+                    value={confirmPassword}
+                    disabled={isResettingPassword}
+                    className="pr-10"
+                    onChange={(e) =>
+                      setConfirmPassword(
+                        e.target.value
+                      )
+                    }
+                  />
+
+                  <button
+                    type="button"
+                    disabled={isResettingPassword}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label={
+                      showConfirmPassword
+                        ? 'Ocultar confirmación de contraseña'
+                        : 'Mostrar confirmación de contraseña'
+                    }
+                    title={
+                      showConfirmPassword
+                        ? 'Ocultar contraseña'
+                        : 'Mostrar contraseña'
+                    }
+                    onClick={() =>
+                      setShowConfirmPassword(
+                        (current) => !current
+                      )
+                    }
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+
+                </div>
 
               </div>
 
