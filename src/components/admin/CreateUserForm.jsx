@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
+
 import { Button } from '@/components/ui/button';
+
 import { Input } from '@/components/ui/input';
+
 import { Label } from '@/components/ui/label';
+
 import {
   Select,
   SelectContent,
@@ -9,8 +13,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+
 import { toast } from '@/components/ui/use-toast';
+
 import { createUser } from '@/utils/userManagement';
+
 import {
   UserPlus,
   Save,
@@ -19,6 +26,8 @@ import {
   Activity,
   Mail,
   User,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 const INITIAL_FORM = {
@@ -33,6 +42,7 @@ const INITIAL_FORM = {
 const CreateUserForm = () => {
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [saving, setSaving] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({
@@ -110,6 +120,7 @@ const CreateUserForm = () => {
       });
 
       setFormData(INITIAL_FORM);
+      setShowPassword(false);
     } catch (error) {
       const message =
         error?.response?.data?.detail ||
@@ -178,7 +189,10 @@ const CreateUserForm = () => {
                 placeholder="Ej. alejandra.guiza"
                 value={formData.username}
                 onChange={(e) =>
-                  handleChange('username', e.target.value.replace(/\s/g, ''))
+                  handleChange(
+                    'username',
+                    e.target.value.replace(/\s/g, '')
+                  )
                 }
                 className="pl-10"
                 autoComplete="off"
@@ -216,15 +230,32 @@ const CreateUserForm = () => {
             <div className="relative">
               <Input
                 id="pass"
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 placeholder="Mínimo 8 caracteres"
                 value={formData.pass}
                 onChange={(e) => handleChange('pass', e.target.value)}
-                className="pl-10"
+                className="pl-10 pr-10"
                 autoComplete="new-password"
               />
 
               <Key className="w-4 h-4 absolute left-3 top-3.5 text-gray-400" />
+
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label={
+                  showPassword
+                    ? 'Ocultar contraseña'
+                    : 'Mostrar contraseña'
+                }
+              >
+                {showPassword ? (
+                  <EyeOff className="w-5 h-5" />
+                ) : (
+                  <Eye className="w-5 h-5" />
+                )}
+              </button>
             </div>
           </div>
 
@@ -235,7 +266,9 @@ const CreateUserForm = () => {
 
             <Select
               value={formData.status}
-              onValueChange={(value) => handleChange('status', value)}
+              onValueChange={(value) =>
+                handleChange('status', value)
+              }
             >
               <SelectTrigger className="pl-10 relative">
                 <Activity className="w-4 h-4 absolute left-3 top-3.5 text-gray-400" />
@@ -244,8 +277,13 @@ const CreateUserForm = () => {
               </SelectTrigger>
 
               <SelectContent>
-                <SelectItem value="ACTIVO">Activo</SelectItem>
-                <SelectItem value="INACTIVO">Inactivo</SelectItem>
+                <SelectItem value="ACTIVO">
+                  Activo
+                </SelectItem>
+
+                <SelectItem value="INACTIVO">
+                  Inactivo
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -257,7 +295,9 @@ const CreateUserForm = () => {
 
             <Select
               value={formData.role}
-              onValueChange={(value) => handleChange('role', value)}
+              onValueChange={(value) =>
+                handleChange('role', value)
+              }
             >
               <SelectTrigger className="pl-10 relative">
                 <Shield className="w-4 h-4 absolute left-3 top-3.5 text-gray-400" />
@@ -306,17 +346,17 @@ const CreateUserForm = () => {
                   Desarrollador
                 </SelectItem>
 
-              <SelectItem value="Bienestar">
-                Bienestar
-              </SelectItem>
+                <SelectItem value="Bienestar">
+                  Bienestar
+                </SelectItem>
 
-              <SelectItem value="Nómina">
-                Nómina
-              </SelectItem>
+                <SelectItem value="Nómina">
+                  Nómina
+                </SelectItem>
 
-              <SelectItem value="Administrativo">
-                Administrativo
-              </SelectItem>
+                <SelectItem value="Administrativo">
+                  Administrativo
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -330,7 +370,9 @@ const CreateUserForm = () => {
           >
             <Save className="w-5 h-5 mr-2" />
 
-            {saving ? 'Guardando...' : 'Guardar Usuario'}
+            {saving
+              ? 'Guardando...'
+              : 'Guardar Usuario'}
           </Button>
         </div>
       </form>
