@@ -83,6 +83,43 @@ const RoleBasedRedirect = () => {
 };
 
 
+const OperationsPermissionRoute = ({
+  children,
+  permission,
+}) => {
+  const { user } = useAuth();
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const role =
+    String(user?.role || "").trim();
+
+  const permissions =
+    Array.isArray(user?.permisos)
+      ? user.permisos
+      : [];
+
+  const globalRoles = [
+    "Administrador",
+    "Super Administrador",
+    "Desarrollador",
+  ];
+
+  const hasAccess =
+    role === "Operaciones" ||
+    globalRoles.includes(role) ||
+    permissions.includes(permission);
+
+  if (!hasAccess) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+};
+
+
 const ProcesosDisciplinariosRRLLRoute = () => {
   const navigate = useNavigate();
 
@@ -192,23 +229,45 @@ function App() {
           <Route
             path="operaciones/procesos-disciplinarios"
             element={
-              <OperacionesProcesosDisciplinariosView />
+              <OperationsPermissionRoute
+                permission="OPERACIONES_PROCESOS_DISCIPLINARIOS"
+              >
+                <OperacionesProcesosDisciplinariosView />
+              </OperationsPermissionRoute>
             }
           />
 
           <Route
             path="operaciones/retiros"
-            element={<OperacionesRetirosView />}
+            element={
+              <OperationsPermissionRoute
+                permission="OPERACIONES_RETIROS"
+              >
+                <OperacionesRetirosView />
+              </OperationsPermissionRoute>
+            }
           />
 
           <Route
             path="operaciones/procesos-disciplinarios/iniciar"
-            element={<IniciarProcesoOperacionesView />}
+            element={
+              <OperationsPermissionRoute
+                permission="OPERACIONES_PROCESOS_DISCIPLINARIOS"
+              >
+                <IniciarProcesoOperacionesView />
+              </OperationsPermissionRoute>
+            }
           />
 
           <Route
             path="operaciones/procesos-disciplinarios/revision"
-            element={<RevisionProcesoOperacionesView />}
+            element={
+              <OperationsPermissionRoute
+                permission="OPERACIONES_PROCESOS_DISCIPLINARIOS"
+              >
+                <RevisionProcesoOperacionesView />
+              </OperationsPermissionRoute>
+            }
           />
 
           <Route
