@@ -15,6 +15,10 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import LoginPage from "@/pages/LoginPage";
 import HomePage from "@/pages/HomePage";
 import EntrevistaRetiroPage from "@/pages/EntrevistaRetiroPage";
+import PortalTrabajadorPage from "@/pages/PortalTrabajadorPage";
+import TrabajadorIncapacidadesPage from "@/pages/TrabajadorIncapacidadesPage";
+import TrabajadorNuevaIncapacidadPage from "@/pages/TrabajadorNuevaIncapacidadPage";
+import TrabajadorMisIncapacidadesPage from "@/pages/TrabajadorMisIncapacidadesPage";
 
 import OperacionesProcesosDisciplinariosView from "@/pages/OperacionesProcesosDisciplinariosView";
 import OperacionesRetirosView from "@/pages/OperacionesRetirosView";
@@ -166,6 +170,26 @@ function App() {
         <Route
           path="/login"
           element={<LoginPage />}
+        />
+
+        <Route
+          path="/trabajador"
+          element={<PortalTrabajadorPage />}
+        />
+
+        <Route
+          path="/trabajador/incapacidades"
+          element={<TrabajadorIncapacidadesPage />}
+        />
+
+        <Route
+          path="/trabajador/incapacidades/nueva"
+          element={<TrabajadorNuevaIncapacidadPage />}
+        />
+
+        <Route
+          path="/trabajador/incapacidades/mis"
+          element={<TrabajadorMisIncapacidadesPage />}
         />
 
         <Route
