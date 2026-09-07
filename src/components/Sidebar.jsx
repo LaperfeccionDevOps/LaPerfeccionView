@@ -223,6 +223,16 @@ const Sidebar = ({
           ],
         },
         {
+          to: "/nomina-incapacidades",
+          label: "Incapacidades",
+          roles: [
+            "Administrador",
+            "Super Administrador",
+            "Nómina",
+            "Nomina",
+          ],
+        },
+        {
           to: "/indicadores-nomina",
           label: "Indicadores",
           roles: [
@@ -320,6 +330,10 @@ const Sidebar = ({
             {
               to: "/nomina-retiros",
               label: "Retiros",
+            },
+            {
+              to: "/nomina-incapacidades",
+              label: "Incapacidades",
             },
             {
               to: "/indicadores-nomina",
