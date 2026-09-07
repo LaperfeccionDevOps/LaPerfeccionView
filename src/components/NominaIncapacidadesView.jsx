@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   CalendarDays,
+  CheckCircle2,
   Download,
   Eye,
   FileText,
@@ -9,6 +10,7 @@ import {
   Search,
   User,
   X,
+  XCircle,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -212,6 +214,21 @@ const mapIncapacidadApi = (item) => ({
     'REGISTRADA',
   ),
 
+  observacionNomina:
+    item?.observacion_nomina ??
+    item?.ObservacionNomina ??
+    '',
+
+  usuarioGestionNomina:
+    item?.usuario_gestion_nomina ??
+    item?.UsuarioGestionNomina ??
+    '',
+
+  fechaGestionNomina:
+    item?.fecha_gestion_nomina ??
+    item?.FechaGestionNomina ??
+    '',
+
   fechaCreacion:
     item?.fecha_creacion ??
     item?.FechaCreacion ??
@@ -312,6 +329,11 @@ const NominaIncapacidadesView = () => {
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [abriendoDocumento, setAbriendoDocumento] = useState(null);
   const [descargandoDocumento, setDescargandoDocumento] = useState(null);
+  const [procesandoGestion, setProcesandoGestion] = useState(false);
+
+  const [mostrarRechazo, setMostrarRechazo] = useState(false);
+  const [motivoRechazo, setMotivoRechazo] = useState('');
+  const [mensajeGestion, setMensajeGestion] = useState('');
 
   const [errorCarga, setErrorCarga] = useState('');
   const [paginaActual, setPaginaActual] = useState(1);
@@ -451,6 +473,9 @@ const NominaIncapacidadesView = () => {
   const cerrarDetalle = () => {
     setIncapacidadSeleccionada(null);
     setErrorCarga('');
+    setMensajeGestion('');
+    setMostrarRechazo(false);
+    setMotivoRechazo('');
     setAbriendoDocumento(null);
     setDescargandoDocumento(null);
   };
@@ -608,6 +633,198 @@ const NominaIncapacidadesView = () => {
   };
 
 
+  const refrescarDetalleGestionado = async (
+    idIncapacidad,
+    mensaje,
+  ) => {
+    const token = localStorage.getItem('token');
+
+    const response = await fetch(
+      `${API_BASE_URL}/nomina-incapacidades/${idIncapacidad}`,
+      {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          ...(token
+            ? { Authorization: `Bearer ${token}` }
+            : {}),
+        },
+      },
+    );
+
+    const data = await response
+      .json()
+      .catch(() => ({}));
+
+    if (!response.ok || !data?.success) {
+      throw new Error(
+        data?.detail ||
+        data?.message ||
+        'La gestión se realizó, pero no fue posible actualizar el detalle.',
+      );
+    }
+
+    const detalle = mapIncapacidadApi(data?.data || {});
+
+    detalle.documentos = Array.isArray(data?.data?.documentos)
+      ? data.data.documentos.map(mapDocumentoApi)
+      : [];
+
+    setIncapacidadSeleccionada(detalle);
+    setMensajeGestion(mensaje);
+    await cargarIncapacidades();
+  };
+
+
+  const aprobarIncapacidad = async () => {
+    const idIncapacidad =
+      incapacidadSeleccionada?.idIncapacidad;
+
+    if (!idIncapacidad) return;
+
+    const confirmar = window.confirm(
+      '¿Confirmas que deseas aprobar esta incapacidad?',
+    );
+
+    if (!confirmar) return;
+
+    setProcesandoGestion(true);
+    setErrorCarga('');
+    setMensajeGestion('');
+
+    try {
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(
+        `${API_BASE_URL}/nomina-incapacidades/${idIncapacidad}/aprobar`,
+        {
+          method: 'PUT',
+          headers: {
+            Accept: 'application/json',
+            ...(token
+              ? { Authorization: `Bearer ${token}` }
+              : {}),
+          },
+        },
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok || !data?.success) {
+        throw new Error(
+          data?.detail ||
+          data?.message ||
+          'No fue posible aprobar la incapacidad.',
+        );
+      }
+
+      setMostrarRechazo(false);
+      setMotivoRechazo('');
+
+      await refrescarDetalleGestionado(
+        idIncapacidad,
+        data?.message ||
+          'Incapacidad aprobada correctamente.',
+      );
+    } catch (error) {
+      console.error(
+        'Error aprobando incapacidad:',
+        error,
+      );
+
+      setErrorCarga(
+        error?.message ||
+        'No fue posible aprobar la incapacidad.',
+      );
+    } finally {
+      setProcesandoGestion(false);
+    }
+  };
+
+
+  const rechazarIncapacidad = async () => {
+    const idIncapacidad =
+      incapacidadSeleccionada?.idIncapacidad;
+
+    if (!idIncapacidad) return;
+
+    const observacion = motivoRechazo.trim();
+
+    if (observacion.length < 3) {
+      setErrorCarga(
+        'Debes registrar el motivo del rechazo.',
+      );
+      return;
+    }
+
+    const confirmar = window.confirm(
+      '¿Confirmas que deseas rechazar esta incapacidad?',
+    );
+
+    if (!confirmar) return;
+
+    setProcesandoGestion(true);
+    setErrorCarga('');
+    setMensajeGestion('');
+
+    try {
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(
+        `${API_BASE_URL}/nomina-incapacidades/${idIncapacidad}/rechazar`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            ...(token
+              ? { Authorization: `Bearer ${token}` }
+              : {}),
+          },
+          body: JSON.stringify({
+            observacion,
+          }),
+        },
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok || !data?.success) {
+        throw new Error(
+          data?.detail ||
+          data?.message ||
+          'No fue posible rechazar la incapacidad.',
+        );
+      }
+
+      setMostrarRechazo(false);
+      setMotivoRechazo('');
+
+      await refrescarDetalleGestionado(
+        idIncapacidad,
+        data?.message ||
+          'Incapacidad rechazada correctamente.',
+      );
+    } catch (error) {
+      console.error(
+        'Error rechazando incapacidad:',
+        error,
+      );
+
+      setErrorCarga(
+        error?.message ||
+        'No fue posible rechazar la incapacidad.',
+      );
+    } finally {
+      setProcesandoGestion(false);
+    }
+  };
+
+
   const estadosDisponibles = useMemo(() => {
     const estados = incapacidades
       .map((item) => normalizarEstado(item.estado))
@@ -730,6 +947,12 @@ const NominaIncapacidadesView = () => {
     paginaActual * REGISTROS_POR_PAGINA,
     incapacidadesFiltradas.length,
   );
+
+
+  const puedeGestionarIncapacidad =
+    normalizarEstado(
+      incapacidadSeleccionada?.estado,
+    ) === 'REGISTRADA';
 
 
   return (
@@ -1478,9 +1701,194 @@ const NominaIncapacidadesView = () => {
               </div>
 
 
-              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
-                En esta primera fase la bandeja es de consulta y revisión. Los cambios de estado de Nómina se agregarán después de validar que los registros y documentos estén llegando correctamente.
-              </div>
+              {mensajeGestion && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
+                  {mensajeGestion}
+                </div>
+              )}
+
+              {errorCarga && (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
+                  {errorCarga}
+                </div>
+              )}
+
+              {puedeGestionarIncapacidad ? (
+                <div className="rounded-2xl border bg-white p-5">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <h3 className="font-bold text-gray-800">
+                        Gestión de Nómina
+                      </h3>
+
+                      <p className="mt-1 text-sm text-gray-500">
+                        Revisa la información y los soportes antes de aprobar o rechazar la incapacidad.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button
+                        type="button"
+                        onClick={aprobarIncapacidad}
+                        disabled={procesandoGestion}
+                        className="bg-emerald-600 text-white hover:bg-emerald-700"
+                      >
+                        {procesandoGestion ? (
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                        )}
+
+                        Aprobar
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setMostrarRechazo((actual) => !actual);
+                          setErrorCarga('');
+                          setMensajeGestion('');
+                        }}
+                        disabled={procesandoGestion}
+                        className="border-red-300 text-red-700 hover:bg-red-50"
+                      >
+                        <XCircle className="mr-2 h-4 w-4" />
+                        Rechazar
+                      </Button>
+                    </div>
+                  </div>
+
+                  {mostrarRechazo && (
+                    <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4">
+                      <label className="text-sm font-bold text-red-800">
+                        Motivo del rechazo
+                      </label>
+
+                      <p className="mt-1 text-xs text-red-700">
+                        Este comentario es obligatorio y quedará asociado a la gestión de Nómina.
+                      </p>
+
+                      <textarea
+                        value={motivoRechazo}
+                        onChange={(e) =>
+                          setMotivoRechazo(e.target.value)
+                        }
+                        maxLength={1000}
+                        rows={4}
+                        placeholder="Describe claramente el motivo por el cual se rechaza la incapacidad..."
+                        className="mt-3 w-full resize-none rounded-xl border border-red-200 bg-white px-3 py-3 text-sm text-gray-800 outline-none focus:border-red-400"
+                      />
+
+                      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setMostrarRechazo(false);
+                            setMotivoRechazo('');
+                            setErrorCarga('');
+                          }}
+                          disabled={procesandoGestion}
+                        >
+                          Cancelar
+                        </Button>
+
+                        <Button
+                          type="button"
+                          onClick={rechazarIncapacidad}
+                          disabled={
+                            procesandoGestion ||
+                            motivoRechazo.trim().length < 3
+                          }
+                          className="bg-red-600 text-white hover:bg-red-700"
+                        >
+                          {procesandoGestion ? (
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <XCircle className="mr-2 h-4 w-4" />
+                          )}
+
+                          Confirmar rechazo
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="rounded-2xl border bg-gray-50 p-5">
+                  <div className="flex items-start gap-3">
+                    {normalizarEstado(
+                      incapacidadSeleccionada.estado,
+                    ) === 'APROBADA' ? (
+                      <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                    ) : (
+                      <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+                    )}
+
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-gray-800">
+                        Gestión de Nómina realizada
+                      </h3>
+
+                      <p className="mt-1 text-sm text-gray-600">
+                        Esta incapacidad ya fue gestionada y no permite una nueva aprobación o rechazo.
+                      </p>
+
+                      <div className="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+                        <div>
+                          <p className="font-semibold text-gray-500">
+                            Estado
+                          </p>
+
+                          <span
+                            className={`mt-1 inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${getEstadoBadge(
+                              incapacidadSeleccionada.estado,
+                            )}`}
+                          >
+                            {incapacidadSeleccionada.estado}
+                          </span>
+                        </div>
+
+                        <div>
+                          <p className="font-semibold text-gray-500">
+                            Fecha de gestión
+                          </p>
+
+                          <p className="mt-1 text-gray-900">
+                            {formatearFechaHoraColombia(
+                              incapacidadSeleccionada.fechaGestionNomina,
+                            )}
+                          </p>
+                        </div>
+
+                        <div className="sm:col-span-2">
+                          <p className="font-semibold text-gray-500">
+                            Usuario que gestionó
+                          </p>
+
+                          <p className="mt-1 text-gray-900">
+                            {incapacidadSeleccionada.usuarioGestionNomina ||
+                              'Sin información'}
+                          </p>
+                        </div>
+
+                        {incapacidadSeleccionada.observacionNomina && (
+                          <div className="sm:col-span-2">
+                            <p className="font-semibold text-gray-500">
+                              Motivo / observación de Nómina
+                            </p>
+
+                            <p className="mt-1 whitespace-pre-wrap text-gray-900">
+                              {incapacidadSeleccionada.observacionNomina}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
