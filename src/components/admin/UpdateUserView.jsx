@@ -256,12 +256,16 @@ const UpdateUserView = () => {
     const name =
       String(
         selectedUser.name || ''
-      ).trim();
+      )
+        .trim()
+        .toUpperCase();
 
     const username =
       String(
         selectedUser.username || ''
-      ).trim();
+      )
+        .trim()
+        .toUpperCase();
 
     const email =
       String(
@@ -769,7 +773,7 @@ const UpdateUserView = () => {
                   onChange={(e) =>
                     setSelectedUser({
                       ...selectedUser,
-                      name: e.target.value,
+                      name: e.target.value.toUpperCase(),
                     })
                   }
                 />
@@ -790,10 +794,16 @@ const UpdateUserView = () => {
                   onChange={(e) =>
                     setSelectedUser({
                       ...selectedUser,
-                      username: e.target.value,
+                      username: e.target.value
+                        .replace(/\s/g, '')
+                        .toUpperCase(),
                     })
                   }
                 />
+
+                <p className="text-xs text-gray-500">
+                  El usuario se guardará automáticamente en MAYÚSCULA. Ejemplo: JUAN.PEREZ
+                </p>
 
               </div>
 
@@ -813,7 +823,7 @@ const UpdateUserView = () => {
                   onChange={(e) =>
                     setSelectedUser({
                       ...selectedUser,
-                      email: e.target.value,
+                      email: e.target.value.toLowerCase(),
                     })
                   }
                 />
@@ -1079,23 +1089,32 @@ const UpdateUserView = () => {
 
               <div className="grid gap-2">
 
-                <Label htmlFor="new-password">
+                <Label htmlFor="admin-credential-value">
                   Nueva contraseña
                 </Label>
 
                 <div className="relative">
 
                   <Input
-                    id="new-password"
-                    type={
-                      showNewPassword
-                        ? 'text'
-                        : 'password'
-                    }
-                    autoComplete="new-password"
+                    id="admin-credential-value"
+                    type="text"
+                    autoComplete="one-time-code"
+                    name="admin-credential-value"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                    data-form-type="other"
+                    spellCheck={false}
+                    autoCorrect="off"
+                    autoCapitalize="none"
                     value={newPassword}
                     disabled={isResettingPassword}
-                    className="pr-10"
+                    className="pr-10 no-uppercase"
+                    style={{
+                      WebkitTextSecurity:
+                        showNewPassword
+                          ? 'none'
+                          : 'disc',
+                    }}
                     onChange={(e) =>
                       setNewPassword(
                         e.target.value
@@ -1133,7 +1152,8 @@ const UpdateUserView = () => {
                 </div>
 
                 <p className="text-xs text-gray-500">
-                  Mínimo 8 caracteres.
+                  Mínimo 8 caracteres. La contraseña distingue mayúsculas y minúsculas.
+                  Escríbela exactamente como será utilizada.
                 </p>
 
               </div>
@@ -1141,23 +1161,32 @@ const UpdateUserView = () => {
 
               <div className="grid gap-2">
 
-                <Label htmlFor="confirm-password">
+                <Label htmlFor="admin-credential-confirmation">
                   Confirmar contraseña
                 </Label>
 
                 <div className="relative">
 
                   <Input
-                    id="confirm-password"
-                    type={
-                      showConfirmPassword
-                        ? 'text'
-                        : 'password'
-                    }
-                    autoComplete="new-password"
+                    id="admin-credential-confirmation"
+                    type="text"
+                    autoComplete="one-time-code"
+                    name="admin-credential-confirmation"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                    data-form-type="other"
+                    spellCheck={false}
+                    autoCorrect="off"
+                    autoCapitalize="none"
                     value={confirmPassword}
                     disabled={isResettingPassword}
-                    className="pr-10"
+                    className="pr-10 no-uppercase"
+                    style={{
+                      WebkitTextSecurity:
+                        showConfirmPassword
+                          ? 'none'
+                          : 'disc',
+                    }}
                     onChange={(e) =>
                       setConfirmPassword(
                         e.target.value
@@ -1193,6 +1222,10 @@ const UpdateUserView = () => {
                   </button>
 
                 </div>
+
+                <p className="text-xs text-gray-500">
+                  Confirma la contraseña respetando exactamente mayúsculas y minúsculas.
+                </p>
 
               </div>
 

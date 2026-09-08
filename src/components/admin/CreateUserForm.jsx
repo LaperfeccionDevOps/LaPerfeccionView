@@ -168,7 +168,9 @@ const CreateUserForm = () => {
                 type="text"
                 placeholder="Ej. Alejandra Guiza Parra"
                 value={formData.name}
-                onChange={(e) => handleChange('name', e.target.value)}
+                onChange={(e) =>
+                  handleChange('name', e.target.value.toUpperCase())
+                }
                 className="pl-10"
                 autoComplete="off"
               />
@@ -191,7 +193,7 @@ const CreateUserForm = () => {
                 onChange={(e) =>
                   handleChange(
                     'username',
-                    e.target.value.replace(/\s/g, '')
+                    e.target.value.replace(/\s/g, '').toUpperCase()
                   )
                 }
                 className="pl-10"
@@ -200,6 +202,10 @@ const CreateUserForm = () => {
 
               <User className="w-4 h-4 absolute left-3 top-3.5 text-gray-400" />
             </div>
+
+            <p className="text-xs text-gray-500">
+              El usuario se guardará automáticamente en MAYÚSCULA. Ejemplo: JUAN.PEREZ
+            </p>
           </div>
 
           <div className="space-y-2 md:col-span-2">
@@ -213,7 +219,9 @@ const CreateUserForm = () => {
                 type="email"
                 placeholder="Ej. usuario@aseoslaperfeccion.com"
                 value={formData.email}
-                onChange={(e) => handleChange('email', e.target.value)}
+                onChange={(e) =>
+                  handleChange('email', e.target.value.toLowerCase())
+                }
                 className="pl-10"
                 autoComplete="off"
               />
@@ -234,7 +242,7 @@ const CreateUserForm = () => {
                 placeholder="Mínimo 8 caracteres"
                 value={formData.pass}
                 onChange={(e) => handleChange('pass', e.target.value)}
-                className="pl-10 pr-10"
+                className="pl-10 pr-10 no-uppercase"
                 autoComplete="new-password"
               />
 
@@ -257,6 +265,10 @@ const CreateUserForm = () => {
                 )}
               </button>
             </div>
+
+            <p className="text-xs text-gray-500">
+              La contraseña distingue mayúsculas y minúsculas. Escríbela exactamente como será utilizada.
+            </p>
           </div>
 
           <div className="space-y-2">
