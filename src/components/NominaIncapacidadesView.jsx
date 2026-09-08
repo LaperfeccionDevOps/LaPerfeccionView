@@ -106,11 +106,11 @@ const getEstadoBadge = (estadoOriginal) => {
     return 'bg-emerald-100 text-emerald-700 border-emerald-200';
   }
 
-  if (estado === 'RECHAZADA' || estado === 'NEGADA') {
+  if (estado === 'RECHAZADA' || estado === 'NEGADA' || estado === 'NEGADO') {
     return 'bg-red-100 text-red-700 border-red-200';
   }
 
-  if (estado === 'RADICADA') {
+  if (estado === 'RADICADO') {
     return 'bg-blue-100 text-blue-700 border-blue-200';
   }
 
@@ -122,7 +122,7 @@ const getEstadoBadge = (estadoOriginal) => {
     return 'bg-violet-100 text-violet-700 border-violet-200';
   }
 
-  if (estado === 'PAGADA') {
+  if (estado === 'PAGADO') {
     return 'bg-teal-100 text-teal-700 border-teal-200';
   }
 
@@ -229,6 +229,26 @@ const mapIncapacidadApi = (item) => ({
     item?.FechaGestionNomina ??
     '',
 
+  numeroRadicado:
+    item?.numero_radicado ??
+    item?.NumeroRadicado ??
+    '',
+
+  fechaRadicacion:
+    item?.fecha_radicacion ??
+    item?.FechaRadicacion ??
+    '',
+
+  causalNegacion:
+    item?.causal_negacion ??
+    item?.CausalNegacion ??
+    '',
+
+  valorPagado:
+    item?.valor_pagado ??
+    item?.ValorPagado ??
+    null,
+
   fechaCreacion:
     item?.fecha_creacion ??
     item?.FechaCreacion ??
@@ -318,6 +338,22 @@ const formatearTamano = (bytes) => {
 };
 
 
+const formatearMonedaColombia = (valor) => {
+  const numero = Number(valor);
+
+  if (!Number.isFinite(numero)) {
+    return 'Sin información';
+  }
+
+  return numero.toLocaleString('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
+
+
 const NominaIncapacidadesView = () => {
   const [incapacidades, setIncapacidades] = useState([]);
   const [incapacidadSeleccionada, setIncapacidadSeleccionada] = useState(null);
@@ -334,6 +370,14 @@ const NominaIncapacidadesView = () => {
   const [mostrarRechazo, setMostrarRechazo] = useState(false);
   const [motivoRechazo, setMotivoRechazo] = useState('');
   const [mensajeGestion, setMensajeGestion] = useState('');
+
+  const [numeroRadicado, setNumeroRadicado] = useState('');
+  const [fechaRadicacion, setFechaRadicacion] = useState('');
+
+  const [mostrarNegacion, setMostrarNegacion] = useState(false);
+  const [causalNegacion, setCausalNegacion] = useState('');
+
+  const [valorPagado, setValorPagado] = useState('');
 
   const [errorCarga, setErrorCarga] = useState('');
   const [paginaActual, setPaginaActual] = useState(1);
@@ -476,6 +520,11 @@ const NominaIncapacidadesView = () => {
     setMensajeGestion('');
     setMostrarRechazo(false);
     setMotivoRechazo('');
+    setNumeroRadicado('');
+    setFechaRadicacion('');
+    setMostrarNegacion(false);
+    setCausalNegacion('');
+    setValorPagado('');
     setAbriendoDocumento(null);
     setDescargandoDocumento(null);
   };
@@ -825,6 +874,381 @@ const NominaIncapacidadesView = () => {
   };
 
 
+  const marcarPendienteRadicacion = async () => {
+    const idIncapacidad =
+      incapacidadSeleccionada?.idIncapacidad;
+
+    if (!idIncapacidad) return;
+
+    const confirmar = window.confirm(
+      '¿Confirmas que deseas pasar esta incapacidad a pendiente de radicación?',
+    );
+
+    if (!confirmar) return;
+
+    setProcesandoGestion(true);
+    setErrorCarga('');
+    setMensajeGestion('');
+
+    try {
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(
+        `${API_BASE_URL}/nomina-incapacidades/${idIncapacidad}/pendiente-radicacion`,
+        {
+          method: 'PUT',
+          headers: {
+            Accept: 'application/json',
+            ...(token
+              ? { Authorization: `Bearer ${token}` }
+              : {}),
+          },
+        },
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok || !data?.success) {
+        throw new Error(
+          data?.detail ||
+          data?.message ||
+          'No fue posible pasar la incapacidad a pendiente de radicación.',
+        );
+      }
+
+      await refrescarDetalleGestionado(
+        idIncapacidad,
+        data?.message ||
+          'Incapacidad marcada como pendiente de radicación correctamente.',
+      );
+    } catch (error) {
+      console.error(
+        'Error marcando incapacidad como pendiente de radicación:',
+        error,
+      );
+
+      setErrorCarga(
+        error?.message ||
+        'No fue posible pasar la incapacidad a pendiente de radicación.',
+      );
+    } finally {
+      setProcesandoGestion(false);
+    }
+  };
+
+
+  const radicarIncapacidad = async () => {
+    const idIncapacidad =
+      incapacidadSeleccionada?.idIncapacidad;
+
+    if (!idIncapacidad) return;
+
+    const numero = numeroRadicado.trim();
+    const fecha = fechaRadicacion.trim();
+
+    if (!numero) {
+      setErrorCarga('Debes registrar el número de radicado.');
+      return;
+    }
+
+    if (!fecha) {
+      setErrorCarga('Debes registrar la fecha de radicación.');
+      return;
+    }
+
+    const confirmar = window.confirm(
+      '¿Confirmas que deseas radicar esta incapacidad con la información registrada?',
+    );
+
+    if (!confirmar) return;
+
+    setProcesandoGestion(true);
+    setErrorCarga('');
+    setMensajeGestion('');
+
+    try {
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(
+        `${API_BASE_URL}/nomina-incapacidades/${idIncapacidad}/radicar`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            numero_radicado: numero,
+            fecha_radicacion: fecha,
+          }),
+        },
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data?.success) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            'No fue posible radicar la incapacidad.',
+        );
+      }
+
+      setNumeroRadicado('');
+      setFechaRadicacion('');
+
+      await refrescarDetalleGestionado(
+        idIncapacidad,
+        data?.message || 'Incapacidad radicada correctamente.',
+      );
+    } catch (error) {
+      console.error('Error radicando incapacidad:', error);
+      setErrorCarga(
+        error?.message || 'No fue posible radicar la incapacidad.',
+      );
+    } finally {
+      setProcesandoGestion(false);
+    }
+  };
+
+
+  const negarIncapacidad = async () => {
+    const idIncapacidad =
+      incapacidadSeleccionada?.idIncapacidad;
+
+    if (!idIncapacidad) return;
+
+    const causal = causalNegacion.trim();
+
+    if (causal.length < 3) {
+      setErrorCarga(
+        'Debes registrar la causal de negación.',
+      );
+      return;
+    }
+
+    const confirmar = window.confirm(
+      '¿Confirmas que deseas marcar esta incapacidad como negada?',
+    );
+
+    if (!confirmar) return;
+
+    setProcesandoGestion(true);
+    setErrorCarga('');
+    setMensajeGestion('');
+
+    try {
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(
+        `${API_BASE_URL}/nomina-incapacidades/${idIncapacidad}/negar`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            ...(token
+              ? { Authorization: `Bearer ${token}` }
+              : {}),
+          },
+          body: JSON.stringify({
+            causal_negacion: causal,
+          }),
+        },
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok || !data?.success) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            'No fue posible marcar la incapacidad como negada.',
+        );
+      }
+
+      setMostrarNegacion(false);
+      setCausalNegacion('');
+
+      await refrescarDetalleGestionado(
+        idIncapacidad,
+        data?.message ||
+          'Incapacidad marcada como negada correctamente.',
+      );
+    } catch (error) {
+      console.error(
+        'Error marcando incapacidad como negada:',
+        error,
+      );
+
+      setErrorCarga(
+        error?.message ||
+          'No fue posible marcar la incapacidad como negada.',
+      );
+    } finally {
+      setProcesandoGestion(false);
+    }
+  };
+
+
+  const marcarEnProcesoPago = async () => {
+    const idIncapacidad =
+      incapacidadSeleccionada?.idIncapacidad;
+
+    if (!idIncapacidad) return;
+
+    const confirmar = window.confirm(
+      '¿Confirmas que deseas pasar esta incapacidad a en proceso de pago?',
+    );
+
+    if (!confirmar) return;
+
+    setProcesandoGestion(true);
+    setErrorCarga('');
+    setMensajeGestion('');
+
+    try {
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(
+        `${API_BASE_URL}/nomina-incapacidades/${idIncapacidad}/en-proceso-pago`,
+        {
+          method: 'PUT',
+          headers: {
+            Accept: 'application/json',
+            ...(token
+              ? { Authorization: `Bearer ${token}` }
+              : {}),
+          },
+        },
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok || !data?.success) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            'No fue posible pasar la incapacidad a en proceso de pago.',
+        );
+      }
+
+      setMostrarNegacion(false);
+      setCausalNegacion('');
+
+      await refrescarDetalleGestionado(
+        idIncapacidad,
+        data?.message ||
+          'Incapacidad marcada como en proceso de pago correctamente.',
+      );
+    } catch (error) {
+      console.error(
+        'Error pasando incapacidad a en proceso de pago:',
+        error,
+      );
+
+      setErrorCarga(
+        error?.message ||
+          'No fue posible pasar la incapacidad a en proceso de pago.',
+      );
+    } finally {
+      setProcesandoGestion(false);
+    }
+  };
+
+
+  const registrarPago = async () => {
+    const idIncapacidad =
+      incapacidadSeleccionada?.idIncapacidad;
+
+    if (!idIncapacidad) return;
+
+    const valorNormalizado = String(valorPagado || '')
+      .replace(/\./g, '')
+      .replace(',', '.')
+      .trim();
+
+    const valorNumero = Number(valorNormalizado);
+
+    if (!Number.isFinite(valorNumero) || valorNumero <= 0) {
+      setErrorCarga(
+        'Debes registrar un valor pagado mayor que cero.',
+      );
+      return;
+    }
+
+    const confirmar = window.confirm(
+      `¿Confirmas que deseas registrar el pago por ${formatearMonedaColombia(valorNumero)}?`,
+    );
+
+    if (!confirmar) return;
+
+    setProcesandoGestion(true);
+    setErrorCarga('');
+    setMensajeGestion('');
+
+    try {
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(
+        `${API_BASE_URL}/nomina-incapacidades/${idIncapacidad}/pagar`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            ...(token
+              ? { Authorization: `Bearer ${token}` }
+              : {}),
+          },
+          body: JSON.stringify({
+            valor_pagado: valorNumero,
+          }),
+        },
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok || !data?.success) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            'No fue posible registrar el pago de la incapacidad.',
+        );
+      }
+
+      setValorPagado('');
+
+      await refrescarDetalleGestionado(
+        idIncapacidad,
+        data?.message ||
+          'Pago de incapacidad registrado correctamente.',
+      );
+    } catch (error) {
+      console.error(
+        'Error registrando pago de incapacidad:',
+        error,
+      );
+
+      setErrorCarga(
+        error?.message ||
+          'No fue posible registrar el pago de la incapacidad.',
+      );
+    } finally {
+      setProcesandoGestion(false);
+    }
+  };
+
+
   const estadosDisponibles = useMemo(() => {
     const estados = incapacidades
       .map((item) => normalizarEstado(item.estado))
@@ -851,7 +1275,8 @@ const NominaIncapacidadesView = () => {
 
         if (
           estado === 'RECHAZADA' ||
-          estado === 'NEGADA'
+          estado === 'NEGADA' ||
+          estado === 'NEGADO'
         ) {
           acumulado.rechazadas += 1;
         }
@@ -1816,8 +2241,9 @@ const NominaIncapacidadesView = () => {
                   )}
                 </div>
               ) : (
-                <div className="rounded-2xl border bg-gray-50 p-5">
-                  <div className="flex items-start gap-3">
+                <>
+                  <div className="rounded-2xl border bg-gray-50 p-5">
+                    <div className="flex items-start gap-3">
                     {normalizarEstado(
                       incapacidadSeleccionada.estado,
                     ) === 'APROBADA' ? (
@@ -1885,9 +2311,390 @@ const NominaIncapacidadesView = () => {
                           </div>
                         )}
                       </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+
+                  {normalizarEstado(
+                    incapacidadSeleccionada.estado,
+                  ) === 'APROBADA' && (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="min-w-0">
+                          <h3 className="font-bold text-gray-800">
+                            Seguimiento de la incapacidad
+                          </h3>
+
+                          <p className="mt-1 text-sm text-gray-600">
+                            La incapacidad está aprobada y puede continuar al siguiente paso del flujo de Nómina.
+                          </p>
+
+                          <div className="mt-3">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              Estado actual
+                            </p>
+
+                            <span
+                              className={`mt-1 inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${getEstadoBadge(
+                                incapacidadSeleccionada.estado,
+                              )}`}
+                            >
+                              {incapacidadSeleccionada.estado}
+                            </span>
+                          </div>
+                        </div>
+
+                        <Button
+                          type="button"
+                          onClick={marcarPendienteRadicacion}
+                          disabled={procesandoGestion}
+                          className="w-full bg-amber-600 text-white hover:bg-amber-700 lg:w-auto"
+                        >
+                          {procesandoGestion ? (
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                          )}
+
+                          Pasar a pendiente de radicación
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {normalizarEstado(
+                    incapacidadSeleccionada.estado,
+                  ) === 'PENDIENTE RADICACION' && (
+                    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
+                      <h3 className="font-bold text-gray-800">
+                        Radicación de la incapacidad
+                      </h3>
+
+                      <p className="mt-1 text-sm text-gray-600">
+                        Registra la información de radicación para continuar con el flujo de Nómina.
+                      </p>
+
+                      <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <label className="text-sm font-semibold text-gray-700">
+                          Número de radicado
+                          <Input
+                            value={numeroRadicado}
+                            onChange={(e) =>
+                              setNumeroRadicado(e.target.value)
+                            }
+                            maxLength={100}
+                            placeholder="Ej. RAD-2026-001234"
+                            disabled={procesandoGestion}
+                            className="mt-2 bg-white"
+                          />
+                        </label>
+
+                        <label className="text-sm font-semibold text-gray-700">
+                          Fecha de radicación
+                          <Input
+                            type="date"
+                            value={fechaRadicacion}
+                            onChange={(e) =>
+                              setFechaRadicacion(e.target.value)
+                            }
+                            disabled={procesandoGestion}
+                            className="mt-2 bg-white"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="mt-5 flex justify-end">
+                        <Button
+                          type="button"
+                          onClick={radicarIncapacidad}
+                          disabled={
+                            procesandoGestion ||
+                            !numeroRadicado.trim() ||
+                            !fechaRadicacion
+                          }
+                          className="w-full bg-blue-600 text-white hover:bg-blue-700 sm:w-auto"
+                        >
+                          {procesandoGestion ? (
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                          )}
+                          Radicar incapacidad
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {normalizarEstado(
+                    incapacidadSeleccionada.estado,
+                  ) === 'RADICADO' && (
+                    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
+                      <h3 className="font-bold text-gray-800">
+                        Información de radicación
+                      </h3>
+
+                      <p className="mt-1 text-sm text-gray-600">
+                        La incapacidad ya fue radicada. Registra el resultado informado por la entidad.
+                      </p>
+
+                      <div className="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+                        <div>
+                          <p className="font-semibold text-gray-500">
+                            Número de radicado
+                          </p>
+                          <p className="mt-1 font-medium text-gray-900">
+                            {incapacidadSeleccionada.numeroRadicado ||
+                              'Sin información'}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="font-semibold text-gray-500">
+                            Fecha de radicación
+                          </p>
+                          <p className="mt-1 font-medium text-gray-900">
+                            {formatearFecha(
+                              incapacidadSeleccionada.fechaRadicacion,
+                            )}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setMostrarNegacion((actual) => !actual);
+                            setErrorCarga('');
+                            setMensajeGestion('');
+                          }}
+                          disabled={procesandoGestion}
+                          className="border-red-300 text-red-700 hover:bg-red-50"
+                        >
+                          <XCircle className="mr-2 h-4 w-4" />
+                          Negado
+                        </Button>
+
+                        <Button
+                          type="button"
+                          onClick={marcarEnProcesoPago}
+                          disabled={procesandoGestion}
+                          className="bg-violet-600 text-white hover:bg-violet-700"
+                        >
+                          {procesandoGestion ? (
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                          )}
+                          En proceso de pago
+                        </Button>
+                      </div>
+
+                      {mostrarNegacion && (
+                        <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4">
+                          <label className="text-sm font-bold text-red-800">
+                            Causal de negación
+                          </label>
+
+                          <p className="mt-1 text-xs text-red-700">
+                            La causal es obligatoria para marcar la incapacidad como negada.
+                          </p>
+
+                          <textarea
+                            value={causalNegacion}
+                            onChange={(e) =>
+                              setCausalNegacion(e.target.value)
+                            }
+                            maxLength={1000}
+                            rows={4}
+                            placeholder="Registra la causal de negación informada por la entidad..."
+                            className="mt-3 w-full resize-none rounded-xl border border-red-200 bg-white px-3 py-3 text-sm text-gray-800 outline-none focus:border-red-400"
+                          />
+
+                          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => {
+                                setMostrarNegacion(false);
+                                setCausalNegacion('');
+                                setErrorCarga('');
+                              }}
+                              disabled={procesandoGestion}
+                            >
+                              Cancelar
+                            </Button>
+
+                            <Button
+                              type="button"
+                              onClick={negarIncapacidad}
+                              disabled={
+                                procesandoGestion ||
+                                causalNegacion.trim().length < 3
+                              }
+                              className="bg-red-600 text-white hover:bg-red-700"
+                            >
+                              {procesandoGestion ? (
+                                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <XCircle className="mr-2 h-4 w-4" />
+                              )}
+                              Confirmar negación
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {normalizarEstado(
+                    incapacidadSeleccionada.estado,
+                  ) === 'NEGADO' && (
+                    <div className="rounded-2xl border border-red-200 bg-red-50 p-5">
+                      <h3 className="font-bold text-red-800">
+                        Incapacidad negada
+                      </h3>
+
+                      <p className="mt-3 text-sm font-semibold text-red-700">
+                        Causal de negación
+                      </p>
+
+                      <p className="mt-1 whitespace-pre-wrap text-sm text-gray-900">
+                        {incapacidadSeleccionada.causalNegacion ||
+                          'Sin información'}
+                      </p>
+                    </div>
+                  )}
+
+                  {normalizarEstado(
+                    incapacidadSeleccionada.estado,
+                  ) === 'EN PROCESO DE PAGO' && (
+                    <div className="rounded-2xl border border-violet-200 bg-violet-50 p-5">
+                      <h3 className="font-bold text-violet-800">
+                        En proceso de pago
+                      </h3>
+
+                      <p className="mt-1 text-sm text-gray-600">
+                        La incapacidad se encuentra en proceso de pago. Registra el valor cuando el pago haya sido confirmado.
+                      </p>
+
+                      <div className="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+                        <div>
+                          <p className="font-semibold text-gray-500">
+                            Número de radicado
+                          </p>
+                          <p className="mt-1 font-medium text-gray-900">
+                            {incapacidadSeleccionada.numeroRadicado ||
+                              'Sin información'}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="font-semibold text-gray-500">
+                            Fecha de radicación
+                          </p>
+                          <p className="mt-1 font-medium text-gray-900">
+                            {formatearFecha(
+                              incapacidadSeleccionada.fechaRadicacion,
+                            )}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 rounded-2xl border border-violet-200 bg-white p-4">
+                        <label className="text-sm font-bold text-violet-800">
+                          Valor pagado
+                        </label>
+
+                        <p className="mt-1 text-xs text-gray-600">
+                          Registra el valor total pagado por la incapacidad.
+                        </p>
+
+                        <Input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={valorPagado}
+                          onChange={(e) =>
+                            setValorPagado(e.target.value)
+                          }
+                          placeholder="Ej. 350000"
+                          disabled={procesandoGestion}
+                          className="mt-3 bg-white"
+                        />
+
+                        <div className="mt-4 flex justify-end">
+                          <Button
+                            type="button"
+                            onClick={registrarPago}
+                            disabled={
+                              procesandoGestion ||
+                              !valorPagado ||
+                              Number(valorPagado) <= 0
+                            }
+                            className="w-full bg-teal-600 text-white hover:bg-teal-700 sm:w-auto"
+                          >
+                            {procesandoGestion ? (
+                              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="mr-2 h-4 w-4" />
+                            )}
+                            Registrar pago
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {normalizarEstado(
+                    incapacidadSeleccionada.estado,
+                  ) === 'PAGADO' && (
+                    <div className="rounded-2xl border border-teal-200 bg-teal-50 p-5">
+                      <h3 className="font-bold text-teal-800">
+                        Incapacidad pagada
+                      </h3>
+
+                      <p className="mt-1 text-sm text-gray-600">
+                        El pago de la incapacidad fue registrado correctamente.
+                      </p>
+
+                      <div className="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
+                        <div>
+                          <p className="font-semibold text-gray-500">
+                            Número de radicado
+                          </p>
+                          <p className="mt-1 font-medium text-gray-900">
+                            {incapacidadSeleccionada.numeroRadicado ||
+                              'Sin información'}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="font-semibold text-gray-500">
+                            Fecha de radicación
+                          </p>
+                          <p className="mt-1 font-medium text-gray-900">
+                            {formatearFecha(
+                              incapacidadSeleccionada.fechaRadicacion,
+                            )}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="font-semibold text-gray-500">
+                            Valor pagado
+                          </p>
+                          <p className="mt-1 font-bold text-teal-800">
+                            {formatearMonedaColombia(
+                              incapacidadSeleccionada.valorPagado,
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
