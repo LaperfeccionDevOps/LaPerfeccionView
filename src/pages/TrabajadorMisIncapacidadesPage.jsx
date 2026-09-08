@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  AlertCircle,
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
@@ -233,6 +234,7 @@ const TrabajadorMisIncapacidadesPage = () => {
         return "bg-emerald-50 text-emerald-700 border-emerald-200";
 
       case "RECHAZADA":
+      case "NEGADO":
       case "NEGADA":
         return "bg-red-50 text-red-700 border-red-200";
 
@@ -240,6 +242,7 @@ const TrabajadorMisIncapacidadesPage = () => {
       case "PENDIENTE_RADICACION":
         return "bg-amber-50 text-amber-700 border-amber-200";
 
+      case "RADICADO":
       case "RADICADA":
         return "bg-violet-50 text-violet-700 border-violet-200";
 
@@ -247,6 +250,7 @@ const TrabajadorMisIncapacidadesPage = () => {
       case "EN_PROCESO_DE_PAGO":
         return "bg-cyan-50 text-cyan-700 border-cyan-200";
 
+      case "PAGADO":
       case "PAGADA":
         return "bg-emerald-50 text-emerald-700 border-emerald-200";
 
@@ -595,6 +599,17 @@ const TrabajadorMisIncapacidadesPage = () => {
                           ? incapacidad.documentos
                           : [];
 
+                       const estadoNormalizado =
+                         String(
+                           incapacidad?.estado || ""
+                         )
+                           .trim()
+                           .toUpperCase();
+
+                       const esRechazada =
+                         estadoNormalizado ===
+                         "RECHAZADA";
+
                       return (
                         <article
                           key={
@@ -737,7 +752,64 @@ const TrabajadorMisIncapacidadesPage = () => {
 
                             </div>
 
-                          </div>
+                          </div>                          {esRechazada && (
+                            <div className="border-t border-red-100 bg-red-50/70 p-5 md:p-6">
+
+                              <div className="rounded-2xl border border-red-200 bg-white p-5">
+
+                                <div className="flex items-start gap-3">
+
+                                  <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+
+                                    <AlertCircle className="w-5 h-5 text-red-600" />
+
+                                  </div>
+
+                                  <div className="min-w-0">
+
+                                    <h4 className="text-sm font-bold text-red-800">
+                                      Incapacidad rechazada por Nómina
+                                    </h4>
+
+                                    <p className="mt-2 text-sm text-gray-600">
+                                      Esta solicitud quedó cerrada. Si necesita presentar nuevamente la incapacidad, debe realizar un nuevo registro.
+                                    </p>
+
+                                  </div>
+
+                                </div>
+
+                                <div className="mt-4 rounded-2xl border border-red-100 bg-red-50 p-4">
+
+                                  <p className="text-xs font-bold uppercase tracking-wide text-red-600">
+                                    Motivo informado por Nómina
+                                  </p>
+
+                                  <p className="mt-2 text-sm font-medium text-red-900 whitespace-pre-wrap break-words">
+                                    {incapacidad.observacion_nomina ||
+                                      "Nómina no registró una observación adicional."}
+                                  </p>
+
+                                </div>
+
+                                <Button
+                                  type="button"
+                                  onClick={() =>
+                                    navigate(
+                                      "/trabajador/incapacidades/nueva"
+                                    )
+                                  }
+                                  className="mt-4 w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white"
+                                >
+                                  <Plus className="w-4 h-4 mr-2" />
+
+                                  Registrar nueva incapacidad
+                                </Button>
+
+                              </div>
+
+                            </div>
+                          )}
 
 
                           <div className="border-t border-gray-100 bg-gray-50/70 p-5 md:p-6">
