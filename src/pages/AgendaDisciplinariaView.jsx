@@ -1043,8 +1043,8 @@ export default function AgendaDisciplinariaView({
   }, [notificacionRechazo]);
 
   return (
-    <div className="p-6 bg-slate-50 min-h-screen">
-      <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-blue-600">
+    <div className="w-full min-w-0 bg-slate-50 min-h-screen p-3 sm:p-4 xl:p-5">
+      <div className="w-full min-w-0 bg-white rounded-2xl shadow-xl p-4 sm:p-6 xl:p-7 border-t-4 border-blue-600">
         <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
@@ -1070,7 +1070,7 @@ export default function AgendaDisciplinariaView({
           </Button>
         </div>
 
-        <div className="mb-5 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm">
+        <div className="mb-5 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 xl:p-5 shadow-sm">
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.8fr_0.9fr_1fr_0.75fr] xl:items-end">
             <div>
               <label className="text-sm font-semibold text-gray-700">
@@ -1281,7 +1281,7 @@ export default function AgendaDisciplinariaView({
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 mb-5">
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 xl:gap-3 mb-5">
           <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-blue-500" />
@@ -1347,35 +1347,35 @@ export default function AgendaDisciplinariaView({
           Haz clic sobre una fila para abrir el expediente. Las acciones permiten reprogramar o cancelar una citación pendiente.
         </div>
 
-        <div className="overflow-x-auto border border-slate-200 rounded-xl">
-          <table className="w-full text-sm">
+        <div className="w-full min-w-0 overflow-x-auto border border-slate-200 rounded-xl">
+          <table className="w-full table-auto text-xs xl:text-sm">
             <thead className="bg-slate-100 text-slate-700">
               <tr>
-                <th className="px-4 py-3 text-left">
+                <th className="px-2 xl:px-3 py-3 text-left">
                   Fecha
                 </th>
-                <th className="px-4 py-3 text-left">
+                <th className="px-2 xl:px-3 py-3 text-left">
                   Hora
                 </th>
-                <th className="px-4 py-3 text-left">
+                <th className="px-2 xl:px-3 py-3 text-left">
                   Trabajador
                 </th>
-                <th className="px-4 py-3 text-left">
+                <th className="px-2 xl:px-3 py-3 text-left">
                   Expediente disciplinario
                 </th>
-                <th className="px-4 py-3 text-left">
+                <th className="px-2 xl:px-3 py-3 text-left">
                   Documento
                 </th>
-                <th className="px-4 py-3 text-left">
+                <th className="px-2 xl:px-3 py-3 text-left">
                   Evento
                 </th>
-                <th className="px-4 py-3 text-left">
+                <th className="px-2 xl:px-3 py-3 text-left">
                   Modalidad
                 </th>
-                <th className="px-4 py-3 text-left">
+                <th className="px-2 xl:px-3 py-3 text-left">
                   Estado
                 </th>
-                <th className="px-4 py-3 text-center">
+                <th className="px-2 xl:px-3 py-3 text-center">
                   Acciones
                 </th>
               </tr>
@@ -1418,20 +1418,20 @@ export default function AgendaDisciplinariaView({
                       }
                       className={`border-t cursor-pointer transition-colors ${estilo.fila}`}
                     >
-                      <td className="px-4 py-3">
+                      <td className="px-2 xl:px-3 py-3">
                         {evento.FechaEvento || "—"}
                       </td>
 
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="px-2 xl:px-3 py-3 whitespace-nowrap">
                         {evento.HoraInicio || "—"} -{" "}
                         {evento.HoraFin || "—"}
                       </td>
 
-                      <td className="px-4 py-3 font-semibold text-gray-800">
+                      <td className="px-2 xl:px-3 py-3 font-semibold text-gray-800">
                         {evento.NombreCompleto || "—"}
                       </td>
 
-                      <td className="px-4 py-3 whitespace-nowrap font-semibold text-gray-800">
+                      <td className="px-2 xl:px-3 py-3 whitespace-nowrap font-semibold text-gray-800">
                         {evento?.IdProcesoDisciplinario
                           ? formatearExpedienteDisciplinario(
                               evento.IdProcesoDisciplinario,
@@ -1441,15 +1441,15 @@ export default function AgendaDisciplinariaView({
                           : "—"}
                       </td>
 
-                      <td className="px-4 py-3">
+                      <td className="px-2 xl:px-3 py-3">
                         {evento.NumeroIdentificacion || "—"}
                       </td>
 
-                      <td className="px-4 py-3">
+                      <td className="px-2 xl:px-3 py-3">
                         {evento.TipoEvento || "—"}
                       </td>
 
-                      <td className="px-4 py-3">
+                      <td className="px-2 xl:px-3 py-3">
                         {eventoEsVirtual(evento) ? (
                           <div className="flex flex-col gap-1">
                             <span className="font-semibold text-blue-800">
@@ -1457,7 +1457,7 @@ export default function AgendaDisciplinariaView({
                             </span>
 
                             <span
-                              className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[11px] font-bold ${
+                              className={`inline-flex w-fit max-w-[112px] items-center justify-center rounded-full border px-2 py-0.5 text-center text-[10px] leading-tight xl:text-[11px] font-bold ${
                                 eventoTieneEnlaceVirtual(
                                   evento
                                 )
@@ -1477,9 +1477,9 @@ export default function AgendaDisciplinariaView({
                         )}
                       </td>
 
-                      <td className="px-4 py-3">
+                      <td className="px-2 xl:px-3 py-3">
                         <span
-                          className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-bold ${estilo.badge}`}
+                          className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full border text-[10px] xl:text-xs font-bold whitespace-nowrap ${estilo.badge}`}
                         >
                           <span
                             className={`w-2 h-2 rounded-full ${estilo.punto}`}
@@ -1489,13 +1489,13 @@ export default function AgendaDisciplinariaView({
                       </td>
 
                       <td
-                        className="px-4 py-3"
+                        className="px-2 xl:px-3 py-3"
                         onClick={(event) =>
                           event.stopPropagation()
                         }
                       >
                         {permiteAcciones ? (
-                          <div className="flex flex-col 2xl:flex-row justify-center gap-2 min-w-[340px]">
+                          <div className="flex flex-wrap items-center justify-center gap-1.5">
                             {eventoEsVirtual(
                               evento
                             ) &&
@@ -1504,7 +1504,7 @@ export default function AgendaDisciplinariaView({
                               ) && (
                                 <Button
                                   type="button"
-                                  className="bg-blue-700 text-white hover:bg-blue-800"
+                                  className="h-9 px-3 text-xs bg-blue-700 text-white hover:bg-blue-800"
                                   onClick={() =>
                                     abrirModalEnlaceVirtual(
                                       evento
@@ -1518,7 +1518,7 @@ export default function AgendaDisciplinariaView({
                             <Button
                               type="button"
                               variant="outline"
-                              className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                              className="h-9 px-3 text-xs border-gray-300 text-gray-700 hover:bg-gray-100"
                               onClick={() =>
                                 abrirModalReprogramar(
                                   evento
@@ -1531,7 +1531,7 @@ export default function AgendaDisciplinariaView({
                             <Button
                               type="button"
                               variant="outline"
-                              className="border-red-300 text-red-700 hover:bg-red-50"
+                              className="h-9 px-3 text-xs border-red-300 text-red-700 hover:bg-red-50"
                               onClick={() =>
                                 abrirModalCancelar(
                                   evento
