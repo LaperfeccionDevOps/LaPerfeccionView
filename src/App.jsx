@@ -154,6 +154,37 @@ const OperationsPermissionRoute = ({
 };
 
 
+const BienestarPermissionRoute = ({
+  children,
+}) => {
+  const { user } = useAuth();
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const role =
+    String(user?.role || "").trim();
+
+  const permissions =
+    Array.isArray(user?.permisos)
+      ? user.permisos
+      : [];
+
+  const hasAccess =
+    role === "Bienestar" ||
+    permissions.includes(
+      "BIENESTAR_DOCUMENTACION"
+    );
+
+  if (!hasAccess) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+};
+
+
 const ProcesosDisciplinariosRRLLRoute = () => {
   const navigate = useNavigate();
 
@@ -253,6 +284,15 @@ function App() {
           <Route
             path="archivos"
             element={<ArchivosView />}
+          />
+
+          <Route
+            path="bienestar"
+            element={
+              <BienestarPermissionRoute>
+                <ArchivosView />
+              </BienestarPermissionRoute>
+            }
           />
 
           <Route

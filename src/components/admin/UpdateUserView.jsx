@@ -746,7 +746,7 @@ const UpdateUserView = () => {
         onOpenChange={handleEditDialogChange}
       >
 
-        <DialogContent className="bg-white sm:max-w-[560px]">
+        <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden bg-white sm:max-w-[560px]">
 
           <DialogHeader>
             <DialogTitle>
@@ -757,7 +757,7 @@ const UpdateUserView = () => {
 
           {selectedUser && (
 
-            <div className="grid gap-4 py-4">
+            <div className="grid flex-1 gap-4 overflow-y-auto py-4 pr-2">
 
 
               <div className="grid gap-2">
@@ -1011,7 +1011,7 @@ const UpdateUserView = () => {
           )}
 
 
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="shrink-0 gap-2 border-t border-gray-200 bg-white pt-4 sm:gap-0">
 
             <Button
               type="button"
@@ -1072,7 +1072,7 @@ const UpdateUserView = () => {
 
           {selectedUser && (
 
-            <div className="grid gap-4 py-4">
+              <div className="grid gap-4 py-4">
 
               <div className="rounded-lg border border-purple-100 bg-purple-50 p-3">
 

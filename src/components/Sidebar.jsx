@@ -46,6 +46,9 @@ const Sidebar = ({
   const esAdministrador =
     rolUsuario === "Administrador";
 
+  const esTalentoHumano =
+    rolUsuario === "Talento Humano";
+
   const tieneAccesoAdministrativo =
     esAdministrador || esSuperAdministrador;
 
@@ -246,6 +249,100 @@ const Sidebar = ({
     },
   ];
 
+  const talentoHumanoNavItems = [
+    {
+      label: "Talento Humano",
+      icon: Users,
+      roles: ["Talento Humano"],
+      children: [
+        {
+          to: "/aspirantes",
+          label: "Registro Aspirante",
+        },
+        {
+          to: "/seleccion",
+          label: "Selección",
+          children: [
+            {
+              to: "/indicadores-seleccion",
+              label: "Indicadores",
+            },
+          ],
+        },
+        {
+          to: "/contratacion",
+          label: "Contratación",
+          children: [
+            {
+              to: "/indicadores-contratacion",
+              label: "Indicadores",
+            },
+          ],
+        },
+        ...(tienePermiso("OPERACIONES_PROCESOS_DISCIPLINARIOS")
+          ? [
+              {
+                to: "/operaciones/procesos-disciplinarios",
+                label: "Procesos Disciplinarios",
+              },
+            ]
+          : []),
+        ...(tienePermiso("OPERACIONES_RETIROS")
+          ? [
+              {
+                to: "/operaciones/retiros",
+                label: "Retiros",
+              },
+            ]
+          : []),
+        {
+          to: "/relaciones-laborales",
+          label: "Relaciones Laborales",
+          children: [
+            {
+              to: "/relaciones-laborales",
+              label: "Retiros",
+            },
+            {
+              to: "/relaciones-laborales/procesos-disciplinarios",
+              label: "Procesos Disciplinarios",
+            },
+            {
+              to: "/panel-gerencial-rrll",
+              label: "Panel Gerencial",
+            },
+          ],
+        },
+        {
+          to: "/nomina-retiros",
+          label: "Nómina",
+          children: [
+            {
+              to: "/nomina-retiros",
+              label: "Retiros",
+            },
+            {
+              to: "/indicadores-nomina",
+              label: "Indicadores",
+            },
+            {
+              to: "/nomina-carpeta-digital",
+              label: "Carpeta Digital",
+            },
+          ],
+        },
+        ...(tienePermiso("BIENESTAR_DOCUMENTACION")
+          ? [
+              {
+                to: "/bienestar",
+                label: "Bienestar",
+              },
+            ]
+          : []),
+      ],
+    },
+  ];
+
   const superAdminNavItems = [
     {
       label: "Administrador",
@@ -406,7 +503,9 @@ const Sidebar = ({
 
   const navItems = esSuperAdministrador
     ? superAdminNavItems
-    : allNavItems
+    : esTalentoHumano
+      ? talentoHumanoNavItems
+      : allNavItems
         .map((item) => {
           if (!rolUsuario) {
             return null;

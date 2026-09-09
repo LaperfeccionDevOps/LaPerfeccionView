@@ -139,8 +139,24 @@ const ArchivosView = () => {
   const { aspirantes, updateAspirante, loadAspirantes } = useAspirantes();
 
   const { user } = useAuth();
+
+  const permisosUsuario =
+    Array.isArray(user?.permisos)
+      ? user.permisos
+      : [];
+
+  const tienePermisoBienestar =
+    permisosUsuario.includes('BIENESTAR_DOCUMENTACION');
+
   const isOperaciones = user?.role === 'Operaciones';
-  const isBienestar = user?.role === 'Bienestar';
+
+  const isBienestar =
+    user?.role === 'Bienestar' ||
+    (
+      tienePermisoBienestar &&
+      location.pathname === '/bienestar'
+    );
+
   const isHSE = user?.role === 'HSE';
   const isConsultaSaludOcupacional = isHSE && location.pathname === '/hse-consulta-documentacion';
 
