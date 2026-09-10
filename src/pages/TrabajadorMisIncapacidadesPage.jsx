@@ -4,7 +4,6 @@ import {
   AlertCircle,
   ArrowLeft,
   CalendarDays,
-  CheckCircle2,
   Clock3,
   Eye,
   FileText,
@@ -199,42 +198,6 @@ const TrabajadorMisIncapacidadesPage = () => {
     });
   };
 
-  const getStatusClasses = (statusValue) => {
-    const estado = String(statusValue || "")
-      .trim()
-      .toUpperCase();
-
-    switch (estado) {
-      case "REGISTRADA":
-        return "bg-blue-50 text-blue-700 border-blue-200";
-      case "APROBADA":
-        return "bg-emerald-50 text-emerald-700 border-emerald-200";
-      case "RECHAZADA":
-      case "NEGADO":
-      case "NEGADA":
-        return "bg-red-50 text-red-700 border-red-200";
-      case "PENDIENTE RADICACION":
-      case "PENDIENTE_RADICACION":
-        return "bg-amber-50 text-amber-700 border-amber-200";
-      case "RADICADO":
-      case "RADICADA":
-        return "bg-violet-50 text-violet-700 border-violet-200";
-      case "EN PROCESO DE PAGO":
-      case "EN_PROCESO_DE_PAGO":
-        return "bg-cyan-50 text-cyan-700 border-cyan-200";
-      case "PAGADO":
-      case "PAGADA":
-        return "bg-emerald-50 text-emerald-700 border-emerald-200";
-      default:
-        return "bg-gray-50 text-gray-700 border-gray-200";
-    }
-  };
-
-  const formatStatus = (statusValue) =>
-    String(statusValue || "REGISTRADA")
-      .trim()
-      .replaceAll("_", " ");
-
   const handleViewDocument = async (
     incapacidad,
     documento
@@ -298,17 +261,6 @@ const TrabajadorMisIncapacidadesPage = () => {
     }
   };
 
-  const renderStatusBadge = (incapacidad) => (
-    <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold ${getStatusClasses(
-        incapacidad?.estado
-      )}`}
-    >
-      <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-      {formatStatus(incapacidad?.estado)}
-    </span>
-  );
-
   const renderDetailModal = () => {
     if (!selectedIncapacidad) {
       return null;
@@ -344,7 +296,6 @@ const TrabajadorMisIncapacidadesPage = () => {
                 <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-bold text-gray-700">
                   Registro #{incapacidad.id_incapacidad}
                 </span>
-                {renderStatusBadge(incapacidad)}
               </div>
 
               <h2 className="mt-3 text-xl md:text-2xl font-bold text-gray-800">
@@ -468,10 +419,10 @@ const TrabajadorMisIncapacidadesPage = () => {
 
                     <div className="min-w-0">
                       <h3 className="text-sm font-bold text-red-800">
-                        Incapacidad rechazada por Nómina
+                        Nómina solicitó una corrección
                       </h3>
                       <p className="mt-2 text-sm text-gray-600">
-                        Esta solicitud quedó cerrada. Si necesita presentar nuevamente la incapacidad, debe realizar un nuevo registro.
+                        Revise el correo enviado por Nómina y utilice el enlace de corrección para ajustar y reenviar esta misma incapacidad. No debe crear un registro nuevo.
                       </p>
                     </div>
                   </div>
@@ -485,18 +436,6 @@ const TrabajadorMisIncapacidadesPage = () => {
                         "Nómina no registró una observación adicional."}
                     </p>
                   </div>
-
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      setSelectedIncapacidad(null);
-                      navigate("/trabajador/incapacidades/nueva");
-                    }}
-                    className="mt-4 w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Registrar nueva incapacidad
-                  </Button>
                 </div>
               </div>
             )}
@@ -721,7 +660,7 @@ const TrabajadorMisIncapacidadesPage = () => {
 
                 <div className="hidden md:block overflow-hidden rounded-2xl border border-gray-200">
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[980px] border-collapse">
+                    <table className="w-full min-w-[820px] border-collapse">
                       <thead className="bg-gray-50">
                         <tr className="border-b border-gray-200">
                           <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500">
@@ -736,9 +675,6 @@ const TrabajadorMisIncapacidadesPage = () => {
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500">
                             Tipo de incapacidad
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500">
-                            Estado
                           </th>
                           <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-gray-500">
                             Acción
@@ -777,10 +713,6 @@ const TrabajadorMisIncapacidadesPage = () => {
                               </div>
                             </td>
 
-                            <td className="px-4 py-4">
-                              {renderStatusBadge(incapacidad)}
-                            </td>
-
                             <td className="px-4 py-4 text-center">
                               <Button
                                 type="button"
@@ -807,17 +739,13 @@ const TrabajadorMisIncapacidadesPage = () => {
                       key={incapacidad.id_incapacidad}
                       className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-gray-400">
-                            Registro #{incapacidad.id_incapacidad}
-                          </p>
-                          <h3 className="mt-1 text-base font-bold text-gray-800">
-                            {incapacidad.descripcion_tipo || "Incapacidad"}
-                          </h3>
-                        </div>
-
-                        {renderStatusBadge(incapacidad)}
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-gray-400">
+                          Registro #{incapacidad.id_incapacidad}
+                        </p>
+                        <h3 className="mt-1 text-base font-bold text-gray-800">
+                          {incapacidad.descripcion_tipo || "Incapacidad"}
+                        </h3>
                       </div>
 
                       <div className="mt-4 grid grid-cols-1 gap-3">

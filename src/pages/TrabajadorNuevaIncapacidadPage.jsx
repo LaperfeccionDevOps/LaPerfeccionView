@@ -4,7 +4,7 @@ import React, {
   useState,
 } from "react";
 
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 import {
   ArrowLeft,
@@ -99,6 +99,23 @@ const TIPOS_INCAPACIDAD = [
 
 const TrabajadorNuevaIncapacidadPage = () => {
   const navigate = useNavigate();
+  const { token: correctionToken = "" } = useParams();
+  const isCorrectionMode = Boolean(correctionToken);
+
+  const [
+    correctionData,
+    setCorrectionData,
+  ] = useState(null);
+
+  const [
+    isLoadingCorrection,
+    setIsLoadingCorrection,
+  ] = useState(false);
+
+  const [
+    correctionLoadError,
+    setCorrectionLoadError,
+  ] = useState("");
 
   const workerToken =
     localStorage.getItem("trabajador_token") || "";
@@ -184,12 +201,13 @@ const TrabajadorNuevaIncapacidadPage = () => {
 
 
   useEffect(() => {
-    if (!workerToken) {
+    if (!isCorrectionMode && !workerToken) {
       navigate("/login", {
         replace: true,
       });
     }
   }, [
+    isCorrectionMode,
     workerToken,
     navigate,
   ]);
@@ -248,7 +266,7 @@ const TrabajadorNuevaIncapacidadPage = () => {
 
 
   useEffect(() => {
-    if (!workerToken) {
+    if (isCorrectionMode || !workerToken) {
       setIsLoadingDraft(false);
       return;
     }
@@ -344,8 +362,117 @@ const TrabajadorNuevaIncapacidadPage = () => {
       active = false;
     };
   }, [
+    isCorrectionMode,
     workerToken,
     navigate,
+  ]);
+
+
+  useEffect(() => {
+    if (!isCorrectionMode || !correctionToken) {
+      return;
+    }
+
+    let active = true;
+
+    const cargarCorreccion = async () => {
+      try {
+        setIsLoadingCorrection(true);
+        setCorrectionLoadError("");
+        setError("");
+        setSuccess("");
+
+        const response = await fetch(
+          `${API_BASE_URL}/trabajador/incapacidades/corregir/${encodeURIComponent(correctionToken)}`,
+          {
+            method: "GET",
+          }
+        );
+
+        let responseData = {};
+
+        try {
+          responseData = await response.json();
+        } catch {
+          responseData = {};
+        }
+
+        if (!active) {
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            extraerMensajeError(
+              responseData,
+              "No fue posible cargar la incapacidad que requiere corrección."
+            )
+          );
+        }
+
+        const data = responseData?.data;
+
+        if (!data) {
+          throw new Error(
+            "No fue posible obtener la información de la incapacidad."
+          );
+        }
+
+        setCorrectionData(data);
+        setTipoIncapacidad(data.tipo_incapacidad || "");
+        setFechaInicio(data.fecha_inicio || "");
+        setDiasIncapacidad(
+          data.dias_incapacidad
+            ? String(data.dias_incapacidad)
+            : ""
+        );
+        setProrrogada(
+          data.es_prorroga ? "SI" : "NO"
+        );
+
+        const documentosServidor = {};
+
+        (data.documentos || []).forEach((documento) => {
+          if (documento?.tipo_documento) {
+            documentosServidor[
+              documento.tipo_documento
+            ] = documento;
+          }
+        });
+
+        setPersistedDocuments(documentosServidor);
+        setDocumentos({});
+        setDraftFound(false);
+        setDraftData(null);
+        setShowDraftNotice(false);
+
+      } catch (errorCorreccion) {
+        console.error(
+          "Error cargando corrección de incapacidad:",
+          errorCorreccion
+        );
+
+        if (active) {
+          setCorrectionLoadError(
+            errorCorreccion?.message ||
+            "No fue posible cargar la incapacidad que requiere corrección."
+          );
+        }
+      } finally {
+        if (active) {
+          setIsLoadingCorrection(false);
+        }
+      }
+    };
+
+    cargarCorreccion();
+
+    return () => {
+      active = false;
+    };
+  }, [
+    isCorrectionMode,
+    correctionToken,
   ]);
 
 
@@ -744,9 +871,21 @@ const TrabajadorNuevaIncapacidadPage = () => {
 
 
   const validarDatosTrabajador = () => {
+    const documentoActual = isCorrectionMode
+      ? correctionData?.numero_identificacion
+      : workerDocument;
+
+    const nombreActual = isCorrectionMode
+      ? correctionData?.nombre_completo
+      : workerName;
+
+    const epsActual = isCorrectionMode
+      ? correctionData?.eps
+      : workerEps;
+
     if (
       !String(
-        workerDocument
+        documentoActual || ""
       ).trim()
     ) {
       return "No fue posible identificar el documento del trabajador.";
@@ -754,7 +893,7 @@ const TrabajadorNuevaIncapacidadPage = () => {
 
     if (
       !String(
-        workerName
+        nombreActual || ""
       ).trim()
     ) {
       return "No fue posible identificar el nombre del trabajador.";
@@ -762,7 +901,7 @@ const TrabajadorNuevaIncapacidadPage = () => {
 
     if (
       !String(
-        workerEps
+        epsActual || ""
       ).trim()
     ) {
       return "El trabajador no tiene una EPS registrada. Debe actualizarse esta información antes de registrar la incapacidad.";
@@ -1198,15 +1337,24 @@ const TrabajadorNuevaIncapacidadPage = () => {
     try {
       setError("");
 
+      const urlDocumento = isCorrectionMode
+        ? `${API_BASE_URL}/trabajador/incapacidades/corregir/${encodeURIComponent(correctionToken)}/documentos/${archivoServidor.id_documento}`
+        : `${API_BASE_URL}/trabajador/incapacidades/borrador/documentos/${archivoServidor.id_documento}`;
+
+      const opcionesDocumento = {
+        method: "GET",
+      };
+
+      if (!isCorrectionMode) {
+        opcionesDocumento.headers = {
+          Authorization:
+            `Bearer ${workerToken}`,
+        };
+      }
+
       const response = await fetch(
-        `${API_BASE_URL}/trabajador/incapacidades/borrador/documentos/${archivoServidor.id_documento}`,
-        {
-          method: "GET",
-          headers: {
-            Authorization:
-              `Bearer ${workerToken}`,
-          },
-        }
+        urlDocumento,
+        opcionesDocumento
       );
 
       if (!response.ok) {
@@ -1303,9 +1451,17 @@ const TrabajadorNuevaIncapacidadPage = () => {
       return;
     }
 
-    if (!workerToken) {
+    if (!isCorrectionMode && !workerToken) {
       setError(
         "La sesión del trabajador no está disponible. Ingrese nuevamente."
+      );
+
+      return;
+    }
+
+    if (isCorrectionMode && !correctionToken) {
+      setError(
+        "El enlace de corrección no está disponible."
       );
 
       return;
@@ -1362,16 +1518,25 @@ const TrabajadorNuevaIncapacidadPage = () => {
     try {
       setIsSubmitting(true);
 
+      const urlRegistro = isCorrectionMode
+        ? `${API_BASE_URL}/trabajador/incapacidades/corregir/${encodeURIComponent(correctionToken)}`
+        : `${API_BASE_URL}/trabajador/incapacidades`;
+
+      const opcionesRegistro = {
+        method: "POST",
+        body: formData,
+      };
+
+      if (!isCorrectionMode) {
+        opcionesRegistro.headers = {
+          Authorization:
+            `Bearer ${workerToken}`,
+        };
+      }
+
       const response = await fetch(
-        `${API_BASE_URL}/trabajador/incapacidades`,
-        {
-          method: "POST",
-          headers: {
-            Authorization:
-              `Bearer ${workerToken}`,
-          },
-          body: formData,
-        }
+        urlRegistro,
+        opcionesRegistro
       );
 
       let responseData = {};
@@ -1452,20 +1617,24 @@ const TrabajadorNuevaIncapacidadPage = () => {
         "";
 
       setSuccess(
-        idIncapacidad
+        isCorrectionMode
+          ? "La incapacidad fue corregida y enviada nuevamente a Nómina."
+          : idIncapacidad
           ? `Número de registro: ${idIncapacidad}.`
           : "Incapacidad registrada correctamente."
       );
 
-      setTipoIncapacidad("");
-      setFechaInicio("");
-      setDiasIncapacidad("");
-      setProrrogada("");
-      setDocumentos({});
-      setPersistedDocuments({});
-      setDraftFound(false);
-      setDraftData(null);
-      setShowDraftNotice(false);
+      if (!isCorrectionMode) {
+        setTipoIncapacidad("");
+        setFechaInicio("");
+        setDiasIncapacidad("");
+        setProrrogada("");
+        setDocumentos({});
+        setPersistedDocuments({});
+        setDraftFound(false);
+        setDraftData(null);
+        setShowDraftNotice(false);
+      }
 
     } catch (errorRegistro) {
       console.error(
@@ -1490,7 +1659,7 @@ const TrabajadorNuevaIncapacidadPage = () => {
     !validacionDiasActual.valido;
 
 
-  if (!workerToken) {
+  if (!isCorrectionMode && !workerToken) {
     return null;
   }
 
@@ -1506,7 +1675,26 @@ const TrabajadorNuevaIncapacidadPage = () => {
 
           <div className="p-4 sm:p-5 md:p-8">
 
-            {isLoadingDraft && (
+            {isCorrectionMode && isLoadingCorrection && (
+              <div className="mb-5 flex items-center justify-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4 text-gray-600">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span className="text-sm font-semibold">
+                  Cargando incapacidad para corrección...
+                </span>
+              </div>
+            )}
+
+            {isCorrectionMode && correctionLoadError && (
+              <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-red-700">
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">No fue posible abrir la corrección</p>
+                  <p className="mt-1 text-sm">{correctionLoadError}</p>
+                </div>
+              </div>
+            )}
+
+            {!isCorrectionMode && isLoadingDraft && (
               <div className="mb-5 flex items-center justify-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4 text-gray-600">
                 <Loader2 className="w-5 h-5 animate-spin" />
                 <span className="text-sm font-semibold">
@@ -1515,7 +1703,7 @@ const TrabajadorNuevaIncapacidadPage = () => {
               </div>
             )}
 
-            {showDraftNotice && draftFound && (
+            {!isCorrectionMode && showDraftNotice && draftFound && (
               <div className="mb-6 rounded-3xl border-2 border-amber-300 bg-amber-50 p-5 sm:p-7 shadow-sm">
                 <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                   <div className="w-14 h-14 rounded-2xl bg-amber-100 flex items-center justify-center shrink-0">
@@ -1574,15 +1762,19 @@ const TrabajadorNuevaIncapacidadPage = () => {
                   type="button"
                   variant="ghost"
                   onClick={() =>
-                    navigate(
-                      "/trabajador/incapacidades"
-                    )
+                    isCorrectionMode
+                      ? navigate("/login")
+                      : navigate(
+                          "/trabajador/incapacidades"
+                        )
                   }
                   className="mb-3 -ml-2 text-gray-500 hover:text-gray-900"
                 >
                   <ArrowLeft className="w-4 h-4 mr-2" />
 
-                  Volver a incapacidades
+                  {isCorrectionMode
+                    ? "Volver al inicio"
+                    : "Volver a incapacidades"}
                 </Button>
 
 
@@ -1602,11 +1794,15 @@ const TrabajadorNuevaIncapacidadPage = () => {
                     </p>
 
                     <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 break-words">
-                      Registrar incapacidad
+                      {isCorrectionMode
+                        ? "Corregir incapacidad"
+                        : "Registrar incapacidad"}
                     </h1>
 
                     <p className="text-xs sm:text-sm text-gray-500 mt-1">
-                      Diligencie la información y adjunte los documentos requeridos.
+                      {isCorrectionMode
+                        ? "Revise la observación de Nómina, realice la corrección solicitada y envíe nuevamente la misma incapacidad."
+                        : "Diligencie la información y adjunte los documentos requeridos."}
                     </p>
 
                   </div>
@@ -1616,6 +1812,7 @@ const TrabajadorNuevaIncapacidadPage = () => {
               </div>
 
 
+              {!isCorrectionMode && (
               <Button
                 type="button"
                 variant="outline"
@@ -1628,6 +1825,7 @@ const TrabajadorNuevaIncapacidadPage = () => {
 
                 Cerrar sesión
               </Button>
+              )}
 
             </div>
 
@@ -1643,7 +1841,9 @@ const TrabajadorNuevaIncapacidadPage = () => {
                   </p>
 
                   <p className="font-bold text-gray-800 mt-1 break-words">
-                    {workerName ||
+                    {(isCorrectionMode
+                      ? correctionData?.nombre_completo
+                      : workerName) ||
                       "Trabajador"}
                   </p>
 
@@ -1657,7 +1857,9 @@ const TrabajadorNuevaIncapacidadPage = () => {
                   </p>
 
                   <p className="font-bold text-gray-800 mt-1 break-words">
-                    {workerDocument ||
+                    {(isCorrectionMode
+                      ? correctionData?.numero_identificacion
+                      : workerDocument) ||
                       "No disponible"}
                   </p>
 
@@ -1671,7 +1873,9 @@ const TrabajadorNuevaIncapacidadPage = () => {
                   </p>
 
                   <p className="font-bold text-gray-800 mt-1 break-words">
-                    {workerEps ||
+                    {(isCorrectionMode
+                      ? correctionData?.eps
+                      : workerEps) ||
                       "No registrada"}
                   </p>
 
@@ -1681,6 +1885,28 @@ const TrabajadorNuevaIncapacidadPage = () => {
 
             </div>
 
+
+            {isCorrectionMode && correctionData && (
+              <div className="mt-6 sm:mt-8 rounded-2xl border-2 border-red-200 bg-red-50 p-4 sm:p-6">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <h2 className="text-lg sm:text-xl font-bold text-red-800">
+                      Esta incapacidad requiere una corrección
+                    </h2>
+                    <p className="mt-2 text-sm text-red-700">
+                      Nómina indicó el siguiente motivo:
+                    </p>
+                    <p className="mt-2 text-sm sm:text-base font-semibold text-red-900 break-words">
+                      {correctionData.motivo_correccion}
+                    </p>
+                    <p className="mt-3 text-xs sm:text-sm text-red-700">
+                      Realice los cambios necesarios y envíe nuevamente la misma incapacidad para revisión.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <form
               onSubmit={
@@ -2182,11 +2408,15 @@ const TrabajadorNuevaIncapacidadPage = () => {
                   </div>
 
                   <h2 className="mt-5 text-2xl sm:text-3xl font-bold text-emerald-800">
-                    Incapacidad registrada correctamente
+                    {isCorrectionMode
+                      ? "Incapacidad reenviada correctamente"
+                      : "Incapacidad registrada correctamente"}
                   </h2>
 
                   <p className="mt-3 text-sm sm:text-base text-emerald-700 max-w-2xl mx-auto leading-relaxed">
-                    Hemos recibido correctamente la información y los documentos de la incapacidad.
+                    {isCorrectionMode
+                      ? "La corrección fue recibida correctamente y la misma incapacidad quedó nuevamente disponible para revisión de Nómina."
+                      : "Hemos recibido correctamente la información y los documentos de la incapacidad."}
                   </p>
 
                   {success !== "Incapacidad registrada correctamente." && (
@@ -2196,7 +2426,9 @@ const TrabajadorNuevaIncapacidadPage = () => {
                   )}
 
                   <p className="mt-4 text-xs sm:text-sm text-gray-600 max-w-xl mx-auto">
-                    Puede volver al módulo de incapacidades o iniciar un nuevo registro.
+                    {isCorrectionMode
+                      ? "Este enlace de corrección ya no podrá utilizarse nuevamente."
+                      : "Puede volver al módulo de incapacidades o iniciar un nuevo registro."}
                   </p>
 
                   <div className="mt-7 flex flex-col sm:flex-row sm:justify-center gap-3">
@@ -2213,6 +2445,7 @@ const TrabajadorNuevaIncapacidadPage = () => {
                       Volver a incapacidades
                     </Button>
 
+                    {!isCorrectionMode && (
                     <Button
                       type="button"
                       onClick={() => {
@@ -2228,6 +2461,7 @@ const TrabajadorNuevaIncapacidadPage = () => {
                       <FilePlus2 className="w-4 h-4 mr-2" />
                       Registrar otra incapacidad
                     </Button>
+                    )}
                   </div>
 
                 </div>

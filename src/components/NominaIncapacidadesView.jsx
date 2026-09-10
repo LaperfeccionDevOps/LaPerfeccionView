@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarDays,
   CheckCircle2,
@@ -23,6 +23,34 @@ const API_BASE_URL =
   '';
 
 const REGISTROS_POR_PAGINA = 10;
+
+
+const TIPOS_INCAPACIDAD_EDITABLES = [
+  {
+    value: 'INCAPACIDAD_1_2_DIAS',
+    label: 'INCAPACIDAD DE 1 Y 2 DÍAS',
+  },
+  {
+    value: 'ACCIDENTE_TRANSITO',
+    label: 'ACCIDENTE DE TRÁNSITO',
+  },
+  {
+    value: 'ACCIDENTE_TRABAJO',
+    label: 'ACCIDENTE DE TRABAJO (ARL)',
+  },
+  {
+    value: 'INCAPACIDAD_3_MAS_DIAS',
+    label: 'INCAPACIDAD DE 3 O MÁS DÍAS',
+  },
+  {
+    value: 'LICENCIA_MATERNA',
+    label: 'LICENCIA MATERNA',
+  },
+  {
+    value: 'LICENCIA_PATERNA',
+    label: 'LICENCIA PATERNA',
+  },
+];
 
 
 const formatearFecha = (valor) => {
@@ -266,6 +294,39 @@ const mapIncapacidadApi = (item) => ({
       0,
     ),
 
+  fueCorregida: Boolean(
+    item?.fue_corregida ??
+    item?.FueCorregida ??
+    false,
+  ),
+
+  totalCorrecciones:
+    Number(
+      item?.total_correcciones ??
+      item?.TotalCorrecciones ??
+      0,
+    ),
+
+  motivoUltimaCorreccion:
+    item?.motivo_ultima_correccion ??
+    item?.MotivoUltimaCorreccion ??
+    '',
+
+  estadoUltimaCorreccion:
+    item?.estado_ultima_correccion ??
+    item?.EstadoUltimaCorreccion ??
+    '',
+
+  fechaSolicitudUltimaCorreccion:
+    item?.fecha_solicitud_ultima_correccion ??
+    item?.FechaSolicitudUltimaCorreccion ??
+    '',
+
+  fechaReenvioUltimaCorreccion:
+    item?.fecha_reenvio_ultima_correccion ??
+    item?.FechaReenvioUltimaCorreccion ??
+    '',
+
   documentos: Array.isArray(item?.documentos)
     ? item.documentos
     : Array.isArray(item?.Documentos)
@@ -359,7 +420,7 @@ const NominaIncapacidadesView = () => {
   const [incapacidadSeleccionada, setIncapacidadSeleccionada] = useState(null);
 
   const [busqueda, setBusqueda] = useState('');
-  const [filtroEstado, setFiltroEstado] = useState('TODAS');
+  const [pestanaActiva, setPestanaActiva] = useState('REGISTRADAS');
 
   const [cargando, setCargando] = useState(false);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
@@ -369,6 +430,8 @@ const NominaIncapacidadesView = () => {
 
   const [mostrarRechazo, setMostrarRechazo] = useState(false);
   const [motivoRechazo, setMotivoRechazo] = useState('');
+  const rechazoRef = useRef(null);
+  const motivoRechazoRef = useRef(null);
   const [mensajeGestion, setMensajeGestion] = useState('');
 
   const [numeroRadicado, setNumeroRadicado] = useState('');
@@ -378,6 +441,7 @@ const NominaIncapacidadesView = () => {
   const [causalNegacion, setCausalNegacion] = useState('');
 
   const [valorPagado, setValorPagado] = useState('');
+  const [tipoIncapacidadEditada, setTipoIncapacidadEditada] = useState('');
 
   const [errorCarga, setErrorCarga] = useState('');
   const [paginaActual, setPaginaActual] = useState(1);
@@ -455,6 +519,28 @@ const NominaIncapacidadesView = () => {
   }, []);
 
 
+  useEffect(() => {
+    if (!mostrarRechazo) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      rechazoRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+
+      motivoRechazoRef.current?.focus({
+        preventScroll: true,
+      });
+    }, 120);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [mostrarRechazo]);
+
+
   const abrirDetalle = async (incapacidad) => {
     if (!incapacidad?.idIncapacidad) return;
 
@@ -498,6 +584,7 @@ const NominaIncapacidadesView = () => {
         : [];
 
       setIncapacidadSeleccionada(detalle);
+      setTipoIncapacidadEditada(detalle.tipoIncapacidad || '');
     } catch (error) {
       console.error(
         'Error cargando detalle de incapacidad:',
@@ -525,6 +612,7 @@ const NominaIncapacidadesView = () => {
     setMostrarNegacion(false);
     setCausalNegacion('');
     setValorPagado('');
+    setTipoIncapacidadEditada('');
     setAbriendoDocumento(null);
     setDescargandoDocumento(null);
   };
@@ -720,8 +808,101 @@ const NominaIncapacidadesView = () => {
       : [];
 
     setIncapacidadSeleccionada(detalle);
+    setTipoIncapacidadEditada(detalle.tipoIncapacidad || '');
     setMensajeGestion(mensaje);
     await cargarIncapacidades();
+  };
+
+
+  const actualizarTipoIncapacidad = async () => {
+    const idIncapacidad =
+      incapacidadSeleccionada?.idIncapacidad;
+
+    if (!idIncapacidad) return;
+
+    const tipoSeleccionado =
+      String(tipoIncapacidadEditada || '')
+        .trim()
+        .toUpperCase();
+
+    if (!tipoSeleccionado) {
+      setErrorCarga(
+        'Debes seleccionar un tipo de incapacidad.',
+      );
+      return;
+    }
+
+    if (
+      tipoSeleccionado ===
+      String(
+        incapacidadSeleccionada?.tipoIncapacidad || '',
+      )
+        .trim()
+        .toUpperCase()
+    ) {
+      return;
+    }
+
+    const confirmar = window.confirm(
+      '¿Confirmas que deseas actualizar el tipo de incapacidad?',
+    );
+
+    if (!confirmar) return;
+
+    setProcesandoGestion(true);
+    setErrorCarga('');
+    setMensajeGestion('');
+
+    try {
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(
+        `${API_BASE_URL}/nomina-incapacidades/${idIncapacidad}/tipo`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            ...(token
+              ? { Authorization: `Bearer ${token}` }
+              : {}),
+          },
+          body: JSON.stringify({
+            tipo_incapacidad: tipoSeleccionado,
+          }),
+        },
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok || !data?.success) {
+        throw new Error(
+          data?.detail ||
+          data?.message ||
+          'No fue posible actualizar el tipo de incapacidad.',
+        );
+      }
+
+      await refrescarDetalleGestionado(
+        idIncapacidad,
+        data?.message ||
+          'Tipo de incapacidad actualizado correctamente.',
+      );
+    } catch (error) {
+      console.error(
+        'Error actualizando tipo de incapacidad:',
+        error,
+      );
+
+      setErrorCarga(
+        error?.message ||
+        'No fue posible actualizar el tipo de incapacidad.',
+      );
+    } finally {
+      setProcesandoGestion(false);
+    }
   };
 
 
@@ -1249,15 +1430,6 @@ const NominaIncapacidadesView = () => {
   };
 
 
-  const estadosDisponibles = useMemo(() => {
-    const estados = incapacidades
-      .map((item) => normalizarEstado(item.estado))
-      .filter(Boolean);
-
-    return [...new Set(estados)].sort();
-  }, [incapacidades]);
-
-
   const totales = useMemo(() => {
     return incapacidades.reduce(
       (acumulado, item) => {
@@ -1269,7 +1441,13 @@ const NominaIncapacidadesView = () => {
           acumulado.registradas += 1;
         }
 
-        if (estado === 'APROBADA') {
+        if (
+          estado === 'APROBADA' ||
+          estado === 'PENDIENTE RADICACION' ||
+          estado === 'RADICADO' ||
+          estado === 'EN PROCESO DE PAGO' ||
+          estado === 'PAGADO'
+        ) {
           acumulado.aprobadas += 1;
         }
 
@@ -1298,6 +1476,8 @@ const NominaIncapacidadesView = () => {
       busqueda.trim().toLowerCase();
 
     return incapacidades.filter((item) => {
+      const estado = normalizarEstado(item.estado);
+
       const coincideBusqueda =
         !textoBusqueda ||
         String(item.identificacion || '')
@@ -1311,24 +1491,46 @@ const NominaIncapacidadesView = () => {
           .includes(textoBusqueda) ||
         String(item.tipoIncapacidad || '')
           .toLowerCase()
+          .includes(textoBusqueda) ||
+        String(item.descripcionTipo || '')
+          .toLowerCase()
           .includes(textoBusqueda);
 
-      const coincideEstado =
-        filtroEstado === 'TODAS' ||
-        normalizarEstado(item.estado) === filtroEstado;
+      let coincidePestana = false;
 
-      return coincideBusqueda && coincideEstado;
+      if (pestanaActiva === 'REGISTRADAS') {
+        coincidePestana =
+          estado === 'REGISTRADA';
+      }
+
+      if (pestanaActiva === 'APROBADAS') {
+        coincidePestana =
+          estado === 'APROBADA' ||
+          estado === 'PENDIENTE RADICACION' ||
+          estado === 'RADICADO' ||
+          estado === 'EN PROCESO DE PAGO' ||
+          estado === 'PAGADO';
+      }
+
+      if (pestanaActiva === 'RECHAZADAS') {
+        coincidePestana =
+          estado === 'RECHAZADA' ||
+          estado === 'NEGADA' ||
+          estado === 'NEGADO';
+      }
+
+      return coincideBusqueda && coincidePestana;
     });
   }, [
     incapacidades,
     busqueda,
-    filtroEstado,
+    pestanaActiva,
   ]);
 
 
   useEffect(() => {
     setPaginaActual(1);
-  }, [busqueda, filtroEstado]);
+  }, [busqueda, pestanaActiva]);
 
 
   const totalPaginas = Math.max(
@@ -1461,50 +1663,23 @@ const NominaIncapacidadesView = () => {
 
 
       <div className="rounded-2xl border bg-white p-5 shadow-md sm:p-6">
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_240px]">
-          <div>
-            <label className="text-sm font-semibold text-gray-700">
-              Buscar trabajador o incapacidad
-            </label>
-
-            <div className="relative mt-2">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-
-              <Input
-                value={busqueda}
-                onChange={(e) =>
-                  setBusqueda(e.target.value)
-                }
-                placeholder="Identificación, nombre, EPS o tipo de incapacidad..."
-                className="pl-10"
-              />
-            </div>
-          </div>
-
+        <div>
           <label className="text-sm font-semibold text-gray-700">
-            Estado
-
-            <select
-              value={filtroEstado}
-              onChange={(e) =>
-                setFiltroEstado(e.target.value)
-              }
-              className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="TODAS">
-                Todas
-              </option>
-
-              {estadosDisponibles.map((estado) => (
-                <option
-                  key={estado}
-                  value={estado}
-                >
-                  {estado}
-                </option>
-              ))}
-            </select>
+            Buscar trabajador o incapacidad
           </label>
+
+          <div className="relative mt-2">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+
+            <Input
+              value={busqueda}
+              onChange={(e) =>
+                setBusqueda(e.target.value)
+              }
+              placeholder="Identificación, nombre, EPS o tipo de incapacidad..."
+              className="pl-10"
+            />
+          </div>
         </div>
 
         {errorCarga && (
@@ -1514,7 +1689,6 @@ const NominaIncapacidadesView = () => {
         )}
       </div>
 
-
       <div className="overflow-hidden rounded-2xl border bg-white shadow-md">
         <div className="border-b p-4 sm:p-5">
           <h2 className="font-bold text-gray-800">
@@ -1522,8 +1696,52 @@ const NominaIncapacidadesView = () => {
           </h2>
 
           <p className="mt-1 text-xs text-gray-500">
-            Los registros enviados por el trabajador quedan disponibles para consulta y revisión de Nómina.
+            Organiza y consulta las incapacidades según la etapa en la que se encuentran.
           </p>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                setPestanaActiva('REGISTRADAS')
+              }
+              className={`rounded-md border px-4 py-2 text-sm font-semibold transition-colors ${
+                pestanaActiva === 'REGISTRADAS'
+                  ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
+                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Registradas ({totales.registradas})
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setPestanaActiva('APROBADAS')
+              }
+              className={`rounded-md border px-4 py-2 text-sm font-semibold transition-colors ${
+                pestanaActiva === 'APROBADAS'
+                  ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
+                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Aprobadas ({totales.aprobadas})
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setPestanaActiva('RECHAZADAS')
+              }
+              className={`rounded-md border px-4 py-2 text-sm font-semibold transition-colors ${
+                pestanaActiva === 'RECHAZADAS'
+                  ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
+                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Rechazadas / negadas ({totales.rechazadas})
+            </button>
+          </div>
         </div>
 
 
@@ -1610,6 +1828,13 @@ const NominaIncapacidadesView = () => {
                               }
                             </p>
                           )}
+
+                        {item.fueCorregida && (
+                          <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">
+                            <RefreshCw className="h-3 w-3" />
+                            CORREGIDA
+                          </span>
+                        )}
                       </td>
 
                       <td className="p-4 whitespace-nowrap">
@@ -1668,7 +1893,7 @@ const NominaIncapacidadesView = () => {
                     >
                       <HeartPulse className="mx-auto mb-3 h-10 w-10 text-gray-400" />
 
-                      No hay incapacidades para los filtros seleccionados.
+                      No hay incapacidades en esta categoría con los filtros seleccionados.
                     </td>
                   </tr>
                 )}
@@ -1724,6 +1949,13 @@ const NominaIncapacidadesView = () => {
                           item.tipoIncapacidad,
                         )}
                       </p>
+
+                      {item.fueCorregida && (
+                        <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">
+                          <RefreshCw className="h-3 w-3" />
+                          CORREGIDA
+                        </span>
+                      )}
                     </div>
 
                     <div>
@@ -1779,7 +2011,7 @@ const NominaIncapacidadesView = () => {
             incapacidadesFiltradas.length === 0 && (
               <div className="py-10 text-center text-sm text-gray-500">
                 <HeartPulse className="mx-auto mb-3 h-10 w-10 text-gray-400" />
-                No hay incapacidades para los filtros seleccionados.
+                No hay incapacidades en esta categoría con los filtros seleccionados.
               </div>
             )}
         </div>
@@ -1851,6 +2083,13 @@ const NominaIncapacidadesView = () => {
                 <p className="mt-1 text-sm text-gray-500">
                   Información enviada por el trabajador y soportes adjuntos.
                 </p>
+
+                {incapacidadSeleccionada.fueCorregida && (
+                  <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    CORREGIDA POR EL TRABAJADOR
+                  </span>
+                )}
               </div>
 
               <button
@@ -1920,21 +2159,82 @@ const NominaIncapacidadesView = () => {
                         Tipo de incapacidad
                       </p>
 
-                      <p className="mt-1 font-medium text-gray-900">
-                        {formatearTipoIncapacidad(
-                          incapacidadSeleccionada.tipoIncapacidad,
-                        )}
-                      </p>
-
-                      {incapacidadSeleccionada.descripcionTipo &&
-                        incapacidadSeleccionada.descripcionTipo !==
-                          incapacidadSeleccionada.tipoIncapacidad && (
-                          <p className="mt-1 text-xs text-gray-500">
-                            {
-                              incapacidadSeleccionada.descripcionTipo
+                      {normalizarEstado(
+                        incapacidadSeleccionada.estado,
+                      ) === 'REGISTRADA' ? (
+                        <div className="mt-2 space-y-2">
+                          <select
+                            value={tipoIncapacidadEditada}
+                            onChange={(e) =>
+                              setTipoIncapacidadEditada(
+                                e.target.value,
+                              )
                             }
+                            disabled={procesandoGestion}
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                          >
+                            {TIPOS_INCAPACIDAD_EDITABLES.map(
+                              (tipo) => (
+                                <option
+                                  key={tipo.value}
+                                  value={tipo.value}
+                                >
+                                  {tipo.label}
+                                </option>
+                              ),
+                            )}
+                          </select>
+
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={actualizarTipoIncapacidad}
+                              disabled={
+                                procesandoGestion ||
+                                !tipoIncapacidadEditada ||
+                                String(
+                                  tipoIncapacidadEditada,
+                                )
+                                  .trim()
+                                  .toUpperCase() ===
+                                  String(
+                                    incapacidadSeleccionada.tipoIncapacidad ||
+                                      '',
+                                  )
+                                    .trim()
+                                    .toUpperCase()
+                              }
+                            >
+                              {procesandoGestion
+                                ? 'Guardando...'
+                                : 'Guardar tipo'}
+                            </Button>
+
+                            <p className="text-xs text-gray-500">
+                              Puede corregirse antes de aprobar o rechazar la incapacidad.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="mt-1 font-medium text-gray-900">
+                            {formatearTipoIncapacidad(
+                              incapacidadSeleccionada.tipoIncapacidad,
+                            )}
                           </p>
-                        )}
+
+                          {incapacidadSeleccionada.descripcionTipo &&
+                            incapacidadSeleccionada.descripcionTipo !==
+                              incapacidadSeleccionada.tipoIncapacidad && (
+                              <p className="mt-1 text-xs text-gray-500">
+                                {
+                                  incapacidadSeleccionada.descripcionTipo
+                                }
+                              </p>
+                            )}
+                        </>
+                      )}
                     </div>
 
                     <div>
@@ -2015,6 +2315,75 @@ const NominaIncapacidadesView = () => {
                   </div>
                 </div>
               </div>
+
+
+              {incapacidadSeleccionada.fueCorregida && (
+                <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
+                      <RefreshCw className="h-5 w-5" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <h3 className="font-bold text-blue-900">
+                            Corrección recibida
+                          </h3>
+
+                          <p className="mt-1 text-sm text-blue-800/80">
+                            Esta incapacidad fue rechazada previamente por Nómina y el trabajador corrigió y reenvió el mismo registro.
+                          </p>
+                        </div>
+
+                        {incapacidadSeleccionada.totalCorrecciones > 0 && (
+                          <span className="shrink-0 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-bold text-blue-700">
+                            {incapacidadSeleccionada.totalCorrecciones}{' '}
+                            {incapacidadSeleccionada.totalCorrecciones === 1
+                              ? 'corrección'
+                              : 'correcciones'}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
+                        <div className="md:col-span-2">
+                          <p className="font-semibold text-gray-500">
+                            Motivo solicitado por Nómina
+                          </p>
+                          <p className="mt-1 whitespace-pre-wrap break-words font-medium text-gray-900">
+                            {incapacidadSeleccionada.motivoUltimaCorreccion ||
+                              incapacidadSeleccionada.observacionNomina ||
+                              'Sin información'}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="font-semibold text-gray-500">
+                            Fecha de solicitud de corrección
+                          </p>
+                          <p className="mt-1 text-gray-900">
+                            {formatearFechaHoraColombia(
+                              incapacidadSeleccionada.fechaSolicitudUltimaCorreccion,
+                            )}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="font-semibold text-gray-500">
+                            Corregida y reenviada por el trabajador
+                          </p>
+                          <p className="mt-1 font-medium text-blue-900">
+                            {formatearFechaHoraColombia(
+                              incapacidadSeleccionada.fechaReenvioUltimaCorreccion,
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
 
               <div className="rounded-2xl border bg-white p-5">
@@ -2171,7 +2540,7 @@ const NominaIncapacidadesView = () => {
                         type="button"
                         variant="outline"
                         onClick={() => {
-                          setMostrarRechazo((actual) => !actual);
+                          setMostrarRechazo(true);
                           setErrorCarga('');
                           setMensajeGestion('');
                         }}
@@ -2185,7 +2554,10 @@ const NominaIncapacidadesView = () => {
                   </div>
 
                   {mostrarRechazo && (
-                    <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4">
+                    <div
+                      ref={rechazoRef}
+                      className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4"
+                    >
                       <label className="text-sm font-bold text-red-800">
                         Motivo del rechazo
                       </label>
@@ -2195,6 +2567,7 @@ const NominaIncapacidadesView = () => {
                       </p>
 
                       <textarea
+                        ref={motivoRechazoRef}
                         value={motivoRechazo}
                         onChange={(e) =>
                           setMotivoRechazo(e.target.value)

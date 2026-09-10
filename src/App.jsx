@@ -189,6 +189,11 @@ function App() {
         />
 
         <Route
+          path="/trabajador/incapacidades/corregir/:token"
+          element={<TrabajadorNuevaIncapacidadPage />}
+        />
+
+        <Route
           path="/trabajador/incapacidades/mis"
           element={<TrabajadorMisIncapacidadesPage />}
         />
