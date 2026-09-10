@@ -152,6 +152,12 @@ const Sidebar = ({
           permiso: "OPERACIONES_PROCESOS_DISCIPLINARIOS",
         },
         {
+          to: "/operaciones/agenda-disciplinaria",
+          label: "Agenda Disciplinaria",
+          roles: ["Operaciones"],
+          permiso: "OPERACIONES_PROCESOS_DISCIPLINARIOS",
+        },
+        {
           to: "/operaciones/retiros",
           label: "Retiros",
           roles: ["Operaciones"],
@@ -285,6 +291,10 @@ const Sidebar = ({
                 to: "/operaciones/procesos-disciplinarios",
                 label: "Procesos Disciplinarios",
               },
+              {
+                to: "/operaciones/agenda-disciplinaria",
+                label: "Agenda Disciplinaria",
+              },
             ]
           : []),
         ...(tienePermiso("OPERACIONES_RETIROS")
@@ -397,6 +407,10 @@ const Sidebar = ({
               {
                 to: "/operaciones/procesos-disciplinarios",
                 label: "Procesos Disciplinarios",
+              },
+              {
+                to: "/operaciones/agenda-disciplinaria",
+                label: "Agenda Disciplinaria",
               },
             ]
           : []),

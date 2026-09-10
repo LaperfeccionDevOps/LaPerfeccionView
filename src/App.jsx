@@ -17,6 +17,7 @@ import HomePage from "@/pages/HomePage";
 import EntrevistaRetiroPage from "@/pages/EntrevistaRetiroPage";
 
 import OperacionesProcesosDisciplinariosView from "@/pages/OperacionesProcesosDisciplinariosView";
+import AgendaDisciplinariaOperacionesView from "@/pages/AgendaDisciplinariaOperacionesView";
 import OperacionesRetirosView from "@/pages/OperacionesRetirosView";
 import IniciarProcesoOperacionesView from "@/pages/IniciarProcesoOperacionesView";
 import RevisionProcesoOperacionesView from "@/pages/RevisionProcesoOperacionesView";
@@ -307,6 +308,17 @@ function App() {
                 permission="OPERACIONES_PROCESOS_DISCIPLINARIOS"
               >
                 <OperacionesProcesosDisciplinariosView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
+            path="operaciones/agenda-disciplinaria"
+            element={
+              <OperationsPermissionRoute
+                permission="OPERACIONES_PROCESOS_DISCIPLINARIOS"
+              >
+                <AgendaDisciplinariaOperacionesView />
               </OperationsPermissionRoute>
             }
           />
