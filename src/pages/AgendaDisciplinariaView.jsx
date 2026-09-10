@@ -57,6 +57,14 @@ function obtenerMensajeBackend(data, mensajePorDefecto) {
   return mensajePorDefecto;
 }
 
+function obtenerTokenAutenticacion() {
+  return (
+    localStorage.getItem("access_token") ||
+    localStorage.getItem("token") ||
+    ""
+  );
+}
+
 function obtenerUsuarioMovimiento() {
   try {
     const usuarioGuardado =
@@ -102,6 +110,8 @@ export default function AgendaDisciplinariaView({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [mensajeExito, setMensajeExito] = useState("");
+  const [notificacionReprogramacion, setNotificacionReprogramacion] =
+    useState(null);
 
   const [solicitudesPendientes, setSolicitudesPendientes] = useState([]);
   const [loadingSolicitudes, setLoadingSolicitudes] = useState(false);
@@ -461,6 +471,7 @@ export default function AgendaDisciplinariaView({
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${obtenerTokenAutenticacion()}`,
           },
           body: JSON.stringify({
             EnlaceVirtual: enlaceNormalizado,
@@ -694,6 +705,7 @@ export default function AgendaDisciplinariaView({
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${obtenerTokenAutenticacion()}`,
           },
           body: JSON.stringify({
             FechaEventoNueva: fechaNueva,
@@ -717,13 +729,32 @@ export default function AgendaDisciplinariaView({
 
     const fechaReprogramada = fechaNueva;
 
+    const horarioSeleccionado = horariosDisponibles.find(
+      (horario) =>
+        String(horario?.HoraInicio || "").slice(0, 5) ===
+        String(horaInicioNueva || "").slice(0, 5)
+    );
+
+    const horaInicioReprogramada = String(
+      horarioSeleccionado?.HoraInicio ||
+        horaInicioNueva ||
+        ""
+    ).slice(0, 5);
+
+    const horaFinReprogramada = String(
+      horarioSeleccionado?.HoraFin ||
+        ""
+    ).slice(0, 5);
+
     cerrarModalReprogramar();
 
     setFechaFiltro(fechaReprogramada);
 
-    setMensajeExito(
-      "La citación fue reprogramada correctamente."
-    );
+    setNotificacionReprogramacion({
+      fecha: formatearFechaVisual(fechaReprogramada),
+      horaInicio: horaInicioReprogramada,
+      horaFin: horaFinReprogramada,
+    });
 
     try {
       setLoading(true);
@@ -790,6 +821,7 @@ export default function AgendaDisciplinariaView({
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${obtenerTokenAutenticacion()}`,
           },
           body: JSON.stringify({
             Motivo: motivoCancelacion.trim(),
@@ -1042,8 +1074,75 @@ export default function AgendaDisciplinariaView({
     return () => window.clearTimeout(temporizador);
   }, [notificacionRechazo]);
 
+  useEffect(() => {
+    if (!notificacionReprogramacion) {
+      return undefined;
+    }
+
+    const temporizador = window.setTimeout(() => {
+      setNotificacionReprogramacion(null);
+    }, 20000);
+
+    return () => window.clearTimeout(temporizador);
+  }, [notificacionReprogramacion]);
+
   return (
     <div className="w-full min-w-0 bg-slate-50 min-h-screen p-3 sm:p-4 xl:p-5">
+      {notificacionReprogramacion && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[1px]">
+          <div className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setNotificacionReprogramacion(null)}
+              className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-xl font-bold text-slate-500 shadow-sm transition hover:bg-slate-100 hover:text-slate-800"
+              aria-label="Cerrar notificación"
+            >
+              ×
+            </button>
+
+            <div className="px-6 pb-7 pt-8 text-center sm:px-8">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl font-black text-emerald-700">
+                ✓
+              </div>
+
+              <p className="mt-5 text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
+                Reprogramación exitosa
+              </p>
+
+              <h3 className="mt-2 text-2xl font-black text-slate-900 sm:text-3xl">
+                La citación fue reprogramada correctamente
+              </h3>
+
+              <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-slate-600">
+                Nueva fecha:{" "}
+                <span className="font-bold text-slate-900">
+                  {notificacionReprogramacion.fecha}
+                </span>
+                <br />
+                Horario:{" "}
+                <span className="font-bold text-slate-900">
+                  {notificacionReprogramacion.horaInicio || "—"}
+                  {notificacionReprogramacion.horaFin
+                    ? ` a ${notificacionReprogramacion.horaFin}`
+                    : ""}
+                </span>
+              </p>
+
+              <p className="mt-4 text-xs text-slate-400">
+                Esta confirmación se cerrará automáticamente en 20 segundos.
+              </p>
+
+              <Button
+                type="button"
+                onClick={() => setNotificacionReprogramacion(null)}
+                className="mt-6 min-w-[190px] rounded-xl bg-emerald-700 font-bold text-white hover:bg-emerald-800"
+              >
+                Volver a la agenda
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="w-full min-w-0 bg-white rounded-2xl shadow-xl p-4 sm:p-6 xl:p-7 border-t-4 border-blue-600">
         <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
