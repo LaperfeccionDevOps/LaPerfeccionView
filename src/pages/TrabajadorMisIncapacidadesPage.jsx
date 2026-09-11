@@ -173,14 +173,6 @@ const TrabajadorMisIncapacidadesPage = () => {
     return `${day}/${month}/${year}`;
   };
 
-  const formatDateIso = (value) => {
-    if (!value) {
-      return "No disponible";
-    }
-
-    return String(value).slice(0, 10);
-  };
-
   const formatDateTime = (value) => {
     if (!value) {
       return "No disponible";
@@ -196,6 +188,52 @@ const TrabajadorMisIncapacidadesPage = () => {
       dateStyle: "medium",
       timeStyle: "short",
     });
+  };
+
+  const getWorkerStatus = (statusValue) => {
+    const estado = String(statusValue || "")
+      .trim()
+      .toUpperCase()
+      .replaceAll("_", " ");
+
+    if (
+      estado === "RECHAZADA" ||
+      estado === "NEGADA" ||
+      estado === "NEGADO"
+    ) {
+      return "RECHAZADO";
+    }
+
+    if (
+      estado === "APROBADA" ||
+      estado === "PENDIENTE RADICACION" ||
+      estado === "RADICADO" ||
+      estado === "EN PROCESO DE PAGO" ||
+      estado === "PAGADO"
+    ) {
+      return "APROBADO";
+    }
+
+    return "PENDIENTE";
+  };
+
+  const renderWorkerStatus = (incapacidad) => {
+    const estado = getWorkerStatus(incapacidad?.estado);
+
+    const classes =
+      estado === "APROBADO"
+        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+        : estado === "RECHAZADO"
+          ? "border-red-200 bg-red-50 text-red-700"
+          : "border-amber-200 bg-amber-50 text-amber-700";
+
+    return (
+      <span
+        className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${classes}`}
+      >
+        {estado}
+      </span>
+    );
   };
 
   const handleViewDocument = async (
@@ -660,50 +698,26 @@ const TrabajadorMisIncapacidadesPage = () => {
 
                 <div className="hidden md:block overflow-hidden rounded-2xl border border-gray-200">
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[820px] border-collapse">
+                    <table className="w-full min-w-[760px] border-collapse">
                       <thead className="bg-gray-50">
                         <tr className="border-b border-gray-200">
-                          <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500">
-                            Fecha envío a Nómina
-                          </th>
-
-                          <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500">
-                            Identificación
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500">
-                            Nombre
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500">
-                            Tipo de incapacidad
-                          </th>
-                          <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-gray-500">
-                            Acción
-                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500">Estado</th>
+                          <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500">Fecha inicio</th>
+                          <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500">Fecha fin</th>
+                          <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-gray-500">Tipo de incapacidad</th>
+                          <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-gray-500">Acción</th>
                         </tr>
                       </thead>
-
                       <tbody className="divide-y divide-gray-100">
                         {incapacidades.map((incapacidad) => (
-                          <tr
-                            key={incapacidad.id_incapacidad}
-                            className="bg-white hover:bg-gray-50/80 transition-colors"
-                          >
+                          <tr key={incapacidad.id_incapacidad} className="bg-white hover:bg-gray-50/80 transition-colors">
+                            <td className="px-4 py-4">{renderWorkerStatus(incapacidad)}</td>
                             <td className="px-4 py-4 text-sm font-semibold text-gray-700 whitespace-nowrap">
-                              {formatDateIso(
-                                incapacidad.fecha_creacion
-                              )}
+                              {formatDate(incapacidad.fecha_inicio)}
                             </td>
-
                             <td className="px-4 py-4 text-sm font-semibold text-gray-700 whitespace-nowrap">
-                              {workerDocument || "No disponible"}
+                              {formatDate(incapacidad.fecha_final)}
                             </td>
-
-                            <td className="px-4 py-4 text-sm text-gray-700">
-                              <span className="font-semibold">
-                                {workerName || "Trabajador"}
-                              </span>
-                            </td>
-
                             <td className="px-4 py-4 text-sm text-gray-700">
                               <div className="font-semibold text-gray-800">
                                 {incapacidad.descripcion_tipo || "Incapacidad"}
@@ -712,14 +726,11 @@ const TrabajadorMisIncapacidadesPage = () => {
                                 Registro #{incapacidad.id_incapacidad}
                               </div>
                             </td>
-
                             <td className="px-4 py-4 text-center">
                               <Button
                                 type="button"
                                 variant="outline"
-                                onClick={() =>
-                                  setSelectedIncapacidad(incapacidad)
-                                }
+                                onClick={() => setSelectedIncapacidad(incapacidad)}
                                 className="border-gray-200 text-gray-800 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200"
                               >
                                 <Eye className="w-4 h-4 mr-2" />
@@ -739,52 +750,42 @@ const TrabajadorMisIncapacidadesPage = () => {
                       key={incapacidad.id_incapacidad}
                       className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
                     >
-                      <div className="min-w-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold text-gray-400">Estado</p>
+                          <div className="mt-1">{renderWorkerStatus(incapacidad)}</div>
+                        </div>
                         <p className="text-xs font-semibold text-gray-400">
                           Registro #{incapacidad.id_incapacidad}
                         </p>
-                        <h3 className="mt-1 text-base font-bold text-gray-800">
-                          {incapacidad.descripcion_tipo || "Incapacidad"}
-                        </h3>
                       </div>
 
-                      <div className="mt-4 grid grid-cols-1 gap-3">
+                      <div className="mt-4 grid grid-cols-2 gap-3">
                         <div>
-                          <p className="text-xs font-semibold text-gray-400">
-                            Fecha envío a Nómina
-                          </p>
+                          <p className="text-xs font-semibold text-gray-400">Fecha inicio</p>
                           <p className="mt-1 text-sm font-semibold text-gray-700">
-                            {formatDateIso(
-                              incapacidad.fecha_creacion
-                            )}
+                            {formatDate(incapacidad.fecha_inicio)}
                           </p>
                         </div>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-400">Fecha fin</p>
+                          <p className="mt-1 text-sm font-semibold text-gray-700">
+                            {formatDate(incapacidad.fecha_final)}
+                          </p>
+                        </div>
+                      </div>
 
-                        <div>
-                          <p className="text-xs font-semibold text-gray-400">
-                            Identificación
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-gray-700">
-                            {workerDocument || "No disponible"}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="text-xs font-semibold text-gray-400">
-                            Nombre
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-gray-700">
-                            {workerName || "Trabajador"}
-                          </p>
-                        </div>
+                      <div className="mt-4">
+                        <p className="text-xs font-semibold text-gray-400">Tipo de incapacidad</p>
+                        <p className="mt-1 text-sm font-bold text-gray-800">
+                          {incapacidad.descripcion_tipo || "Incapacidad"}
+                        </p>
                       </div>
 
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() =>
-                          setSelectedIncapacidad(incapacidad)
-                        }
+                        onClick={() => setSelectedIncapacidad(incapacidad)}
                         className="mt-4 w-full border-blue-200 text-blue-700 hover:bg-blue-50"
                       >
                         <Eye className="w-4 h-4 mr-2" />

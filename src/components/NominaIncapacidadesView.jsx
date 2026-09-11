@@ -67,6 +67,40 @@ const formatearFecha = (valor) => {
 };
 
 
+const calcularFechaFinal = (fechaInicio, dias) => {
+  const diasNumero = Number(dias);
+
+  if (
+    !fechaInicio ||
+    !Number.isInteger(diasNumero) ||
+    diasNumero <= 0
+  ) {
+    return '';
+  }
+
+  const partes = String(fechaInicio).slice(0, 10).split('-');
+
+  if (partes.length !== 3) {
+    return '';
+  }
+
+  const [anio, mes, dia] = partes.map(Number);
+  const fecha = new Date(anio, mes - 1, dia);
+
+  if (Number.isNaN(fecha.getTime())) {
+    return '';
+  }
+
+  fecha.setDate(fecha.getDate() + diasNumero - 1);
+
+  const anioFinal = fecha.getFullYear();
+  const mesFinal = String(fecha.getMonth() + 1).padStart(2, '0');
+  const diaFinal = String(fecha.getDate()).padStart(2, '0');
+
+  return `${anioFinal}-${mesFinal}-${diaFinal}`;
+};
+
+
 const formatearFechaHoraColombia = (valor) => {
   if (!valor) return 'Sin fecha';
 
@@ -94,6 +128,35 @@ const normalizarEstado = (valor) => {
     .toUpperCase();
 
   return estado || 'REGISTRADA';
+};
+
+
+const obtenerReglaDias = (tipoIncapacidad) => {
+  const tipo = String(tipoIncapacidad || '')
+    .trim()
+    .toUpperCase();
+
+  if (tipo === 'INCAPACIDAD_1_2_DIAS') {
+    return {
+      min: 1,
+      max: 2,
+      mensaje: 'Para este tipo de incapacidad debe registrar 1 o 2 días.',
+    };
+  }
+
+  if (tipo === 'INCAPACIDAD_3_MAS_DIAS') {
+    return {
+      min: 3,
+      max: null,
+      mensaje: 'Para este tipo de incapacidad debe registrar mínimo 3 días.',
+    };
+  }
+
+  return {
+    min: 1,
+    max: null,
+    mensaje: 'Debe registrar una cantidad válida de días de incapacidad.',
+  };
 };
 
 
@@ -426,6 +489,7 @@ const NominaIncapacidadesView = () => {
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [abriendoDocumento, setAbriendoDocumento] = useState(null);
   const [descargandoDocumento, setDescargandoDocumento] = useState(null);
+  const [descargandoTodosDocumentos, setDescargandoTodosDocumentos] = useState(false);
   const [procesandoGestion, setProcesandoGestion] = useState(false);
 
   const [mostrarRechazo, setMostrarRechazo] = useState(false);
@@ -442,6 +506,10 @@ const NominaIncapacidadesView = () => {
 
   const [valorPagado, setValorPagado] = useState('');
   const [tipoIncapacidadEditada, setTipoIncapacidadEditada] = useState('');
+
+  const [fechaInicioEditada, setFechaInicioEditada] = useState('');
+  const [diasIncapacidadEditados, setDiasIncapacidadEditados] = useState('');
+  const [esProrrogaEditada, setEsProrrogaEditada] = useState(false);
 
   const [errorCarga, setErrorCarga] = useState('');
   const [paginaActual, setPaginaActual] = useState(1);
@@ -585,6 +653,13 @@ const NominaIncapacidadesView = () => {
 
       setIncapacidadSeleccionada(detalle);
       setTipoIncapacidadEditada(detalle.tipoIncapacidad || '');
+      setFechaInicioEditada(
+        String(detalle.fechaInicio || '').slice(0, 10),
+      );
+      setDiasIncapacidadEditados(
+        String(detalle.diasIncapacidad || ''),
+      );
+      setEsProrrogaEditada(Boolean(detalle.esProrroga));
     } catch (error) {
       console.error(
         'Error cargando detalle de incapacidad:',
@@ -613,8 +688,12 @@ const NominaIncapacidadesView = () => {
     setCausalNegacion('');
     setValorPagado('');
     setTipoIncapacidadEditada('');
+    setFechaInicioEditada('');
+    setDiasIncapacidadEditados('');
+    setEsProrrogaEditada(false);
     setAbriendoDocumento(null);
     setDescargandoDocumento(null);
+    setDescargandoTodosDocumentos(false);
   };
 
 
@@ -770,6 +849,103 @@ const NominaIncapacidadesView = () => {
   };
 
 
+  const descargarTodosDocumentos = async () => {
+    const idIncapacidad =
+      incapacidadSeleccionada?.idIncapacidad;
+
+    if (!idIncapacidad) {
+      setErrorCarga(
+        'No se encontró la información de la incapacidad.',
+      );
+      return;
+    }
+
+    if (
+      !Array.isArray(incapacidadSeleccionada?.documentos) ||
+      incapacidadSeleccionada.documentos.length === 0
+    ) {
+      setErrorCarga(
+        'La incapacidad no tiene documentos disponibles para descargar.',
+      );
+      return;
+    }
+
+    setDescargandoTodosDocumentos(true);
+    setErrorCarga('');
+
+    try {
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(
+        `${API_BASE_URL}/nomina-incapacidades/${idIncapacidad}/documentos-consolidados`,
+        {
+          method: 'GET',
+          headers: {
+            ...(token
+              ? { Authorization: `Bearer ${token}` }
+              : {}),
+          },
+        },
+      );
+
+      if (!response.ok) {
+        const data = await response
+          .json()
+          .catch(() => ({}));
+
+        throw new Error(
+          data?.detail ||
+          data?.message ||
+          'No fue posible generar el PDF con todos los documentos.',
+        );
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const enlace = document.createElement('a');
+
+      let nombreArchivo =
+        `incapacidad_${incapacidadSeleccionada.identificacion || idIncapacidad}_soportes.pdf`;
+
+      const contentDisposition =
+        response.headers.get('Content-Disposition');
+
+      if (contentDisposition) {
+        const coincidencia = contentDisposition.match(
+          /filename="?([^"]+)"?/i,
+        );
+
+        if (coincidencia?.[1]) {
+          nombreArchivo = coincidencia[1].trim();
+        }
+      }
+
+      enlace.href = url;
+      enlace.download = nombreArchivo;
+
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 5000);
+    } catch (error) {
+      console.error(
+        'Error descargando documentos consolidados:',
+        error,
+      );
+
+      setErrorCarga(
+        error?.message ||
+        'No fue posible descargar todos los documentos en un solo PDF.',
+      );
+    } finally {
+      setDescargandoTodosDocumentos(false);
+    }
+  };
+
+
   const refrescarDetalleGestionado = async (
     idIncapacidad,
     mensaje,
@@ -809,16 +985,36 @@ const NominaIncapacidadesView = () => {
 
     setIncapacidadSeleccionada(detalle);
     setTipoIncapacidadEditada(detalle.tipoIncapacidad || '');
+    setFechaInicioEditada(
+      String(detalle.fechaInicio || '').slice(0, 10),
+    );
+    setDiasIncapacidadEditados(
+      String(detalle.diasIncapacidad || ''),
+    );
+    setEsProrrogaEditada(Boolean(detalle.esProrroga));
     setMensajeGestion(mensaje);
     await cargarIncapacidades();
   };
 
 
-  const actualizarTipoIncapacidad = async () => {
+  const actualizarDatosIncapacidad = async () => {
     const idIncapacidad =
       incapacidadSeleccionada?.idIncapacidad;
 
     if (!idIncapacidad) return;
+
+    const fechaInicio = String(
+      fechaInicioEditada || '',
+    ).trim();
+
+    const dias = Number(diasIncapacidadEditados);
+
+    if (!fechaInicio) {
+      setErrorCarga(
+        'Debes registrar la fecha de inicio.',
+      );
+      return;
+    }
 
     const tipoSeleccionado =
       String(tipoIncapacidadEditada || '')
@@ -832,19 +1028,24 @@ const NominaIncapacidadesView = () => {
       return;
     }
 
+    const reglaDias = obtenerReglaDias(
+      tipoSeleccionado,
+    );
+
     if (
-      tipoSeleccionado ===
-      String(
-        incapacidadSeleccionada?.tipoIncapacidad || '',
+      !Number.isInteger(dias) ||
+      dias < reglaDias.min ||
+      (
+        reglaDias.max !== null &&
+        dias > reglaDias.max
       )
-        .trim()
-        .toUpperCase()
     ) {
+      setErrorCarga(reglaDias.mensaje);
       return;
     }
 
     const confirmar = window.confirm(
-      '¿Confirmas que deseas actualizar el tipo de incapacidad?',
+      '¿Confirmas que deseas guardar todos los cambios realizados en esta incapacidad?',
     );
 
     if (!confirmar) return;
@@ -857,7 +1058,7 @@ const NominaIncapacidadesView = () => {
       const token = localStorage.getItem('token');
 
       const response = await fetch(
-        `${API_BASE_URL}/nomina-incapacidades/${idIncapacidad}/tipo`,
+        `${API_BASE_URL}/nomina-incapacidades/${idIncapacidad}/datos`,
         {
           method: 'PUT',
           headers: {
@@ -869,6 +1070,9 @@ const NominaIncapacidadesView = () => {
           },
           body: JSON.stringify({
             tipo_incapacidad: tipoSeleccionado,
+            fecha_inicio: fechaInicio,
+            dias_incapacidad: dias,
+            es_prorroga: Boolean(esProrrogaEditada),
           }),
         },
       );
@@ -881,24 +1085,24 @@ const NominaIncapacidadesView = () => {
         throw new Error(
           data?.detail ||
           data?.message ||
-          'No fue posible actualizar el tipo de incapacidad.',
+          'No fue posible actualizar la información de la incapacidad.',
         );
       }
 
       await refrescarDetalleGestionado(
         idIncapacidad,
         data?.message ||
-          'Tipo de incapacidad actualizado correctamente.',
+        'Información de la incapacidad actualizada correctamente.',
       );
     } catch (error) {
       console.error(
-        'Error actualizando tipo de incapacidad:',
+        'Error actualizando información de incapacidad:',
         error,
       );
 
       setErrorCarga(
         error?.message ||
-        'No fue posible actualizar el tipo de incapacidad.',
+        'No fue posible actualizar la información de la incapacidad.',
       );
     } finally {
       setProcesandoGestion(false);
@@ -1442,16 +1646,6 @@ const NominaIncapacidadesView = () => {
         }
 
         if (
-          estado === 'APROBADA' ||
-          estado === 'PENDIENTE RADICACION' ||
-          estado === 'RADICADO' ||
-          estado === 'EN PROCESO DE PAGO' ||
-          estado === 'PAGADO'
-        ) {
-          acumulado.aprobadas += 1;
-        }
-
-        if (
           estado === 'RECHAZADA' ||
           estado === 'NEGADA' ||
           estado === 'NEGADO'
@@ -1459,13 +1653,37 @@ const NominaIncapacidadesView = () => {
           acumulado.rechazadas += 1;
         }
 
+        if (
+          estado === 'APROBADA' ||
+          estado === 'PENDIENTE RADICACION'
+        ) {
+          acumulado.aprobadas += 1;
+        }
+
+        if (
+          estado === 'RADICADO' ||
+          estado === 'EN PROCESO DE PAGO' ||
+          estado === 'PAGADO'
+        ) {
+          acumulado.radicadas += 1;
+        }
+
+        if (
+          estado === 'SIN RECOBRO' ||
+          estado === 'SIN_RECOBRO'
+        ) {
+          acumulado.sinRecobro += 1;
+        }
+
         return acumulado;
       },
       {
         total: 0,
         registradas: 0,
-        aprobadas: 0,
         rechazadas: 0,
+        aprobadas: 0,
+        radicadas: 0,
+        sinRecobro: 0,
       },
     );
   }, [incapacidades]);
@@ -1503,20 +1721,30 @@ const NominaIncapacidadesView = () => {
           estado === 'REGISTRADA';
       }
 
-      if (pestanaActiva === 'APROBADAS') {
-        coincidePestana =
-          estado === 'APROBADA' ||
-          estado === 'PENDIENTE RADICACION' ||
-          estado === 'RADICADO' ||
-          estado === 'EN PROCESO DE PAGO' ||
-          estado === 'PAGADO';
-      }
-
       if (pestanaActiva === 'RECHAZADAS') {
         coincidePestana =
           estado === 'RECHAZADA' ||
           estado === 'NEGADA' ||
           estado === 'NEGADO';
+      }
+
+      if (pestanaActiva === 'APROBADAS') {
+        coincidePestana =
+          estado === 'APROBADA' ||
+          estado === 'PENDIENTE RADICACION';
+      }
+
+      if (pestanaActiva === 'RADICADAS') {
+        coincidePestana =
+          estado === 'RADICADO' ||
+          estado === 'EN PROCESO DE PAGO' ||
+          estado === 'PAGADO';
+      }
+
+      if (pestanaActiva === 'SIN_RECOBRO') {
+        coincidePestana =
+          estado === 'SIN RECOBRO' ||
+          estado === 'SIN_RECOBRO';
       }
 
       return coincideBusqueda && coincidePestana;
@@ -1580,6 +1808,40 @@ const NominaIncapacidadesView = () => {
     normalizarEstado(
       incapacidadSeleccionada?.estado,
     ) === 'REGISTRADA';
+
+  const hayCambiosDatosIncapacidad =
+    Boolean(incapacidadSeleccionada) &&
+    (
+      String(tipoIncapacidadEditada || '')
+        .trim()
+        .toUpperCase() !==
+        String(incapacidadSeleccionada?.tipoIncapacidad || '')
+          .trim()
+          .toUpperCase() ||
+      String(fechaInicioEditada || '').slice(0, 10) !==
+        String(incapacidadSeleccionada?.fechaInicio || '').slice(0, 10) ||
+      Number(diasIncapacidadEditados || 0) !==
+        Number(incapacidadSeleccionada?.diasIncapacidad || 0) ||
+      Boolean(esProrrogaEditada) !==
+        Boolean(incapacidadSeleccionada?.esProrroga)
+    );
+
+
+  const reglaDiasEdicion = obtenerReglaDias(
+    tipoIncapacidadEditada,
+  );
+
+  const diasEdicionNumero = Number(
+    diasIncapacidadEditados,
+  );
+
+  const diasEdicionValidos =
+    Number.isInteger(diasEdicionNumero) &&
+    diasEdicionNumero >= reglaDiasEdicion.min &&
+    (
+      reglaDiasEdicion.max === null ||
+      diasEdicionNumero <= reglaDiasEdicion.max
+    );
 
 
   return (
@@ -1717,6 +1979,20 @@ const NominaIncapacidadesView = () => {
             <button
               type="button"
               onClick={() =>
+                setPestanaActiva('RECHAZADAS')
+              }
+              className={`rounded-md border px-4 py-2 text-sm font-semibold transition-colors ${
+                pestanaActiva === 'RECHAZADAS'
+                  ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
+                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Rechazadas / negadas ({totales.rechazadas})
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
                 setPestanaActiva('APROBADAS')
               }
               className={`rounded-md border px-4 py-2 text-sm font-semibold transition-colors ${
@@ -1731,15 +2007,29 @@ const NominaIncapacidadesView = () => {
             <button
               type="button"
               onClick={() =>
-                setPestanaActiva('RECHAZADAS')
+                setPestanaActiva('RADICADAS')
               }
               className={`rounded-md border px-4 py-2 text-sm font-semibold transition-colors ${
-                pestanaActiva === 'RECHAZADAS'
+                pestanaActiva === 'RADICADAS'
                   ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
                   : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
               }`}
             >
-              Rechazadas / negadas ({totales.rechazadas})
+              Radicadas ({totales.radicadas})
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setPestanaActiva('SIN_RECOBRO')
+              }
+              className={`rounded-md border px-4 py-2 text-sm font-semibold transition-colors ${
+                pestanaActiva === 'SIN_RECOBRO'
+                  ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
+                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Sin recobro ({totales.sinRecobro})
             </button>
           </div>
         </div>
@@ -2185,36 +2475,9 @@ const NominaIncapacidadesView = () => {
                             )}
                           </select>
 
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={actualizarTipoIncapacidad}
-                              disabled={
-                                procesandoGestion ||
-                                !tipoIncapacidadEditada ||
-                                String(
-                                  tipoIncapacidadEditada,
-                                )
-                                  .trim()
-                                  .toUpperCase() ===
-                                  String(
-                                    incapacidadSeleccionada.tipoIncapacidad ||
-                                      '',
-                                  )
-                                    .trim()
-                                    .toUpperCase()
-                              }
-                            >
-                              {procesandoGestion
-                                ? 'Guardando...'
-                                : 'Guardar tipo'}
-                            </Button>
-
-                            <p className="text-xs text-gray-500">
-                              Puede corregirse antes de aprobar o rechazar la incapacidad.
-                            </p>
-                          </div>
+                          <p className="mt-2 text-xs text-gray-500">
+                            Puedes ajustar el tipo, la fecha de inicio, los días y la prórroga antes de guardar.
+                          </p>
                         </div>
                       ) : (
                         <>
@@ -2237,53 +2500,187 @@ const NominaIncapacidadesView = () => {
                       )}
                     </div>
 
-                    <div>
-                      <p className="font-semibold text-gray-500">
-                        Fecha inicio
-                      </p>
+                    {normalizarEstado(
+                      incapacidadSeleccionada.estado,
+                    ) === 'REGISTRADA' ? (
+                      <>
+                        <div>
+                          <label className="font-semibold text-gray-500">
+                            Fecha inicio
+                          </label>
 
-                      <p className="mt-1 text-gray-900">
-                        {formatearFecha(
-                          incapacidadSeleccionada.fechaInicio,
-                        )}
-                      </p>
-                    </div>
+                          <Input
+                            type="date"
+                            value={fechaInicioEditada}
+                            onChange={(e) =>
+                              setFechaInicioEditada(e.target.value)
+                            }
+                            disabled={procesandoGestion}
+                            className="mt-2 bg-white"
+                          />
+                        </div>
 
-                    <div>
-                      <p className="font-semibold text-gray-500">
-                        Fecha final
-                      </p>
+                        <div>
+                          <p className="font-semibold text-gray-500">
+                            Fecha final
+                          </p>
 
-                      <p className="mt-1 text-gray-900">
-                        {formatearFecha(
-                          incapacidadSeleccionada.fechaFinal,
-                        )}
-                      </p>
-                    </div>
+                          <div className="mt-2 rounded-md border border-gray-200 bg-gray-100 px-3 py-2 text-sm font-medium text-gray-900">
+                            {formatearFecha(
+                              calcularFechaFinal(
+                                fechaInicioEditada,
+                                diasIncapacidadEditados,
+                              ) ||
+                                incapacidadSeleccionada.fechaFinal,
+                            )}
+                          </div>
 
-                    <div>
-                      <p className="font-semibold text-gray-500">
-                        Días
-                      </p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            Se calcula automáticamente según la fecha de inicio y los días.
+                          </p>
+                        </div>
 
-                      <p className="mt-1 text-gray-900">
-                        {
-                          incapacidadSeleccionada.diasIncapacidad
-                        }
-                      </p>
-                    </div>
+                        <div>
+                          <label className="font-semibold text-gray-500">
+                            Días
+                          </label>
 
-                    <div>
-                      <p className="font-semibold text-gray-500">
-                        Prórroga
-                      </p>
+                          <Input
+                            type="number"
+                            min={reglaDiasEdicion.min}
+                            max={
+                              reglaDiasEdicion.max ?? undefined
+                            }
+                            step="1"
+                            value={diasIncapacidadEditados}
+                            onChange={(e) => {
+                              const valor = e.target.value;
 
-                      <p className="mt-1 text-gray-900">
-                        {incapacidadSeleccionada.esProrroga
-                          ? 'Sí'
-                          : 'No'}
-                      </p>
-                    </div>
+                              if (valor === '') {
+                                setDiasIncapacidadEditados('');
+                                return;
+                              }
+
+                              if (!/^\d+$/.test(valor)) {
+                                return;
+                              }
+
+                              const numero = Number(valor);
+
+                              if (
+                                reglaDiasEdicion.max !== null &&
+                                numero > reglaDiasEdicion.max
+                              ) {
+                                setDiasIncapacidadEditados(
+                                  String(reglaDiasEdicion.max),
+                                );
+                                return;
+                              }
+
+                              setDiasIncapacidadEditados(valor);
+                            }}
+                            disabled={procesandoGestion}
+                            className="mt-2 bg-white"
+                          />
+
+                          {!diasEdicionValidos && diasIncapacidadEditados && (
+                            <p className="mt-1 text-xs font-medium text-red-600">
+                              {reglaDiasEdicion.mensaje}
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="font-semibold text-gray-500">
+                            Prórroga
+                          </label>
+
+                          <select
+                            value={esProrrogaEditada ? 'SI' : 'NO'}
+                            onChange={(e) =>
+                              setEsProrrogaEditada(
+                                e.target.value === 'SI',
+                              )
+                            }
+                            disabled={procesandoGestion}
+                            className="mt-2 w-full rounded-md border border-input bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                          >
+                            <option value="NO">No</option>
+                            <option value="SI">Sí</option>
+                          </select>
+                        </div>
+
+                        <div className="sm:col-span-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={actualizarDatosIncapacidad}
+                            disabled={
+                              procesandoGestion ||
+                              !tipoIncapacidadEditada ||
+                              !fechaInicioEditada ||
+                              !diasIncapacidadEditados ||
+                              !diasEdicionValidos ||
+                              !hayCambiosDatosIncapacidad
+                            }
+                          >
+                            {procesandoGestion
+                              ? 'Guardando...'
+                              : 'Guardar cambios'}
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <p className="font-semibold text-gray-500">
+                            Fecha inicio
+                          </p>
+
+                          <p className="mt-1 text-gray-900">
+                            {formatearFecha(
+                              incapacidadSeleccionada.fechaInicio,
+                            )}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="font-semibold text-gray-500">
+                            Fecha final
+                          </p>
+
+                          <p className="mt-1 text-gray-900">
+                            {formatearFecha(
+                              incapacidadSeleccionada.fechaFinal,
+                            )}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="font-semibold text-gray-500">
+                            Días
+                          </p>
+
+                          <p className="mt-1 text-gray-900">
+                            {
+                              incapacidadSeleccionada.diasIncapacidad
+                            }
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="font-semibold text-gray-500">
+                            Prórroga
+                          </p>
+
+                          <p className="mt-1 text-gray-900">
+                            {incapacidadSeleccionada.esProrroga
+                              ? 'Sí'
+                              : 'No'}
+                          </p>
+                        </div>
+                      </>
+                    )}
 
                     <div>
                       <p className="font-semibold text-gray-500">
@@ -2387,19 +2784,45 @@ const NominaIncapacidadesView = () => {
 
 
               <div className="rounded-2xl border bg-white p-5">
-                <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2 font-bold text-blue-700">
                     <FileText className="h-5 w-5" />
                     Documentos adjuntos
                   </div>
 
-                  <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700">
-                    {
-                      incapacidadSeleccionada.documentos
-                        .length
-                    }{' '}
-                    soporte(s)
-                  </span>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <span className="w-fit rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700">
+                      {
+                        incapacidadSeleccionada.documentos
+                          .length
+                      }{' '}
+                      soporte(s)
+                    </span>
+
+                    {incapacidadSeleccionada.documentos.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={descargarTodosDocumentos}
+                        disabled={
+                          descargandoTodosDocumentos ||
+                          abriendoDocumento !== null ||
+                          descargandoDocumento !== null
+                        }
+                        className="w-full border-blue-200 text-blue-700 hover:bg-blue-50 sm:w-auto"
+                      >
+                        {descargandoTodosDocumentos ? (
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="mr-2 h-4 w-4" />
+                        )}
+
+                        {descargandoTodosDocumentos
+                          ? 'Generando PDF...'
+                          : 'Descargar todos en PDF'}
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 {incapacidadSeleccionada.documentos
@@ -2449,6 +2872,7 @@ const NominaIncapacidadesView = () => {
                                 )
                               }
                               disabled={
+                                descargandoTodosDocumentos ||
                                 abriendoDocumento === documento.idDocumento ||
                                 descargandoDocumento === documento.idDocumento
                               }
@@ -2473,6 +2897,7 @@ const NominaIncapacidadesView = () => {
                                 )
                               }
                               disabled={
+                                descargandoTodosDocumentos ||
                                 descargandoDocumento === documento.idDocumento ||
                                 abriendoDocumento === documento.idDocumento
                               }
