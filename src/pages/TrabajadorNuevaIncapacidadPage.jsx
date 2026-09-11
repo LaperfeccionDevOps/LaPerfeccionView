@@ -2416,7 +2416,7 @@ const TrabajadorNuevaIncapacidadPage = () => {
                   <p className="mt-3 text-sm sm:text-base text-emerald-700 max-w-2xl mx-auto leading-relaxed">
                     {isCorrectionMode
                       ? "La corrección fue recibida correctamente y la misma incapacidad quedó nuevamente disponible para revisión de Nómina."
-                      : "Hemos recibido correctamente la información y los documentos de la incapacidad."}
+                      : "La incapacidad enviada pasa a proceso de verificación. Si la información no está completa, será rechazada y se notificará por correo electrónico especificando la causal."}
                   </p>
 
                   {success !== "Incapacidad registrada correctamente." && (

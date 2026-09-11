@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   Download,
   Eye,
+  FileSpreadsheet,
   FileText,
   HeartPulse,
   RefreshCw,
@@ -299,6 +300,16 @@ const mapIncapacidadApi = (item) => ({
     false,
   ),
 
+  conceptoSinergy:
+    item?.concepto_sinergy ??
+    item?.ConceptoSinergy ??
+    '',
+
+  diagnostico:
+    item?.diagnostico ??
+    item?.Diagnostico ??
+    '',
+
   estado: normalizarEstado(
     item?.estado ??
     item?.Estado ??
@@ -485,6 +496,14 @@ const NominaIncapacidadesView = () => {
   const [busqueda, setBusqueda] = useState('');
   const [pestanaActiva, setPestanaActiva] = useState('REGISTRADAS');
 
+  const [filtroIdentificacion, setFiltroIdentificacion] = useState('');
+  const [filtroTrabajador, setFiltroTrabajador] = useState('');
+  const [filtroTipo, setFiltroTipo] = useState('');
+  const [filtroInicio, setFiltroInicio] = useState('');
+  const [filtroDias, setFiltroDias] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('');
+  const [filtroEps, setFiltroEps] = useState('');
+
   const [cargando, setCargando] = useState(false);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [abriendoDocumento, setAbriendoDocumento] = useState(null);
@@ -496,6 +515,10 @@ const NominaIncapacidadesView = () => {
   const [motivoRechazo, setMotivoRechazo] = useState('');
   const rechazoRef = useRef(null);
   const motivoRechazoRef = useRef(null);
+  const radicacionRef = useRef(null);
+  const resultadoRadicacionRef = useRef(null);
+  const procesoPagoRef = useRef(null);
+  const resultadoFinalRef = useRef(null);
   const [mensajeGestion, setMensajeGestion] = useState('');
 
   const [numeroRadicado, setNumeroRadicado] = useState('');
@@ -510,9 +533,15 @@ const NominaIncapacidadesView = () => {
   const [fechaInicioEditada, setFechaInicioEditada] = useState('');
   const [diasIncapacidadEditados, setDiasIncapacidadEditados] = useState('');
   const [esProrrogaEditada, setEsProrrogaEditada] = useState(false);
+  const [conceptoSinergyEditado, setConceptoSinergyEditado] = useState('');
+  const [diagnosticoEditado, setDiagnosticoEditado] = useState('');
 
   const [errorCarga, setErrorCarga] = useState('');
   const [paginaActual, setPaginaActual] = useState(1);
+
+  const [fechaInicioExcel, setFechaInicioExcel] = useState('');
+  const [fechaFinExcel, setFechaFinExcel] = useState('');
+  const [descargandoExcel, setDescargandoExcel] = useState(false);
 
 
   const cargarIncapacidades = async () => {
@@ -609,6 +638,50 @@ const NominaIncapacidadesView = () => {
   }, [mostrarRechazo]);
 
 
+  useEffect(() => {
+    if (!incapacidadSeleccionada || !mensajeGestion) {
+      return undefined;
+    }
+
+    const estado = normalizarEstado(
+      incapacidadSeleccionada.estado,
+    );
+
+    let referencia = null;
+
+    if (estado === 'PENDIENTE RADICACION') {
+      referencia = radicacionRef;
+    } else if (estado === 'RADICADO') {
+      referencia = resultadoRadicacionRef;
+    } else if (estado === 'EN PROCESO DE PAGO') {
+      referencia = procesoPagoRef;
+    } else if (
+      estado === 'NEGADO' ||
+      estado === 'PAGADO'
+    ) {
+      referencia = resultadoFinalRef;
+    }
+
+    if (!referencia?.current) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      referencia.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }, 180);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [
+    incapacidadSeleccionada?.estado,
+    mensajeGestion,
+  ]);
+
+
   const abrirDetalle = async (incapacidad) => {
     if (!incapacidad?.idIncapacidad) return;
 
@@ -660,6 +733,8 @@ const NominaIncapacidadesView = () => {
         String(detalle.diasIncapacidad || ''),
       );
       setEsProrrogaEditada(Boolean(detalle.esProrroga));
+      setConceptoSinergyEditado(String(detalle.conceptoSinergy || ''));
+      setDiagnosticoEditado(String(detalle.diagnostico || ''));
     } catch (error) {
       console.error(
         'Error cargando detalle de incapacidad:',
@@ -691,6 +766,8 @@ const NominaIncapacidadesView = () => {
     setFechaInicioEditada('');
     setDiasIncapacidadEditados('');
     setEsProrrogaEditada(false);
+    setConceptoSinergyEditado('');
+    setDiagnosticoEditado('');
     setAbriendoDocumento(null);
     setDescargandoDocumento(null);
     setDescargandoTodosDocumentos(false);
@@ -946,6 +1023,101 @@ const NominaIncapacidadesView = () => {
   };
 
 
+  const descargarExcelAprobadas = async () => {
+    if (
+      fechaInicioExcel &&
+      fechaFinExcel &&
+      fechaFinExcel < fechaInicioExcel
+    ) {
+      setErrorCarga(
+        'La fecha fin no puede ser anterior a la fecha inicio.',
+      );
+      return;
+    }
+
+    setDescargandoExcel(true);
+    setErrorCarga('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const parametros = new URLSearchParams();
+
+      if (fechaInicioExcel) {
+        parametros.set('fecha_inicio', fechaInicioExcel);
+      }
+
+      if (fechaFinExcel) {
+        parametros.set('fecha_fin', fechaFinExcel);
+      }
+
+      const query = parametros.toString();
+      const url = `${API_BASE_URL}/nomina-incapacidades/reporte-excel-aprobadas${
+        query ? `?${query}` : ''
+      }`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          ...(token
+            ? { Authorization: `Bearer ${token}` }
+            : {}),
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response
+          .json()
+          .catch(() => ({}));
+
+        throw new Error(
+          data?.detail ||
+          data?.message ||
+          'No fue posible generar el Excel de incapacidades aprobadas.',
+        );
+      }
+
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const enlace = document.createElement('a');
+
+      let nombreArchivo = 'Incapacidades_Aprobadas.xlsx';
+      const contentDisposition = response.headers.get('Content-Disposition');
+
+      if (contentDisposition) {
+        const coincidencia = contentDisposition.match(
+          /filename="?([^"]+)"?/i,
+        );
+
+        if (coincidencia?.[1]) {
+          nombreArchivo = coincidencia[1].trim();
+        }
+      }
+
+      enlace.href = blobUrl;
+      enlace.download = nombreArchivo;
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+
+      setTimeout(() => {
+        URL.revokeObjectURL(blobUrl);
+      }, 5000);
+    } catch (error) {
+      console.error(
+        'Error descargando Excel de incapacidades:',
+        error,
+      );
+
+      setErrorCarga(
+        error?.message ||
+        'No fue posible descargar el Excel de incapacidades aprobadas.',
+      );
+    } finally {
+      setDescargandoExcel(false);
+    }
+  };
+
+
   const refrescarDetalleGestionado = async (
     idIncapacidad,
     mensaje,
@@ -992,6 +1164,8 @@ const NominaIncapacidadesView = () => {
       String(detalle.diasIncapacidad || ''),
     );
     setEsProrrogaEditada(Boolean(detalle.esProrroga));
+    setConceptoSinergyEditado(String(detalle.conceptoSinergy || ''));
+    setDiagnosticoEditado(String(detalle.diagnostico || ''));
     setMensajeGestion(mensaje);
     await cargarIncapacidades();
   };
@@ -1008,6 +1182,26 @@ const NominaIncapacidadesView = () => {
     ).trim();
 
     const dias = Number(diasIncapacidadEditados);
+    const conceptoSinergy = String(
+      conceptoSinergyEditado || '',
+    ).trim();
+    const diagnostico = String(
+      diagnosticoEditado || '',
+    ).trim();
+
+    if (conceptoSinergy.length > 10) {
+      setErrorCarga(
+        'El concepto permite máximo 10 caracteres.',
+      );
+      return;
+    }
+
+    if (diagnostico.length > 9) {
+      setErrorCarga(
+        'El diagnóstico permite máximo 9 caracteres.',
+      );
+      return;
+    }
 
     if (!fechaInicio) {
       setErrorCarga(
@@ -1073,6 +1267,8 @@ const NominaIncapacidadesView = () => {
             fecha_inicio: fechaInicio,
             dias_incapacidad: dias,
             es_prorroga: Boolean(esProrrogaEditada),
+            concepto_sinergy: conceptoSinergy,
+            diagnostico,
           }),
         },
       );
@@ -1129,28 +1325,50 @@ const NominaIncapacidadesView = () => {
     try {
       const token = localStorage.getItem('token');
 
-      const response = await fetch(
+      const headers = {
+        Accept: 'application/json',
+        ...(token
+          ? { Authorization: `Bearer ${token}` }
+          : {}),
+      };
+
+      const responseAprobar = await fetch(
         `${API_BASE_URL}/nomina-incapacidades/${idIncapacidad}/aprobar`,
         {
           method: 'PUT',
-          headers: {
-            Accept: 'application/json',
-            ...(token
-              ? { Authorization: `Bearer ${token}` }
-              : {}),
-          },
+          headers,
         },
       );
 
-      const data = await response
+      const dataAprobar = await responseAprobar
         .json()
         .catch(() => ({}));
 
-      if (!response.ok || !data?.success) {
+      if (!responseAprobar.ok || !dataAprobar?.success) {
         throw new Error(
-          data?.detail ||
-          data?.message ||
+          dataAprobar?.detail ||
+          dataAprobar?.message ||
           'No fue posible aprobar la incapacidad.',
+        );
+      }
+
+      const responsePendiente = await fetch(
+        `${API_BASE_URL}/nomina-incapacidades/${idIncapacidad}/pendiente-radicacion`,
+        {
+          method: 'PUT',
+          headers,
+        },
+      );
+
+      const dataPendiente = await responsePendiente
+        .json()
+        .catch(() => ({}));
+
+      if (!responsePendiente.ok || !dataPendiente?.success) {
+        throw new Error(
+          dataPendiente?.detail ||
+          dataPendiente?.message ||
+          'La incapacidad fue aprobada, pero no fue posible continuar automáticamente a radicación.',
         );
       }
 
@@ -1159,8 +1377,7 @@ const NominaIncapacidadesView = () => {
 
       await refrescarDetalleGestionado(
         idIncapacidad,
-        data?.message ||
-          'Incapacidad aprobada correctamente.',
+        'Incapacidad aprobada correctamente. Continúe con la información de radicación.',
       );
     } catch (error) {
       console.error(
@@ -1693,6 +1910,24 @@ const NominaIncapacidadesView = () => {
     const textoBusqueda =
       busqueda.trim().toLowerCase();
 
+    const identificacionFiltro =
+      filtroIdentificacion.trim().toLowerCase();
+
+    const trabajadorFiltro =
+      filtroTrabajador.trim().toLowerCase();
+
+    const tipoFiltro =
+      filtroTipo.trim().toLowerCase();
+
+    const diasFiltro =
+      filtroDias.trim();
+
+    const estadoFiltro =
+      filtroEstado.trim().toUpperCase();
+
+    const epsFiltro =
+      filtroEps.trim().toLowerCase();
+
     return incapacidades.filter((item) => {
       const estado = normalizarEstado(item.estado);
 
@@ -1713,6 +1948,49 @@ const NominaIncapacidadesView = () => {
         String(item.descripcionTipo || '')
           .toLowerCase()
           .includes(textoBusqueda);
+
+      const coincideIdentificacion =
+        !identificacionFiltro ||
+        String(item.identificacion || '')
+          .toLowerCase()
+          .includes(identificacionFiltro);
+
+      const coincideTrabajador =
+        !trabajadorFiltro ||
+        String(item.nombre || '')
+          .toLowerCase()
+          .includes(trabajadorFiltro);
+
+      const tipoTexto = [
+        item.tipoIncapacidad,
+        item.descripcionTipo,
+        formatearTipoIncapacidad(item.tipoIncapacidad),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      const coincideTipo =
+        !tipoFiltro ||
+        tipoTexto.includes(tipoFiltro);
+
+      const coincideInicio =
+        !filtroInicio ||
+        String(item.fechaInicio || '').slice(0, 10) === filtroInicio;
+
+      const coincideDias =
+        !diasFiltro ||
+        String(item.diasIncapacidad ?? '') === diasFiltro;
+
+      const coincideEstado =
+        !estadoFiltro ||
+        estado === estadoFiltro;
+
+      const coincideEps =
+        !epsFiltro ||
+        String(item.eps || '')
+          .toLowerCase()
+          .includes(epsFiltro);
 
       let coincidePestana = false;
 
@@ -1747,18 +2025,45 @@ const NominaIncapacidadesView = () => {
           estado === 'SIN_RECOBRO';
       }
 
-      return coincideBusqueda && coincidePestana;
+      return (
+        coincideBusqueda &&
+        coincideIdentificacion &&
+        coincideTrabajador &&
+        coincideTipo &&
+        coincideInicio &&
+        coincideDias &&
+        coincideEstado &&
+        coincideEps &&
+        coincidePestana
+      );
     });
   }, [
     incapacidades,
     busqueda,
     pestanaActiva,
+    filtroIdentificacion,
+    filtroTrabajador,
+    filtroTipo,
+    filtroInicio,
+    filtroDias,
+    filtroEstado,
+    filtroEps,
   ]);
 
 
   useEffect(() => {
     setPaginaActual(1);
-  }, [busqueda, pestanaActiva]);
+  }, [
+    busqueda,
+    pestanaActiva,
+    filtroIdentificacion,
+    filtroTrabajador,
+    filtroTipo,
+    filtroInicio,
+    filtroDias,
+    filtroEstado,
+    filtroEps,
+  ]);
 
 
   const totalPaginas = Math.max(
@@ -1823,7 +2128,11 @@ const NominaIncapacidadesView = () => {
       Number(diasIncapacidadEditados || 0) !==
         Number(incapacidadSeleccionada?.diasIncapacidad || 0) ||
       Boolean(esProrrogaEditada) !==
-        Boolean(incapacidadSeleccionada?.esProrroga)
+        Boolean(incapacidadSeleccionada?.esProrroga) ||
+      String(conceptoSinergyEditado || '').trim() !==
+        String(incapacidadSeleccionada?.conceptoSinergy || '').trim() ||
+      String(diagnosticoEditado || '').trim() !==
+        String(incapacidadSeleccionada?.diagnostico || '').trim()
     );
 
 
@@ -1953,6 +2262,59 @@ const NominaIncapacidadesView = () => {
 
       <div className="overflow-hidden rounded-2xl border bg-white shadow-md">
         <div className="border-b p-4 sm:p-5">
+          <div className="mb-5 flex justify-end">
+            <div className="w-full rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4 lg:w-auto">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                <div className="min-w-[180px]">
+                  <label className="text-xs font-semibold text-gray-600">
+                    Fecha inicio
+                  </label>
+
+                  <Input
+                    type="date"
+                    value={fechaInicioExcel}
+                    onChange={(e) =>
+                      setFechaInicioExcel(e.target.value)
+                    }
+                    className="mt-1 bg-white"
+                  />
+                </div>
+
+                <div className="min-w-[180px]">
+                  <label className="text-xs font-semibold text-gray-600">
+                    Fecha fin
+                  </label>
+
+                  <Input
+                    type="date"
+                    value={fechaFinExcel}
+                    onChange={(e) =>
+                      setFechaFinExcel(e.target.value)
+                    }
+                    className="mt-1 bg-white"
+                  />
+                </div>
+
+                <Button
+                  type="button"
+                  onClick={descargarExcelAprobadas}
+                  disabled={descargandoExcel}
+                  className="h-10 min-w-[185px] border border-emerald-600 bg-white font-bold text-emerald-700 shadow-sm hover:bg-emerald-50"
+                >
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+
+                  {descargandoExcel
+                    ? 'Generando Excel...'
+                    : 'Descargar Excel'}
+                </Button>
+              </div>
+
+              <p className="mt-2 text-xs text-emerald-800/80">
+                Exporta incapacidades aprobadas. Si no seleccionas fechas, se descargan todas.
+              </p>
+            </div>
+          </div>
+
           <h2 className="font-bold text-gray-800">
             Incapacidades recibidas
           </h2>
@@ -2032,6 +2394,7 @@ const NominaIncapacidadesView = () => {
               Sin recobro ({totales.sinRecobro})
             </button>
           </div>
+
         </div>
 
 
@@ -2051,7 +2414,7 @@ const NominaIncapacidadesView = () => {
                   Tipo
                 </th>
 
-                <th className="min-w-[120px] p-4 text-left">
+                <th className="min-w-[140px] p-4 text-left">
                   Inicio
                 </th>
 
@@ -2059,16 +2422,145 @@ const NominaIncapacidadesView = () => {
                   Días
                 </th>
 
-                <th className="min-w-[130px] p-4 text-left">
+                <th className="min-w-[150px] p-4 text-left">
                   Estado
                 </th>
 
-                <th className="min-w-[120px] p-4 text-center">
-                  Documentos
+                <th className="min-w-[240px] p-4 text-left">
+                  EPS
                 </th>
 
                 <th className="min-w-[110px] p-4 text-center">
                   Acción
+                </th>
+              </tr>
+
+              <tr className="border-t bg-white align-top">
+                <th className="p-2">
+                  <Input
+                    value={filtroIdentificacion}
+                    onChange={(e) =>
+                      setFiltroIdentificacion(e.target.value)
+                    }
+                    placeholder="Filtrar..."
+                    className="h-9 bg-white text-xs font-normal"
+                  />
+                </th>
+
+                <th className="p-2">
+                  <Input
+                    value={filtroTrabajador}
+                    onChange={(e) =>
+                      setFiltroTrabajador(e.target.value)
+                    }
+                    placeholder="Nombre..."
+                    className="h-9 bg-white text-xs font-normal"
+                  />
+                </th>
+
+                <th className="p-2">
+                  <select
+                    value={filtroTipo}
+                    onChange={(e) =>
+                      setFiltroTipo(e.target.value)
+                    }
+                    className="h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-emerald-500"
+                  >
+                    <option value="">Todos</option>
+                    {TIPOS_INCAPACIDAD_EDITABLES.map((tipo) => (
+                      <option
+                        key={tipo.value}
+                        value={tipo.value}
+                      >
+                        {tipo.label}
+                      </option>
+                    ))}
+                  </select>
+                </th>
+
+                <th className="p-2">
+                  <Input
+                    type="date"
+                    value={filtroInicio}
+                    onChange={(e) =>
+                      setFiltroInicio(e.target.value)
+                    }
+                    className="h-9 bg-white text-xs font-normal"
+                  />
+                </th>
+
+                <th className="p-2">
+                  <Input
+                    type="number"
+                    min="1"
+                    value={filtroDias}
+                    onChange={(e) =>
+                      setFiltroDias(e.target.value)
+                    }
+                    placeholder="Días"
+                    className="h-9 bg-white text-center text-xs font-normal"
+                  />
+                </th>
+
+                <th className="p-2">
+                  <select
+                    value={filtroEstado}
+                    onChange={(e) =>
+                      setFiltroEstado(e.target.value)
+                    }
+                    className="h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-emerald-500"
+                  >
+                    <option value="">Todos</option>
+                    <option value="REGISTRADA">REGISTRADA</option>
+                    <option value="RECHAZADA">RECHAZADA</option>
+                    <option value="APROBADA">APROBADA</option>
+                    <option value="PENDIENTE RADICACION">PENDIENTE RADICACIÓN</option>
+                    <option value="RADICADO">RADICADO</option>
+                    <option value="NEGADO">NEGADO</option>
+                    <option value="EN PROCESO DE PAGO">EN PROCESO DE PAGO</option>
+                    <option value="PAGADO">PAGADO</option>
+                    <option value="SIN RECOBRO">SIN RECOBRO</option>
+                  </select>
+                </th>
+
+                <th className="p-2">
+                  <Input
+                    value={filtroEps}
+                    onChange={(e) =>
+                      setFiltroEps(e.target.value)
+                    }
+                    placeholder="EPS..."
+                    className="h-9 bg-white text-xs font-normal"
+                  />
+                </th>
+
+                <th className="p-2 text-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setFiltroIdentificacion('');
+                      setFiltroTrabajador('');
+                      setFiltroTipo('');
+                      setFiltroInicio('');
+                      setFiltroDias('');
+                      setFiltroEstado('');
+                      setFiltroEps('');
+                    }}
+                    disabled={
+                      !filtroIdentificacion &&
+                      !filtroTrabajador &&
+                      !filtroTipo &&
+                      !filtroInicio &&
+                      !filtroDias &&
+                      !filtroEstado &&
+                      !filtroEps
+                    }
+                    className="h-9 text-xs"
+                  >
+                    Limpiar
+                  </Button>
                 </th>
               </tr>
             </thead>
@@ -2147,10 +2639,8 @@ const NominaIncapacidadesView = () => {
                         </span>
                       </td>
 
-                      <td className="p-4 text-center">
-                        <span className="inline-flex min-w-[34px] justify-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-700">
-                          {item.totalDocumentos}
-                        </span>
+                      <td className="p-4 text-gray-800">
+                        {item.eps || 'No registrada'}
                       </td>
 
                       <td className="p-4 text-center">
@@ -2363,7 +2853,7 @@ const NominaIncapacidadesView = () => {
 
       {incapacidadSeleccionada && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4">
-          <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-3xl border bg-white shadow-2xl">
+          <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-3xl border bg-white shadow-2xl">
             <div className="sticky top-0 z-10 flex items-start justify-between gap-4 rounded-t-3xl border-b bg-white px-5 py-5 sm:px-8">
               <div>
                 <h2 className="text-xl font-bold text-gray-800 sm:text-2xl">
@@ -2393,14 +2883,14 @@ const NominaIncapacidadesView = () => {
 
 
             <div className="space-y-6 p-5 sm:p-8">
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="space-y-5">
                 <div className="rounded-2xl border bg-gray-50 p-5">
                   <div className="mb-4 flex items-center gap-2 font-bold text-emerald-700">
                     <User className="h-5 w-5" />
                     Información del trabajador
                   </div>
 
-                  <div className="space-y-4 text-sm">
+                  <div className="grid grid-cols-1 gap-5 text-sm md:grid-cols-3">
                     <div>
                       <p className="font-semibold text-gray-500">
                         Trabajador
@@ -2436,15 +2926,14 @@ const NominaIncapacidadesView = () => {
                   </div>
                 </div>
 
-
                 <div className="rounded-2xl border bg-gray-50 p-5">
                   <div className="mb-4 flex items-center gap-2 font-bold text-emerald-700">
                     <CalendarDays className="h-5 w-5" />
                     Información de la incapacidad
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
-                    <div className="sm:col-span-2">
+                  <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-2 lg:grid-cols-4">
+                    <div className="md:col-span-2 lg:col-span-4">
                       <p className="font-semibold text-gray-500">
                         Tipo de incapacidad
                       </p>
@@ -2475,8 +2964,8 @@ const NominaIncapacidadesView = () => {
                             )}
                           </select>
 
-                          <p className="mt-2 text-xs text-gray-500">
-                            Puedes ajustar el tipo, la fecha de inicio, los días y la prórroga antes de guardar.
+                          <p className="text-xs text-gray-500">
+                            Puedes ajustar el tipo, las fechas, los días, la prórroga, el concepto y el diagnóstico antes de guardar.
                           </p>
                         </div>
                       ) : (
@@ -2491,9 +2980,7 @@ const NominaIncapacidadesView = () => {
                             incapacidadSeleccionada.descripcionTipo !==
                               incapacidadSeleccionada.tipoIncapacidad && (
                               <p className="mt-1 text-xs text-gray-500">
-                                {
-                                  incapacidadSeleccionada.descripcionTipo
-                                }
+                                {incapacidadSeleccionada.descripcionTipo}
                               </p>
                             )}
                         </>
@@ -2610,7 +3097,62 @@ const NominaIncapacidadesView = () => {
                           </select>
                         </div>
 
-                        <div className="sm:col-span-2">
+                        <div className="md:col-span-2 lg:col-span-4">
+                          <label className="font-semibold text-gray-500">
+                            Concepto
+                          </label>
+
+                          <Input
+                            type="text"
+                            value={conceptoSinergyEditado}
+                            onChange={(e) =>
+                              setConceptoSinergyEditado(
+                                e.target.value
+                                  .replace(/\s/g, '')
+                                  .slice(0, 10),
+                              )
+                            }
+                            maxLength={10}
+                            placeholder="Ej. 1601"
+                            disabled={procesandoGestion}
+                            className="mt-2 bg-white"
+                          />
+
+                          <p className="mt-1 text-xs text-gray-500">
+                            Ingresa el código de concepto de Sinergy. El sistema validará que exista en el catálogo.
+                          </p>
+                        </div>
+
+                        <div className="md:col-span-2 lg:col-span-4">
+                          <label className="font-semibold text-gray-500">
+                            Diagnóstico
+                          </label>
+
+                          <Input
+                            type="text"
+                            value={diagnosticoEditado}
+                            onChange={(e) =>
+                              setDiagnosticoEditado(
+                                e.target.value.slice(0, 9),
+                              )
+                            }
+                            maxLength={9}
+                            placeholder="Ej. M54.5"
+                            disabled={procesandoGestion}
+                            className="mt-2 bg-white"
+                          />
+
+                          <div className="mt-1 flex items-center justify-between gap-3 text-xs text-gray-500">
+                            <span>
+                              Admite letras, números y símbolos.
+                            </span>
+                            <span>
+                              {diagnosticoEditado.length}/9
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="md:col-span-2 lg:col-span-4">
                           <Button
                             type="button"
                             size="sm"
@@ -2636,7 +3178,6 @@ const NominaIncapacidadesView = () => {
                           <p className="font-semibold text-gray-500">
                             Fecha inicio
                           </p>
-
                           <p className="mt-1 text-gray-900">
                             {formatearFecha(
                               incapacidadSeleccionada.fechaInicio,
@@ -2648,7 +3189,6 @@ const NominaIncapacidadesView = () => {
                           <p className="font-semibold text-gray-500">
                             Fecha final
                           </p>
-
                           <p className="mt-1 text-gray-900">
                             {formatearFecha(
                               incapacidadSeleccionada.fechaFinal,
@@ -2660,11 +3200,8 @@ const NominaIncapacidadesView = () => {
                           <p className="font-semibold text-gray-500">
                             Días
                           </p>
-
                           <p className="mt-1 text-gray-900">
-                            {
-                              incapacidadSeleccionada.diasIncapacidad
-                            }
+                            {incapacidadSeleccionada.diasIncapacidad}
                           </p>
                         </div>
 
@@ -2672,17 +3209,36 @@ const NominaIncapacidadesView = () => {
                           <p className="font-semibold text-gray-500">
                             Prórroga
                           </p>
-
                           <p className="mt-1 text-gray-900">
                             {incapacidadSeleccionada.esProrroga
                               ? 'Sí'
                               : 'No'}
                           </p>
                         </div>
+
+                        <div className="md:col-span-2">
+                          <p className="font-semibold text-gray-500">
+                            Concepto
+                          </p>
+                          <p className="mt-1 text-gray-900">
+                            {incapacidadSeleccionada.conceptoSinergy ||
+                              'Sin información'}
+                          </p>
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <p className="font-semibold text-gray-500">
+                            Diagnóstico
+                          </p>
+                          <p className="mt-1 text-gray-900">
+                            {incapacidadSeleccionada.diagnostico ||
+                              'Sin información'}
+                          </p>
+                        </div>
                       </>
                     )}
 
-                    <div>
+                    <div className="lg:col-span-2">
                       <p className="font-semibold text-gray-500">
                         Estado
                       </p>
@@ -2692,13 +3248,11 @@ const NominaIncapacidadesView = () => {
                           incapacidadSeleccionada.estado,
                         )}`}
                       >
-                        {
-                          incapacidadSeleccionada.estado
-                        }
+                        {incapacidadSeleccionada.estado}
                       </span>
                     </div>
 
-                    <div>
+                    <div className="lg:col-span-2">
                       <p className="font-semibold text-gray-500">
                         Recibida
                       </p>
@@ -2920,11 +3474,12 @@ const NominaIncapacidadesView = () => {
               </div>
 
 
-              {mensajeGestion && (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
-                  {mensajeGestion}
-                </div>
-              )}
+              {mensajeGestion &&
+                normalizarEstado(incapacidadSeleccionada?.estado) === 'REGISTRADA' && (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
+                    {mensajeGestion}
+                  </div>
+                )}
 
               {errorCarga && (
                 <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
@@ -3040,96 +3595,37 @@ const NominaIncapacidadesView = () => {
                 </div>
               ) : (
                 <>
-                  <div className="rounded-2xl border bg-gray-50 p-5">
+                  <div
+                    className={`rounded-2xl border p-5 ${
+                      normalizarEstado(incapacidadSeleccionada.estado) === 'RECHAZADA'
+                        ? 'border-red-200 bg-red-50'
+                        : 'border-emerald-200 bg-emerald-50'
+                    }`}
+                  >
                     <div className="flex items-start gap-3">
-                    {normalizarEstado(
-                      incapacidadSeleccionada.estado,
-                    ) === 'APROBADA' ? (
-                      <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-                    ) : (
-                      <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
-                    )}
+                      {normalizarEstado(incapacidadSeleccionada.estado) === 'RECHAZADA' ? (
+                        <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+                      ) : (
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                      )}
 
-                    <div className="min-w-0">
-                      <h3 className="font-bold text-gray-800">
-                        Gestión de Nómina realizada
-                      </h3>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-bold text-gray-800">
+                          {normalizarEstado(incapacidadSeleccionada.estado) === 'RECHAZADA'
+                            ? 'Incapacidad rechazada'
+                            : 'Gestión de Nómina completada'}
+                        </h3>
 
-                      <p className="mt-1 text-sm text-gray-600">
-                        Esta incapacidad ya fue gestionada y no permite una nueva aprobación o rechazo.
-                      </p>
+                        <p className="mt-1 text-sm text-gray-600">
+                          {normalizarEstado(incapacidadSeleccionada.estado) === 'RECHAZADA'
+                            ? 'La incapacidad requiere corrección por parte del trabajador.'
+                            : 'La gestión fue realizada correctamente. Continúe con la siguiente etapa del proceso.'}
+                        </p>
 
-                      <div className="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
-                        <div>
-                          <p className="font-semibold text-gray-500">
-                            Estado
-                          </p>
-
-                          <span
-                            className={`mt-1 inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${getEstadoBadge(
-                              incapacidadSeleccionada.estado,
-                            )}`}
-                          >
-                            {incapacidadSeleccionada.estado}
-                          </span>
-                        </div>
-
-                        <div>
-                          <p className="font-semibold text-gray-500">
-                            Fecha de gestión
-                          </p>
-
-                          <p className="mt-1 text-gray-900">
-                            {formatearFechaHoraColombia(
-                              incapacidadSeleccionada.fechaGestionNomina,
-                            )}
-                          </p>
-                        </div>
-
-                        <div className="sm:col-span-2">
-                          <p className="font-semibold text-gray-500">
-                            Usuario que gestionó
-                          </p>
-
-                          <p className="mt-1 text-gray-900">
-                            {incapacidadSeleccionada.usuarioGestionNomina ||
-                              'Sin información'}
-                          </p>
-                        </div>
-
-                        {incapacidadSeleccionada.observacionNomina && (
-                          <div className="sm:col-span-2">
+                        <div className="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+                          <div>
                             <p className="font-semibold text-gray-500">
-                              Motivo / observación de Nómina
-                            </p>
-
-                            <p className="mt-1 whitespace-pre-wrap text-gray-900">
-                              {incapacidadSeleccionada.observacionNomina}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {normalizarEstado(
-                    incapacidadSeleccionada.estado,
-                  ) === 'APROBADA' && (
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="min-w-0">
-                          <h3 className="font-bold text-gray-800">
-                            Seguimiento de la incapacidad
-                          </h3>
-
-                          <p className="mt-1 text-sm text-gray-600">
-                            La incapacidad está aprobada y puede continuar al siguiente paso del flujo de Nómina.
-                          </p>
-
-                          <div className="mt-3">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                              Estado actual
+                              Estado
                             </p>
 
                             <span
@@ -3140,30 +3636,53 @@ const NominaIncapacidadesView = () => {
                               {incapacidadSeleccionada.estado}
                             </span>
                           </div>
-                        </div>
 
-                        <Button
-                          type="button"
-                          onClick={marcarPendienteRadicacion}
-                          disabled={procesandoGestion}
-                          className="w-full bg-amber-600 text-white hover:bg-amber-700 lg:w-auto"
-                        >
-                          {procesandoGestion ? (
-                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                          <div>
+                            <p className="font-semibold text-gray-500">
+                              Fecha de gestión
+                            </p>
+
+                            <p className="mt-1 text-gray-900">
+                              {formatearFechaHoraColombia(
+                                incapacidadSeleccionada.fechaGestionNomina,
+                              )}
+                            </p>
+                          </div>
+
+                          <div className="sm:col-span-2">
+                            <p className="font-semibold text-gray-500">
+                              Usuario que gestionó
+                            </p>
+
+                            <p className="mt-1 text-gray-900">
+                              {incapacidadSeleccionada.usuarioGestionNomina ||
+                                'Sin información'}
+                            </p>
+                          </div>
+
+                          {incapacidadSeleccionada.observacionNomina && (
+                            <div className="sm:col-span-2">
+                              <p className="font-semibold text-gray-500">
+                                Motivo / observación de Nómina
+                              </p>
+
+                              <p className="mt-1 whitespace-pre-wrap text-gray-900">
+                                {incapacidadSeleccionada.observacionNomina}
+                              </p>
+                            </div>
                           )}
-
-                          Pasar a pendiente de radicación
-                        </Button>
+                        </div>
                       </div>
                     </div>
-                  )}
+                  </div>
 
                   {normalizarEstado(
                     incapacidadSeleccionada.estado,
                   ) === 'PENDIENTE RADICACION' && (
-                    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
+                    <div
+                      ref={radicacionRef}
+                      className="rounded-2xl border border-blue-200 bg-blue-50 p-5"
+                    >
                       <h3 className="font-bold text-gray-800">
                         Radicación de la incapacidad
                       </h3>
@@ -3226,7 +3745,10 @@ const NominaIncapacidadesView = () => {
                   {normalizarEstado(
                     incapacidadSeleccionada.estado,
                   ) === 'RADICADO' && (
-                    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
+                    <div
+                      ref={resultadoRadicacionRef}
+                      className="rounded-2xl border border-blue-200 bg-blue-50 p-5"
+                    >
                       <h3 className="font-bold text-gray-800">
                         Información de radicación
                       </h3>
@@ -3349,7 +3871,10 @@ const NominaIncapacidadesView = () => {
                   {normalizarEstado(
                     incapacidadSeleccionada.estado,
                   ) === 'NEGADO' && (
-                    <div className="rounded-2xl border border-red-200 bg-red-50 p-5">
+                    <div
+                      ref={resultadoFinalRef}
+                      className="rounded-2xl border border-red-200 bg-red-50 p-5"
+                    >
                       <h3 className="font-bold text-red-800">
                         Incapacidad negada
                       </h3>
@@ -3368,7 +3893,10 @@ const NominaIncapacidadesView = () => {
                   {normalizarEstado(
                     incapacidadSeleccionada.estado,
                   ) === 'EN PROCESO DE PAGO' && (
-                    <div className="rounded-2xl border border-violet-200 bg-violet-50 p-5">
+                    <div
+                      ref={procesoPagoRef}
+                      className="rounded-2xl border border-violet-200 bg-violet-50 p-5"
+                    >
                       <h3 className="font-bold text-violet-800">
                         En proceso de pago
                       </h3>
@@ -3448,7 +3976,10 @@ const NominaIncapacidadesView = () => {
                   {normalizarEstado(
                     incapacidadSeleccionada.estado,
                   ) === 'PAGADO' && (
-                    <div className="rounded-2xl border border-teal-200 bg-teal-50 p-5">
+                    <div
+                      ref={resultadoFinalRef}
+                      className="rounded-2xl border border-teal-200 bg-teal-50 p-5"
+                    >
                       <h3 className="font-bold text-teal-800">
                         Incapacidad pagada
                       </h3>
