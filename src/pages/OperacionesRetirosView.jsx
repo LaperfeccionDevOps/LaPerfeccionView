@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   CalendarDays,
@@ -9,6 +9,7 @@ import {
   ClipboardCheck,
   FileText,
   Mail,
+  Mic,
   Paperclip,
   Search,
   Trash2,
@@ -423,6 +424,239 @@ const CampoSelect = ({
   </div>
 );
 
+const CampoTextoDictado = ({
+  id,
+  label,
+  value,
+  onChange,
+  rows = 4,
+  placeholder = "",
+  required = false,
+}) => {
+  const [escuchando, setEscuchando] = useState(false);
+  const [mensajeVoz, setMensajeVoz] = useState("");
+  const reconocimientoRef = useRef(null);
+  const valorBaseRef = useRef("");
+
+  useEffect(() => {
+    return () => {
+      if (reconocimientoRef.current) {
+        try {
+          reconocimientoRef.current.stop();
+        } catch (error) {
+          // El reconocimiento ya estaba detenido.
+        }
+      }
+    };
+  }, []);
+
+  const alternarDictado = () => {
+    if (escuchando && reconocimientoRef.current) {
+      reconocimientoRef.current.stop();
+      return;
+    }
+
+    const SpeechRecognition =
+      window.SpeechRecognition ||
+      window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setMensajeVoz(
+        "El dictado por voz no está disponible en este navegador. Puedes escribir normalmente."
+      );
+      return;
+    }
+
+    setMensajeVoz("");
+    valorBaseRef.current = String(value || "").trim();
+
+    const reconocimiento = new SpeechRecognition();
+
+    reconocimiento.lang = "es-CO";
+    reconocimiento.continuous = false;
+    reconocimiento.interimResults = true;
+    reconocimiento.maxAlternatives = 1;
+
+    reconocimiento.onstart = () => {
+      setEscuchando(true);
+      setMensajeVoz("Escuchando... habla con claridad.");
+    };
+
+    reconocimiento.onresult = (event) => {
+      let transcripcion = "";
+
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        transcripcion += event.results[i][0]?.transcript || "";
+      }
+
+      const textoDictado = transcripcion.trim();
+      const textoBase = valorBaseRef.current;
+
+      if (!textoDictado) {
+        return;
+      }
+
+      onChange(
+        textoBase
+          ? `${textoBase} ${textoDictado}`
+          : textoDictado
+      );
+    };
+
+    reconocimiento.onerror = (event) => {
+      setEscuchando(false);
+
+      const mensajes = {
+        "not-allowed":
+          "El navegador no tiene permiso para usar el micrófono.",
+        "service-not-allowed":
+          "El servicio de reconocimiento de voz no está permitido.",
+        "no-speech":
+          "No se detectó voz. Intenta nuevamente.",
+        "audio-capture":
+          "No fue posible acceder al micrófono del dispositivo.",
+        network:
+          "No fue posible usar el reconocimiento de voz en este momento.",
+      };
+
+      setMensajeVoz(
+        mensajes[event?.error] ||
+          "No fue posible completar el dictado. Puedes escribir normalmente."
+      );
+    };
+
+    reconocimiento.onend = () => {
+      setEscuchando(false);
+
+      setMensajeVoz((actual) =>
+        actual === "Escuchando... habla con claridad."
+          ? ""
+          : actual
+      );
+    };
+
+    reconocimientoRef.current = reconocimiento;
+
+    try {
+      reconocimiento.start();
+    } catch (error) {
+      setEscuchando(false);
+      setMensajeVoz(
+        "No fue posible iniciar el micrófono. Intenta nuevamente."
+      );
+    }
+  };
+
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <label
+          htmlFor={id}
+          className="block text-sm font-semibold text-gray-800"
+        >
+          {label}
+          {required && <span className="text-red-500"> *</span>}
+        </label>
+
+        <button
+          type="button"
+          onClick={alternarDictado}
+          className={cn(
+            "inline-flex min-h-9 items-center justify-center rounded-lg border px-3 text-xs font-semibold transition-colors",
+            escuchando
+              ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-100"
+              : "border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100"
+          )}
+          title={
+            escuchando
+              ? "Detener dictado"
+              : "Dictar texto con el micrófono"
+          }
+        >
+          <Mic className="mr-1.5 h-4 w-4" />
+          {escuchando ? "Detener" : "Dictar"}
+        </button>
+      </div>
+
+      <textarea
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={rows}
+        placeholder={placeholder}
+        className="w-full resize-y rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 shadow-sm outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+      />
+
+      {mensajeVoz && (
+        <p
+          className={cn(
+            "mt-2 text-xs leading-relaxed",
+            escuchando ? "text-blue-700" : "text-gray-500"
+          )}
+        >
+          {mensajeVoz}
+        </p>
+      )}
+    </div>
+  );
+};
+
+
+const VistaPreviaAdjunto = ({ archivo }) => {
+  const [urlVistaPrevia, setUrlVistaPrevia] = useState("");
+
+  const esImagen = String(archivo?.type || "")
+    .toLowerCase()
+    .startsWith("image/");
+
+  useEffect(() => {
+    if (!archivo || !esImagen) {
+      setUrlVistaPrevia("");
+      return undefined;
+    }
+
+    const url = URL.createObjectURL(archivo);
+    setUrlVistaPrevia(url);
+
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [archivo, esImagen]);
+
+  if (!esImagen || !urlVistaPrevia) {
+    return (
+      <div className="flex min-h-28 items-center justify-center rounded-xl border border-gray-200 bg-white px-4 text-center">
+        <div>
+          <FileText className="mx-auto h-8 w-8 text-gray-400" />
+          <p className="mt-2 text-xs font-medium text-gray-500">
+            Vista previa no disponible para este tipo de archivo.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+      <img
+        src={urlVistaPrevia}
+        alt={`Vista previa de ${archivo?.name || "evidencia"}`}
+        className="h-48 w-full object-contain bg-gray-50 sm:h-56"
+      />
+      <div className="border-t border-gray-100 px-3 py-2">
+        <p className="text-xs font-semibold text-emerald-700">
+          Foto lista para enviar
+        </p>
+        <p className="mt-1 text-xs text-gray-500">
+          Verifica que la imagen se vea clara y completa. Si no quedó bien,
+          puedes repetirla antes de enviar el retiro.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+
 const CampoArchivo = ({
   id,
   label,
@@ -481,29 +715,62 @@ const CampoArchivo = ({
         {required && <span className="text-red-500"> *</span>}
       </p>
 
-      <label
-        htmlFor={id}
-        className="flex min-h-12 cursor-pointer items-center justify-center rounded-xl border border-dashed border-emerald-400 bg-emerald-50 px-4 text-center font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
-      >
-        <Paperclip className="mr-2 h-5 w-5 shrink-0" />
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <label
+          htmlFor={id}
+          className="flex min-h-12 cursor-pointer items-center justify-center rounded-xl border border-dashed border-emerald-400 bg-emerald-50 px-4 text-center font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+        >
+          <Paperclip className="mr-2 h-5 w-5 shrink-0" />
 
-        {files.length > 0
-          ? multiple
-            ? "Adjuntar más archivos"
-            : "Reemplazar archivo"
-          : "Adjuntar archivo"}
+          {files.length > 0
+            ? multiple
+              ? "Adjuntar más archivos"
+              : "Reemplazar archivo"
+            : "Adjuntar archivo"}
 
-        <input
-          id={id}
-          type="file"
-          multiple={multiple}
-          onChange={(event) => {
-            onAdd(Array.from(event.target.files || []));
-            event.target.value = "";
-          }}
-          className="hidden"
-        />
-      </label>
+          <input
+            id={id}
+            type="file"
+            multiple={multiple}
+            onChange={(event) => {
+              onAdd(Array.from(event.target.files || []));
+              event.target.value = "";
+            }}
+            className="hidden"
+          />
+        </label>
+
+        <label
+          htmlFor={`${id}-camara`}
+          className="flex min-h-12 cursor-pointer items-center justify-center rounded-xl border border-dashed border-blue-400 bg-blue-50 px-4 text-center font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+          title="Abrir la cámara del dispositivo"
+        >
+          <Camera className="mr-2 h-5 w-5 shrink-0" />
+
+          {files.length > 0
+            ? multiple
+              ? "Tomar otra foto"
+              : "Reemplazar con foto"
+            : "Tomar foto"}
+
+          <input
+            id={`${id}-camara`}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={(event) => {
+              const foto = event.target.files?.[0];
+
+              if (foto) {
+                onAdd([foto]);
+              }
+
+              event.target.value = "";
+            }}
+            className="hidden"
+          />
+        </label>
+      </div>
 
       {helper && (
         <p className="mt-2 text-xs leading-relaxed text-gray-500">
@@ -518,17 +785,20 @@ const CampoArchivo = ({
               key={`${archivo.name}-${archivo.size}-${index}`}
               className="rounded-xl border border-gray-200 bg-gray-50 p-3"
             >
-              <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-gray-800">
-                    {archivo.name}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {(archivo.size / 1024 / 1024).toFixed(2)} MB
-                  </p>
-                </div>
+              <div className="space-y-3">
+                <VistaPreviaAdjunto archivo={archivo} />
 
-                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+                <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-gray-800">
+                      {archivo.name}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {(archivo.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
                   <button
                     type="button"
                     onClick={() => abrirArchivo(archivo)}
@@ -575,6 +845,36 @@ const CampoArchivo = ({
                     />
                   </label>
 
+                  {String(archivo?.type || "")
+                    .toLowerCase()
+                    .startsWith("image/") && (
+                    <label
+                      htmlFor={`${id}-repetir-foto-${index}`}
+                      className="inline-flex min-h-9 cursor-pointer items-center justify-center rounded-lg border border-blue-300 bg-blue-50 px-3 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                      title="Tomar nuevamente la foto"
+                    >
+                      <Camera className="mr-1.5 h-4 w-4" />
+                      Repetir foto
+                      <input
+                        id={`${id}-repetir-foto-${index}`}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={(event) => {
+                          const nuevaFoto = event.target.files?.[0];
+
+                          if (nuevaFoto) {
+                            onRemove(index);
+                            onAdd([nuevaFoto]);
+                          }
+
+                          event.target.value = "";
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => onRemove(index)}
@@ -584,6 +884,7 @@ const CampoArchivo = ({
                     <Trash2 className="mr-1.5 h-4 w-4" />
                     Eliminar
                   </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -766,18 +1067,21 @@ const OperacionesRetirosView = () => {
   const clientesFiltrados = useMemo(() => {
     const criterio = normalizarTexto(formulario.clienteNombre);
 
-    if (!criterio) {
-      return clientes.slice(0, 50);
+    // No mostramos el catálogo completo.
+    // Las coincidencias solo aparecen cuando el usuario empieza
+    // a escribir para buscar un cliente diferente.
+    if (!criterio || formulario.idCliente) {
+      return [];
     }
 
-    return clientes
-      .filter((cliente) =>
-        normalizarTexto(cliente?.NombreCliente).includes(
-          criterio
-        )
-      )
-      .slice(0, 50);
-  }, [clientes, formulario.clienteNombre]);
+    return clientes.filter((cliente) =>
+      normalizarTexto(cliente?.NombreCliente).includes(criterio)
+    );
+  }, [
+    clientes,
+    formulario.clienteNombre,
+    formulario.idCliente,
+  ]);
 
   const construirHeaders = () => {
     const token = obtenerTokenAutenticacion();
@@ -1989,7 +2293,10 @@ const OperacionesRetirosView = () => {
                         </span>
                       </button>
 
-                      {clienteListaAbierta && !loadingClientes && (
+                      {clienteListaAbierta &&
+                        !loadingClientes &&
+                        !formulario.idCliente &&
+                        String(formulario.clienteNombre || "").trim() && (
                         <div className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-xl">
                           {clientesFiltrados.length > 0 ? (
                             clientesFiltrados.map((cliente) => {
@@ -2107,28 +2414,19 @@ const OperacionesRetirosView = () => {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label
-                      htmlFor="descripcionMotivoRetiro"
-                      className="mb-2 block text-sm font-semibold text-gray-800"
-                    >
-                      Descripción del motivo del retiro
-                      <span className="text-red-500"> *</span>
-                    </label>
-
-                    <textarea
+                    <CampoTextoDictado
                       id="descripcionMotivoRetiro"
-                      value={
-                        formulario.descripcionMotivoRetiro
-                      }
-                      onChange={(event) =>
+                      label="Descripción del motivo del retiro"
+                      value={formulario.descripcionMotivoRetiro}
+                      onChange={(valor) =>
                         actualizarCampo(
                           "descripcionMotivoRetiro",
-                          event.target.value
+                          valor
                         )
                       }
                       rows={4}
                       placeholder="Describe de manera clara el motivo del retiro..."
-                      className="w-full resize-y rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 shadow-sm outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                      required
                     />
                   </div>
                 </div>
@@ -2188,25 +2486,19 @@ const OperacionesRetirosView = () => {
                     </div>
 
                     <div className="mt-5">
-                      <label
-                        htmlFor="observacionesEntrega"
-                        className="mb-2 block text-sm font-semibold text-gray-800"
-                      >
-                        Observaciones de la entrega
-                        <span className="text-red-500"> *</span>
-                      </label>
-                      <textarea
+                      <CampoTextoDictado
                         id="observacionesEntrega"
+                        label="Observaciones de la entrega"
                         value={formulario.observacionesEntrega}
-                        onChange={(event) =>
+                        onChange={(valor) =>
                           actualizarCampo(
                             "observacionesEntrega",
-                            event.target.value
+                            valor
                           )
                         }
                         rows={4}
                         placeholder="Registra observaciones, pendientes o aclaraciones..."
-                        className="w-full resize-y rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 shadow-sm outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                        required
                       />
                     </div>
                   </>
@@ -2263,24 +2555,18 @@ const OperacionesRetirosView = () => {
                   )}
 
                   <div className="md:col-span-2">
-                    <label
-                      htmlFor="novedadesNomina"
-                      className="mb-2 block text-sm font-semibold text-gray-800"
-                    >
-                      Novedades de nómina
-                    </label>
-                    <textarea
+                    <CampoTextoDictado
                       id="novedadesNomina"
+                      label="Observaciones para nómina"
                       value={formulario.novedadesNomina}
-                      onChange={(event) =>
+                      onChange={(valor) =>
                         actualizarCampo(
                           "novedadesNomina",
-                          event.target.value
+                          valor
                         )
                       }
                       rows={4}
                       placeholder="Registra las novedades de nómina..."
-                      className="w-full resize-y rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 shadow-sm outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                     />
                   </div>
 
