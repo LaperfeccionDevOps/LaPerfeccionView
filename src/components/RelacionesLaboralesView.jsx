@@ -526,6 +526,29 @@ function keyFromLabel(label) {
     .replace(/^_+|_+$/g, "");
 }
 
+
+const EVIDENCIA_OPERACIONES_LABELS = {
+  NOVEDADES_NOMINA: "Documentos de novedades de nómina",
+  FORMATO_DESCUENTO_VACUNAS: "Formato descuento de vacunas",
+  CARNET_ACCESO: "Foto / documento carnet de acceso",
+  LISTADO_HERRAMIENTAS: "Foto listado de herramientas",
+  PLANILLA_NOMINA: "Foto planilla de nómina",
+};
+
+function getLabelEvidenciaOperaciones(tipoEvidencia) {
+  const codigo = String(tipoEvidencia || "").trim().toUpperCase();
+  return EVIDENCIA_OPERACIONES_LABELS[codigo] || pretty(codigo.replace(/_/g, " "));
+}
+
+function formatFileSize(bytes) {
+  const value = Number(bytes || 0);
+  if (!Number.isFinite(value) || value <= 0) return "";
+
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 /* =========================================================
    ✅ FIX CLAVE: toDateInput (ANTES NO EXISTÍA y rompía la carga)
    Convierte cualquier fecha a formato YYYY-MM-DD para inputs type="date"
@@ -891,6 +914,13 @@ export default function RelacionesLaboralesView() {
 
   const [adjuntosBackend, setAdjuntosBackend] = useState({});
   const [loadingAdjuntosBackend, setLoadingAdjuntosBackend] = useState(false);
+
+
+  // Evidencias cargadas por Operaciones y asociadas al Paz y Salvo.
+  // RRLL solo las consulta/visualiza; no se mezclan con RetiroLaboralAdjunto.
+  const [evidenciasOperaciones, setEvidenciasOperaciones] = useState([]);
+  const [loadingEvidenciasOperaciones, setLoadingEvidenciasOperaciones] = useState(false);
+  const [errorEvidenciasOperaciones, setErrorEvidenciasOperaciones] = useState("");
 
   const [entrevistaRetiroData, setEntrevistaRetiroData] = useState(null);
   const [loadingEntrevistaRetiro, setLoadingEntrevistaRetiro] = useState(false);
@@ -1407,9 +1437,9 @@ const getMotivoValueById = (idMotivo) => {
     const retiroObj = retiroActivo?.retiro ?? retiroActivo;
 
     const estadoRecuperadoBusqueda = String(
-      detalleRetiroBusqueda?.EstadoCasoRRLL ||
-        retiroDb?.EstadoCasoRRLL ||
+      retiroDb?.EstadoCasoRRLL ||
         retiroObj?.EstadoCasoRRLL ||
+        detalleRetiroBusqueda?.EstadoCasoRRLL ||
         ""
     ).toUpperCase();
 
@@ -1442,8 +1472,8 @@ const getMotivoValueById = (idMotivo) => {
       toDateInput(retiroDb?.FechaProceso || data?.FechaProceso) || "";
 
     const motivoIdDb =
-      detalleRetiroBusqueda?.IdMotivoRetiro ??
       retiroDb?.IdMotivoRetiro ??
+      detalleRetiroBusqueda?.IdMotivoRetiro ??
       data?.IdMotivoRetiro ??
       null;
 
@@ -1472,8 +1502,8 @@ const getMotivoValueById = (idMotivo) => {
         ...prev,
         idRegistroPersonal: data?.IdRegistroPersonal ?? null,
         idRetiroLaboral:
-          detalleRetiroBusqueda?.IdRetiroLaboral ??
           retiroDb?.IdRetiroLaboral ??
+          detalleRetiroBusqueda?.IdRetiroLaboral ??
           data?.IdRetiroLaboral ??
           prev.idRetiroLaboral ??
           null,
@@ -1974,6 +2004,8 @@ const getMotivoValueById = (idMotivo) => {
       setChecks({});
       setTipificacionRetiro("");
       setRetiroLegalizado("");
+      setEvidenciasOperaciones([]);
+      setErrorEvidenciasOperaciones("");
     };
 
     // ✅ util: quitar adjunto sin romper nada
@@ -2063,6 +2095,150 @@ const cargarAdjuntosDesdeBackend = async (idRetiroLaboral) => {
   } finally {
     setLoadingAdjuntosBackend(false);
   }
+};
+
+const listarEvidenciasOperacionesBackend = async (idRetiroLaboral) => {
+  if (!idRetiroLaboral) return [];
+
+  const token = localStorage.getItem("token");
+
+  const res = await fetch(
+    `${API_BASE}/retiros-laborales/${idRetiroLaboral}/evidencias-operaciones`,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    }
+  );
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok || !data?.success) {
+    throw new Error(
+      data?.detail ||
+        data?.message ||
+        "No se pudieron consultar las evidencias de Operaciones."
+    );
+  }
+
+  return Array.isArray(data?.data) ? data.data : [];
+};
+
+const cargarEvidenciasOperaciones = async (idRetiroLaboral) => {
+  if (!idRetiroLaboral) {
+    setEvidenciasOperaciones([]);
+    setErrorEvidenciasOperaciones("");
+    return;
+  }
+
+  try {
+    setLoadingEvidenciasOperaciones(true);
+    setErrorEvidenciasOperaciones("");
+
+    const data = await listarEvidenciasOperacionesBackend(idRetiroLaboral);
+    setEvidenciasOperaciones(data);
+  } catch (error) {
+    console.error("Error cargando evidencias de Operaciones:", error);
+    setEvidenciasOperaciones([]);
+    setErrorEvidenciasOperaciones(
+      error?.message || "No se pudieron consultar las evidencias de Operaciones."
+    );
+  } finally {
+    setLoadingEvidenciasOperaciones(false);
+  }
+};
+
+const abrirEvidenciaOperaciones = async (evidencia) => {
+  if (!form?.idRetiroLaboral || !evidencia?.IdPazYSalvoEvidencia) return;
+
+  const nombreArchivo = String(
+    evidencia?.NombreArchivoOriginal ||
+      evidencia?.NombreArchivo ||
+      ""
+  ).toLowerCase();
+
+  const extensionDesdeCampo = String(
+    evidencia?.ExtensionArchivo || ""
+  ).toLowerCase().trim();
+
+  const extension = extensionDesdeCampo
+    ? extensionDesdeCampo.startsWith(".")
+      ? extensionDesdeCampo
+      : `.${extensionDesdeCampo}`
+    : (nombreArchivo.match(/\.[a-z0-9]+$/i)?.[0] || "");
+
+  if ([".xls", ".xlsx"].includes(extension)) {
+    throw new Error(
+      "Los archivos de Excel se encuentran disponibles únicamente para descarga."
+    );
+  }
+
+  const token = localStorage.getItem("token");
+
+  const res = await fetch(
+    `${API_BASE}/retiros-laborales/${form.idRetiroLaboral}/evidencias-operaciones/${evidencia.IdPazYSalvoEvidencia}/descargar`,
+    {
+      method: "GET",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    }
+  );
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => null);
+    throw new Error(
+      errorData?.detail || "No se pudo abrir la evidencia de Operaciones."
+    );
+  }
+
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  window.open(url, "_blank", "noopener,noreferrer");
+
+  setTimeout(() => {
+    window.URL.revokeObjectURL(url);
+  }, 60000);
+};
+
+const descargarEvidenciaOperaciones = async (evidencia) => {
+  if (!form?.idRetiroLaboral || !evidencia?.IdPazYSalvoEvidencia) return;
+
+  const token = localStorage.getItem("token");
+
+  const res = await fetch(
+    `${API_BASE}/retiros-laborales/${form.idRetiroLaboral}/evidencias-operaciones/${evidencia.IdPazYSalvoEvidencia}/descargar`,
+    {
+      method: "GET",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    }
+  );
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => null);
+    throw new Error(
+      errorData?.detail || "No se pudo descargar la evidencia de Operaciones."
+    );
+  }
+
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download =
+    evidencia?.NombreArchivoOriginal ||
+    evidencia?.NombreArchivo ||
+    `evidencia_operaciones_${evidencia.IdPazYSalvoEvidencia}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  window.URL.revokeObjectURL(url);
 };
 
 const retiroBloqueado =
@@ -2166,6 +2342,30 @@ useEffect(() => {
     setDescripcionRetiroRRLL("");
     setMensajeMotivoRRLL({ tipo: "", texto: "" });
   }
+}, [step, form.idRetiroLaboral]);
+
+
+useEffect(() => {
+  if (step !== "retiros_docs") {
+    setEvidenciasOperaciones([]);
+    setErrorEvidenciasOperaciones("");
+    return;
+  }
+
+  const idRetiroActual = Number(form.idRetiroLaboral || 0);
+
+  if (!idRetiroActual) {
+    setEvidenciasOperaciones([]);
+    setErrorEvidenciasOperaciones("");
+    return;
+  }
+
+  console.log(
+    "CARGANDO EVIDENCIAS OPERACIONES - IdRetiroLaboral =>",
+    idRetiroActual
+  );
+
+  cargarEvidenciasOperaciones(idRetiroActual);
 }, [step, form.idRetiroLaboral]);
 
 const subirAdjuntoRetiroBackend = async ({
@@ -5045,11 +5245,159 @@ if (step === "retiros_docs") {
             </div>
 
             <div className="mt-5 text-xs text-gray-500">
-              * Por ahora esto es interfaz. Luego conectamos BD/API para guardar y descargar desde servidor.
+              * Los documentos del retiro se administran según el flujo definido para RRLL.
             </div>
           </div>
 
+          {/* Sección RRLL: evidencias asociadas al Paz y Salvo de Operaciones */}
+          <div className="mt-6 bg-white p-5 rounded-xl border border-gray-100">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <p className="font-semibold text-gray-700">
+                  Evidencias de Operaciones
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Soportes asociados al Paz y Salvo enviado por Operaciones.
+                  Son documentos de consulta para RRLL y no hacen parte del PDF oficial.
+                </p>
+              </div>
 
+              {!loadingEvidenciasOperaciones &&
+                evidenciasOperaciones.length > 0 && (
+                  <div className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-3 py-1">
+                    {evidenciasOperaciones.length} evidencia
+                    {evidenciasOperaciones.length === 1 ? "" : "s"}
+                  </div>
+                )}
+            </div>
+
+            {loadingEvidenciasOperaciones ? (
+              <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                Cargando evidencias de Operaciones...
+              </div>
+            ) : errorEvidenciasOperaciones ? (
+              <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
+                {errorEvidenciasOperaciones}
+              </div>
+            ) : evidenciasOperaciones.length === 0 ? (
+              <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                No hay evidencias de Operaciones registradas para este retiro.
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {evidenciasOperaciones.map((evidencia, index) => {
+                  const nombreArchivo =
+                    evidencia?.NombreArchivoOriginal ||
+                    evidencia?.NombreArchivo ||
+                    "archivo";
+
+                  const extension = String(
+                    evidencia?.ExtensionArchivo ||
+                      (nombreArchivo.match(/\.[a-z0-9]+$/i)?.[0] || "")
+                  )
+                    .toLowerCase()
+                    .trim();
+
+                  const esExcel = [".xls", ".xlsx", "xls", "xlsx"].includes(
+                    extension
+                  );
+
+                  return (
+                    <div
+                      key={
+                        evidencia?.IdPazYSalvoEvidencia ||
+                        `${evidencia?.TipoEvidencia || "evidencia"}-${index}`
+                      }
+                      className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-4 flex-wrap">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold text-slate-900">
+                            {index + 1}.{" "}
+                            {getLabelEvidenciaOperaciones(
+                              evidencia?.TipoEvidencia
+                            )}
+                          </p>
+
+                          <p className="mt-1 text-xs text-emerald-700 font-semibold break-words">
+                            {nombreArchivo}
+                          </p>
+
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                            {evidencia?.ExtensionArchivo ? (
+                              <span>{evidencia.ExtensionArchivo}</span>
+                            ) : null}
+                            {evidencia?.PesoArchivo ? (
+                              <span>
+                                {formatFileSize(evidencia.PesoArchivo)}
+                              </span>
+                            ) : null}
+                            {evidencia?.CreadoPor ? (
+                              <span>
+                                Cargado por: {evidencia.CreadoPor}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="border-gray-200"
+                            disabled={esExcel}
+                            title={
+                              esExcel
+                                ? "Los archivos de Excel se descargan para su consulta."
+                                : "Ver evidencia"
+                            }
+                            onClick={async () => {
+                              try {
+                                await abrirEvidenciaOperaciones(evidencia);
+                              } catch (error) {
+                                console.error(
+                                  "Error abriendo evidencia de Operaciones:",
+                                  error
+                                );
+                                alert(
+                                  error?.message ||
+                                    "No se pudo abrir la evidencia de Operaciones."
+                                );
+                              }
+                            }}
+                          >
+                            Ver
+                          </Button>
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="border-gray-200"
+                            onClick={async () => {
+                              try {
+                                await descargarEvidenciaOperaciones(evidencia);
+                              } catch (error) {
+                                console.error(
+                                  "Error descargando evidencia de Operaciones:",
+                                  error
+                                );
+                                alert(
+                                  error?.message ||
+                                    "No se pudo descargar la evidencia de Operaciones."
+                                );
+                              }
+                            }}
+                          >
+                            Descargar
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {/* ✅ Estado del Proceso General (UI) — AL FINAL */}
           <div className="mt-6 bg-white p-5 rounded-xl border border-gray-100">

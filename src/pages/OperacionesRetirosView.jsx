@@ -75,7 +75,8 @@ const OPCIONES_SI_NO = ["SI", "NO"];
 
 const FORMULARIO_INICIAL = {
   elaboradoPor: "",
-  identificacionColaborador: "",
+  idCliente: "",
+  clienteNombre: "",
   idMotivoRetiro: "",
   descripcionMotivoRetiro: "",
 
@@ -106,6 +107,54 @@ const FORMULARIO_INICIAL = {
   correoSupervisora: "",
   estadoPazSalvo: "ABIERTO",
 };
+
+const ELEMENTOS_PAZ_SALVO = {
+  LOCKER: {
+    campo: "locker",
+    label: "Locker",
+    opciones: OPCIONES_ACEPTADO,
+  },
+  LLAVES: {
+    campo: "llaves",
+    label: "Llaves",
+    opciones: OPCIONES_ACEPTADO,
+  },
+  HERRAMIENTAS: {
+    campo: "entregaHerramientas",
+    label: "Entrega de herramientas",
+    opciones: OPCIONES_ACEPTADO,
+  },
+  TARJETA_CONTROL_ACCESO: {
+    campo: "tarjetaControlAcceso",
+    label: "Tarjeta de control de acceso",
+    opciones: OPCIONES_ACEPTADO,
+  },
+  GUANTES: {
+    campo: "entregaGuantes",
+    label: "Entrega de guantes",
+    opciones: OPCIONES_CUMPLIMIENTO,
+  },
+  MONOGAFAS: {
+    campo: "entregaMonogafas",
+    label: "Entrega de monogafas",
+    opciones: OPCIONES_CUMPLIMIENTO,
+  },
+  PETO: {
+    campo: "entregaPeto",
+    label: "Entrega de peto",
+    opciones: OPCIONES_ACEPTADO,
+  },
+};
+
+const CAMPOS_ELEMENTOS_PAZ_SALVO = Object.values(
+  ELEMENTOS_PAZ_SALVO
+).map((configuracion) => configuracion.campo);
+
+const normalizarCodigoElemento = (valor) =>
+  String(valor || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "_");
 
 const ADJUNTOS_INICIALES = {
   novedadesNomina: [],
@@ -189,6 +238,36 @@ const obtenerNombreUsuarioActual = () => {
     window.sessionStorage,
   ];
 
+  // El login corporativo guarda directamente el nombre completo
+  // en la clave "usuario".
+  const clavesDirectasNombre = [
+    "nombre_completo",
+    "nombreCompleto",
+    "NombreCompleto",
+    "usuario",
+  ];
+
+  for (const almacenamiento of almacenamientos) {
+    for (const clave of clavesDirectasNombre) {
+      const valor = almacenamiento.getItem(clave);
+
+      if (
+        valor &&
+        valor !== "null" &&
+        valor !== "undefined"
+      ) {
+        const nombre = String(valor)
+          .replace(/^"|"$/g, "")
+          .trim();
+
+        if (nombre) {
+          return nombre;
+        }
+      }
+    }
+  }
+
+  // Compatibilidad por si otra versión del login guarda un objeto.
   const clavesObjetos = [
     "auth",
     "authData",
@@ -211,19 +290,16 @@ const obtenerNombreUsuarioActual = () => {
         const nombre =
           objeto?.NombreCompleto ||
           objeto?.nombreCompleto ||
+          objeto?.nombre_completo ||
           objeto?.nombre ||
           objeto?.Nombre ||
-          objeto?.username ||
           objeto?.usuario ||
           objeto?.Usuario ||
-          objeto?.email ||
-          objeto?.Email ||
           objeto?.user?.NombreCompleto ||
           objeto?.user?.nombreCompleto ||
+          objeto?.user?.nombre_completo ||
           objeto?.user?.nombre ||
-          objeto?.user?.username ||
-          objeto?.user?.usuario ||
-          objeto?.user?.email;
+          objeto?.user?.usuario;
 
         if (nombre) {
           return String(nombre).trim();
@@ -527,6 +603,18 @@ const OperacionesRetirosView = () => {
 
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [enviandoPazSalvo, setEnviandoPazSalvo] = useState(false);
+  const [clientes, setClientes] = useState([]);
+  const [loadingClientes, setLoadingClientes] = useState(false);
+  const [elementosPazSalvo, setElementosPazSalvo] = useState([]);
+  const [loadingElementosPazSalvo, setLoadingElementosPazSalvo] =
+    useState(false);
+  const [origenConfiguracionElementos, setOrigenConfiguracionElementos] =
+    useState("");
+  const [tipoClasificacionElementos, setTipoClasificacionElementos] =
+    useState("");
+
+  const [clienteListaAbierta, setClienteListaAbierta] =
+    useState(false);
   const [busquedaRealizada, setBusquedaRealizada] =
     useState(false);
   const [mensaje, setMensaje] = useState("");
@@ -611,9 +699,6 @@ const OperacionesRetirosView = () => {
     trabajador?.proyecto ||
     "";
 
-  const obtenerSede = (trabajador) =>
-    obtenerCliente(trabajador);
-
   const obtenerIdEstadoProceso = (trabajador) =>
     Number(
       trabajador?.IdEstadoProceso ||
@@ -678,6 +763,22 @@ const OperacionesRetirosView = () => {
     return resultados;
   }, [resultados, trabajadorSeleccionado]);
 
+  const clientesFiltrados = useMemo(() => {
+    const criterio = normalizarTexto(formulario.clienteNombre);
+
+    if (!criterio) {
+      return clientes.slice(0, 50);
+    }
+
+    return clientes
+      .filter((cliente) =>
+        normalizarTexto(cliente?.NombreCliente).includes(
+          criterio
+        )
+      )
+      .slice(0, 50);
+  }, [clientes, formulario.clienteNombre]);
+
   const construirHeaders = () => {
     const token = obtenerTokenAutenticacion();
 
@@ -739,9 +840,182 @@ const OperacionesRetirosView = () => {
     return [];
   };
 
+  const consultarUsuarioActual = async () => {
+    try {
+      const response = await fetch(
+        `${API_URL}/operaciones/retiros/usuario-actual`,
+        {
+          method: "GET",
+          headers: construirHeaders(),
+        }
+      );
+
+      if (!response.ok) {
+        return obtenerNombreUsuarioActual() || "";
+      }
+
+      const data = await response.json();
+
+      return (
+        data?.data?.NombreCompleto ||
+        obtenerNombreUsuarioActual() ||
+        ""
+      );
+    } catch (error) {
+      return obtenerNombreUsuarioActual() || "";
+    }
+  };
+
+  const consultarClientes = async () => {
+    const response = await fetch(
+      `${API_URL}/operaciones/retiros/clientes`,
+      {
+        method: "GET",
+        headers: construirHeaders(),
+      }
+    );
+
+    if (response.status === 401) {
+      throw new Error(
+        "La sesión no está autorizada o venció. Cierra sesión e ingresa nuevamente."
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        `No se pudo consultar el catálogo de clientes. Código HTTP: ${response.status}.`
+      );
+    }
+
+    const data = await response.json();
+
+    if (Array.isArray(data)) {
+      return data;
+    }
+
+    if (Array.isArray(data?.data)) {
+      return data.data;
+    }
+
+    return [];
+  };
+
+  const consultarClienteActualTrabajador = async (
+    idRegistroPersonal
+  ) => {
+    const response = await fetch(
+      `${API_URL}/operaciones/retiros/clientes/trabajador/${idRegistroPersonal}`,
+      {
+        method: "GET",
+        headers: construirHeaders(),
+      }
+    );
+
+    if (response.status === 401) {
+      throw new Error(
+        "La sesión no está autorizada o venció. Cierra sesión e ingresa nuevamente."
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        `No se pudo consultar el cliente actual del trabajador. Código HTTP: ${response.status}.`
+      );
+    }
+
+    const data = await response.json();
+
+    return data?.data || null;
+  };
+
+  const consultarElementosPazSalvoTrabajador = async (
+    idRegistroPersonal
+  ) => {
+    const response = await fetch(
+      `${API_URL}/operaciones/retiros/elementos/trabajador/${idRegistroPersonal}`,
+      {
+        method: "GET",
+        headers: construirHeaders(),
+      }
+    );
+
+    if (response.status === 401) {
+      throw new Error(
+        "La sesión no está autorizada o venció. Cierra sesión e ingresa nuevamente."
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        `No se pudo consultar la configuración de elementos del trabajador. Código HTTP: ${response.status}.`
+      );
+    }
+
+    const data = await response.json();
+
+    return data?.data || null;
+  };
+
+  const buscarClientePorNombre = (lista, nombre) => {
+    const nombreNormalizado = normalizarTexto(nombre);
+
+    if (!nombreNormalizado) {
+      return null;
+    }
+
+    return (
+      lista.find(
+        (cliente) =>
+          normalizarTexto(cliente?.NombreCliente) ===
+          nombreNormalizado
+      ) || null
+    );
+  };
+
+  const actualizarClienteFormulario = (nombreCliente) => {
+    const clienteEncontrado = buscarClientePorNombre(
+      clientes,
+      nombreCliente
+    );
+
+    setFormulario((actual) => ({
+      ...actual,
+      clienteNombre: nombreCliente,
+      idCliente: clienteEncontrado
+        ? String(clienteEncontrado.IdCliente)
+        : "",
+    }));
+
+    setClienteListaAbierta(true);
+    setMensajeGestion("");
+    setTipoMensajeGestion("info");
+  };
+
+  const seleccionarClienteFormulario = (cliente) => {
+    if (!cliente?.IdCliente) {
+      return;
+    }
+
+    setFormulario((actual) => ({
+      ...actual,
+      idCliente: String(cliente.IdCliente),
+      clienteNombre: String(
+        cliente.NombreCliente || ""
+      ).trim(),
+    }));
+
+    setClienteListaAbierta(false);
+    setMensajeGestion("");
+    setTipoMensajeGestion("info");
+  };
+
   const limpiarFormulario = () => {
     setFormularioAbierto(false);
     setFechaHoraApertura("");
+    setClienteListaAbierta(false);
+    setElementosPazSalvo([]);
+    setOrigenConfiguracionElementos("");
+    setTipoClasificacionElementos("");
     setFormulario({
       ...FORMULARIO_INICIAL,
     });
@@ -809,6 +1083,19 @@ const OperacionesRetirosView = () => {
           "No se encontró un trabajador con ese criterio."
         );
         setTipoMensaje("warning");
+        return;
+      }
+
+      const coincidenciaExactaDocumento = encontrados.find(
+        (trabajador) =>
+          normalizarTexto(obtenerIdentificacion(trabajador)) ===
+          criterioNormalizado
+      );
+
+      if (coincidenciaExactaDocumento) {
+        seleccionarTrabajador(coincidenciaExactaDocumento);
+      } else if (encontrados.length === 1) {
+        seleccionarTrabajador(encontrados[0]);
       }
     } catch (error) {
       console.error(
@@ -842,7 +1129,7 @@ const OperacionesRetirosView = () => {
         "El trabajador seleccionado no se encuentra contratado y no puede iniciar un retiro desde Operaciones."
       );
       setTipoMensaje("warning");
-      return;
+      return null;
     }
 
     const idRegistroPersonal =
@@ -853,7 +1140,7 @@ const OperacionesRetirosView = () => {
         "No fue posible identificar el registro personal del trabajador."
       );
       setTipoMensaje("error");
-      return;
+      return null;
     }
 
     const trabajadorNormalizado = {
@@ -865,16 +1152,21 @@ const OperacionesRetirosView = () => {
         obtenerIdentificacion(trabajador),
       Cargo: obtenerCargo(trabajador),
       Cliente: obtenerCliente(trabajador),
-      Sede: obtenerSede(trabajador),
     };
 
     setTrabajadorSeleccionado(trabajadorNormalizado);
     setMensaje("");
     limpiarFormulario();
+
+    return trabajadorNormalizado;
   };
 
-  const abrirFormularioPazSalvo = () => {
-    if (!trabajadorSeleccionado) {
+  const abrirFormularioPazSalvo = async (trabajador = null) => {
+    const trabajadorParaFormulario = trabajador
+      ? seleccionarTrabajador(trabajador)
+      : trabajadorSeleccionado;
+
+    if (!trabajadorParaFormulario) {
       return;
     }
 
@@ -882,9 +1174,7 @@ const OperacionesRetirosView = () => {
     setFormulario({
       ...FORMULARIO_INICIAL,
       elaboradoPor: obtenerElaboradoPorInicial(),
-      identificacionColaborador: String(
-        trabajadorSeleccionado.NumeroDocumento || ""
-      ).replace(/\D/g, ""),
+      clienteNombre: trabajadorParaFormulario.Cliente || "",
     });
     setAdjuntos({
       ...ADJUNTOS_INICIALES,
@@ -892,6 +1182,131 @@ const OperacionesRetirosView = () => {
     setFormularioAbierto(true);
     setMensajeGestion("");
     setTipoMensajeGestion("info");
+
+    try {
+      setLoadingClientes(true);
+      setLoadingElementosPazSalvo(true);
+
+      const [
+        listaClientes,
+        clienteActual,
+        nombreUsuarioActual,
+        configuracionElementos,
+      ] = await Promise.all([
+        consultarClientes(),
+        consultarClienteActualTrabajador(
+          trabajadorParaFormulario.IdRegistroPersonal
+        ),
+        consultarUsuarioActual(),
+        consultarElementosPazSalvoTrabajador(
+          trabajadorParaFormulario.IdRegistroPersonal
+        ),
+      ]);
+
+      setClientes(listaClientes);
+
+      const elementosConfigurados = Array.isArray(
+        configuracionElementos?.Elementos
+      )
+        ? configuracionElementos.Elementos
+        : [];
+
+      const elementosReconocidos = elementosConfigurados
+        .map((elemento) => {
+          const codigo = normalizarCodigoElemento(
+            elemento?.CodigoElemento
+          );
+          const configuracion = ELEMENTOS_PAZ_SALVO[codigo];
+
+          if (!configuracion) {
+            return null;
+          }
+
+          return {
+            ...elemento,
+            CodigoElemento: codigo,
+            campo: configuracion.campo,
+            label:
+              String(elemento?.NombreElemento || "").trim() ||
+              configuracion.label,
+            opciones: configuracion.opciones,
+          };
+        })
+        .filter(Boolean);
+
+      setElementosPazSalvo(elementosReconocidos);
+      setOrigenConfiguracionElementos(
+        String(configuracionElementos?.OrigenConfiguracion || "")
+      );
+      setTipoClasificacionElementos(
+        String(configuracionElementos?.TipoClasificacion || "")
+      );
+
+      setFormulario((actual) => {
+        const siguiente = {
+          ...actual,
+        };
+
+        CAMPOS_ELEMENTOS_PAZ_SALVO.forEach((campo) => {
+          siguiente[campo] = "NO APLICA";
+        });
+
+        elementosReconocidos.forEach((elemento) => {
+          siguiente[elemento.campo] = "";
+        });
+
+        return siguiente;
+      });
+
+      setFormulario((actual) => ({
+        ...actual,
+        elaboradoPor:
+          nombreUsuarioActual ||
+          obtenerNombreUsuarioActual() ||
+          "",
+      }));
+
+      const clientePrecargado =
+        clienteActual ||
+        buscarClientePorNombre(
+          listaClientes,
+          trabajadorParaFormulario.Cliente
+        );
+
+      setFormulario((actual) => ({
+        ...actual,
+        idCliente: clientePrecargado?.IdCliente
+          ? String(clientePrecargado.IdCliente)
+          : "",
+        clienteNombre:
+          clientePrecargado?.NombreCliente ||
+          trabajadorParaFormulario.Cliente ||
+          "",
+      }));
+      setClienteListaAbierta(false);
+
+      if (!clientePrecargado) {
+        setMensajeGestion(
+          "No fue posible identificar automáticamente un cliente válido. Búscalo y selecciónalo en la lista antes de continuar."
+        );
+        setTipoMensajeGestion("warning");
+      }
+    } catch (error) {
+      console.error(
+        "Error cargando información de clientes:",
+        error
+      );
+
+      setClientes([]);
+      setMensajeGestion(
+        error?.message ||
+          "No fue posible cargar el catálogo de clientes."
+      );
+      setTipoMensajeGestion("error");
+    } finally {
+      setLoadingClientes(false);
+      setLoadingElementosPazSalvo(false);
+    }
 
     window.setTimeout(() => {
       document
@@ -955,28 +1370,16 @@ const OperacionesRetirosView = () => {
   const validarFormulario = () => {
     const requeridos = [
       ["elaboradoPor", "Elaborado por"],
-      [
-        "identificacionColaborador",
-        "Identificación del colaborador",
-      ],
+      ["idCliente", "Cliente"],
       ["idMotivoRetiro", "Motivo de retiro"],
       [
         "descripcionMotivoRetiro",
         "Descripción del motivo de retiro",
       ],
-      ["locker", "Locker"],
-      ["llaves", "Llaves"],
-      [
-        "entregaHerramientas",
-        "Entrega de herramientas",
-      ],
-      [
-        "tarjetaControlAcceso",
-        "Tarjeta de control de acceso",
-      ],
-      ["entregaGuantes", "Entrega de guantes"],
-      ["entregaMonogafas", "Entrega de monogafas"],
-      ["entregaPeto", "Entrega de peto"],
+      ...elementosPazSalvo.map((elemento) => [
+        elemento.campo,
+        elemento.label,
+      ]),
       [
         "observacionesEntrega",
         "Observaciones de la entrega",
@@ -1002,6 +1405,15 @@ const OperacionesRetirosView = () => {
     const faltantes = requeridos
       .filter(([campo]) => !String(formulario[campo] || "").trim())
       .map(([, etiqueta]) => etiqueta);
+
+    if (
+      formulario.clienteNombre &&
+      !formulario.idCliente
+    ) {
+      faltantes.push(
+        "Seleccionar un cliente válido de la lista"
+      );
+    }
 
     if (formulario.estadoPazSalvo !== "CERRADO") {
       faltantes.push(
@@ -1049,6 +1461,10 @@ const OperacionesRetirosView = () => {
       formData.append(
         "IdRegistroPersonal",
         String(trabajadorSeleccionado.IdRegistroPersonal)
+      );
+      formData.append(
+        "IdCliente",
+        String(formulario.idCliente)
       );
       formData.append(
         "IdMotivoRetiro",
@@ -1164,6 +1580,44 @@ const OperacionesRetirosView = () => {
         formulario.estadoPazSalvo
       );
 
+      // ============================================================
+      // EVIDENCIAS DE OPERACIONES
+      // Los nombres deben coincidir exactamente con los parámetros
+      // UploadFile definidos en POST /api/operaciones/retiros/enviar.
+      // ============================================================
+
+      adjuntos.novedadesNomina.forEach((archivo) => {
+        formData.append("novedadesNominaArchivo", archivo);
+      });
+
+      if (adjuntos.formatoDescuentoVacunas.length > 0) {
+        formData.append(
+          "formatoDescuentoVacunasArchivo",
+          adjuntos.formatoDescuentoVacunas[0]
+        );
+      }
+
+      if (adjuntos.fotoCarnetAcceso.length > 0) {
+        formData.append(
+          "fotoCarnetAccesoArchivo",
+          adjuntos.fotoCarnetAcceso[0]
+        );
+      }
+
+      if (adjuntos.fotoListadoHerramientas.length > 0) {
+        formData.append(
+          "fotoListadoHerramientasArchivo",
+          adjuntos.fotoListadoHerramientas[0]
+        );
+      }
+
+      if (adjuntos.fotoPlanillaNomina.length > 0) {
+        formData.append(
+          "fotoPlanillaNominaArchivo",
+          adjuntos.fotoPlanillaNomina[0]
+        );
+      }
+
       const response = await fetch(
         `${API_URL}/operaciones/retiros/enviar`,
         {
@@ -1201,7 +1655,7 @@ const OperacionesRetirosView = () => {
       }
 
       setMensajeGestion(
-        "El retiro y el paz y salvo fueron enviados correctamente a Relaciones Laborales. El motivo de retiro y el último día laborado quedaron registrados en el proceso."
+        "El retiro, el paz y salvo y las evidencias de Operaciones fueron enviados correctamente a Relaciones Laborales."
       );
       setTipoMensajeGestion("success");
     } catch (error) {
@@ -1401,15 +1855,12 @@ const OperacionesRetirosView = () => {
                         <Button
                           type="button"
                           onClick={() =>
-                            seleccionarTrabajador(
-                              trabajador
-                            )
+                            abrirFormularioPazSalvo(trabajador)
                           }
                           className="min-h-11 w-full rounded-xl bg-emerald-600 px-5 font-semibold text-white hover:bg-emerald-700 lg:w-auto"
                         >
-                          {seleccionado
-                            ? "Gestionando retiro"
-                            : "Gestionar retiro"}
+                          <ClipboardCheck className="mr-2 h-5 w-5" />
+                          Diligenciar paz y salvo
                         </Button>
                       ) : (
                         <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
@@ -1426,63 +1877,12 @@ const OperacionesRetirosView = () => {
         </div>
       </section>
 
-      {trabajadorSeleccionado && (
+      {trabajadorSeleccionado && formularioAbierto && (
         <section className="w-full min-w-0 rounded-2xl border border-emerald-200 bg-white p-4 shadow-lg sm:p-6 lg:p-8">
-          <div className="border-b border-gray-200 pb-5">
-            <p className="text-sm font-semibold text-emerald-700">
-              Gestión inicial del retiro
-            </p>
-
-            <h2 className="mt-1 break-words text-xl font-bold text-gray-900">
-              {trabajadorSeleccionado.NombreCompleto}
-            </h2>
-
-            <p className="mt-1 text-sm text-gray-600">
-              Documento:{" "}
-              {trabajadorSeleccionado.NumeroDocumento}
-            </p>
-
-            <p className="mt-1 text-sm text-gray-600">
-              Cargo: {trabajadorSeleccionado.Cargo}
-            </p>
-          </div>
-
-          {!formularioAbierto ? (
-            <div className="mt-6 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-5 sm:p-6">
-              <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-w-0 items-start gap-3">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
-                    <ClipboardCheck className="h-6 w-6" />
-                  </div>
-
-                  <div className="min-w-0">
-                    <h3 className="text-lg font-bold text-gray-900">
-                      Paz y salvo del colaborador
-                    </h3>
-
-                    <p className="mt-1 max-w-2xl text-sm leading-relaxed text-gray-600">
-                      Diligencia la información del retiro, la
-                      entrega de elementos y los soportes que
-                      harán parte del documento oficial.
-                    </p>
-                  </div>
-                </div>
-
-                <Button
-                  type="button"
-                  onClick={abrirFormularioPazSalvo}
-                  className="min-h-12 w-full rounded-xl bg-emerald-600 px-6 font-semibold text-white hover:bg-emerald-700 sm:w-auto"
-                >
-                  <ClipboardCheck className="mr-2 h-5 w-5" />
-                  Diligenciar paz y salvo
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div
-              id="formulario-paz-salvo"
-              className="mt-6 space-y-5"
-            >
+          <div
+            id="formulario-paz-salvo"
+            className="space-y-5"
+          >
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 sm:px-5">
                 <div className="flex items-start gap-3">
                   <ClipboardCheck className="mt-0.5 h-6 w-6 shrink-0 text-emerald-700" />
@@ -1504,7 +1904,7 @@ const OperacionesRetirosView = () => {
 
               <SeccionFormulario
                 titulo="Información general"
-                descripcion="Datos de elaboración, ubicación y colaborador."
+                descripcion="Datos de elaboración y validación del cliente."
               >
                 <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                   <div>
@@ -1534,71 +1934,117 @@ const OperacionesRetirosView = () => {
                     <Input
                       id="elaboradoPor"
                       value={formulario.elaboradoPor}
-                      onChange={(event) =>
-                        actualizarCampo(
-                          "elaboradoPor",
-                          event.target.value
-                        )
-                      }
-                      placeholder="Escribe el nombre de quien diligencia el paz y salvo"
-                      className="min-h-12"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-gray-800">
-                      Cliente
-                    </label>
-                    <Input
-                      value={
-                        trabajadorSeleccionado.Cliente ||
-                        "Cliente no disponible en la consulta actual"
-                      }
                       disabled
-                      className="min-h-12 bg-gray-100 text-gray-700"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-gray-800">
-                      Sede
-                    </label>
-                    <Input
-                      value={
-                        trabajadorSeleccionado.Sede ||
-                        "Sede no disponible en la consulta actual"
-                      }
-                      disabled
+                      placeholder="Nombre del usuario que inició sesión"
                       className="min-h-12 bg-gray-100 text-gray-700"
                     />
                   </div>
 
                   <div className="md:col-span-2">
                     <label
-                      htmlFor="identificacionColaborador"
+                      htmlFor="clientePazSalvo"
                       className="mb-2 block text-sm font-semibold text-gray-800"
                     >
-                      Identificación del colaborador
+                      Cliente
                       <span className="text-red-500"> *</span>
                     </label>
-                    <Input
-                      id="identificacionColaborador"
-                      inputMode="numeric"
-                      value={
-                        formulario.identificacionColaborador
-                      }
-                      disabled
-                      className="min-h-12 bg-gray-100 text-gray-700"
-                    />
+
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-gray-400" />
+
+                      <Input
+                        id="clientePazSalvo"
+                        autoComplete="off"
+                        value={formulario.clienteNombre}
+                        onFocus={() =>
+                          setClienteListaAbierta(true)
+                        }
+                        onChange={(event) =>
+                          actualizarClienteFormulario(
+                            event.target.value
+                          )
+                        }
+                        placeholder={
+                          loadingClientes
+                            ? "Cargando clientes..."
+                            : "Escribe para buscar y seleccionar un cliente..."
+                        }
+                        disabled={loadingClientes}
+                        className="min-h-12 bg-white pl-9 pr-10 text-gray-900"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setClienteListaAbierta(
+                            (actual) => !actual
+                          )
+                        }
+                        disabled={loadingClientes}
+                        className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 disabled:cursor-not-allowed"
+                        title="Ver lista de clientes"
+                      >
+                        <span className="text-sm">
+                          {clienteListaAbierta ? "▲" : "▼"}
+                        </span>
+                      </button>
+
+                      {clienteListaAbierta && !loadingClientes && (
+                        <div className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-xl">
+                          {clientesFiltrados.length > 0 ? (
+                            clientesFiltrados.map((cliente) => {
+                              const seleccionado =
+                                String(formulario.idCliente) ===
+                                String(cliente.IdCliente);
+
+                              return (
+                                <button
+                                  key={cliente.IdCliente}
+                                  type="button"
+                                  onMouseDown={(event) => {
+                                    event.preventDefault();
+                                    seleccionarClienteFormulario(
+                                      cliente
+                                    );
+                                  }}
+                                  className={cn(
+                                    "block w-full px-4 py-3 text-left text-sm transition-colors",
+                                    seleccionado
+                                      ? "bg-emerald-50 font-semibold text-emerald-800"
+                                      : "text-gray-700 hover:bg-gray-50"
+                                  )}
+                                >
+                                  {cliente.NombreCliente}
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <div className="px-4 py-3 text-sm text-gray-500">
+                              No se encontraron clientes con ese nombre.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900">
+                      <span className="font-semibold">
+                        Valida el cliente:
+                      </span>{" "}
+                      el sistema carga automáticamente el cliente registrado
+                      actualmente en la base de datos. Si no corresponde,
+                      escribe el nombre y selecciona el cliente correcto de la
+                      lista antes de continuar.
+                    </div>
                   </div>
                 </div>
               </SeccionFormulario>
 
               <SeccionFormulario
-                titulo="Motivo del retiro"
-                descripcion="Esta información también alimentará el retiro que recibirá Relaciones Laborales."
+                titulo="Retiro"
+                descripcion="Información del retiro."
               >
-                <div className="grid grid-cols-1 gap-5">
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                   <div>
                     <label
                       htmlFor="motivoRetiro"
@@ -1636,6 +2082,32 @@ const OperacionesRetirosView = () => {
 
                   <div>
                     <label
+                      htmlFor="ultimoDiaLaborado"
+                      className="mb-2 block text-sm font-semibold text-gray-800"
+                    >
+                      Último día laborado
+                      <span className="text-red-500"> *</span>
+                    </label>
+
+                    <div className="relative">
+                      <CalendarDays className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                      <Input
+                        id="ultimoDiaLaborado"
+                        type="date"
+                        value={formulario.ultimoDiaLaborado}
+                        onChange={(event) =>
+                          actualizarCampo(
+                            "ultimoDiaLaborado",
+                            event.target.value
+                          )
+                        }
+                        className="min-h-12 pl-10"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label
                       htmlFor="descripcionMotivoRetiro"
                       className="mb-2 block text-sm font-semibold text-gray-800"
                     >
@@ -1664,121 +2136,81 @@ const OperacionesRetirosView = () => {
 
               <SeccionFormulario
                 titulo="Entrega de elementos"
-                descripcion="Registra el estado de los elementos entregados por el colaborador."
+                descripcion="Registra el estado de los elementos que aplican al trabajador según su cargo o clasificación."
               >
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                  <CampoSelect
-                    id="locker"
-                    label="Locker"
-                    value={formulario.locker}
-                    onChange={(valor) =>
-                      actualizarCampo("locker", valor)
-                    }
-                    options={OPCIONES_ACEPTADO}
-                    required
-                  />
-
-                  <CampoSelect
-                    id="llaves"
-                    label="Llaves"
-                    value={formulario.llaves}
-                    onChange={(valor) =>
-                      actualizarCampo("llaves", valor)
-                    }
-                    options={OPCIONES_ACEPTADO}
-                    required
-                  />
-
-                  <CampoSelect
-                    id="entregaHerramientas"
-                    label="Entrega de herramientas"
-                    value={formulario.entregaHerramientas}
-                    onChange={(valor) =>
-                      actualizarCampo(
-                        "entregaHerramientas",
-                        valor
-                      )
-                    }
-                    options={OPCIONES_ACEPTADO}
-                    required
-                  />
-
-                  <CampoSelect
-                    id="tarjetaControlAcceso"
-                    label="Tarjeta de control de acceso"
-                    value={formulario.tarjetaControlAcceso}
-                    onChange={(valor) =>
-                      actualizarCampo(
-                        "tarjetaControlAcceso",
-                        valor
-                      )
-                    }
-                    options={OPCIONES_ACEPTADO}
-                    required
-                  />
-
-                  <CampoSelect
-                    id="entregaGuantes"
-                    label="Entrega de guantes"
-                    value={formulario.entregaGuantes}
-                    onChange={(valor) =>
-                      actualizarCampo(
-                        "entregaGuantes",
-                        valor
-                      )
-                    }
-                    options={OPCIONES_CUMPLIMIENTO}
-                    required
-                  />
-
-                  <CampoSelect
-                    id="entregaMonogafas"
-                    label="Entrega de monogafas"
-                    value={formulario.entregaMonogafas}
-                    onChange={(valor) =>
-                      actualizarCampo(
-                        "entregaMonogafas",
-                        valor
-                      )
-                    }
-                    options={OPCIONES_CUMPLIMIENTO}
-                    required
-                  />
-
-                  <CampoSelect
-                    id="entregaPeto"
-                    label="Entrega de peto"
-                    value={formulario.entregaPeto}
-                    onChange={(valor) =>
-                      actualizarCampo("entregaPeto", valor)
-                    }
-                    options={OPCIONES_ACEPTADO}
-                    required
-                  />
-
-                  <div className="md:col-span-2">
-                    <label
-                      htmlFor="observacionesEntrega"
-                      className="mb-2 block text-sm font-semibold text-gray-800"
-                    >
-                      Observaciones de la entrega
-                      <span className="text-red-500"> *</span>
-                    </label>
-                    <textarea
-                      id="observacionesEntrega"
-                      value={formulario.observacionesEntrega}
-                      onChange={(event) =>
-                        actualizarCampo(
-                          "observacionesEntrega",
-                          event.target.value
-                        )
-                      }
-                      rows={4}
-                      placeholder="Registra observaciones, pendientes o aclaraciones..."
-                      className="w-full resize-y rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 shadow-sm outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-                    />
+                {loadingElementosPazSalvo ? (
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4 text-sm text-gray-600">
+                    Cargando elementos aplicables al trabajador...
                   </div>
-                </div>
+                ) : elementosPazSalvo.length === 0 ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm leading-relaxed text-amber-900">
+                    No hay elementos configurados para este cargo o clasificación.
+                    Valida la parametrización antes de continuar.
+                  </div>
+                ) : (
+                  <>
+                    <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-relaxed text-emerald-900">
+                      <span className="font-semibold">
+                        Elementos aplicables:
+                      </span>{" "}
+                      el sistema muestra únicamente los elementos configurados
+                      para este trabajador.
+                      {origenConfiguracionElementos === "CARGO" && (
+                        <> Configuración específica por cargo.</>
+                      )}
+                      {origenConfiguracionElementos === "CLASIFICACION" &&
+                        tipoClasificacionElementos && (
+                          <>
+                            {" "}
+                            Configuración general:{" "}
+                            <span className="font-semibold">
+                              {tipoClasificacionElementos}
+                            </span>
+                            .
+                          </>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                      {elementosPazSalvo.map((elemento) => (
+                        <CampoSelect
+                          key={`${elemento.CodigoElemento}-${elemento.campo}`}
+                          id={`elemento-${elemento.CodigoElemento}`}
+                          label={elemento.label}
+                          value={formulario[elemento.campo]}
+                          onChange={(valor) =>
+                            actualizarCampo(elemento.campo, valor)
+                          }
+                          options={elemento.opciones}
+                          required
+                        />
+                      ))}
+                    </div>
+
+                    <div className="mt-5">
+                      <label
+                        htmlFor="observacionesEntrega"
+                        className="mb-2 block text-sm font-semibold text-gray-800"
+                      >
+                        Observaciones de la entrega
+                        <span className="text-red-500"> *</span>
+                      </label>
+                      <textarea
+                        id="observacionesEntrega"
+                        value={formulario.observacionesEntrega}
+                        onChange={(event) =>
+                          actualizarCampo(
+                            "observacionesEntrega",
+                            event.target.value
+                          )
+                        }
+                        rows={4}
+                        placeholder="Registra observaciones, pendientes o aclaraciones..."
+                        className="w-full resize-y rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 shadow-sm outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                      />
+                    </div>
+                  </>
+                )}
               </SeccionFormulario>
 
               <SeccionFormulario
@@ -1872,37 +2304,6 @@ const OperacionesRetirosView = () => {
                       }
                       multiple
                       helper="Puedes adjuntar uno o varios soportes en cualquier formato. Máximo 10 MB por archivo."
-                    />
-                  </div>
-                </div>
-              </SeccionFormulario>
-
-              <SeccionFormulario
-                titulo="Último día laborado"
-                descripcion="Esta fecha también será enviada al campo actual del retiro en Relaciones Laborales."
-              >
-                <div className="max-w-xl">
-                  <label
-                    htmlFor="ultimoDiaLaborado"
-                    className="mb-2 block text-sm font-semibold text-gray-800"
-                  >
-                    Último día laborado
-                    <span className="text-red-500"> *</span>
-                  </label>
-
-                  <div className="relative">
-                    <CalendarDays className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                    <Input
-                      id="ultimoDiaLaborado"
-                      type="date"
-                      value={formulario.ultimoDiaLaborado}
-                      onChange={(event) =>
-                        actualizarCampo(
-                          "ultimoDiaLaborado",
-                          event.target.value
-                        )
-                      }
-                      className="min-h-12 pl-10"
                     />
                   </div>
                 </div>
@@ -2248,7 +2649,6 @@ const OperacionesRetirosView = () => {
                 </div>
               </div>
             </div>
-          )}
         </section>
       )}
     </motion.div>
