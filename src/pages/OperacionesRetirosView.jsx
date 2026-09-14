@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   CalendarDays,
@@ -106,7 +107,7 @@ const FORMULARIO_INICIAL = {
 
   usuariosClavesDispositivos: "",
   correoSupervisora: "",
-  estadoPazSalvo: "ABIERTO",
+  estadoPazSalvo: "",
 };
 
 const ELEMENTOS_PAZ_SALVO = {
@@ -163,6 +164,43 @@ const ADJUNTOS_INICIALES = {
   fotoCarnetAcceso: [],
   fotoListadoHerramientas: [],
   fotoPlanillaNomina: [],
+};
+
+const TIPOS_NOTIFICACION_RQ = [
+  "RENUNCIA FORMAL",
+  "RENUNCIA INFORMADA",
+  "ABANDONO",
+  "NUNCA INGRESO",
+  "TERMINACION DE CONTRATO",
+  "RENUNCIA POR EVASION DISCIPLINARIA",
+];
+
+const TIPOS_NOTIFICACION_RQ_CON_CARTA = [
+  "RENUNCIA FORMAL",
+  "RENUNCIA POR EVASION DISCIPLINARIA",
+];
+
+const TIPOS_NOTIFICACION_RQ_CON_ULTIMO_DIA = [
+  "RENUNCIA FORMAL",
+  "RENUNCIA INFORMADA",
+  "ABANDONO",
+  "TERMINACION DE CONTRATO",
+];
+
+const TURNOS_RQ = ["ROTATIVO", "DIURNO"];
+const MOTIVOS_VACANTE_RQ = ["RENUNCIA", "ABANDONO", "NUNCA INGRESO"];
+
+const RQ_INICIAL = {
+  tipoNotificacion: "",
+  fechaRetiro: "",
+  fechaUltimoDiaLaborado: "",
+  observacion: "",
+  requiereReemplazo: "",
+  idPerfilRQ: "",
+  ciudad: "",
+  turno: "",
+  motivoVacante: "",
+  observacionCliente: "",
 };
 
 const obtenerTokenAutenticacion = () => {
@@ -666,6 +704,9 @@ const CampoArchivo = ({
   multiple = false,
   required = false,
   helper = "",
+  existingFiles = [],
+  onViewExisting = null,
+  onDownloadExisting = null,
 }) => {
   const abrirArchivo = (archivo) => {
     if (!archivo) {
@@ -714,6 +755,64 @@ const CampoArchivo = ({
         {label}
         {required && <span className="text-red-500"> *</span>}
       </p>
+
+      {existingFiles.length > 0 && (
+        <div className="mb-3 space-y-2">
+          {existingFiles.map((archivoExistente, index) => {
+            const nombreExistente =
+              archivoExistente?.NombreArchivoOriginal ||
+              archivoExistente?.NombreArchivo ||
+              `Evidencia ${index + 1}`;
+            const pesoExistente = Number(archivoExistente?.PesoArchivo || 0);
+
+            return (
+              <div
+                key={archivoExistente?.IdPazYSalvoEvidencia || `${nombreExistente}-${index}`}
+                className="rounded-xl border border-emerald-200 bg-emerald-50 p-3"
+              >
+                <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">
+                      Archivo ya guardado
+                    </p>
+                    <p className="mt-1 truncate text-sm font-semibold text-gray-800">
+                      {nombreExistente}
+                    </p>
+                    {pesoExistente > 0 && (
+                      <p className="mt-1 text-xs text-gray-500">
+                        {(pesoExistente / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 sm:flex">
+                    {onViewExisting && (
+                      <button
+                        type="button"
+                        onClick={() => onViewExisting(archivoExistente)}
+                        className="inline-flex min-h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-100"
+                      >
+                        <Eye className="mr-1.5 h-4 w-4" />
+                        Ver
+                      </button>
+                    )}
+                    {onDownloadExisting && (
+                      <button
+                        type="button"
+                        onClick={() => onDownloadExisting(archivoExistente)}
+                        className="inline-flex min-h-9 items-center justify-center rounded-lg border border-emerald-200 bg-white px-3 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+                      >
+                        <Download className="mr-1.5 h-4 w-4" />
+                        Descargar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <label
@@ -896,6 +995,9 @@ const CampoArchivo = ({
 };
 
 const OperacionesRetirosView = () => {
+  const location = useLocation();
+  const procesoContinuacionCargadoRef = useRef(false);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [searchApplied, setSearchApplied] = useState("");
   const [trabajadores, setTrabajadores] = useState([]);
@@ -931,10 +1033,23 @@ const OperacionesRetirosView = () => {
   const [adjuntos, setAdjuntos] = useState({
     ...ADJUNTOS_INICIALES,
   });
+  const [evidenciasExistentes, setEvidenciasExistentes] = useState([]);
 
   const [mensajeGestion, setMensajeGestion] = useState("");
   const [tipoMensajeGestion, setTipoMensajeGestion] =
     useState("info");
+
+  const [retiroGuardado, setRetiroGuardado] = useState(null);
+  const [perfilesRQ, setPerfilesRQ] = useState([]);
+  const [loadingPerfilesRQ, setLoadingPerfilesRQ] = useState(false);
+  const [guardandoRQ, setGuardandoRQ] = useState(false);
+  const [enviandoRRLL, setEnviandoRRLL] = useState(false);
+  const [rqGuardado, setRqGuardado] = useState(null);
+  const [formularioRQ, setFormularioRQ] = useState({
+    ...RQ_INICIAL,
+  });
+  const [cartaRetiroRQ, setCartaRetiroRQ] = useState([]);
+  const resultadoRQRef = useRef(null);
 
   const obtenerIdRegistroPersonal = (trabajador) =>
     trabajador?.IdRegistroPersonal ||
@@ -1096,6 +1211,127 @@ const OperacionesRetirosView = () => {
       Accept: "application/json",
       Authorization: `Bearer ${token}`,
     };
+  };
+
+  const obtenerIdEvidenciaExistente = (evidencia) =>
+    evidencia?.IdPazYSalvoEvidencia ||
+    evidencia?.idPazYSalvoEvidencia ||
+    evidencia?.id_evidencia ||
+    evidencia?.IdEvidencia ||
+    null;
+
+  const construirUrlEvidenciaExistente = (evidencia) => {
+    const idRetiroLaboral = retiroGuardado?.IdRetiroLaboral;
+    const idEvidencia = obtenerIdEvidenciaExistente(evidencia);
+
+    if (!idRetiroLaboral || !idEvidencia) return null;
+
+    return `${API_URL}/retiros-laborales/${idRetiroLaboral}/evidencias-operaciones/${idEvidencia}/descargar`;
+  };
+
+  const obtenerBlobEvidenciaExistente = async (evidencia) => {
+    const url = construirUrlEvidenciaExistente(evidencia);
+    if (!url) throw new Error("No fue posible identificar la evidencia almacenada.");
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: construirHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`No fue posible recuperar la evidencia. Código HTTP: ${response.status}.`);
+    }
+
+    return response.blob();
+  };
+
+  const verEvidenciaExistente = async (evidencia) => {
+    // Abrimos la pestaña inmediatamente desde el clic del usuario para evitar
+    // que el navegador la interprete como una ventana emergente bloqueada
+    // después de esperar la respuesta autenticada del backend.
+    const nuevaVentana = window.open("", "_blank");
+
+    try {
+      setMensajeGestion("");
+      setTipoMensajeGestion("info");
+
+      if (nuevaVentana) {
+        nuevaVentana.document.title = "Cargando evidencia...";
+        nuevaVentana.document.body.innerHTML =
+          '<div style="font-family:Arial,sans-serif;padding:24px;color:#374151;">Cargando evidencia...</div>';
+      }
+
+      const blob = await obtenerBlobEvidenciaExistente(evidencia);
+      const url = URL.createObjectURL(blob);
+
+      if (nuevaVentana) {
+        nuevaVentana.location.href = url;
+
+        window.setTimeout(() => {
+          URL.revokeObjectURL(url);
+        }, 60_000);
+
+        return;
+      }
+
+      // Si el navegador no permite una pestaña nueva, usamos la misma pestaña
+      // en lugar de mostrar una alerta roja que confunda al usuario.
+      window.location.assign(url);
+
+      window.setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 60_000);
+    } catch (error) {
+      if (nuevaVentana && !nuevaVentana.closed) {
+        nuevaVentana.close();
+      }
+
+      setMensajeGestion(
+        error?.message || "No fue posible abrir la evidencia."
+      );
+      setTipoMensajeGestion("error");
+    }
+  };
+
+  const descargarEvidenciaExistente = async (evidencia) => {
+    try {
+      const blob = await obtenerBlobEvidenciaExistente(evidencia);
+      const url = URL.createObjectURL(blob);
+      const enlace = document.createElement("a");
+      enlace.href = url;
+      enlace.download = evidencia?.NombreArchivoOriginal || evidencia?.NombreArchivo || "evidencia";
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+    } catch (error) {
+      setMensajeGestion(error?.message || "No fue posible descargar la evidencia.");
+      setTipoMensajeGestion("error");
+    }
+  };
+
+  const evidenciasPorTipo = (tipoEvidencia) =>
+    evidenciasExistentes.filter(
+      (evidencia) =>
+        String(evidencia?.TipoEvidencia || "").trim().toUpperCase() === tipoEvidencia
+    );
+
+  const refrescarEvidenciasExistentes = async (idRetiroLaboral) => {
+    if (!idRetiroLaboral) return;
+
+    try {
+      const response = await fetch(
+        `${API_URL}/operaciones/retiros/proceso/${idRetiroLaboral}/continuar`,
+        { method: "GET", headers: construirHeaders() }
+      );
+      if (!response.ok) return;
+      const data = await response.json().catch(() => null);
+      setEvidenciasExistentes(
+        Array.isArray(data?.data?.Evidencias) ? data.data.Evidencias : []
+      );
+    } catch (error) {
+      console.error("No fue posible refrescar las evidencias existentes:", error);
+    }
   };
 
   const consultarTrabajadores = async (criterio) => {
@@ -1326,8 +1562,16 @@ const OperacionesRetirosView = () => {
     setAdjuntos({
       ...ADJUNTOS_INICIALES,
     });
+    setEvidenciasExistentes([]);
     setMensajeGestion("");
     setTipoMensajeGestion("info");
+    setRetiroGuardado(null);
+    setRqGuardado(null);
+    setPerfilesRQ([]);
+    setFormularioRQ({
+      ...RQ_INICIAL,
+    });
+    setCartaRetiroRQ([]);
   };
 
   const limpiarGestionRetiro = () => {
@@ -1719,16 +1963,26 @@ const OperacionesRetirosView = () => {
       );
     }
 
-    if (formulario.estadoPazSalvo !== "CERRADO") {
-      faltantes.push(
-        "Cerrar el paz y salvo antes de enviarlo"
-      );
+    if (
+      !["ABIERTO", "CERRADO"].includes(
+        String(formulario.estadoPazSalvo || "").trim().toUpperCase()
+      )
+    ) {
+      faltantes.push("Estado del paz y salvo");
     }
 
     return faltantes;
   };
 
-  const enviarPazSalvo = async () => {
+  const enviarPazSalvo = async (estadoForzado = null) => {
+    const estadoPazSalvoDestino = String(
+      typeof estadoForzado === "string"
+        ? estadoForzado
+        : formulario.estadoPazSalvo || ""
+    )
+      .trim()
+      .toUpperCase();
+
     const faltantes = validarFormulario();
 
     if (faltantes.length > 0) {
@@ -1755,6 +2009,13 @@ const OperacionesRetirosView = () => {
       return;
     }
 
+    const esContinuacion = Boolean(
+      retiroGuardado?.ModoContinuacion &&
+        retiroGuardado?.IdRetiroLaboral &&
+        retiroGuardado?.IdPazYSalvo &&
+        retiroGuardado?.IdPazYSalvoDetalle
+    );
+
     try {
       setEnviandoPazSalvo(true);
       setMensajeGestion("");
@@ -1762,10 +2023,31 @@ const OperacionesRetirosView = () => {
 
       const formData = new FormData();
 
-      formData.append(
-        "IdRegistroPersonal",
-        String(trabajadorSeleccionado.IdRegistroPersonal)
-      );
+      if (esContinuacion) {
+        // ============================================================
+        // PROCESO EXISTENTE
+        // Se envían los identificadores exactos recuperados del backend.
+        // El PUT actualiza esos mismos registros; no crea otro retiro.
+        // ============================================================
+        formData.append(
+          "IdPazYSalvo",
+          String(retiroGuardado.IdPazYSalvo)
+        );
+        formData.append(
+          "IdPazYSalvoDetalle",
+          String(retiroGuardado.IdPazYSalvoDetalle)
+        );
+      } else {
+        // ============================================================
+        // PROCESO NUEVO
+        // El POST /guardar conserva el comportamiento original.
+        // ============================================================
+        formData.append(
+          "IdRegistroPersonal",
+          String(trabajadorSeleccionado.IdRegistroPersonal)
+        );
+      }
+
       formData.append(
         "IdCliente",
         String(formulario.idCliente)
@@ -1784,7 +2066,9 @@ const OperacionesRetirosView = () => {
       );
       formData.append(
         "Observacion",
-        "Retiro enviado desde el módulo de Operaciones."
+        esContinuacion
+          ? "Paz y Salvo actualizado desde el módulo de Operaciones."
+          : "Retiro guardado desde el módulo de Operaciones."
       );
 
       formData.append(
@@ -1881,17 +2165,19 @@ const OperacionesRetirosView = () => {
       );
       formData.append(
         "EstadoPazYSalvo",
-        formulario.estadoPazSalvo
+        estadoPazSalvoDestino
       );
 
       // ============================================================
-      // EVIDENCIAS DE OPERACIONES
-      // Los nombres deben coincidir exactamente con los parámetros
-      // UploadFile definidos en POST /api/operaciones/retiros/enviar.
+      // EVIDENCIAS NUEVAS DE OPERACIONES
+      // En continuación solo se envían archivos seleccionados en esta
+      // sesión. Las evidencias existentes permanecen almacenadas.
       // ============================================================
-
-      adjuntos.novedadesNomina.forEach((archivo) => {
-        formData.append("novedadesNominaArchivo", archivo);
+      adjuntos.novedadesNomina.forEach((archivoAdjunto) => {
+        formData.append(
+          "novedadesNominaArchivo",
+          archivoAdjunto
+        );
       });
 
       if (adjuntos.formatoDescuentoVacunas.length > 0) {
@@ -1922,14 +2208,15 @@ const OperacionesRetirosView = () => {
         );
       }
 
-      const response = await fetch(
-        `${API_URL}/operaciones/retiros/enviar`,
-        {
-          method: "POST",
-          headers: construirHeaders(),
-          body: formData,
-        }
-      );
+      const url = esContinuacion
+        ? `${API_URL}/operaciones/retiros/proceso/${retiroGuardado.IdRetiroLaboral}/paz-salvo`
+        : `${API_URL}/operaciones/retiros/guardar`;
+
+      const response = await fetch(url, {
+        method: esContinuacion ? "PUT" : "POST",
+        headers: construirHeaders(),
+        body: formData,
+      });
 
       let data = null;
 
@@ -1949,7 +2236,7 @@ const OperacionesRetirosView = () => {
         const detalle =
           data?.detail ||
           data?.message ||
-          `No fue posible enviar el retiro. Código HTTP: ${response.status}.`;
+          `No fue posible guardar el Paz y Salvo. Código HTTP: ${response.status}.`;
 
         throw new Error(
           typeof detalle === "string"
@@ -1958,23 +2245,802 @@ const OperacionesRetirosView = () => {
         );
       }
 
-      setMensajeGestion(
-        "El retiro, el paz y salvo y las evidencias de Operaciones fueron enviados correctamente a Relaciones Laborales."
-      );
+      const datosGuardados = data?.data || {};
+
+      if (
+        !datosGuardados?.IdRetiroLaboral ||
+        !datosGuardados?.IdPazYSalvo
+      ) {
+        throw new Error(
+          "El backend guardó el caso, pero no devolvió los identificadores necesarios."
+        );
+      }
+
+      if (esContinuacion) {
+        // Conservamos explícitamente los identificadores originales.
+        setRetiroGuardado((actual) => ({
+          ...actual,
+          ...datosGuardados,
+          IdRetiroLaboral: actual.IdRetiroLaboral,
+          IdPazYSalvo: actual.IdPazYSalvo,
+          IdPazYSalvoDetalle: actual.IdPazYSalvoDetalle,
+          ModoContinuacion: true,
+          PendienteEnvioRRLL: true,
+        }));
+
+        setRqGuardado((actual) => {
+          if (!actual) {
+            return actual;
+          }
+
+          return {
+            ...actual,
+            IdRQOperaciones:
+              datosGuardados?.IdRQOperaciones ??
+              actual.IdRQOperaciones,
+            EstadoRQ:
+              datosGuardados?.EstadoRQ ||
+              actual.EstadoRQ,
+            EnviadoRRLL: false,
+          };
+        });
+
+        setFormulario((actual) => ({
+          ...actual,
+          estadoPazSalvo:
+            datosGuardados?.EstadoPazYSalvo ||
+            actual.estadoPazSalvo,
+        }));
+
+        // Los nuevos archivos ya quedaron almacenados en servidor.
+        // Limpiamos únicamente la selección local del navegador.
+        setAdjuntos({
+          ...ADJUNTOS_INICIALES,
+        });
+
+        // Refrescamos solo la lista visual de evidencias ya guardadas.
+        await refrescarEvidenciasExistentes(retiroGuardado.IdRetiroLaboral);
+
+        setMensajeGestion(
+          estadoPazSalvoDestino === "CERRADO"
+            ? "El mismo Paz y Salvo fue actualizado y quedó CERRADO. El retiro continúa pendiente en Operaciones y el RQ existente quedó listo para envío a Relaciones Laborales."
+            : "El mismo Paz y Salvo fue actualizado y continúa ABIERTO. El retiro permanece pendiente en Operaciones."
+        );
+      } else {
+        setRetiroGuardado(datosGuardados);
+        setRqGuardado(null);
+
+        setMensajeGestion(
+          estadoPazSalvoDestino === "CERRADO"
+            ? "El Paz y Salvo quedó guardado y cerrado en Operaciones. Ahora diligencia y guarda el RQ para habilitar el envío a Relaciones Laborales."
+            : "El Paz y Salvo quedó guardado en estado ABIERTO y permanece pendiente en Operaciones. Diligencia y guarda el RQ; todavía no será enviado a Relaciones Laborales."
+        );
+      }
+
       setTipoMensajeGestion("success");
+
+      window.setTimeout(() => {
+        const destino = esContinuacion
+          ? document.getElementById("resumen-rq-continuacion")
+          : document.getElementById("formulario-rq-operaciones");
+
+        destino?.scrollIntoView({
+          behavior: "smooth",
+          block: esContinuacion ? "center" : "start",
+        });
+      }, 160);
     } catch (error) {
       console.error(
-        "Error enviando paz y salvo a Relaciones Laborales:",
+        "Error guardando paz y salvo en Operaciones:",
         error
       );
 
       setMensajeGestion(
         error?.message ||
-          "No fue posible enviar el retiro a Relaciones Laborales."
+          "No fue posible guardar el retiro en Operaciones."
       );
       setTipoMensajeGestion("error");
     } finally {
       setEnviandoPazSalvo(false);
+    }
+  };
+
+  const actualizarCampoRQ = (campo, valor) => {
+    setFormularioRQ((actual) => {
+      const siguiente = {
+        ...actual,
+        [campo]: valor,
+      };
+
+      if (campo === "tipoNotificacion") {
+        if (valor === "NUNCA INGRESO") {
+          siguiente.fechaRetiro = "";
+          siguiente.fechaUltimoDiaLaborado = "";
+        } else if (
+          !TIPOS_NOTIFICACION_RQ_CON_ULTIMO_DIA.includes(valor)
+        ) {
+          siguiente.fechaUltimoDiaLaborado = "";
+        }
+
+        if (!TIPOS_NOTIFICACION_RQ_CON_CARTA.includes(valor)) {
+          setCartaRetiroRQ([]);
+        }
+      }
+
+      if (campo === "requiereReemplazo" && valor !== "SI") {
+        siguiente.idPerfilRQ = "";
+        siguiente.ciudad = "";
+        siguiente.turno = "";
+        siguiente.motivoVacante = "";
+        siguiente.observacionCliente = "";
+      }
+
+      return siguiente;
+    });
+
+    setMensajeGestion("");
+    setTipoMensajeGestion("info");
+    setRqGuardado(null);
+  };
+
+  const consultarPerfilesRQ = async () => {
+    if (perfilesRQ.length > 0) {
+      return perfilesRQ;
+    }
+
+    try {
+      setLoadingPerfilesRQ(true);
+
+      const response = await fetch(
+        `${API_URL}/operaciones/retiros/rq/perfiles`,
+        {
+          method: "GET",
+          headers: construirHeaders(),
+        }
+      );
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            `No fue posible consultar los perfiles RQ. Código HTTP: ${response.status}.`
+        );
+      }
+
+      const lista = Array.isArray(data?.data) ? data.data : [];
+      setPerfilesRQ(lista);
+      return lista;
+    } catch (error) {
+      setMensajeGestion(
+        error?.message ||
+          "No fue posible cargar el catálogo de perfiles RQ."
+      );
+      setTipoMensajeGestion("error");
+      return [];
+    } finally {
+      setLoadingPerfilesRQ(false);
+    }
+  };
+
+  const cargarProcesoPendienteExistente = async () => {
+    const estadoNavegacion = location?.state || {};
+
+    if (
+      estadoNavegacion?.modo !== "CONTINUAR_PROCESO" ||
+      procesoContinuacionCargadoRef.current
+    ) {
+      return;
+    }
+
+    const procesoRecibido = estadoNavegacion?.procesoContinuar || null;
+    const idRetiroLaboral =
+      procesoRecibido?.Retiro?.IdRetiroLaboral ||
+      estadoNavegacion?.IdRetiroLaboral ||
+      null;
+
+    if (!idRetiroLaboral) {
+      setMensaje(
+        "No fue posible identificar el proceso pendiente que se desea continuar."
+      );
+      setTipoMensaje("error");
+      return;
+    }
+
+    procesoContinuacionCargadoRef.current = true;
+
+    try {
+      setLoadingSearch(true);
+      setLoadingClientes(true);
+      setLoadingElementosPazSalvo(true);
+      setMensaje("");
+      setMensajeGestion("");
+      setTipoMensajeGestion("info");
+
+      let proceso = procesoRecibido;
+
+      // Si la navegación no trae el objeto completo, lo recuperamos nuevamente.
+      if (!proceso?.Retiro?.IdRetiroLaboral) {
+        const responseProceso = await fetch(
+          `${API_URL}/operaciones/retiros/proceso/${idRetiroLaboral}/continuar`,
+          {
+            method: "GET",
+            headers: construirHeaders(),
+          }
+        );
+
+        const dataProceso = await responseProceso.json().catch(() => null);
+
+        if (!responseProceso.ok) {
+          throw new Error(
+            dataProceso?.detail ||
+              dataProceso?.message ||
+              `No fue posible recuperar el proceso pendiente. Código HTTP: ${responseProceso.status}.`
+          );
+        }
+
+        proceso = dataProceso?.data || null;
+      }
+
+      if (
+        !proceso?.Retiro?.IdRetiroLaboral ||
+        !proceso?.Trabajador?.IdRegistroPersonal ||
+        !proceso?.PazYSalvo?.IdPazYSalvo
+      ) {
+        throw new Error(
+          "El proceso pendiente no contiene la información necesaria para continuar."
+        );
+      }
+
+      const trabajadorBackend = proceso.Trabajador;
+      const pazYSalvo = proceso.PazYSalvo;
+      const retiro = proceso.Retiro;
+
+      const trabajadorNormalizado = {
+        ...trabajadorBackend,
+        IdRegistroPersonal: trabajadorBackend.IdRegistroPersonal,
+        NombreCompleto: trabajadorBackend.NombreCompleto || "",
+        NumeroDocumento: trabajadorBackend.NumeroIdentificacion || "",
+        NumeroIdentificacion: trabajadorBackend.NumeroIdentificacion || "",
+        Cargo: trabajadorBackend.NombreCargo || "Cargo no asignado",
+        Cliente: trabajadorBackend.NombreCliente || "",
+        IdEstadoProceso: trabajadorBackend.IdEstadoProceso,
+      };
+
+      setTrabajadorSeleccionado(trabajadorNormalizado);
+      setTrabajadores([trabajadorNormalizado]);
+      setSearchTerm(trabajadorBackend.NumeroIdentificacion || "");
+      setSearchApplied(trabajadorBackend.NumeroIdentificacion || "");
+      setBusquedaRealizada(true);
+      setFormularioAbierto(true);
+
+      setFechaHoraApertura(
+        pazYSalvo.FechaHoraInicioDiligenciamiento ||
+          pazYSalvo.FechaCreacionDetalle ||
+          pazYSalvo.FechaCreacion ||
+          new Date().toISOString()
+      );
+
+      const [
+        listaClientes,
+        configuracionElementos,
+        perfiles,
+      ] = await Promise.all([
+        consultarClientes(),
+        consultarElementosPazSalvoTrabajador(
+          trabajadorBackend.IdRegistroPersonal
+        ),
+        consultarPerfilesRQ(),
+      ]);
+
+      setClientes(listaClientes);
+
+      const elementosConfigurados = Array.isArray(
+        configuracionElementos?.Elementos
+      )
+        ? configuracionElementos.Elementos
+        : [];
+
+      const elementosReconocidos = elementosConfigurados
+        .map((elemento) => {
+          const codigo = normalizarCodigoElemento(
+            elemento?.CodigoElemento
+          );
+          const configuracion = ELEMENTOS_PAZ_SALVO[codigo];
+
+          if (!configuracion) {
+            return null;
+          }
+
+          return {
+            ...elemento,
+            CodigoElemento: codigo,
+            campo: configuracion.campo,
+            label:
+              String(elemento?.NombreElemento || "").trim() ||
+              configuracion.label,
+            opciones: configuracion.opciones,
+          };
+        })
+        .filter(Boolean);
+
+      setElementosPazSalvo(elementosReconocidos);
+      setOrigenConfiguracionElementos(
+        String(configuracionElementos?.OrigenConfiguracion || "")
+      );
+      setTipoClasificacionElementos(
+        String(configuracionElementos?.TipoClasificacion || "")
+      );
+
+      const formularioExistente = {
+        ...FORMULARIO_INICIAL,
+        elaboradoPor:
+          pazYSalvo.ElaboradoPor ||
+          obtenerNombreUsuarioActual() ||
+          "",
+        idCliente:
+          retiro.IdCliente !== null &&
+          retiro.IdCliente !== undefined
+            ? String(retiro.IdCliente)
+            : "",
+        clienteNombre: trabajadorBackend.NombreCliente || "",
+        idMotivoRetiro:
+          retiro.IdMotivoRetiro !== null &&
+          retiro.IdMotivoRetiro !== undefined
+            ? String(retiro.IdMotivoRetiro)
+            : "",
+        descripcionMotivoRetiro:
+          pazYSalvo.DescripcionMotivoRetiro || "",
+        locker: pazYSalvo.Locker || "NO APLICA",
+        llaves: pazYSalvo.Llaves || "NO APLICA",
+        entregaHerramientas:
+          pazYSalvo.EntregaHerramientas || "NO APLICA",
+        tarjetaControlAcceso:
+          pazYSalvo.TarjetaControlAcceso || "NO APLICA",
+        entregaGuantes:
+          pazYSalvo.EntregaGuantes || "NO APLICA",
+        entregaMonogafas:
+          pazYSalvo.EntregaMonogafas || "NO APLICA",
+        entregaPeto:
+          pazYSalvo.EntregaPeto || "NO APLICA",
+        observacionesEntrega:
+          pazYSalvo.ObservacionesEntrega || "",
+        aplicaDescuento:
+          pazYSalvo.AplicaDescuento || "",
+        valorDescuento:
+          pazYSalvo.ValorDescuento !== null &&
+          pazYSalvo.ValorDescuento !== undefined
+            ? String(pazYSalvo.ValorDescuento)
+            : "",
+        novedadesNomina:
+          pazYSalvo.NovedadesNomina || "",
+        ultimoDiaLaborado:
+          pazYSalvo.FechaUltimoDiaLaborado || "",
+        pendienteEntregaUniforme:
+          pazYSalvo.PendienteEntregaUniforme || "",
+        uniformePatogeno:
+          pazYSalvo.UniformePatogeno || "",
+        botas: pazYSalvo.Botas || "",
+        zapatos: pazYSalvo.Zapatos || "",
+        chaqueta: pazYSalvo.Chaqueta || "",
+        carnetAlpArl:
+          pazYSalvo.CarnetAlpArl || "",
+        pendientePagoVacunas:
+          pazYSalvo.PendientePagoVacunas || "",
+        usuariosClavesDispositivos:
+          pazYSalvo.UsuariosClavesDispositivos || "",
+        correoSupervisora:
+          pazYSalvo.CorreoSupervisora || "",
+        // En modo continuación Operaciones ya está entrando a finalizar el proceso.
+        // Dejamos CERRADO preparado solo en la interfaz; la BD se actualiza
+        // únicamente cuando el usuario pulsa el botón de cierre.
+        estadoPazSalvo: "CERRADO",
+      };
+
+      setFormulario(formularioExistente);
+
+      // Los archivos existentes ya están almacenados en servidor.
+      // Se muestran como evidencias existentes, pero nunca se convierten
+      // en File del navegador ni se reenvían al guardar avance.
+      setEvidenciasExistentes(
+        Array.isArray(proceso?.Evidencias) ? proceso.Evidencias : []
+      );
+      setAdjuntos({
+        ...ADJUNTOS_INICIALES,
+      });
+
+      setRetiroGuardado({
+        IdRetiroLaboral: retiro.IdRetiroLaboral,
+        IdPazYSalvo: pazYSalvo.IdPazYSalvo,
+        IdPazYSalvoDetalle: pazYSalvo.IdPazYSalvoDetalle || null,
+        EstadoCasoRRLL: retiro.EstadoCasoRRLL,
+        EstadoPazYSalvo: pazYSalvo.EstadoPazYSalvo,
+        PendienteEnvioRRLL: true,
+        ModoContinuacion: true,
+      });
+
+      // Recuperamos el RQ ya existente. Nunca se crea uno nuevo al abrir la vista.
+      const responseRQ = await fetch(
+        `${API_URL}/operaciones/retiros/rq/retiro/${retiro.IdRetiroLaboral}`,
+        {
+          method: "GET",
+          headers: construirHeaders(),
+        }
+      );
+
+      const dataRQ = await responseRQ.json().catch(() => null);
+
+      if (!responseRQ.ok && responseRQ.status !== 404) {
+        throw new Error(
+          dataRQ?.detail ||
+            dataRQ?.message ||
+            `No fue posible recuperar el RQ existente. Código HTTP: ${responseRQ.status}.`
+        );
+      }
+
+      const rq = responseRQ.ok ? dataRQ?.data || null : null;
+
+      if (rq) {
+        setRqGuardado(rq);
+
+        setFormularioRQ({
+          ...RQ_INICIAL,
+          tipoNotificacion: rq.TipoNotificacion || "",
+          fechaRetiro: rq.FechaRetiro || "",
+          fechaUltimoDiaLaborado:
+            rq.FechaUltimoDiaLaborado || "",
+          observacion: rq.Observacion || "",
+          requiereReemplazo:
+            rq.RequiereReemplazo === true ||
+            String(rq.RequiereReemplazo).toLowerCase() === "true"
+              ? "SI"
+              : "NO",
+          idPerfilRQ:
+            rq.IdPerfilRQ !== null &&
+            rq.IdPerfilRQ !== undefined
+              ? String(rq.IdPerfilRQ)
+              : "",
+          ciudad: rq.Ciudad || "",
+          turno: rq.Turno || "",
+          motivoVacante: rq.MotivoVacante || "",
+          observacionCliente:
+            rq.ObservacionCliente || "",
+        });
+      } else {
+        setRqGuardado(null);
+        setFormularioRQ({
+          ...RQ_INICIAL,
+        });
+      }
+
+      setPerfilesRQ(
+        Array.isArray(perfiles) ? perfiles : []
+      );
+
+      setMensaje(
+        `Proceso #${retiro.IdRetiroLaboral} cargado para continuar.`
+      );
+      setTipoMensaje("success");
+
+      setMensajeGestion(
+        `Estás continuando el retiro #${retiro.IdRetiroLaboral}. Se cargaron el Paz y Salvo y el RQ existentes. En este paso no se ha creado ni modificado ningún registro.`
+      );
+      setTipoMensajeGestion("info");
+
+      window.setTimeout(() => {
+        document
+          .getElementById("formulario-paz-salvo")
+          ?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+      }, 100);
+    } catch (error) {
+      console.error(
+        "Error cargando proceso pendiente existente:",
+        error
+      );
+
+      procesoContinuacionCargadoRef.current = false;
+      setMensaje(
+        error?.message ||
+          "No fue posible cargar el proceso pendiente."
+      );
+      setTipoMensaje("error");
+    } finally {
+      setLoadingSearch(false);
+      setLoadingClientes(false);
+      setLoadingElementosPazSalvo(false);
+    }
+  };
+
+  useEffect(() => {
+    cargarProcesoPendienteExistente();
+  }, []);
+
+  useEffect(() => {
+    if (retiroGuardado?.IdRetiroLaboral) {
+      consultarPerfilesRQ();
+    }
+  }, [retiroGuardado?.IdRetiroLaboral]);
+
+  const validarRQ = () => {
+    const faltantes = [];
+
+    if (!formularioRQ.tipoNotificacion) {
+      faltantes.push("Tipo de notificación");
+    }
+
+    if (
+      formularioRQ.tipoNotificacion &&
+      formularioRQ.tipoNotificacion !== "NUNCA INGRESO" &&
+      !formularioRQ.fechaRetiro
+    ) {
+      faltantes.push("Fecha de retiro");
+    }
+
+    if (
+      TIPOS_NOTIFICACION_RQ_CON_ULTIMO_DIA.includes(
+        formularioRQ.tipoNotificacion
+      ) &&
+      !formularioRQ.fechaUltimoDiaLaborado
+    ) {
+      faltantes.push("Último día laborado");
+    }
+
+    if (!formularioRQ.requiereReemplazo) {
+      faltantes.push("¿Requiere reemplazo?");
+    }
+
+    if (formularioRQ.requiereReemplazo === "SI") {
+      if (!formularioRQ.idPerfilRQ) faltantes.push("Perfil");
+      if (!formularioRQ.ciudad.trim()) faltantes.push("Ciudad");
+      if (!formularioRQ.turno) faltantes.push("Turno");
+      if (!formularioRQ.motivoVacante) faltantes.push("Motivo de la vacante");
+      if (!formularioRQ.observacionCliente.trim()) {
+        faltantes.push("Observaciones del cliente");
+      }
+    }
+
+    if (
+      TIPOS_NOTIFICACION_RQ_CON_CARTA.includes(
+        formularioRQ.tipoNotificacion
+      ) &&
+      cartaRetiroRQ.length === 0
+    ) {
+      faltantes.push("Carta de retiro");
+    }
+
+    return faltantes;
+  };
+
+  const guardarRQ = async () => {
+    if (
+      !retiroGuardado?.IdRetiroLaboral ||
+      !retiroGuardado?.IdPazYSalvo
+    ) {
+      setMensajeGestion(
+        "Primero debes guardar el Paz y Salvo antes de diligenciar el RQ."
+      );
+      setTipoMensajeGestion("warning");
+      return;
+    }
+
+    const faltantes = validarRQ();
+
+    if (faltantes.length > 0) {
+      setMensajeGestion(
+        `Falta completar en el RQ: ${faltantes.join(", ")}.`
+      );
+      setTipoMensajeGestion("warning");
+      return;
+    }
+
+    try {
+      setGuardandoRQ(true);
+      setMensajeGestion("");
+      setTipoMensajeGestion("info");
+
+      const formData = new FormData();
+      formData.append(
+        "IdRetiroLaboral",
+        String(retiroGuardado.IdRetiroLaboral)
+      );
+      formData.append(
+        "IdPazYSalvo",
+        String(retiroGuardado.IdPazYSalvo)
+      );
+      formData.append(
+        "TipoNotificacion",
+        formularioRQ.tipoNotificacion
+      );
+
+      if (formularioRQ.fechaRetiro) {
+        formData.append("FechaRetiro", formularioRQ.fechaRetiro);
+      }
+
+      if (formularioRQ.fechaUltimoDiaLaborado) {
+        formData.append(
+          "FechaUltimoDiaLaborado",
+          formularioRQ.fechaUltimoDiaLaborado
+        );
+      }
+
+      if (formularioRQ.observacion.trim()) {
+        formData.append(
+          "Observacion",
+          formularioRQ.observacion.trim()
+        );
+      }
+
+      const requiereReemplazo =
+        formularioRQ.requiereReemplazo === "SI";
+
+      formData.append(
+        "RequiereReemplazo",
+        String(requiereReemplazo).toLowerCase()
+      );
+
+      if (requiereReemplazo) {
+        formData.append("IdPerfilRQ", formularioRQ.idPerfilRQ);
+        formData.append("Ciudad", formularioRQ.ciudad.trim());
+        formData.append("Turno", formularioRQ.turno);
+        formData.append(
+          "MotivoVacante",
+          formularioRQ.motivoVacante
+        );
+        formData.append(
+          "ObservacionCliente",
+          formularioRQ.observacionCliente.trim()
+        );
+      }
+
+      if (cartaRetiroRQ.length > 0) {
+        formData.append(
+          "cartaRetiroArchivo",
+          cartaRetiroRQ[0]
+        );
+      }
+
+      const response = await fetch(
+        `${API_URL}/operaciones/retiros/rq/guardar`,
+        {
+          method: "POST",
+          headers: construirHeaders(),
+          body: formData,
+        }
+      );
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const detalle =
+          data?.detail ||
+          data?.message ||
+          `No fue posible guardar el RQ. Código HTTP: ${response.status}.`;
+
+        throw new Error(
+          typeof detalle === "string"
+            ? detalle
+            : JSON.stringify(detalle)
+        );
+      }
+
+      const rq = data?.data || {};
+      setRqGuardado(rq);
+
+      const listoParaEnvio =
+        String(rq?.EstadoRQ || "").toUpperCase() ===
+        "LISTO_PARA_ENVIO";
+
+      // El resultado del guardado se muestra dentro del mismo bloque del RQ
+      // para evitar mensajes duplicados y para que Operaciones vea de inmediato
+      // el estado real del caso.
+      setMensajeGestion("");
+      setTipoMensajeGestion("info");
+
+      // Esperamos a que React pinte la alerta y luego la ubicamos
+      // en una zona cómoda de la pantalla. Evitamos scrollIntoView
+      // porque con un formulario largo puede dejar el resultado demasiado arriba.
+      window.setTimeout(() => {
+        const elemento = resultadoRQRef.current;
+
+        if (!elemento) {
+          return;
+        }
+
+        const rect = elemento.getBoundingClientRect();
+        const altoVentana = window.innerHeight || document.documentElement.clientHeight;
+        const margenSuperior = Math.max(80, altoVentana * 0.22);
+        const destino = window.scrollY + rect.top - margenSuperior;
+
+        window.scrollTo({
+          top: Math.max(0, destino),
+          behavior: "smooth",
+        });
+      }, 180);
+    } catch (error) {
+      console.error("Error guardando RQ de Operaciones:", error);
+      setMensajeGestion(
+        error?.message ||
+          "No fue posible guardar el RQ de Operaciones."
+      );
+      setTipoMensajeGestion("error");
+    } finally {
+      setGuardandoRQ(false);
+    }
+  };
+
+  const enviarCasoARRLL = async () => {
+    if (!retiroGuardado?.IdRetiroLaboral) {
+      return;
+    }
+
+    if (
+      String(rqGuardado?.EstadoRQ || "").toUpperCase() !==
+      "LISTO_PARA_ENVIO"
+    ) {
+      setMensajeGestion(
+        "Primero guarda un RQ listo para envío con el Paz y Salvo en estado CERRADO."
+      );
+      setTipoMensajeGestion("warning");
+      return;
+    }
+
+    try {
+      setEnviandoRRLL(true);
+      setMensajeGestion("");
+      setTipoMensajeGestion("info");
+
+      const response = await fetch(
+        `${API_URL}/operaciones/retiros/rq/retiro/${retiroGuardado.IdRetiroLaboral}/enviar-rrll`,
+        {
+          method: "POST",
+          headers: construirHeaders(),
+        }
+      );
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const detalle =
+          data?.detail ||
+          data?.message ||
+          `No fue posible enviar el caso a RRLL. Código HTTP: ${response.status}.`;
+
+        throw new Error(
+          typeof detalle === "string"
+            ? detalle
+            : JSON.stringify(detalle)
+        );
+      }
+
+      setRqGuardado((actual) => ({
+        ...(actual || {}),
+        ...(data?.data || {}),
+        EstadoRQ: "ENVIADO_RRLL",
+        EnviadoRRLL: true,
+      }));
+      setRetiroGuardado((actual) => ({
+        ...actual,
+        EstadoCasoRRLL: "ABIERTO",
+        PendienteEnvioRRLL: false,
+        EnviadoRRLL: true,
+      }));
+
+      setMensajeGestion(
+        "El retiro y el RQ fueron enviados correctamente a Relaciones Laborales. El proceso quedó bloqueado para nuevas modificaciones desde Operaciones."
+      );
+      setTipoMensajeGestion("success");
+    } catch (error) {
+      console.error("Error enviando caso a RRLL:", error);
+      setMensajeGestion(
+        error?.message ||
+          "No fue posible enviar el caso a Relaciones Laborales."
+      );
+      setTipoMensajeGestion("error");
+    } finally {
+      setEnviandoRRLL(false);
     }
   };
 
@@ -2589,6 +3655,9 @@ const OperacionesRetirosView = () => {
                         )
                       }
                       multiple
+                      existingFiles={evidenciasPorTipo("NOVEDADES_NOMINA")}
+                      onViewExisting={verEvidenciaExistente}
+                      onDownloadExisting={descargarEvidenciaExistente}
                       helper="Puedes adjuntar uno o varios soportes en cualquier formato. Máximo 10 MB por archivo."
                     />
                   </div>
@@ -2739,6 +3808,9 @@ const OperacionesRetirosView = () => {
                         index
                       )
                     }
+                    existingFiles={evidenciasPorTipo("FORMATO_DESCUENTO_VACUNAS")}
+                    onViewExisting={verEvidenciaExistente}
+                    onDownloadExisting={descargarEvidenciaExistente}
                     helper="Adjunta el soporte correspondiente en cualquier formato cuando aplique."
                   />
 
@@ -2758,6 +3830,9 @@ const OperacionesRetirosView = () => {
                         index
                       )
                     }
+                    existingFiles={evidenciasPorTipo("CARNET_ACCESO")}
+                    onViewExisting={verEvidenciaExistente}
+                    onDownloadExisting={descargarEvidenciaExistente}
                     helper="Puedes adjuntar el soporte en cualquier formato."
                   />
 
@@ -2779,6 +3854,9 @@ const OperacionesRetirosView = () => {
                         index
                       )
                     }
+                    existingFiles={evidenciasPorTipo("LISTADO_HERRAMIENTAS")}
+                    onViewExisting={verEvidenciaExistente}
+                    onDownloadExisting={descargarEvidenciaExistente}
                     helper="Puedes adjuntar el soporte en cualquier formato. Esta evidencia quedará asociada al paz y salvo."
                   />
 
@@ -2798,6 +3876,9 @@ const OperacionesRetirosView = () => {
                         index
                       )
                     }
+                    existingFiles={evidenciasPorTipo("PLANILLA_NOMINA")}
+                    onViewExisting={verEvidenciaExistente}
+                    onDownloadExisting={descargarEvidenciaExistente}
                     helper="Puedes adjuntar el soporte en cualquier formato. Esta evidencia quedará asociada al paz y salvo."
                   />
                 </div>
@@ -2805,7 +3886,7 @@ const OperacionesRetirosView = () => {
 
               <SeccionFormulario
                 titulo="Cierre del paz y salvo"
-                descripcion="Registra el correo de la supervisora y cierra el documento cuando esté listo para enviar."
+                descripcion="Registra el correo de la supervisora y define si el Paz y Salvo queda ABIERTO o CERRADO antes de guardarlo."
               >
                 <div className="grid grid-cols-1 gap-5">
                   <div>
@@ -2841,34 +3922,63 @@ const OperacionesRetirosView = () => {
                     </p>
                   </div>
 
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5">
-                    <p className="text-sm font-bold uppercase tracking-wide text-amber-900">
-                      Estado del paz y salvo
-                    </p>
+                  {retiroGuardado?.ModoContinuacion ? (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:p-5">
+                      <p className="text-sm font-bold uppercase tracking-wide text-emerald-900">
+                        Finalización del Paz y Salvo
+                      </p>
 
-                    <p className="mt-2 text-sm leading-relaxed text-amber-800">
-                      Una vez cierres el paz y salvo, la
-                      información será enviada a Relaciones
-                      Laborales junto con el documento oficial y
-                      sus evidencias.
-                    </p>
+                      <p className="mt-2 text-sm leading-relaxed text-emerald-800">
+                        Estás continuando un proceso pendiente en Operaciones. Puedes
+                        completar una parte, guardar el avance y salir sin cerrar el
+                        proceso. Cuando ya esté completo, usa la acción final para cerrar
+                        el Paz y Salvo.
+                      </p>
 
-                    <div className="mt-4 grid grid-cols-2 gap-3">
-                      {["ABIERTO", "CERRADO"].map(
-                        (estado) => (
+                      <div className={cn(
+                        "mt-4 flex min-h-12 items-center justify-center rounded-xl border px-4 font-bold",
+                        String(rqGuardado?.EstadoRQ || "").toUpperCase() ===
+                          "ENVIADO_RRLL"
+                          ? "border-blue-600 bg-blue-600 text-white"
+                          : String(rqGuardado?.EstadoRQ || "").toUpperCase() ===
+                              "LISTO_PARA_ENVIO"
+                            ? "border-emerald-600 bg-emerald-600 text-white"
+                            : "border-amber-300 bg-amber-50 text-amber-900"
+                      )}>
+                        {String(rqGuardado?.EstadoRQ || "").toUpperCase() ===
+                        "ENVIADO_RRLL"
+                          ? "ENVIADO A RELACIONES LABORALES"
+                          : String(rqGuardado?.EstadoRQ || "").toUpperCase() ===
+                              "LISTO_PARA_ENVIO"
+                            ? "CERRADO"
+                            : "PENDIENTE EN OPERACIONES"}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5">
+                      <p className="text-sm font-bold uppercase tracking-wide text-amber-900">
+                        Estado del paz y salvo
+                      </p>
+
+                      <p className="mt-2 text-sm leading-relaxed text-amber-800">
+                        Selecciona el estado real del Paz y Salvo. Al guardar,
+                        el caso permanecerá primero en Operaciones. El envío a
+                        Relaciones Laborales se realizará después de diligenciar
+                        el RQ y únicamente cuando el Paz y Salvo esté CERRADO.
+                      </p>
+
+                      <div className="mt-4 grid grid-cols-2 gap-3">
+                        {["ABIERTO", "CERRADO"].map((estado) => (
                           <button
                             key={estado}
                             type="button"
                             onClick={() =>
-                              actualizarCampo(
-                                "estadoPazSalvo",
-                                estado
-                              )
+                              actualizarCampo("estadoPazSalvo", estado)
                             }
+                            disabled={Boolean(retiroGuardado?.IdRetiroLaboral)}
                             className={cn(
                               "min-h-12 rounded-xl border px-4 font-bold transition-colors",
-                              formulario.estadoPazSalvo ===
-                                estado
+                              formulario.estadoPazSalvo === estado
                                 ? estado === "CERRADO"
                                   ? "border-emerald-600 bg-emerald-600 text-white"
                                   : "border-amber-500 bg-amber-500 text-white"
@@ -2877,36 +3987,523 @@ const OperacionesRetirosView = () => {
                           >
                             {estado}
                           </button>
-                        )
-                      )}
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </SeccionFormulario>
 
-              {mensajeGestion && (
-                <div
-                  className={cn(
-                    "rounded-2xl border px-4 py-4 text-sm leading-relaxed sm:px-5",
-                    tipoMensajeGestion === "success" &&
-                      "border-emerald-300 bg-emerald-50 text-emerald-800",
-                    tipoMensajeGestion === "warning" &&
-                      "border-amber-300 bg-amber-50 text-amber-800",
-                    tipoMensajeGestion === "error" &&
-                      "border-red-300 bg-red-50 text-red-700",
-                    tipoMensajeGestion === "info" &&
-                      "border-blue-300 bg-blue-50 text-blue-700"
-                  )}
-                >
-                  {tipoMensajeGestion === "success" && (
-                    <div className="mb-2 flex items-center gap-2 font-bold">
-                      <CheckCircle2 className="h-5 w-5" />
-                      Formulario validado
+              {retiroGuardado?.IdRetiroLaboral &&
+                (!retiroGuardado?.ModoContinuacion || !rqGuardado) && (
+                <div id="formulario-rq-operaciones">
+                  <SeccionFormulario
+                    titulo="RQ - Requisición de vacante"
+                    descripcion="Completa la información de la novedad. El líder se toma automáticamente del usuario que inició sesión."
+                  >
+                    <div className="space-y-6">
+                      <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                        <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                          <div>
+                            <span className="font-semibold text-blue-900">
+                              Trabajador:
+                            </span>
+                            <p className="mt-1 text-blue-800">
+                              {trabajadorSeleccionado?.NombreCompleto || "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-blue-900">
+                              Cliente:
+                            </span>
+                            <p className="mt-1 text-blue-800">
+                              {formulario.clienteNombre || "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-blue-900">
+                              Líder:
+                            </span>
+                            <p className="mt-1 text-blue-800">
+                              {formulario.elaboradoPor ||
+                                obtenerNombreUsuarioActual() ||
+                                "Usuario autenticado"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                        <CampoSelect
+                          id="tipoNotificacionRQ"
+                          label="Tipo de notificación"
+                          value={formularioRQ.tipoNotificacion}
+                          onChange={(valor) =>
+                            actualizarCampoRQ("tipoNotificacion", valor)
+                          }
+                          options={TIPOS_NOTIFICACION_RQ}
+                          required
+                        />
+
+                        <div>
+                          <label
+                            htmlFor="fechaRetiroRQ"
+                            className="mb-2 block text-sm font-semibold text-gray-800"
+                          >
+                            Fecha de retiro
+                            {formularioRQ.tipoNotificacion &&
+                              formularioRQ.tipoNotificacion !==
+                                "NUNCA INGRESO" && (
+                                <span className="text-red-500"> *</span>
+                              )}
+                          </label>
+                          <Input
+                            id="fechaRetiroRQ"
+                            type="date"
+                            value={formularioRQ.fechaRetiro}
+                            disabled={
+                              !formularioRQ.tipoNotificacion ||
+                              formularioRQ.tipoNotificacion ===
+                                "NUNCA INGRESO"
+                            }
+                            onChange={(event) =>
+                              actualizarCampoRQ(
+                                "fechaRetiro",
+                                event.target.value
+                              )
+                            }
+                            className="min-h-12"
+                          />
+                        </div>
+
+                        {TIPOS_NOTIFICACION_RQ_CON_ULTIMO_DIA.includes(
+                          formularioRQ.tipoNotificacion
+                        ) && (
+                          <div>
+                            <label
+                              htmlFor="fechaUltimoDiaRQ"
+                              className="mb-2 block text-sm font-semibold text-gray-800"
+                            >
+                              Último día laborado
+                              <span className="text-red-500"> *</span>
+                            </label>
+                            <Input
+                              id="fechaUltimoDiaRQ"
+                              type="date"
+                              value={
+                                formularioRQ.fechaUltimoDiaLaborado
+                              }
+                              onChange={(event) =>
+                                actualizarCampoRQ(
+                                  "fechaUltimoDiaLaborado",
+                                  event.target.value
+                                )
+                              }
+                              className="min-h-12"
+                            />
+                          </div>
+                        )}
+
+                        <CampoSelect
+                          id="requiereReemplazoRQ"
+                          label="¿Requiere reemplazo?"
+                          value={formularioRQ.requiereReemplazo}
+                          onChange={(valor) =>
+                            actualizarCampoRQ(
+                              "requiereReemplazo",
+                              valor
+                            )
+                          }
+                          options={["SI", "NO"]}
+                          required
+                        />
+                      </div>
+
+                      {TIPOS_NOTIFICACION_RQ_CON_CARTA.includes(
+                        formularioRQ.tipoNotificacion
+                      ) && (
+                        <CampoArchivo
+                          id="cartaRetiroRQ"
+                          label="Carta de retiro"
+                          files={cartaRetiroRQ}
+                          onAdd={(archivos) => {
+                            const limite = 10 * 1024 * 1024;
+                            const validos = archivos.filter(
+                              (archivo) => archivo.size <= limite
+                            );
+
+                            if (validos.length !== archivos.length) {
+                              setMensajeGestion(
+                                "La carta de retiro no puede superar 10 MB."
+                              );
+                              setTipoMensajeGestion("warning");
+                            }
+
+                            setCartaRetiroRQ(validos.slice(0, 1));
+                            setRqGuardado(null);
+                          }}
+                          onRemove={() => {
+                            setCartaRetiroRQ([]);
+                            setRqGuardado(null);
+                          }}
+                          required
+                          helper="Obligatoria para RENUNCIA FORMAL y RENUNCIA POR EVASIÓN DISCIPLINARIA."
+                        />
+                      )}
+
+                      <CampoTextoDictado
+                        id="observacionRQ"
+                        label="Observación"
+                        value={formularioRQ.observacion}
+                        onChange={(valor) =>
+                          actualizarCampoRQ("observacion", valor)
+                        }
+                        rows={4}
+                        placeholder="Escribe o dicta la observación general de la novedad."
+                      />
+
+                      {formularioRQ.requiereReemplazo === "SI" && (
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 sm:p-5">
+                          <h4 className="text-base font-bold text-emerald-900">
+                            Información de la vacante
+                          </h4>
+
+                          <div className="mt-4 grid grid-cols-1 gap-5 lg:grid-cols-2">
+                            <div>
+                              <label
+                                htmlFor="perfilRQ"
+                                className="mb-2 block text-sm font-semibold text-gray-800"
+                              >
+                                Perfil
+                                <span className="text-red-500"> *</span>
+                              </label>
+                              <select
+                                id="perfilRQ"
+                                value={formularioRQ.idPerfilRQ}
+                                onChange={(event) =>
+                                  actualizarCampoRQ(
+                                    "idPerfilRQ",
+                                    event.target.value
+                                  )
+                                }
+                                disabled={loadingPerfilesRQ}
+                                className="min-h-12 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                              >
+                                <option value="">
+                                  {loadingPerfilesRQ
+                                    ? "Cargando perfiles..."
+                                    : "Selecciona un perfil"}
+                                </option>
+                                {perfilesRQ.map((perfil) => (
+                                  <option
+                                    key={perfil.IdPerfilRQ}
+                                    value={perfil.IdPerfilRQ}
+                                  >
+                                    {perfil.CodigoPerfil} -{" "}
+                                    {perfil.DescripcionPerfil}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div>
+                              <label
+                                htmlFor="ciudadRQ"
+                                className="mb-2 block text-sm font-semibold text-gray-800"
+                              >
+                                Ciudad
+                                <span className="text-red-500"> *</span>
+                              </label>
+                              <Input
+                                id="ciudadRQ"
+                                value={formularioRQ.ciudad}
+                                onChange={(event) =>
+                                  actualizarCampoRQ(
+                                    "ciudad",
+                                    event.target.value
+                                  )
+                                }
+                                placeholder="Ej. Bogotá"
+                                className="min-h-12"
+                              />
+                            </div>
+
+                            <CampoSelect
+                              id="turnoRQ"
+                              label="Turno"
+                              value={formularioRQ.turno}
+                              onChange={(valor) =>
+                                actualizarCampoRQ("turno", valor)
+                              }
+                              options={TURNOS_RQ}
+                              required
+                            />
+
+                            <CampoSelect
+                              id="motivoVacanteRQ"
+                              label="Motivo de la vacante"
+                              value={formularioRQ.motivoVacante}
+                              onChange={(valor) =>
+                                actualizarCampoRQ(
+                                  "motivoVacante",
+                                  valor
+                                )
+                              }
+                              options={MOTIVOS_VACANTE_RQ}
+                              required
+                            />
+                          </div>
+
+                          <div className="mt-5">
+                            <CampoTextoDictado
+                              id="observacionClienteRQ"
+                              label="Observaciones del cliente"
+                              value={formularioRQ.observacionCliente}
+                              onChange={(valor) =>
+                                actualizarCampoRQ(
+                                  "observacionCliente",
+                                  valor
+                                )
+                              }
+                              rows={4}
+                              placeholder="Escribe o dicta las condiciones u observaciones informadas por el cliente."
+                              required
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                        <Button
+                          type="button"
+                          onClick={guardarRQ}
+                          disabled={guardandoRQ || enviandoRRLL}
+                          className="min-h-12 rounded-xl bg-blue-600 px-6 font-semibold text-white hover:bg-blue-700 disabled:bg-gray-300"
+                        >
+                          {guardandoRQ ? "Guardando RQ..." : "Guardar RQ"}
+                        </Button>
+
+                        {String(rqGuardado?.EstadoRQ || "").toUpperCase() ===
+                          "LISTO_PARA_ENVIO" && (
+                          <Button
+                            type="button"
+                            onClick={enviarCasoARRLL}
+                            disabled={enviandoRRLL}
+                            className="min-h-12 rounded-xl bg-emerald-600 px-6 font-semibold text-white hover:bg-emerald-700 disabled:bg-gray-300"
+                          >
+                            {enviandoRRLL
+                              ? "Enviando a RRLL..."
+                              : "Enviar a Relaciones Laborales"}
+                          </Button>
+                        )}
+                      </div>
+
+                      {[
+                        "PENDIENTE_OPERACIONES",
+                        "LISTO_PARA_ENVIO",
+                      ].includes(
+                        String(rqGuardado?.EstadoRQ || "").toUpperCase()
+                      ) && (
+                        <div
+                          ref={resultadoRQRef}
+                          id="resultado-rq-operaciones"
+                          className={cn(
+                            "scroll-mt-24 rounded-2xl border-2 px-5 py-5 shadow-sm sm:px-6 sm:py-6",
+                            String(
+                              rqGuardado?.EstadoRQ || ""
+                            ).toUpperCase() === "LISTO_PARA_ENVIO"
+                              ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                              : "border-amber-300 bg-amber-50 text-amber-900"
+                          )}
+                        >
+                          <div className="flex items-start gap-3">
+                            <CheckCircle2 className="mt-0.5 h-7 w-7 shrink-0" />
+
+                            <div className="min-w-0">
+                              <h4 className="text-base font-extrabold uppercase tracking-wide sm:text-lg">
+                                {String(
+                                  rqGuardado?.EstadoRQ || ""
+                                ).toUpperCase() === "LISTO_PARA_ENVIO"
+                                  ? "RQ guardado - listo para envío"
+                                  : "RQ guardado - pendiente en Operaciones"}
+                              </h4>
+
+                              <p className="mt-2 text-sm font-semibold leading-relaxed sm:text-base">
+                                El RQ fue guardado correctamente.
+                              </p>
+
+                              <p className="mt-1 text-sm leading-relaxed sm:text-base">
+                                {String(
+                                  rqGuardado?.EstadoRQ || ""
+                                ).toUpperCase() === "LISTO_PARA_ENVIO"
+                                  ? "El Paz y Salvo está CERRADO y el caso ya está listo para enviarse a Relaciones Laborales."
+                                  : "El caso permanece en Operaciones porque el Paz y Salvo está ABIERTO. Todavía no ha sido enviado a Relaciones Laborales."}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {mensajeGestion}
+                  </SeccionFormulario>
                 </div>
               )}
+
+              {retiroGuardado?.ModoContinuacion && rqGuardado && (
+                <div id="resumen-rq-continuacion">
+                  <SeccionFormulario
+                    titulo="RQ registrada"
+                    descripcion="La requisición ya fue diligenciada. En este paso Operaciones solo debe finalizar el Paz y Salvo y enviarlo a Relaciones Laborales."
+                  >
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Tipo de notificación
+                          </p>
+                          <p className="mt-1 text-sm font-bold text-gray-900">
+                            {rqGuardado?.TipoNotificacion || "—"}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Requiere reemplazo
+                          </p>
+                          <p className="mt-1 text-sm font-bold text-gray-900">
+                            {rqGuardado?.RequiereReemplazo === true ||
+                            String(rqGuardado?.RequiereReemplazo).toLowerCase() === "true"
+                              ? "SI"
+                              : "NO"}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Fecha de retiro
+                          </p>
+                          <p className="mt-1 text-sm font-bold text-gray-900">
+                            {rqGuardado?.FechaRetiro || "—"}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Estado del RQ
+                          </p>
+                          <p className={cn(
+                            "mt-1 text-sm font-bold",
+                            String(rqGuardado?.EstadoRQ || "").toUpperCase() ===
+                              "ENVIADO_RRLL"
+                              ? "text-blue-700"
+                              : String(rqGuardado?.EstadoRQ || "").toUpperCase() ===
+                                  "LISTO_PARA_ENVIO"
+                                ? "text-emerald-700"
+                                : "text-amber-700"
+                          )}>
+                            {String(rqGuardado?.EstadoRQ || "PENDIENTE_OPERACIONES")
+                              .replaceAll("_", " ")}
+                          </p>
+                        </div>
+                      </div>
+
+                      {formularioRQ.observacion && (
+                        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+                            Observación registrada
+                          </p>
+                          <p className="mt-2 text-sm leading-relaxed text-blue-900">
+                            {formularioRQ.observacion}
+                          </p>
+                        </div>
+                      )}
+
+                      {String(rqGuardado?.EstadoRQ || "").toUpperCase() ===
+                      "ENVIADO_RRLL" ? (
+                        <div className="rounded-xl border border-blue-300 bg-blue-50 p-4 text-blue-900">
+                          <div className="flex items-start gap-3">
+                            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+                            <div>
+                              <p className="font-bold">
+                                Proceso enviado a Relaciones Laborales
+                              </p>
+                              <p className="mt-1 text-sm leading-relaxed">
+                                El retiro y el RQ ya fueron enviados a Relaciones Laborales.
+                                El proceso quedó finalizado en Operaciones y no admite más
+                                modificaciones desde este módulo.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : String(rqGuardado?.EstadoRQ || "").toUpperCase() ===
+                        "LISTO_PARA_ENVIO" ? (
+                        <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-emerald-900">
+                          <div className="flex items-start gap-3">
+                            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+                            <div>
+                              <p className="font-bold">Proceso listo para envío</p>
+                              <p className="mt-1 text-sm leading-relaxed">
+                                El Paz y Salvo está CERRADO y el RQ ya está listo.
+                                Usa el botón principal de abajo para enviarlo a Relaciones Laborales.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900">
+                          <p className="font-bold">Proceso pendiente de cierre</p>
+                          <p className="mt-1 text-sm leading-relaxed">
+                            El RQ ya está registrado. Revisa el Paz y Salvo y usa el
+                            botón principal de abajo para cerrarlo. Después se habilitará
+                            el envío a Relaciones Laborales.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </SeccionFormulario>
+                </div>
+              )}
+
+              {mensajeGestion &&
+                (String(rqGuardado?.EstadoRQ || "").toUpperCase() ===
+                "ENVIADO_RRLL" ? (
+                  <div className="rounded-2xl border border-emerald-300 bg-emerald-50 px-6 py-8 text-center text-emerald-950 shadow-sm">
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
+                      <CheckCircle2 className="h-8 w-8 text-emerald-700" />
+                    </div>
+
+                    <h3 className="mt-4 text-xl font-bold">
+                      PROCESO ENVIADO A RELACIONES LABORALES
+                    </h3>
+
+                    <p className="mx-auto mt-3 max-w-3xl text-sm leading-relaxed text-emerald-900">
+                      El retiro y el RQ fueron enviados correctamente a Relaciones
+                      Laborales. El proceso quedó finalizado en Operaciones y ya no
+                      admite nuevas modificaciones desde este módulo.
+                    </p>
+                  </div>
+                ) : (
+                  <div
+                    className={cn(
+                      "rounded-2xl border px-4 py-4 text-sm leading-relaxed sm:px-5",
+                      tipoMensajeGestion === "success" &&
+                        "border-emerald-300 bg-emerald-50 text-emerald-800",
+                      tipoMensajeGestion === "warning" &&
+                        "border-amber-300 bg-amber-50 text-amber-800",
+                      tipoMensajeGestion === "error" &&
+                        "border-red-300 bg-red-50 text-red-700",
+                      tipoMensajeGestion === "info" &&
+                        "border-blue-300 bg-blue-50 text-blue-700"
+                    )}
+                  >
+                    {tipoMensajeGestion === "success" && (
+                      <div className="mb-2 flex items-center gap-2 font-bold">
+                        <CheckCircle2 className="h-5 w-5" />
+                        Formulario validado
+                      </div>
+                    )}
+                    {mensajeGestion}
+                  </div>
+                ))}
 
               <div className="sticky bottom-0 z-10 -mx-4 border-t border-gray-200 bg-white/95 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
                 <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -2916,22 +4513,76 @@ const OperacionesRetirosView = () => {
                     onClick={limpiarGestionRetiro}
                     className="min-h-12 rounded-xl px-6"
                   >
-                    Cancelar
+                    {String(rqGuardado?.EstadoRQ || "").toUpperCase() ===
+                    "ENVIADO_RRLL"
+                      ? "Volver a Retiros"
+                      : "Cancelar"}
                   </Button>
 
-                  <Button
-                    type="button"
-                    onClick={enviarPazSalvo}
-                    disabled={
-                      formulario.estadoPazSalvo !== "CERRADO" ||
-                      enviandoPazSalvo
-                    }
-                    className="min-h-12 rounded-xl bg-emerald-600 px-6 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
-                  >
-                    {enviandoPazSalvo
-                      ? "Enviando..."
-                      : "Enviar a Relaciones Laborales"}
-                  </Button>
+                  {retiroGuardado?.ModoContinuacion ? (
+                    String(rqGuardado?.EstadoRQ || "").toUpperCase() ===
+                    "ENVIADO_RRLL" ? null : String(
+                        rqGuardado?.EstadoRQ || ""
+                      ).toUpperCase() === "LISTO_PARA_ENVIO" ? (
+                      <Button
+                        type="button"
+                        onClick={enviarCasoARRLL}
+                        disabled={enviandoRRLL}
+                        className="min-h-12 rounded-xl bg-emerald-600 px-6 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+                      >
+                        {enviandoRRLL
+                          ? "Enviando a RRLL..."
+                          : "Enviar a Relaciones Laborales"}
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => enviarPazSalvo("ABIERTO")}
+                          disabled={enviandoPazSalvo || !rqGuardado}
+                          className="min-h-12 rounded-xl border-blue-300 px-6 font-semibold text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                        >
+                          {enviandoPazSalvo
+                            ? "Guardando..."
+                            : "Guardar avance"}
+                        </Button>
+
+                        <Button
+                          type="button"
+                          onClick={() => enviarPazSalvo("CERRADO")}
+                          disabled={enviandoPazSalvo || !rqGuardado}
+                          className="min-h-12 rounded-xl bg-emerald-600 px-6 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+                        >
+                          {enviandoPazSalvo
+                            ? "Procesando..."
+                            : rqGuardado
+                              ? "Cerrar Paz y Salvo"
+                              : "Primero guarda el RQ"}
+                        </Button>
+                      </>
+                    )
+                  ) : (
+                    !retiroGuardado?.IdRetiroLaboral && (
+                      <Button
+                        type="button"
+                        onClick={enviarPazSalvo}
+                        disabled={
+                          !formulario.estadoPazSalvo ||
+                          enviandoPazSalvo
+                        }
+                        className="min-h-12 rounded-xl bg-emerald-600 px-6 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+                      >
+                        {enviandoPazSalvo
+                          ? "Guardando..."
+                          : formulario.estadoPazSalvo === "ABIERTO"
+                            ? "Guardar Paz y Salvo abierto"
+                            : formulario.estadoPazSalvo === "CERRADO"
+                              ? "Guardar Paz y Salvo cerrado"
+                              : "Selecciona el estado para guardar"}
+                      </Button>
+                    )
+                  )}
                 </div>
               </div>
             </div>

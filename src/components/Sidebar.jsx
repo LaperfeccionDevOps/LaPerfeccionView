@@ -162,6 +162,14 @@ const Sidebar = ({
           label: "Retiros",
           roles: ["Operaciones"],
           permiso: "OPERACIONES_RETIROS",
+          children: [
+            {
+              to: "/operaciones/retiros/procesos-abiertos",
+              label: "Procesos abiertos",
+              roles: ["Operaciones"],
+              permiso: "OPERACIONES_RETIROS",
+            },
+          ],
         },
         {
           to: "/indicadores-contratacion",
@@ -302,6 +310,12 @@ const Sidebar = ({
               {
                 to: "/operaciones/retiros",
                 label: "Retiros",
+                children: [
+                  {
+                    to: "/operaciones/retiros/procesos-abiertos",
+                    label: "Procesos abiertos",
+                  },
+                ],
               },
             ]
           : []),
@@ -419,6 +433,12 @@ const Sidebar = ({
               {
                 to: "/operaciones/retiros",
                 label: "Retiros",
+                children: [
+                  {
+                    to: "/operaciones/retiros/procesos-abiertos",
+                    label: "Procesos abiertos",
+                  },
+                ],
               },
             ]
           : []),
