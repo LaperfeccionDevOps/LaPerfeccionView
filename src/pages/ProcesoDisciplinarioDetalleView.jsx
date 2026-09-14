@@ -6,7 +6,6 @@ import { formatearExpedienteDisciplinario } from "@/utils/formatearExpedienteDis
 const API_URL =
   import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
 
-const FILE_BASE_URL = API_URL.replace("/api", "");
 
 const obtenerUsuarioSesion = () => {
   const almacenamientos = [
@@ -507,38 +506,82 @@ export default function ProcesoDisciplinarioDetalleView({
     ? String(procesoExp.FechaCreacion).slice(0, 10)
     : "—";
 
-  const obtenerUrlDocumento = (rutaArchivo) => {
-    if (!rutaArchivo) return "";
+  const abrirDocumento = (documento) => {
+    const idDocumento =
+      documento?.IdDocumentoProcesoDisciplinario;
 
-    const rutaLimpia = String(rutaArchivo).replaceAll("\\", "/");
+    if (!idDocumento) {
+      setMensajeDocumento(
+        "No fue posible identificar el documento para visualizar."
+      );
+      return;
+    }
 
-    return `${FILE_BASE_URL}/${rutaLimpia}`;
+    setMensajeDocumento("");
+
+    window.open(
+      `${API_URL}/documento-proceso-disciplinario/${idDocumento}/archivo`,
+      "_blank",
+      "noopener,noreferrer"
+    );
   };
 
-  const abrirDocumento = (rutaArchivo) => {
-    const url = obtenerUrlDocumento(rutaArchivo);
+  const descargarDocumento = async (documento) => {
+    const idDocumento =
+      documento?.IdDocumentoProcesoDisciplinario;
 
-    if (!url) return;
+    if (!idDocumento) {
+      setMensajeDocumento(
+        "No fue posible identificar el documento para descargar."
+      );
+      return;
+    }
 
-    window.open(url, "_blank");
-  };
+    try {
+      setMensajeDocumento("");
 
-  const descargarDocumento = (
-    rutaArchivo,
-    nombreArchivo
-  ) => {
-    const url = obtenerUrlDocumento(rutaArchivo);
+      const response = await fetch(
+        `${API_URL}/documento-proceso-disciplinario/${idDocumento}/descargar`,
+        {
+          method: "GET",
+        }
+      );
 
-    if (!url) return;
+      if (!response.ok) {
+        throw new Error(
+          "No fue posible descargar el documento."
+        );
+      }
 
-    const link = document.createElement("a");
+      const blob = await response.blob();
+      const urlTemporal =
+        window.URL.createObjectURL(blob);
 
-    link.href = url;
-    link.download = nombreArchivo || "documento";
+      const link = document.createElement("a");
 
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      link.href = urlTemporal;
+      link.download =
+        documento?.NombreArchivo || "documento";
+      link.style.display = "none";
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      window.setTimeout(() => {
+        window.URL.revokeObjectURL(urlTemporal);
+      }, 1000);
+    } catch (error) {
+      console.error(
+        "Error descargando documento:",
+        error
+      );
+
+      setMensajeDocumento(
+        error?.message ||
+          "No fue posible descargar el documento."
+      );
+    }
   };
 
   const verExpedientePDF = () => {
@@ -1322,9 +1365,7 @@ export default function ProcesoDisciplinarioDetalleView({
                           <Button
                             variant="outline"
                             onClick={() =>
-                              abrirDocumento(
-                                doc.RutaArchivo
-                              )
+                              abrirDocumento(doc)
                             }
                           >
                             Ver
@@ -1333,10 +1374,7 @@ export default function ProcesoDisciplinarioDetalleView({
                           <Button
                             variant="outline"
                             onClick={() =>
-                              descargarDocumento(
-                                doc.RutaArchivo,
-                                doc.NombreArchivo
-                              )
+                              descargarDocumento(doc)
                             }
                           >
                             Descargar

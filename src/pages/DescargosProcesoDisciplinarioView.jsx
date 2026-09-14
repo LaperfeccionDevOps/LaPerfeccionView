@@ -380,13 +380,13 @@ export default function DescargosProcesoDisciplinarioView({
 
       setCartaDescargosGenerada(
         cartasGeneradas.length > 0
-          ? cartasGeneradas[cartasGeneradas.length - 1]
+          ? cartasGeneradas[0]
           : null
       );
 
       setCartaDescargosFirmada(
         cartasFirmadas.length > 0
-          ? cartasFirmadas[cartasFirmadas.length - 1]
+          ? cartasFirmadas[0]
           : null
       );
 
@@ -2387,10 +2387,16 @@ function formatearTipoDocumento(valor) {
                       variant="outline"
                       onClick={() =>
                         abrirDocumento(
-                          cartaDescargosGenerada
+                          cartaDescargosFirmada ||
+                            cartaDescargosGenerada
                         )
                       }
-                      disabled={!cartaDescargosGenerada?.RutaArchivo}
+                      disabled={
+                        !(
+                          cartaDescargosFirmada ||
+                          cartaDescargosGenerada
+                        )?.IdDocumentoProcesoDisciplinario
+                      }
                     >
                       Ver
                     </Button>
@@ -2398,17 +2404,23 @@ function formatearTipoDocumento(valor) {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() =>
+                      onClick={() => {
+                        const documentoActa =
+                          cartaDescargosFirmada ||
+                          cartaDescargosGenerada;
+
                         descargarDocumento(
-                          cartaDescargosGenerada?.RutaArchivo,
-                          cartaDescargosGenerada?.NombreArchivo,
-                          cartaDescargosGenerada
+                          documentoActa?.RutaArchivo,
+                          documentoActa?.NombreArchivo,
+                          documentoActa
                             ?.IdDocumentoProcesoDisciplinario
-                        )
-                      }
+                        );
+                      }}
                       disabled={
-                        !cartaDescargosGenerada
-                          ?.IdDocumentoProcesoDisciplinario
+                        !(
+                          cartaDescargosFirmada ||
+                          cartaDescargosGenerada
+                        )?.IdDocumentoProcesoDisciplinario
                       }
                     >
                       Descargar
