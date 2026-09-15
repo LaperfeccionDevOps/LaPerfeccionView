@@ -787,6 +787,14 @@ export default function RelacionesLaboralesView() {
   const [loadingDevueltosNomina, setLoadingDevueltosNomina] = useState(false);
   const [errorDevueltosNomina, setErrorDevueltosNomina] = useState("");
 
+  const [bandejaRetirosRRLL, setBandejaRetirosRRLL] = useState({
+    abiertos_operaciones: [],
+    cerrados_operaciones: [],
+  });
+  const [tabBandejaRetirosRRLL, setTabBandejaRetirosRRLL] = useState("ABIERTOS_OPERACIONES");
+  const [loadingBandejaRetirosRRLL, setLoadingBandejaRetirosRRLL] = useState(false);
+  const [errorBandejaRetirosRRLL, setErrorBandejaRetirosRRLL] = useState("");
+
   const [
     fechaInicioExcelDisciplinarios,
     setFechaInicioExcelDisciplinarios,
@@ -986,6 +994,85 @@ const [mensajeEntrevista, setMensajeEntrevista] = useState({
   };
 
 
+ const cargarBandejaRetirosRRLL = async () => {
+   try {
+     setLoadingBandejaRetirosRRLL(true);
+     setErrorBandejaRetirosRRLL("");
+
+     if (!API_BASE) {
+       setBandejaRetirosRRLL({ abiertos_operaciones: [], cerrados_operaciones: [] });
+       setErrorBandejaRetirosRRLL("No se encontró VITE_API_BASE_URL en el .env");
+       return;
+     }
+
+     const token = localStorage.getItem("token");
+     const response = await fetch(`${API_BASE}/retiros-laborales/bandeja-rrll`, {
+       method: "GET",
+       headers: {
+         Accept: "application/json",
+         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+       },
+     });
+
+     const data = await response.json().catch(() => ({}));
+     if (!response.ok || !data?.success) {
+       throw new Error(
+         data?.detail || data?.message || "No fue posible consultar la bandeja de retiros."
+       );
+     }
+
+     setBandejaRetirosRRLL({
+       abiertos_operaciones: Array.isArray(data?.data?.abiertos_operaciones)
+         ? data.data.abiertos_operaciones
+         : [],
+       cerrados_operaciones: Array.isArray(data?.data?.cerrados_operaciones)
+         ? data.data.cerrados_operaciones
+         : [],
+     });
+   } catch (error) {
+     console.error("Error consultando bandeja de retiros RRLL:", error);
+     setBandejaRetirosRRLL({ abiertos_operaciones: [], cerrados_operaciones: [] });
+     setErrorBandejaRetirosRRLL(
+       error?.message || "No fue posible consultar la bandeja de retiros."
+     );
+   } finally {
+     setLoadingBandejaRetirosRRLL(false);
+   }
+ };
+
+ const abrirRetiroDesdeBandejaRRLL = async (retiro) => {
+   const numeroDocumento = String(retiro?.NumeroIdentificacion || "").trim();
+
+   if (!numeroDocumento) {
+     setErrorBandejaRetirosRRLL("El retiro no tiene número de identificación disponible.");
+     return;
+   }
+
+   try {
+     setErrorBandejaRetirosRRLL("");
+     setErrorBuscar("");
+     setMsgActualizar("");
+     setResultadosBusqueda([]);
+     setFiltroDocumento(numeroDocumento);
+
+     const trabajadorDetectado = await detectarTipoDocumentoPorNumero(numeroDocumento);
+     setStep("retiros");
+     await handleBuscar({
+       ...trabajadorDetectado,
+       NumeroDocumento:
+         trabajadorDetectado?.NumeroDocumento ||
+         trabajadorDetectado?.NumeroIdentificacion ||
+         numeroDocumento,
+     });
+   } catch (error) {
+     console.error("Error abriendo retiro desde bandeja RRLL:", error);
+     setStep("retiros_inicio");
+     setErrorBandejaRetirosRRLL(
+       error?.message || "No fue posible abrir el retiro para su gestión."
+     );
+   }
+ };
+
  const cargarRetirosDevueltosNomina = async () => {
    try {
      setLoadingDevueltosNomina(true);
@@ -1081,7 +1168,7 @@ const [mensajeEntrevista, setMensajeEntrevista] = useState({
 
  useEffect(() => {
    if (step === "retiros_inicio") {
-     cargarRetirosDevueltosNomina();
+     cargarBandejaRetirosRRLL();
    }
  }, [step]);
 
@@ -3692,280 +3779,219 @@ if (step === "agenda_general_rrll") {
   // VISTA INICIAL DE RETIROS
   // --------------------------
   if (step === "retiros_inicio") {
+    const abiertosOperaciones = bandejaRetirosRRLL.abiertos_operaciones || [];
+    const cerradosOperaciones = bandejaRetirosRRLL.cerrados_operaciones || [];
+    const retirosMostrados =
+      tabBandejaRetirosRRLL === "ABIERTOS_OPERACIONES"
+        ? abiertosOperaciones
+        : cerradosOperaciones;
+
+    const formatearFechaBandeja = (fecha) => {
+      if (!fecha) return "Sin fecha";
+      try {
+        return new Date(fecha).toLocaleString("es-CO", {
+          timeZone: "America/Bogota",
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        });
+      } catch (error) {
+        return String(fecha);
+      }
+    };
+
     return (
       <div className="p-6">
         <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
-          <div className="mb-1">
-            <h2 className="text-2xl font-bold text-gray-800">
-              Relaciones Laborales
-            </h2>
-            <p className="text-sm text-gray-500">
-              Gestión de retiros
-            </p>
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800">Retiros recibidos</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Seguimiento de los retiros iniciados por Operaciones y gestión de los casos enviados a Relaciones Laborales.
+              </p>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={cargarBandejaRetirosRRLL}
+              disabled={loadingBandejaRetirosRRLL}
+              className="border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+            >
+              {loadingBandejaRetirosRRLL ? "Actualizando..." : "Actualizar"}
+            </Button>
           </div>
 
-          <div className="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-6">
-            <div className="mb-4">
-              <p className="text-sm font-semibold text-emerald-800">
-                Retiros
-              </p>
-              <p className="mt-1 text-xs text-gray-500">
-                Gestión, seguimiento e indicadores del proceso de retiro.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="mt-6 border-b border-gray-200">
+            <div className="flex flex-wrap gap-8">
               <button
                 type="button"
-                onClick={() => setStep("retiros")}
-                className="text-left bg-white rounded-xl border border-emerald-200 p-5 hover:border-emerald-400 hover:shadow-sm transition"
+                onClick={() => setTabBandejaRetirosRRLL("ABIERTOS_OPERACIONES")}
+                className={`border-b-2 px-1 pb-3 text-sm font-semibold transition ${
+                  tabBandejaRetirosRRLL === "ABIERTOS_OPERACIONES"
+                    ? "border-emerald-600 text-emerald-700"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
               >
-                <p className="font-bold text-emerald-700">
-                  Retiros
-                </p>
-                <p className="mt-1 text-xs text-gray-500">
-                  Gestión de retiros y documentación.
-                </p>
+                Abiertos en Operaciones ({abiertosOperaciones.length})
               </button>
 
               <button
                 type="button"
-                onClick={() => navigate("/indicadores-rrll")}
-                className="text-left bg-white rounded-xl border border-emerald-200 p-5 hover:border-emerald-400 hover:shadow-sm transition"
+                onClick={() => setTabBandejaRetirosRRLL("CERRADOS_OPERACIONES")}
+                className={`border-b-2 px-1 pb-3 text-sm font-semibold transition ${
+                  tabBandejaRetirosRRLL === "CERRADOS_OPERACIONES"
+                    ? "border-emerald-600 text-emerald-700"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
               >
-                <p className="font-bold text-emerald-700">
-                  Indicadores de Retiros
-                </p>
-                <p className="mt-1 text-xs text-gray-500">
-                  Consulta y seguimiento de los indicadores del proceso de retiro.
-                </p>
+                Cerrados ({cerradosOperaciones.length})
               </button>
             </div>
+          </div>
 
-            {/* ========================================================= */}
-            {/* EXCEL DE RETIROS */}
-            {/* ========================================================= */}
-
-            <div className="mt-6 rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm">
-              <div className="mb-4">
-                <h3 className="text-base font-bold text-emerald-700">
-                  Excel de Retiros
-                </h3>
-
-                <p className="mt-1 text-xs text-gray-500">
-                  Descarga el reporte de retiros dentro del rango de fechas
-                  seleccionado.
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-4 md:flex-row md:items-end">
-                <div className="w-full md:w-auto">
-                  <Label className="text-sm font-medium text-gray-700">
-                    Fecha inicio:
-                  </Label>
-
-                  <Input
-                    type="date"
-                    value={fechaInicioExcel}
-                    onChange={(e) =>
-                      setFechaInicioExcel(e.target.value)
-                    }
-                    className="mt-2 h-12 w-full bg-white md:w-[190px]"
-                  />
-                </div>
-
-                <div className="w-full md:w-auto">
-                  <Label className="text-sm font-medium text-gray-700">
-                    Fecha fin:
-                  </Label>
-
-                  <Input
-                    type="date"
-                    value={fechaFinExcel}
-                    onChange={(e) =>
-                      setFechaFinExcel(e.target.value)
-                    }
-                    className="mt-2 h-12 w-full bg-white md:w-[190px]"
-                  />
-                </div>
-
-                <div className="w-full md:w-auto">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleDescargarExcel}
-                    className="h-12 w-full border-emerald-500 text-emerald-700 hover:bg-emerald-50 md:w-[220px]"
-                  >
-                    Descargar Excel
-                  </Button>
-                </div>
-              </div>
+          {tabBandejaRetirosRRLL === "ABIERTOS_OPERACIONES" ? (
+            <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+              Estos trabajadores todavía están siendo gestionados por Operaciones. La información es únicamente de consulta para Relaciones Laborales.
             </div>
+          ) : (
+            <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+              Estos procesos ya fueron cerrados por Operaciones y enviados a Relaciones Laborales. Selecciona Ver para continuar la gestión del retiro.
+            </div>
+          )}
 
-            <div className="mt-6 overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
-              <div className="flex flex-col gap-3 border-b border-amber-100 bg-amber-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-base font-bold text-gray-900">
-                      Devueltos por Nómina
-                    </h3>
-                    <span className="inline-flex min-w-7 items-center justify-center rounded-full bg-amber-200 px-2 py-0.5 text-xs font-bold text-amber-900">
-                      {loadingDevueltosNomina
-                        ? "..."
-                        : retirosDevueltosNomina.length}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-gray-600">
-                    Procesos que requieren corrección por parte de Relaciones Laborales.
-                  </p>
-                </div>
+          {errorBandejaRetirosRRLL && (
+            <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {errorBandejaRetirosRRLL}
+            </div>
+          )}
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={cargarRetirosDevueltosNomina}
-                  disabled={loadingDevueltosNomina}
-                  className="border-amber-400 text-amber-800 hover:bg-amber-100"
-                >
-                  {loadingDevueltosNomina ? "Actualizando..." : "Actualizar"}
-                </Button>
-              </div>
+          <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1050px] text-sm">
+                <thead className="bg-gray-50 text-gray-600">
+                  <tr>
+                    <th className="px-5 py-3 text-left font-semibold">Identificación</th>
+                    <th className="px-5 py-3 text-left font-semibold">Trabajador</th>
+                    <th className="px-5 py-3 text-left font-semibold">Cliente</th>
+                    <th className="px-5 py-3 text-left font-semibold">Motivo</th>
+                    <th className="px-5 py-3 text-left font-semibold">Paz y Salvo</th>
+                    <th className="px-5 py-3 text-left font-semibold">
+                      {tabBandejaRetirosRRLL === "ABIERTOS_OPERACIONES"
+                        ? "Fecha proceso"
+                        : "Fecha envío Operaciones"}
+                    </th>
+                    <th className="px-5 py-3 text-center font-semibold">Acción</th>
+                  </tr>
+                </thead>
 
-              {errorDevueltosNomina && (
-                <div className="border-b border-red-100 bg-red-50 px-5 py-3 text-sm text-red-700">
-                  {errorDevueltosNomina}
-                </div>
-              )}
-
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[900px] text-sm">
-                  <thead className="bg-gray-50 text-gray-600">
+                <tbody>
+                  {loadingBandejaRetirosRRLL && (
                     <tr>
-                      <th className="px-5 py-3 text-left font-semibold">
-                        Identificación
-                      </th>
-                      <th className="px-5 py-3 text-left font-semibold">
-                        Trabajador
-                      </th>
-                      <th className="px-5 py-3 text-left font-semibold">
-                        Fecha devolución
-                      </th>
-                      <th className="px-5 py-3 text-left font-semibold">
-                        Motivo de devolución
-                      </th>
-                      <th className="px-5 py-3 text-center font-semibold">
-                        Acción
-                      </th>
+                      <td colSpan="7" className="px-5 py-10 text-center text-gray-500">
+                        Consultando retiros...
+                      </td>
                     </tr>
-                  </thead>
+                  )}
 
-                  <tbody>
-                    {loadingDevueltosNomina && (
-                      <tr>
-                        <td
-                          colSpan="5"
-                          className="px-5 py-8 text-center text-gray-500"
+                  {!loadingBandejaRetirosRRLL &&
+                    retirosMostrados.map((retiro) => {
+                      const nombreCompleto =
+                        retiro?.NombreCompleto ||
+                        `${retiro?.Nombres || ""} ${retiro?.Apellidos || ""}`
+                          .replace(/\s+/g, " ")
+                          .trim() ||
+                        "Sin información";
+
+                      const esDevueltoNomina =
+                        String(retiro?.EstadoCasoRRLL || "").toUpperCase() ===
+                        "DEVUELTO_NOMINA";
+
+                      return (
+                        <tr
+                          key={retiro?.IdRetiroLaboral}
+                          className="border-t border-gray-100 hover:bg-gray-50"
                         >
-                          Consultando devoluciones de Nómina...
-                        </td>
-                      </tr>
-                    )}
-
-                    {!loadingDevueltosNomina &&
-                      retirosDevueltosNomina.map((retiro) => {
-                        const fechaDevolucion =
-                          retiro?.FechaDevolucionNomina ||
-                          retiro?.FechaObservacionNomina ||
-                          null;
-
-                        const fechaTexto = fechaDevolucion
-                          ? new Date(fechaDevolucion).toLocaleString("es-CO", {
-                              timeZone: "America/Bogota",
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                              hour: "numeric",
-                              minute: "2-digit",
-                              hour12: true,
-                            })
-                          : "Sin fecha";
-
-                        const nombreCompleto =
-                          retiro?.NombreCompleto ||
-                          `${retiro?.Nombres || ""} ${retiro?.Apellidos || ""}`
-                            .replace(/\s+/g, " ")
-                            .trim()
-                            .toUpperCase() ||
-                          "Sin información";
-
-                        return (
-                          <tr
-                            key={retiro?.IdRetiroLaboral}
-                            className="border-t border-gray-100 hover:bg-amber-50/40"
-                          >
-                            <td className="px-5 py-4 font-medium text-gray-800">
-                              {retiro?.NumeroIdentificacion || "Sin información"}
-                            </td>
-
-                            <td className="px-5 py-4 font-semibold text-gray-900">
-                              {nombreCompleto}
-                            </td>
-
-                            <td className="px-5 py-4 whitespace-nowrap text-gray-700">
-                              {fechaTexto}
-                            </td>
-
-                            <td className="px-5 py-4 text-gray-700">
-                              <div className="max-w-[460px] whitespace-pre-wrap break-words">
-                                {retiro?.MotivoDevolucion ||
-                                  retiro?.ObservacionNomina ||
-                                  "Sin motivo registrado"}
-                              </div>
-                            </td>
-
-                            <td className="px-5 py-4 text-center">
+                          <td className="px-5 py-4 font-medium text-gray-800">
+                            {retiro?.NumeroIdentificacion || "Sin información"}
+                          </td>
+                          <td className="px-5 py-4 font-semibold text-gray-900">
+                            <div>{nombreCompleto}</div>
+                            {esDevueltoNomina && (
+                              <span className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                                Devuelto por Nómina
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-5 py-4 text-gray-700">
+                            {retiro?.NombreCliente || "Sin información"}
+                          </td>
+                          <td className="px-5 py-4 text-gray-700">
+                            {retiro?.NombreMotivoRetiro || "Sin información"}
+                          </td>
+                          <td className="px-5 py-4">
+                            <span
+                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                String(retiro?.EstadoPazYSalvo || "").toUpperCase() === "CERRADO"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-blue-100 text-blue-800"
+                              }`}
+                            >
+                              {retiro?.EstadoPazYSalvo || "SIN ESTADO"}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap text-gray-700">
+                            {formatearFechaBandeja(
+                              tabBandejaRetirosRRLL === "ABIERTOS_OPERACIONES"
+                                ? retiro?.FechaProceso
+                                : retiro?.FechaEnvioOperaciones
+                            )}
+                          </td>
+                          <td className="px-5 py-4 text-center">
+                            {tabBandejaRetirosRRLL === "CERRADOS_OPERACIONES" ? (
                               <Button
                                 type="button"
                                 size="sm"
-                                onClick={() => gestionarRetiroDevuelto(retiro)}
+                                onClick={() => abrirRetiroDesdeBandejaRRLL(retiro)}
                                 disabled={loadingBuscar}
                                 className="bg-emerald-600 text-white hover:bg-emerald-700"
                               >
-                                Gestionar
+                                Ver
                               </Button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-
-                    {!loadingDevueltosNomina &&
-                      retirosDevueltosNomina.length === 0 &&
-                      !errorDevueltosNomina && (
-                        <tr>
-                          <td
-                            colSpan="5"
-                            className="px-5 py-10 text-center text-gray-500"
-                          >
-                            No hay retiros devueltos por Nómina pendientes de gestión.
+                            ) : (
+                              <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
+                                En Operaciones
+                              </span>
+                            )}
                           </td>
                         </tr>
-                      )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                      );
+                    })}
 
-            <div className="mt-5">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setStep("inicio")}
-              >
-                Volver al módulo
-              </Button>
+                  {!loadingBandejaRetirosRRLL &&
+                    retirosMostrados.length === 0 &&
+                    !errorBandejaRetirosRRLL && (
+                      <tr>
+                        <td colSpan="7" className="px-5 py-12 text-center text-gray-500">
+                          {tabBandejaRetirosRRLL === "ABIERTOS_OPERACIONES"
+                            ? "No hay retiros abiertos actualmente en Operaciones."
+                            : "No hay retiros cerrados por Operaciones pendientes de gestión en RRLL."}
+                        </td>
+                      </tr>
+                    )}
+                </tbody>
+              </table>
             </div>
           </div>
 
+          <div className="mt-5">
+            <Button type="button" variant="outline" onClick={() => setStep("inicio")}>
+              Volver al módulo
+            </Button>
+          </div>
         </div>
       </div>
     );
