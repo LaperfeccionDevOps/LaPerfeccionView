@@ -29,6 +29,7 @@ import IndicadoresProcesosDisciplinariosView from "@/pages/IndicadoresProcesosDi
 import AspiranteView from "@/components/AspiranteView";
 import ContratacionView from "@/components/ContratacionView";
 import SeleccionView from "@/components/SeleccionView";
+import SeleccionRQView from "@/pages/SeleccionRQView";
 import SeguimientoView from "@/components/SeguimientoView";
 import RelacionesLaboralesView from "@/components/RelacionesLaboralesView";
 import ArchivosView from "@/components/ArchivosView";
@@ -266,6 +267,11 @@ function App() {
           <Route
             path="seleccion"
             element={<SeleccionView />}
+          />
+
+          <Route
+            path="seleccion/rq"
+            element={<SeleccionRQView />}
           />
 
           <Route

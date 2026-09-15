@@ -112,11 +112,18 @@ const Sidebar = ({
           to: "/seleccion",
           label: "Selección",
           roles: ["Administrador", "Selección"],
-        },
-        {
-          to: "/indicadores-seleccion",
-          label: "Indicadores",
-          roles: ["Administrador", "Selección"],
+          children: [
+            {
+              to: "/seleccion/rq",
+              label: "RQ",
+              roles: ["Administrador", "Selección"],
+            },
+            {
+              to: "/indicadores-seleccion",
+              label: "Indicadores",
+              roles: ["Administrador", "Selección"],
+            },
+          ],
         },
         {
           to: "/contratacion",
@@ -278,6 +285,10 @@ const Sidebar = ({
           label: "Selección",
           children: [
             {
+              to: "/seleccion/rq",
+              label: "RQ",
+            },
+            {
               to: "/indicadores-seleccion",
               label: "Indicadores",
             },
@@ -396,6 +407,10 @@ const Sidebar = ({
           to: "/seleccion",
           label: "Selección",
           children: [
+            {
+              to: "/seleccion/rq",
+              label: "RQ",
+            },
             {
               to: "/indicadores-seleccion",
               label: "Indicadores",
