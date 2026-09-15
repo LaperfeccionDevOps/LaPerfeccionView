@@ -37,6 +37,16 @@ const Sidebar = ({
     return permisosUsuario.includes(codigoPermiso);
   };
 
+  const tieneAlgunoDeLosPermisos = (codigosPermiso) => {
+    if (!Array.isArray(codigosPermiso)) {
+      return false;
+    }
+
+    return codigosPermiso.some((codigoPermiso) =>
+      tienePermiso(codigoPermiso)
+    );
+  };
+
   const isOperaciones =
     rolUsuario === "Operaciones";
 
@@ -155,7 +165,10 @@ const Sidebar = ({
           to: "/operaciones/agenda-disciplinaria",
           label: "Agenda Disciplinaria",
           roles: ["Operaciones"],
-          permiso: "OPERACIONES_PROCESOS_DISCIPLINARIOS",
+          permisos: [
+            "OPERACIONES_PROCESOS_DISCIPLINARIOS",
+            "RECEPCION_AGENDA_DISCIPLINARIA",
+          ],
         },
         {
           to: "/operaciones/retiros",
@@ -484,7 +497,8 @@ const Sidebar = ({
       (
         item.permiso &&
         tienePermiso(item.permiso)
-      );
+      ) ||
+      tieneAlgunoDeLosPermisos(item.permisos);
 
     if (Array.isArray(item.children)) {
       const childrenFiltrados = item.children

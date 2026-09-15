@@ -28,6 +28,7 @@ const ROLE_IDS = {
   Bienestar: 16,
   Nómina: 17,
   Administrativo: 18,
+  Recepción: 19,
 };
 
 

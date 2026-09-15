@@ -231,8 +231,23 @@ async function obtenerAgendaGeneral({
     parametros.set("buscar", buscarNormalizado);
   }
 
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    throw new Error(
+      "No hay una sesión válida. Inicie sesión nuevamente."
+    );
+  }
+
   const response = await fetch(
-    `${API_BASE}/agenda-disciplinaria/general/rango?${parametros.toString()}`
+    `${API_BASE}/agenda-disciplinaria/general/rango?${parametros.toString()}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    }
   );
 
   const data = await response

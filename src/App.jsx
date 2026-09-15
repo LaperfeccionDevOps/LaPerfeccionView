@@ -83,6 +83,22 @@ const RoleBasedRedirect = () => {
     case "Nomina":
       return <Navigate to="/nomina-retiros" replace />;
 
+    case "Recepción":
+      if (
+        permissions.includes(
+          "RECEPCION_AGENDA_DISCIPLINARIA"
+        )
+      ) {
+        return (
+          <Navigate
+            to="/operaciones/agenda-disciplinaria"
+            replace
+          />
+        );
+      }
+
+      return <Navigate to="/login" replace />;
+
     case "Administrativo":
       if (
         permissions.includes(
@@ -121,6 +137,8 @@ const RoleBasedRedirect = () => {
 const OperationsPermissionRoute = ({
   children,
   permission,
+  permissions: allowedPermissions,
+  roles: allowedRoles = [],
 }) => {
   const { user } = useAuth();
 
@@ -142,10 +160,23 @@ const OperationsPermissionRoute = ({
     "Desarrollador",
   ];
 
+  const hasPermission =
+    (
+      permission &&
+      permissions.includes(permission)
+    ) ||
+    (
+      Array.isArray(allowedPermissions) &&
+      allowedPermissions.some((allowedPermission) =>
+        permissions.includes(allowedPermission)
+      )
+    );
+
   const hasAccess =
     role === "Operaciones" ||
     globalRoles.includes(role) ||
-    permissions.includes(permission);
+    allowedRoles.includes(role) ||
+    hasPermission;
 
   if (!hasAccess) {
     return <Navigate to="/" replace />;
@@ -316,7 +347,10 @@ function App() {
             path="operaciones/agenda-disciplinaria"
             element={
               <OperationsPermissionRoute
-                permission="OPERACIONES_PROCESOS_DISCIPLINARIOS"
+                permissions={[
+                  "OPERACIONES_PROCESOS_DISCIPLINARIOS",
+                  "RECEPCION_AGENDA_DISCIPLINARIA",
+                ]}
               >
                 <AgendaDisciplinariaOperacionesView />
               </OperationsPermissionRoute>
