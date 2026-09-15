@@ -40,9 +40,98 @@ const API_BASE = (
   import.meta.env.VITE_API_BASE_URL || ""
 ).replace(/\/$/, "");
 
+function obtenerTokenAutenticacion() {
+  const almacenamientos = [
+    window.localStorage,
+    window.sessionStorage,
+  ];
+
+  const clavesDirectas = [
+    "token",
+    "access_token",
+    "accessToken",
+    "authToken",
+    "jwt",
+    "jwtToken",
+  ];
+
+  for (const almacenamiento of almacenamientos) {
+    for (const clave of clavesDirectas) {
+      const valor = almacenamiento.getItem(clave);
+
+      if (
+        valor &&
+        valor !== "null" &&
+        valor !== "undefined"
+      ) {
+        return valor.replace(/^"|"$/g, "");
+      }
+    }
+  }
+
+  const clavesObjetos = [
+    "auth",
+    "authData",
+    "user",
+    "session",
+    "userData",
+  ];
+
+  for (const almacenamiento of almacenamientos) {
+    for (const clave of clavesObjetos) {
+      const valor = almacenamiento.getItem(clave);
+
+      if (!valor) {
+        continue;
+      }
+
+      try {
+        const objeto = JSON.parse(valor);
+
+        const token =
+          objeto?.token ||
+          objeto?.access_token ||
+          objeto?.accessToken ||
+          objeto?.authToken ||
+          objeto?.jwt ||
+          objeto?.jwtToken ||
+          objeto?.user?.token ||
+          objeto?.user?.access_token;
+
+        if (token) {
+          return String(token).replace(/^"|"$/g, "");
+        }
+      } catch {
+        // La clave no contiene un objeto JSON válido.
+      }
+    }
+  }
+
+  return null;
+}
+
+function construirHeadersAutenticados() {
+  const token = obtenerTokenAutenticacion();
+
+  if (!token) {
+    throw new Error(
+      "No hay una sesión válida. Inicie sesión nuevamente."
+    );
+  }
+
+  return {
+    Accept: "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+}
+
 async function obtenerFestivosPorAnio(anio) {
   const response = await fetch(
-    `${API_BASE}/agenda-disciplinaria/festivos/${anio}`
+    `${API_BASE}/agenda-disciplinaria/festivos/${anio}`,
+    {
+      method: "GET",
+      headers: construirHeadersAutenticados(),
+    }
   );
 
   const data = await response
@@ -136,7 +225,11 @@ async function obtenerAgendaGeneral({
   }
 
   const response = await fetch(
-    `${API_BASE}/agenda-disciplinaria/general/rango?${parametros.toString()}`
+    `${API_BASE}/agenda-disciplinaria/general/rango?${parametros.toString()}`,
+    {
+      method: "GET",
+      headers: construirHeadersAutenticados(),
+    }
   );
 
   const data = await response

@@ -209,6 +209,76 @@ function normalizarResumen(resumen = {}) {
   };
 }
 
+function obtenerTokenAutenticacion() {
+  const almacenamientos = [
+    window.localStorage,
+    window.sessionStorage,
+  ];
+
+  const clavesDirectas = [
+    "token",
+    "access_token",
+    "accessToken",
+    "authToken",
+    "jwt",
+    "jwtToken",
+  ];
+
+  for (const almacenamiento of almacenamientos) {
+    for (const clave of clavesDirectas) {
+      const valor = almacenamiento.getItem(clave);
+
+      if (
+        valor &&
+        valor !== "null" &&
+        valor !== "undefined"
+      ) {
+        return valor.replace(/^"|"$/g, "");
+      }
+    }
+  }
+
+  const clavesObjetos = [
+    "auth",
+    "authData",
+    "user",
+    "session",
+    "userData",
+  ];
+
+  for (const almacenamiento of almacenamientos) {
+    for (const clave of clavesObjetos) {
+      const valor = almacenamiento.getItem(clave);
+
+      if (!valor) {
+        continue;
+      }
+
+      try {
+        const objeto = JSON.parse(valor);
+
+        const token =
+          objeto?.token ||
+          objeto?.access_token ||
+          objeto?.accessToken ||
+          objeto?.authToken ||
+          objeto?.jwt ||
+          objeto?.jwtToken ||
+          objeto?.user?.token ||
+          objeto?.user?.access_token;
+
+        if (token) {
+          return String(token).replace(/^"|"$/g, "");
+        }
+      } catch {
+        // La clave no contiene un objeto JSON válido.
+      }
+    }
+  }
+
+  return null;
+}
+
 async function obtenerAgendaGeneral({
   fechaDesde,
   fechaHasta,
@@ -231,7 +301,7 @@ async function obtenerAgendaGeneral({
     parametros.set("buscar", buscarNormalizado);
   }
 
-  const token = localStorage.getItem("token");
+  const token = obtenerTokenAutenticacion();
 
   if (!token) {
     throw new Error(
