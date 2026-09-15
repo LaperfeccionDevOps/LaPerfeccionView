@@ -9,7 +9,6 @@ import {
   Eye,
   ClipboardCheck,
   FileText,
-  Mail,
   Mic,
   Paperclip,
   Search,
@@ -106,7 +105,6 @@ const FORMULARIO_INICIAL = {
   pendientePagoVacunas: "",
 
   usuariosClavesDispositivos: "",
-  correoSupervisora: "",
   estadoPazSalvo: "",
 };
 
@@ -166,34 +164,10 @@ const ADJUNTOS_INICIALES = {
   fotoPlanillaNomina: [],
 };
 
-const TIPOS_NOTIFICACION_RQ = [
-  "RENUNCIA FORMAL",
-  "RENUNCIA INFORMADA",
-  "ABANDONO",
-  "NUNCA INGRESO",
-  "TERMINACION DE CONTRATO",
-  "RENUNCIA POR EVASION DISCIPLINARIA",
-];
-
-const TIPOS_NOTIFICACION_RQ_CON_CARTA = [
-  "RENUNCIA FORMAL",
-  "RENUNCIA POR EVASION DISCIPLINARIA",
-];
-
-const TIPOS_NOTIFICACION_RQ_CON_ULTIMO_DIA = [
-  "RENUNCIA FORMAL",
-  "RENUNCIA INFORMADA",
-  "ABANDONO",
-  "TERMINACION DE CONTRATO",
-];
-
 const TURNOS_RQ = ["ROTATIVO", "DIURNO"];
 const MOTIVOS_VACANTE_RQ = ["RENUNCIA", "ABANDONO", "NUNCA INGRESO"];
 
 const RQ_INICIAL = {
-  tipoNotificacion: "",
-  fechaRetiro: "",
-  fechaUltimoDiaLaborado: "",
   observacion: "",
   requiereReemplazo: "",
   idPerfilRQ: "",
@@ -1872,6 +1846,10 @@ const OperacionesRetirosView = () => {
       [campo]: valor,
     }));
 
+    if (campo === "idMotivoRetiro" && String(valor) !== "1") {
+      setCartaRetiroRQ([]);
+    }
+
     setMensajeGestion("");
     setTipoMensajeGestion("info");
   };
@@ -1947,7 +1925,6 @@ const OperacionesRetirosView = () => {
         "pendientePagoVacunas",
         "Pendiente pago de vacunas",
       ],
-      ["correoSupervisora", "Correo de la supervisora"],
     ];
 
     const faltantes = requeridos
@@ -2159,10 +2136,9 @@ const OperacionesRetirosView = () => {
         );
       }
 
-      formData.append(
-        "CorreoSupervisora",
-        formulario.correoSupervisora.trim()
-      );
+      // Compatibilidad temporal con el backend actual.
+      // El correo ya no se solicita ni se muestra en Operaciones.
+      formData.append("CorreoSupervisora", "NO_APLICA");
       formData.append(
         "EstadoPazYSalvo",
         estadoPazSalvoDestino
@@ -2301,11 +2277,69 @@ const OperacionesRetirosView = () => {
         // Refrescamos solo la lista visual de evidencias ya guardadas.
         await refrescarEvidenciasExistentes(retiroGuardado.IdRetiroLaboral);
 
-        setMensajeGestion(
-          estadoPazSalvoDestino === "CERRADO"
-            ? "El mismo Paz y Salvo fue actualizado y quedó CERRADO. El retiro continúa pendiente en Operaciones y el RQ existente quedó listo para envío a Relaciones Laborales."
-            : "El mismo Paz y Salvo fue actualizado y continúa ABIERTO. El retiro permanece pendiente en Operaciones."
-        );
+        const requiereReemplazoGuardado =
+          rqGuardado?.RequiereReemplazo === true ||
+          String(rqGuardado?.RequiereReemplazo).toLowerCase() === "true";
+
+        // Si ya se confirmó que NO requiere reemplazo, al cerrar el Paz y Salvo
+        // el retiro pasa directamente a RRLL. Este caso nunca va a Selección.
+        if (
+          estadoPazSalvoDestino === "CERRADO" &&
+          rqGuardado &&
+          !requiereReemplazoGuardado
+        ) {
+          const responseEnvioRRLL = await fetch(
+            `${API_URL}/operaciones/retiros/rq/retiro/${retiroGuardado.IdRetiroLaboral}/enviar-rrll`,
+            {
+              method: "POST",
+              headers: construirHeaders(),
+            }
+          );
+
+          const dataEnvioRRLL = await responseEnvioRRLL
+            .json()
+            .catch(() => null);
+
+          if (!responseEnvioRRLL.ok) {
+            const detalleEnvio =
+              dataEnvioRRLL?.detail ||
+              dataEnvioRRLL?.message ||
+              `El Paz y Salvo quedó CERRADO, pero no fue posible enviar el retiro a RRLL. Código HTTP: ${responseEnvioRRLL.status}.`;
+
+            throw new Error(
+              typeof detalleEnvio === "string"
+                ? detalleEnvio
+                : JSON.stringify(detalleEnvio)
+            );
+          }
+
+          setRqGuardado((actual) => ({
+            ...(actual || {}),
+            ...(dataEnvioRRLL?.data || {}),
+            RequiereReemplazo: false,
+            EstadoRQ: "ENVIADO_RRLL",
+            EnviadoRRLL: true,
+            EnviadoSeleccion: false,
+          }));
+
+          setRetiroGuardado((actual) => ({
+            ...actual,
+            EstadoPazYSalvo: "CERRADO",
+            EstadoCasoRRLL: "ABIERTO",
+            PendienteEnvioRRLL: false,
+            EnviadoRRLL: true,
+          }));
+
+          setMensajeGestion(
+            "El Paz y Salvo quedó CERRADO y, como se confirmó que NO requiere reemplazo, el retiro fue enviado automáticamente a Relaciones Laborales. No fue enviado a Selección."
+          );
+        } else {
+          setMensajeGestion(
+            estadoPazSalvoDestino === "CERRADO"
+              ? "El mismo Paz y Salvo fue actualizado y quedó CERRADO. La RQ existente quedó lista para continuar con el envío correspondiente."
+              : "El mismo Paz y Salvo fue actualizado y continúa ABIERTO. El retiro permanece pendiente en Operaciones."
+          );
+        }
       } else {
         setRetiroGuardado(datosGuardados);
         setRqGuardado(null);
@@ -2351,21 +2385,6 @@ const OperacionesRetirosView = () => {
         ...actual,
         [campo]: valor,
       };
-
-      if (campo === "tipoNotificacion") {
-        if (valor === "NUNCA INGRESO") {
-          siguiente.fechaRetiro = "";
-          siguiente.fechaUltimoDiaLaborado = "";
-        } else if (
-          !TIPOS_NOTIFICACION_RQ_CON_ULTIMO_DIA.includes(valor)
-        ) {
-          siguiente.fechaUltimoDiaLaborado = "";
-        }
-
-        if (!TIPOS_NOTIFICACION_RQ_CON_CARTA.includes(valor)) {
-          setCartaRetiroRQ([]);
-        }
-      }
 
       if (campo === "requiereReemplazo" && valor !== "SI") {
         siguiente.idPerfilRQ = "";
@@ -2457,30 +2476,28 @@ const OperacionesRetirosView = () => {
       setMensajeGestion("");
       setTipoMensajeGestion("info");
 
-      let proceso = procesoRecibido;
-
-      // Si la navegación no trae el objeto completo, lo recuperamos nuevamente.
-      if (!proceso?.Retiro?.IdRetiroLaboral) {
-        const responseProceso = await fetch(
-          `${API_URL}/operaciones/retiros/proceso/${idRetiroLaboral}/continuar`,
-          {
-            method: "GET",
-            headers: construirHeaders(),
-          }
-        );
-
-        const dataProceso = await responseProceso.json().catch(() => null);
-
-        if (!responseProceso.ok) {
-          throw new Error(
-            dataProceso?.detail ||
-              dataProceso?.message ||
-              `No fue posible recuperar el proceso pendiente. Código HTTP: ${responseProceso.status}.`
-          );
+      // Siempre recuperamos el proceso directamente del backend.
+      // El objeto recibido desde "Procesos abiertos" puede ser un resumen
+      // y no necesariamente contiene el estado más reciente del proceso.
+      const responseProceso = await fetch(
+        `${API_URL}/operaciones/retiros/proceso/${idRetiroLaboral}/continuar`,
+        {
+          method: "GET",
+          headers: construirHeaders(),
         }
+      );
 
-        proceso = dataProceso?.data || null;
+      const dataProceso = await responseProceso.json().catch(() => null);
+
+      if (!responseProceso.ok) {
+        throw new Error(
+          dataProceso?.detail ||
+            dataProceso?.message ||
+            `No fue posible recuperar el proceso pendiente. Código HTTP: ${responseProceso.status}.`
+        );
       }
+
+      const proceso = dataProceso?.data || null;
 
       if (
         !proceso?.Retiro?.IdRetiroLaboral ||
@@ -2629,8 +2646,6 @@ const OperacionesRetirosView = () => {
           pazYSalvo.PendientePagoVacunas || "",
         usuariosClavesDispositivos:
           pazYSalvo.UsuariosClavesDispositivos || "",
-        correoSupervisora:
-          pazYSalvo.CorreoSupervisora || "",
         // En modo continuación Operaciones ya está entrando a finalizar el proceso.
         // Dejamos CERRADO preparado solo en la interfaz; la BD se actualiza
         // únicamente cuando el usuario pulsa el botón de cierre.
@@ -2685,10 +2700,6 @@ const OperacionesRetirosView = () => {
 
         setFormularioRQ({
           ...RQ_INICIAL,
-          tipoNotificacion: rq.TipoNotificacion || "",
-          fechaRetiro: rq.FechaRetiro || "",
-          fechaUltimoDiaLaborado:
-            rq.FechaUltimoDiaLaborado || "",
           observacion: rq.Observacion || "",
           requiereReemplazo:
             rq.RequiereReemplazo === true ||
@@ -2723,7 +2734,12 @@ const OperacionesRetirosView = () => {
       setTipoMensaje("success");
 
       setMensajeGestion(
-        `Estás continuando el retiro #${retiro.IdRetiroLaboral}. Se cargaron el Paz y Salvo y el RQ existentes. En este paso no se ha creado ni modificado ningún registro.`
+        rq
+          ? rq.RequiereReemplazo === true ||
+            String(rq.RequiereReemplazo).toLowerCase() === "true"
+            ? `Estás continuando el retiro #${retiro.IdRetiroLaboral}. Se cargaron el Paz y Salvo y la RQ existentes. En este paso no se ha creado ni modificado ningún registro.`
+            : `Estás continuando el retiro #${retiro.IdRetiroLaboral}. Ya está registrado que NO requiere reemplazo. Solo debes finalizar el Paz y Salvo; no se volverá a solicitar una RQ.`
+          : `Estás continuando el retiro #${retiro.IdRetiroLaboral}. Se cargó el Paz y Salvo existente. Aún debes definir si requiere reemplazo.`
       );
       setTipoMensajeGestion("info");
 
@@ -2767,27 +2783,6 @@ const OperacionesRetirosView = () => {
   const validarRQ = () => {
     const faltantes = [];
 
-    if (!formularioRQ.tipoNotificacion) {
-      faltantes.push("Tipo de notificación");
-    }
-
-    if (
-      formularioRQ.tipoNotificacion &&
-      formularioRQ.tipoNotificacion !== "NUNCA INGRESO" &&
-      !formularioRQ.fechaRetiro
-    ) {
-      faltantes.push("Fecha de retiro");
-    }
-
-    if (
-      TIPOS_NOTIFICACION_RQ_CON_ULTIMO_DIA.includes(
-        formularioRQ.tipoNotificacion
-      ) &&
-      !formularioRQ.fechaUltimoDiaLaborado
-    ) {
-      faltantes.push("Último día laborado");
-    }
-
     if (!formularioRQ.requiereReemplazo) {
       faltantes.push("¿Requiere reemplazo?");
     }
@@ -2800,15 +2795,6 @@ const OperacionesRetirosView = () => {
       if (!formularioRQ.observacionCliente.trim()) {
         faltantes.push("Observaciones del cliente");
       }
-    }
-
-    if (
-      TIPOS_NOTIFICACION_RQ_CON_CARTA.includes(
-        formularioRQ.tipoNotificacion
-      ) &&
-      cartaRetiroRQ.length === 0
-    ) {
-      faltantes.push("Carta de retiro");
     }
 
     return faltantes;
@@ -2850,19 +2836,25 @@ const OperacionesRetirosView = () => {
         "IdPazYSalvo",
         String(retiroGuardado.IdPazYSalvo)
       );
-      formData.append(
-        "TipoNotificacion",
-        formularioRQ.tipoNotificacion
-      );
+      // Compatibilidad con la estructura actual de RQOperaciones:
+      // los datos del retiro ya no se vuelven a pedir dentro del RQ.
+      const idMotivoRetiro = Number(formulario.idMotivoRetiro || 0);
+      const tipoNotificacionDerivada =
+        idMotivoRetiro === 1
+          ? "RENUNCIA FORMAL"
+          : idMotivoRetiro === 2
+            ? "ABANDONO"
+            : idMotivoRetiro === 10
+              ? "NUNCA INGRESO"
+              : "TERMINACION DE CONTRATO";
 
-      if (formularioRQ.fechaRetiro) {
-        formData.append("FechaRetiro", formularioRQ.fechaRetiro);
-      }
+      formData.append("TipoNotificacion", tipoNotificacionDerivada);
 
-      if (formularioRQ.fechaUltimoDiaLaborado) {
+      if (formulario.ultimoDiaLaborado) {
+        formData.append("FechaRetiro", formulario.ultimoDiaLaborado);
         formData.append(
           "FechaUltimoDiaLaborado",
-          formularioRQ.fechaUltimoDiaLaborado
+          formulario.ultimoDiaLaborado
         );
       }
 
@@ -3028,8 +3020,16 @@ const OperacionesRetirosView = () => {
         EnviadoRRLL: true,
       }));
 
+      const requiereReemplazoEnviado =
+        data?.data?.RequiereReemplazo === true ||
+        String(data?.data?.RequiereReemplazo).toLowerCase() === "true" ||
+        rqGuardado?.RequiereReemplazo === true ||
+        String(rqGuardado?.RequiereReemplazo).toLowerCase() === "true";
+
       setMensajeGestion(
-        "El retiro y el RQ fueron enviados correctamente a Relaciones Laborales. El proceso quedó bloqueado para nuevas modificaciones desde Operaciones."
+        requiereReemplazoEnviado
+          ? "El retiro y la RQ fueron enviados correctamente a Relaciones Laborales. El proceso quedó bloqueado para nuevas modificaciones desde Operaciones."
+          : "El retiro fue enviado correctamente a Relaciones Laborales. Como no requiere reemplazo, no se generó requisición para Selección. El proceso quedó bloqueado para nuevas modificaciones desde Operaciones."
       );
       setTipoMensajeGestion("success");
     } catch (error) {
@@ -3479,6 +3479,37 @@ const OperacionesRetirosView = () => {
                     </div>
                   </div>
 
+                  {String(formulario.idMotivoRetiro) === "1" && (
+                    <div className="md:col-span-2">
+                      <CampoArchivo
+                        id="cartaRetiroRQ"
+                        label="Carta de retiro"
+                        files={cartaRetiroRQ}
+                        onAdd={(archivos) => {
+                          const limite = 10 * 1024 * 1024;
+                          const validos = archivos.filter(
+                            (archivo) => archivo.size <= limite
+                          );
+
+                          if (validos.length !== archivos.length) {
+                            setMensajeGestion(
+                              "La carta de retiro no puede superar 10 MB."
+                            );
+                            setTipoMensajeGestion("warning");
+                          }
+
+                          setCartaRetiroRQ(validos.slice(0, 1));
+                          setRqGuardado(null);
+                        }}
+                        onRemove={() => {
+                          setCartaRetiroRQ([]);
+                          setRqGuardado(null);
+                        }}
+                        helper="Opcional para RETIRO VOLUNTARIO. Puedes adjuntar el archivo o tomar una foto."
+                      />
+                    </div>
+                  )}
+
                   <div className="md:col-span-2">
                     <CampoTextoDictado
                       id="descripcionMotivoRetiro"
@@ -3886,42 +3917,9 @@ const OperacionesRetirosView = () => {
 
               <SeccionFormulario
                 titulo="Cierre del paz y salvo"
-                descripcion="Registra el correo de la supervisora y define si el Paz y Salvo queda ABIERTO o CERRADO antes de guardarlo."
+                descripcion="Define si el Paz y Salvo queda ABIERTO o CERRADO antes de guardarlo."
               >
                 <div className="grid grid-cols-1 gap-5">
-                  <div>
-                    <label
-                      htmlFor="correoSupervisora"
-                      className="mb-2 block text-sm font-semibold text-gray-800"
-                    >
-                      Correo de la supervisora
-                      <span className="text-red-500"> *</span>
-                    </label>
-
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                      <Input
-                        id="correoSupervisora"
-                        type="email"
-                        value={formulario.correoSupervisora}
-                        onChange={(event) =>
-                          actualizarCampo(
-                            "correoSupervisora",
-                            event.target.value
-                          )
-                        }
-                        placeholder="correo@empresa.com"
-                        className="min-h-12 pl-10"
-                      />
-                    </div>
-
-                    <p className="mt-2 text-xs text-gray-500">
-                      Por ahora es editable. Más adelante este
-                      campo se reemplazará por una lista de
-                      supervisoras.
-                    </p>
-                  </div>
-
                   {retiroGuardado?.ModoContinuacion ? (
                     <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:p-5">
                       <p className="text-sm font-bold uppercase tracking-wide text-emerald-900">
@@ -4035,76 +4033,6 @@ const OperacionesRetirosView = () => {
 
                       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
                         <CampoSelect
-                          id="tipoNotificacionRQ"
-                          label="Tipo de notificación"
-                          value={formularioRQ.tipoNotificacion}
-                          onChange={(valor) =>
-                            actualizarCampoRQ("tipoNotificacion", valor)
-                          }
-                          options={TIPOS_NOTIFICACION_RQ}
-                          required
-                        />
-
-                        <div>
-                          <label
-                            htmlFor="fechaRetiroRQ"
-                            className="mb-2 block text-sm font-semibold text-gray-800"
-                          >
-                            Fecha de retiro
-                            {formularioRQ.tipoNotificacion &&
-                              formularioRQ.tipoNotificacion !==
-                                "NUNCA INGRESO" && (
-                                <span className="text-red-500"> *</span>
-                              )}
-                          </label>
-                          <Input
-                            id="fechaRetiroRQ"
-                            type="date"
-                            value={formularioRQ.fechaRetiro}
-                            disabled={
-                              !formularioRQ.tipoNotificacion ||
-                              formularioRQ.tipoNotificacion ===
-                                "NUNCA INGRESO"
-                            }
-                            onChange={(event) =>
-                              actualizarCampoRQ(
-                                "fechaRetiro",
-                                event.target.value
-                              )
-                            }
-                            className="min-h-12"
-                          />
-                        </div>
-
-                        {TIPOS_NOTIFICACION_RQ_CON_ULTIMO_DIA.includes(
-                          formularioRQ.tipoNotificacion
-                        ) && (
-                          <div>
-                            <label
-                              htmlFor="fechaUltimoDiaRQ"
-                              className="mb-2 block text-sm font-semibold text-gray-800"
-                            >
-                              Último día laborado
-                              <span className="text-red-500"> *</span>
-                            </label>
-                            <Input
-                              id="fechaUltimoDiaRQ"
-                              type="date"
-                              value={
-                                formularioRQ.fechaUltimoDiaLaborado
-                              }
-                              onChange={(event) =>
-                                actualizarCampoRQ(
-                                  "fechaUltimoDiaLaborado",
-                                  event.target.value
-                                )
-                              }
-                              className="min-h-12"
-                            />
-                          </div>
-                        )}
-
-                        <CampoSelect
                           id="requiereReemplazoRQ"
                           label="¿Requiere reemplazo?"
                           value={formularioRQ.requiereReemplazo}
@@ -4119,48 +4047,19 @@ const OperacionesRetirosView = () => {
                         />
                       </div>
 
-                      {TIPOS_NOTIFICACION_RQ_CON_CARTA.includes(
-                        formularioRQ.tipoNotificacion
-                      ) && (
-                        <CampoArchivo
-                          id="cartaRetiroRQ"
-                          label="Carta de retiro"
-                          files={cartaRetiroRQ}
-                          onAdd={(archivos) => {
-                            const limite = 10 * 1024 * 1024;
-                            const validos = archivos.filter(
-                              (archivo) => archivo.size <= limite
-                            );
 
-                            if (validos.length !== archivos.length) {
-                              setMensajeGestion(
-                                "La carta de retiro no puede superar 10 MB."
-                              );
-                              setTipoMensajeGestion("warning");
-                            }
-
-                            setCartaRetiroRQ(validos.slice(0, 1));
-                            setRqGuardado(null);
-                          }}
-                          onRemove={() => {
-                            setCartaRetiroRQ([]);
-                            setRqGuardado(null);
-                          }}
-                          required
-                          helper="Obligatoria para RENUNCIA FORMAL y RENUNCIA POR EVASIÓN DISCIPLINARIA."
+                      {formularioRQ.requiereReemplazo === "SI" && (
+                        <CampoTextoDictado
+                          id="observacionRQ"
+                          label="Observación"
+                          value={formularioRQ.observacion}
+                          onChange={(valor) =>
+                            actualizarCampoRQ("observacion", valor)
+                          }
+                          rows={4}
+                          placeholder="Escribe o dicta la observación general de la novedad."
                         />
                       )}
-
-                      <CampoTextoDictado
-                        id="observacionRQ"
-                        label="Observación"
-                        value={formularioRQ.observacion}
-                        onChange={(valor) =>
-                          actualizarCampoRQ("observacion", valor)
-                        }
-                        rows={4}
-                        placeholder="Escribe o dicta la observación general de la novedad."
-                      />
 
                       {formularioRQ.requiereReemplazo === "SI" && (
                         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 sm:p-5">
@@ -4280,7 +4179,11 @@ const OperacionesRetirosView = () => {
                           disabled={guardandoRQ || enviandoRRLL}
                           className="min-h-12 rounded-xl bg-blue-600 px-6 font-semibold text-white hover:bg-blue-700 disabled:bg-gray-300"
                         >
-                          {guardandoRQ ? "Guardando RQ..." : "Guardar RQ"}
+                          {guardandoRQ
+                            ? "Guardando..."
+                            : formularioRQ.requiereReemplazo === "NO"
+                              ? "Confirmar sin reemplazo"
+                              : "Guardar RQ"}
                         </Button>
 
                         {String(rqGuardado?.EstadoRQ || "").toUpperCase() ===
@@ -4321,15 +4224,19 @@ const OperacionesRetirosView = () => {
 
                             <div className="min-w-0">
                               <h4 className="text-base font-extrabold uppercase tracking-wide sm:text-lg">
-                                {String(
-                                  rqGuardado?.EstadoRQ || ""
-                                ).toUpperCase() === "LISTO_PARA_ENVIO"
-                                  ? "RQ guardado - listo para envío"
-                                  : "RQ guardado - pendiente en Operaciones"}
+                                {formularioRQ.requiereReemplazo === "NO"
+                                  ? "Decisión registrada - no requiere reemplazo"
+                                  : String(
+                                      rqGuardado?.EstadoRQ || ""
+                                    ).toUpperCase() === "LISTO_PARA_ENVIO"
+                                    ? "RQ guardado - listo para envío"
+                                    : "RQ guardado - pendiente en Operaciones"}
                               </h4>
 
                               <p className="mt-2 text-sm font-semibold leading-relaxed sm:text-base">
-                                El RQ fue guardado correctamente.
+                                {formularioRQ.requiereReemplazo === "NO"
+                                  ? "Se registró correctamente que este retiro no requiere reemplazo."
+                                  : "El RQ fue guardado correctamente."}
                               </p>
 
                               <p className="mt-1 text-sm leading-relaxed sm:text-base">
@@ -4351,20 +4258,21 @@ const OperacionesRetirosView = () => {
               {retiroGuardado?.ModoContinuacion && rqGuardado && (
                 <div id="resumen-rq-continuacion">
                   <SeccionFormulario
-                    titulo="RQ registrada"
-                    descripcion="La requisición ya fue diligenciada. En este paso Operaciones solo debe finalizar el Paz y Salvo y enviarlo a Relaciones Laborales."
+                    titulo={
+                      rqGuardado?.RequiereReemplazo === true ||
+                      String(rqGuardado?.RequiereReemplazo).toLowerCase() === "true"
+                        ? "RQ registrada"
+                        : "Decisión de reemplazo registrada"
+                    }
+                    descripcion={
+                      rqGuardado?.RequiereReemplazo === true ||
+                      String(rqGuardado?.RequiereReemplazo).toLowerCase() === "true"
+                        ? "La requisición ya fue diligenciada. En este paso Operaciones solo debe finalizar el Paz y Salvo y continuar con el envío."
+                        : "Ya se confirmó que este retiro NO requiere reemplazo. No debes volver a diligenciar una RQ; únicamente finaliza el Paz y Salvo."
+                    }
                   >
                     <div className="space-y-4">
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Tipo de notificación
-                          </p>
-                          <p className="mt-1 text-sm font-bold text-gray-900">
-                            {rqGuardado?.TipoNotificacion || "—"}
-                          </p>
-                        </div>
-
                         <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                             Requiere reemplazo
@@ -4374,15 +4282,6 @@ const OperacionesRetirosView = () => {
                             String(rqGuardado?.RequiereReemplazo).toLowerCase() === "true"
                               ? "SI"
                               : "NO"}
-                          </p>
-                        </div>
-
-                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Fecha de retiro
-                          </p>
-                          <p className="mt-1 text-sm font-bold text-gray-900">
-                            {rqGuardado?.FechaRetiro || "—"}
                           </p>
                         </div>
 
@@ -4427,9 +4326,10 @@ const OperacionesRetirosView = () => {
                                 Proceso enviado a Relaciones Laborales
                               </p>
                               <p className="mt-1 text-sm leading-relaxed">
-                                El retiro y el RQ ya fueron enviados a Relaciones Laborales.
-                                El proceso quedó finalizado en Operaciones y no admite más
-                                modificaciones desde este módulo.
+                                {rqGuardado?.RequiereReemplazo === true ||
+                                String(rqGuardado?.RequiereReemplazo).toLowerCase() === "true"
+                                  ? "El retiro y la RQ ya fueron enviados a Relaciones Laborales. El proceso quedó finalizado en Operaciones y no admite más modificaciones desde este módulo."
+                                  : "El retiro fue enviado correctamente a Relaciones Laborales. Como no requiere reemplazo, no se generó requisición para Selección. El proceso quedó finalizado en Operaciones y no admite más modificaciones desde este módulo."}
                               </p>
                             </div>
                           </div>
@@ -4452,9 +4352,10 @@ const OperacionesRetirosView = () => {
                         <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900">
                           <p className="font-bold">Proceso pendiente de cierre</p>
                           <p className="mt-1 text-sm leading-relaxed">
-                            El RQ ya está registrado. Revisa el Paz y Salvo y usa el
-                            botón principal de abajo para cerrarlo. Después se habilitará
-                            el envío a Relaciones Laborales.
+                            {rqGuardado?.RequiereReemplazo === true ||
+                            String(rqGuardado?.RequiereReemplazo).toLowerCase() === "true"
+                              ? "La RQ ya está registrada. Revisa el Paz y Salvo y usa el botón principal de abajo para cerrarlo. Después continuará el envío correspondiente."
+                              : "Ya se confirmó que NO requiere reemplazo. Cierra el Paz y Salvo y el retiro será enviado automáticamente a Relaciones Laborales, sin pasar por Selección."}
                           </p>
                         </div>
                       )}
@@ -4476,9 +4377,10 @@ const OperacionesRetirosView = () => {
                     </h3>
 
                     <p className="mx-auto mt-3 max-w-3xl text-sm leading-relaxed text-emerald-900">
-                      El retiro y el RQ fueron enviados correctamente a Relaciones
-                      Laborales. El proceso quedó finalizado en Operaciones y ya no
-                      admite nuevas modificaciones desde este módulo.
+                      {rqGuardado?.RequiereReemplazo === true ||
+                      String(rqGuardado?.RequiereReemplazo).toLowerCase() === "true"
+                        ? "El retiro y la RQ fueron enviados correctamente a Relaciones Laborales. El proceso quedó finalizado en Operaciones y ya no admite nuevas modificaciones desde este módulo."
+                        : "El retiro fue enviado correctamente a Relaciones Laborales. Como no requiere reemplazo, no se generó requisición para Selección. El proceso quedó finalizado en Operaciones y ya no admite nuevas modificaciones desde este módulo."}
                     </p>
                   </div>
                 ) : (
@@ -4555,10 +4457,13 @@ const OperacionesRetirosView = () => {
                           className="min-h-12 rounded-xl bg-emerald-600 px-6 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
                         >
                           {enviandoPazSalvo
-                            ? "Procesando..."
-                            : rqGuardado
-                              ? "Cerrar Paz y Salvo"
-                              : "Primero guarda el RQ"}
+                              ? "Procesando..."
+                              : rqGuardado
+                                ? rqGuardado?.RequiereReemplazo === true ||
+                                  String(rqGuardado?.RequiereReemplazo).toLowerCase() === "true"
+                                  ? "Cerrar Paz y Salvo"
+                                  : "Cerrar Paz y Salvo y enviar a RRLL"
+                                : "Primero define si requiere reemplazo"}
                         </Button>
                       </>
                     )
