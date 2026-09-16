@@ -111,6 +111,8 @@ const Sidebar = ({
         "Operaciones",
         "Bienestar",
         "HSE",
+        "Nómina",
+        "Nomina",
       ],
       children: [
         {
@@ -175,6 +177,11 @@ const Sidebar = ({
           label: "Retiros",
           roles: ["Operaciones"],
           permiso: "OPERACIONES_RETIROS",
+        },
+        {
+          to: "/nomina-actualizacion-datos",
+          label: "Actualización de Datos",
+          roles: ["Nómina", "Nomina"],
         },
         {
           to: "/indicadores-contratacion",
@@ -319,6 +326,10 @@ const Sidebar = ({
             ]
           : []),
         {
+          to: "/nomina-actualizacion-datos",
+          label: "Actualización de Datos",
+        },
+        {
           to: "/relaciones-laborales",
           label: "Relaciones Laborales",
           children: [
@@ -435,6 +446,10 @@ const Sidebar = ({
               },
             ]
           : []),
+        {
+          to: "/nomina-actualizacion-datos",
+          label: "Actualización de Datos",
+        },
         {
           to: "/relaciones-laborales",
           label: "Relaciones Laborales",

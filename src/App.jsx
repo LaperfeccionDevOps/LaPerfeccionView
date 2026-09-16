@@ -40,6 +40,7 @@ import IndicadoresSeleccionView from "./components/IndicadoresSeleccionView";
 import IndicadoresRRLLView from "./components/IndicadoresRRLLView";
 
 import NominaRetirosView from "@/components/NominaRetirosView";
+import NominaActualizacionDatosView from "@/components/NominaActualizacionDatosView";
 import IndicadoresNominaView from "@/components/IndicadoresNominaView";
 import PanelGerencialRRLLView from "@/components/PanelGerencialRRLLView";
 
@@ -425,6 +426,11 @@ function App() {
           <Route
             path="nomina-retiros"
             element={<NominaRetirosView />}
+          />
+
+          <Route
+            path="nomina-actualizacion-datos"
+            element={<NominaActualizacionDatosView />}
           />
 
           <Route
