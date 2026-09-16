@@ -470,6 +470,11 @@ const IniciarProcesoOperacionesView =
     ] = useState('');
 
     const [
+      alertaDiaBloqueadoRRLL,
+      setAlertaDiaBloqueadoRRLL,
+    ] = useState(null);
+
+    const [
       configuracionExtraordinaria,
       setConfiguracionExtraordinaria,
     ] = useState(null);
@@ -700,6 +705,7 @@ const IniciarProcesoOperacionesView =
         try {
           setCargandoHorarios(true);
           setErrorProgramacion('');
+          setAlertaDiaBloqueadoRRLL(null);
 
           const partesFecha = String(
             fechaCitacion
@@ -719,6 +725,7 @@ const IniciarProcesoOperacionesView =
             ).getDay() === 5;
 
           let horarios = [];
+          let resultadoHorarios = null;
 
           if (esViernes) {
             const responseHistorial =
@@ -828,6 +835,8 @@ const IniciarProcesoOperacionesView =
               const resultado =
                 await response.json();
 
+              resultadoHorarios = resultado;
+
               horarios = Array.isArray(
                 resultado?.horarios
               )
@@ -933,6 +942,8 @@ const IniciarProcesoOperacionesView =
             const resultado =
               await response.json();
 
+            resultadoHorarios = resultado;
+
             horarios = Array.isArray(
               resultado?.horarios
             )
@@ -949,6 +960,19 @@ const IniciarProcesoOperacionesView =
               ...prev,
               horaCitacion: '',
             }));
+
+            if (
+              resultadoHorarios
+                ?.bloqueadoDiaCompletoRRLL ===
+              true
+            ) {
+              setErrorProgramacion('');
+              setAlertaDiaBloqueadoRRLL({
+                fecha: fechaCitacion,
+              });
+              return;
+            }
+
             setErrorProgramacion(
               'La fecha seleccionada ya no tiene horarios disponibles.'
             );
@@ -3118,6 +3142,86 @@ const IniciarProcesoOperacionesView =
             </div>
           </div>
         </section>
+
+        {alertaDiaBloqueadoRRLL && (
+          <div
+            className="fixed inset-0 z-[130] flex items-center justify-center bg-black/55 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-dia-bloqueado-rrll"
+          >
+            <motion.div
+              initial={{
+                opacity: 0,
+                scale: 0.96,
+                y: 16,
+              }}
+              animate={{
+                opacity: 1,
+                scale: 1,
+                y: 0,
+              }}
+              className="w-full max-w-lg overflow-hidden rounded-3xl border border-red-200 bg-white shadow-2xl"
+            >
+              <div className="bg-red-50 px-6 py-6 sm:px-7">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-700">
+                    <AlertTriangle className="h-6 w-6" />
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-red-700">
+                      Agenda no disponible
+                    </p>
+
+                    <h2
+                      id="titulo-dia-bloqueado-rrll"
+                      className="mt-1 text-xl font-bold text-gray-900"
+                    >
+                      Día bloqueado por Relaciones Laborales
+                    </h2>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 px-6 py-6 sm:px-7">
+                <p className="text-sm leading-relaxed text-gray-700">
+                  La agenda disciplinaria del{' '}
+                  <span className="font-bold text-gray-900">
+                    {String(
+                      alertaDiaBloqueadoRRLL
+                        ?.fecha || ''
+                    )
+                      .split('-')
+                      .reverse()
+                      .join('/')}
+                  </span>{' '}
+                  se encuentra bloqueada por RRLL. No es posible programar citaciones para esta fecha.
+                </p>
+
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                  <p className="text-sm leading-relaxed text-red-800">
+                    Selecciona una fecha diferente para continuar con la programación.
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-200 bg-gray-50 px-6 py-4 sm:px-7">
+                <Button
+                  type="button"
+                  onClick={() =>
+                    setAlertaDiaBloqueadoRRLL(
+                      null
+                    )
+                  }
+                  className="min-h-11 w-full rounded-xl bg-gray-900 px-5 font-semibold text-white hover:bg-gray-800"
+                >
+                  Entendido
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
 
         {modalMaximoProcesosAbierto && (
           <div

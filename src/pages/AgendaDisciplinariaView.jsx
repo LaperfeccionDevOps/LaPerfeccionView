@@ -148,6 +148,51 @@ export default function AgendaDisciplinariaView({
   const [errorAutorizacion, setErrorAutorizacion] = useState("");
   const [notificacionRechazo, setNotificacionRechazo] = useState(null);
 
+  const [modalBloqueoAbierto, setModalBloqueoAbierto] = useState(false);
+  const [fechaBloqueo, setFechaBloqueo] = useState("");
+  const [tipoBloqueo, setTipoBloqueo] = useState("DIA_COMPLETO");
+  const [horaInicioBloqueo, setHoraInicioBloqueo] = useState("");
+  const [horaFinBloqueo, setHoraFinBloqueo] = useState("");
+  const [motivoBloqueo, setMotivoBloqueo] = useState("");
+  const [guardandoBloqueo, setGuardandoBloqueo] = useState(false);
+  const [errorBloqueo, setErrorBloqueo] = useState("");
+  const [conflictosBloqueo, setConflictosBloqueo] = useState([]);
+  const [notificacionBloqueo, setNotificacionBloqueo] = useState(null);
+
+  const [bloqueosAgenda, setBloqueosAgenda] = useState([]);
+  const [loadingBloqueos, setLoadingBloqueos] = useState(false);
+  const [errorBloqueos, setErrorBloqueos] = useState("");
+  const [modalDiasBloqueadosAbierto, setModalDiasBloqueadosAbierto] = useState(false);
+  const [desbloqueandoId, setDesbloqueandoId] = useState(null);
+  const [filtroFechaBloqueos, setFiltroFechaBloqueos] = useState("");
+  const [filtroTipoBloqueos, setFiltroTipoBloqueos] = useState("TODOS");
+  const [paginaBloqueos, setPaginaBloqueos] = useState(1);
+  const BLOQUEOS_POR_PAGINA = 10;
+
+  const bloqueosFiltrados = useMemo(() => {
+    return bloqueosAgenda.filter((bloqueo) => {
+      const coincideFecha =
+        !filtroFechaBloqueos ||
+        String(bloqueo?.FechaBloqueo || "").slice(0, 10) === filtroFechaBloqueos;
+
+      const coincideTipo =
+        filtroTipoBloqueos === "TODOS" ||
+        String(bloqueo?.TipoBloqueo || "").toUpperCase() === filtroTipoBloqueos;
+
+      return coincideFecha && coincideTipo;
+    });
+  }, [bloqueosAgenda, filtroFechaBloqueos, filtroTipoBloqueos]);
+
+  const totalPaginasBloqueos = Math.max(
+    1,
+    Math.ceil(bloqueosFiltrados.length / BLOQUEOS_POR_PAGINA)
+  );
+
+  const bloqueosPaginados = useMemo(() => {
+    const inicio = (paginaBloqueos - 1) * BLOQUEOS_POR_PAGINA;
+    return bloqueosFiltrados.slice(inicio, inicio + BLOQUEOS_POR_PAGINA);
+  }, [bloqueosFiltrados, paginaBloqueos]);
+
   const usuarioMovimiento = useMemo(
     () => obtenerUsuarioMovimiento(),
     []
@@ -1047,10 +1092,310 @@ export default function AgendaDisciplinariaView({
     }
   };
 
+  const obtenerRangoConsultaBloqueos = () => {
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    const hasta = new Date(hoy);
+    hasta.setMonth(hasta.getMonth() + 3);
+
+    return {
+      fechaDesde: formatearFechaInput(hoy),
+      fechaHasta: formatearFechaInput(hasta),
+    };
+  };
+
+  const cargarBloqueosAgenda = async () => {
+    const token = obtenerTokenAutenticacion();
+
+    if (!token) {
+      setBloqueosAgenda([]);
+      setErrorBloqueos(
+        "No se encontró una sesión autenticada para consultar los bloqueos."
+      );
+      return;
+    }
+
+    const { fechaDesde, fechaHasta } = obtenerRangoConsultaBloqueos();
+
+    try {
+      setLoadingBloqueos(true);
+      setErrorBloqueos("");
+
+      const parametros = new URLSearchParams({
+        fecha_desde: fechaDesde,
+        fecha_hasta: fechaHasta,
+        incluir_inactivos: "false",
+      });
+
+      const res = await fetch(
+        `${API_BASE}/agenda-disciplinaria/bloqueos?${parametros.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(
+          obtenerMensajeBackend(
+            data,
+            "No se pudieron cargar los bloqueos de agenda."
+          )
+        );
+      }
+
+      setBloqueosAgenda(
+        Array.isArray(data?.bloqueos) ? data.bloqueos : []
+      );
+    } catch (err) {
+      setBloqueosAgenda([]);
+      setErrorBloqueos(
+        err?.message || "Error cargando los bloqueos de agenda."
+      );
+    } finally {
+      setLoadingBloqueos(false);
+    }
+  };
+
+  const abrirModalBloqueo = () => {
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    setFechaBloqueo(formatearFechaInput(hoy));
+    setTipoBloqueo("DIA_COMPLETO");
+    setHoraInicioBloqueo("");
+    setHoraFinBloqueo("");
+    setMotivoBloqueo("");
+    setErrorBloqueo("");
+    setConflictosBloqueo([]);
+    setModalBloqueoAbierto(true);
+  };
+
+  const cerrarModalBloqueo = () => {
+    if (guardandoBloqueo) {
+      return;
+    }
+
+    setModalBloqueoAbierto(false);
+    setFechaBloqueo("");
+    setTipoBloqueo("DIA_COMPLETO");
+    setHoraInicioBloqueo("");
+    setHoraFinBloqueo("");
+    setMotivoBloqueo("");
+    setErrorBloqueo("");
+    setConflictosBloqueo([]);
+  };
+
+  const guardarBloqueoAgenda = async () => {
+    if (!fechaBloqueo) {
+      setErrorBloqueo("Seleccione la fecha que desea bloquear.");
+      return;
+    }
+
+    if (tipoBloqueo === "RANGO_HORARIO") {
+      if (!horaInicioBloqueo || !horaFinBloqueo) {
+        setErrorBloqueo(
+          "Seleccione la hora inicial y la hora final del bloqueo."
+        );
+        return;
+      }
+
+      if (horaInicioBloqueo >= horaFinBloqueo) {
+        setErrorBloqueo(
+          "La hora final debe ser posterior a la hora inicial."
+        );
+        return;
+      }
+    }
+
+    if (motivoBloqueo.trim().length < 3) {
+      setErrorBloqueo("Ingrese un motivo de bloqueo válido.");
+      return;
+    }
+
+    const token = obtenerTokenAutenticacion();
+
+    if (!token) {
+      setErrorBloqueo(
+        "No se encontró una sesión autenticada para guardar el bloqueo."
+      );
+      return;
+    }
+
+    try {
+      setGuardandoBloqueo(true);
+      setErrorBloqueo("");
+      setConflictosBloqueo([]);
+
+      const res = await fetch(
+        `${API_BASE}/agenda-disciplinaria/bloqueos`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            FechaBloqueo: fechaBloqueo,
+            TipoBloqueo: tipoBloqueo,
+            HoraInicio:
+              tipoBloqueo === "RANGO_HORARIO"
+                ? `${horaInicioBloqueo}:00`
+                : null,
+            HoraFin:
+              tipoBloqueo === "RANGO_HORARIO"
+                ? `${horaFinBloqueo}:00`
+                : null,
+            Motivo: motivoBloqueo.trim(),
+            UsuarioMovimiento: usuarioMovimiento,
+          }),
+        }
+      );
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        const detalle = data?.detail;
+
+        if (
+          res.status === 409 &&
+          detalle?.codigo === "AGENDA_CON_PROCESOS_ACTIVOS"
+        ) {
+          setConflictosBloqueo(
+            Array.isArray(detalle?.procesosActivos)
+              ? detalle.procesosActivos
+              : []
+          );
+        }
+
+        throw new Error(
+          obtenerMensajeBackend(
+            data,
+            "No se pudo bloquear la agenda disciplinaria."
+          )
+        );
+      }
+
+      const confirmacionBloqueo = {
+        fecha: formatearFechaVisual(fechaBloqueo),
+        tipo: tipoBloqueo,
+        horaInicio:
+          tipoBloqueo === "RANGO_HORARIO"
+            ? horaInicioBloqueo
+            : "",
+        horaFin:
+          tipoBloqueo === "RANGO_HORARIO"
+            ? horaFinBloqueo
+            : "",
+      };
+
+      cerrarModalBloqueo();
+      setMensajeExito("");
+      setNotificacionBloqueo(confirmacionBloqueo);
+
+      await cargarBloqueosAgenda();
+      await recargarAgendaActual();
+    } catch (err) {
+      setErrorBloqueo(
+        err?.message || "Error guardando el bloqueo de agenda."
+      );
+    } finally {
+      setGuardandoBloqueo(false);
+    }
+  };
+
+  const desbloquearAgenda = async (bloqueo) => {
+    const idBloqueo =
+      bloqueo?.IdBloqueoAgendaDisciplinaria;
+
+    if (!idBloqueo) {
+      setErrorBloqueos(
+        "No se encontró el bloqueo que desea desbloquear."
+      );
+      return;
+    }
+
+    const confirmar = window.confirm(
+      `¿Desea desbloquear la agenda del ${formatearFechaVisual(
+        bloqueo.FechaBloqueo
+      )}?`
+    );
+
+    if (!confirmar) {
+      return;
+    }
+
+    const token = obtenerTokenAutenticacion();
+
+    if (!token) {
+      setErrorBloqueos(
+        "No se encontró una sesión autenticada para desbloquear la agenda."
+      );
+      return;
+    }
+
+    try {
+      setDesbloqueandoId(idBloqueo);
+      setErrorBloqueos("");
+
+      const res = await fetch(
+        `${API_BASE}/agenda-disciplinaria/bloqueos/${idBloqueo}/desbloquear`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            UsuarioMovimiento: usuarioMovimiento,
+          }),
+        }
+      );
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(
+          obtenerMensajeBackend(
+            data,
+            "No se pudo desbloquear la agenda disciplinaria."
+          )
+        );
+      }
+
+      setMensajeExito(
+        data?.mensaje || "Agenda desbloqueada correctamente."
+      );
+
+      await cargarBloqueosAgenda();
+    } catch (err) {
+      setErrorBloqueos(
+        err?.message || "Error desbloqueando la agenda."
+      );
+    } finally {
+      setDesbloqueandoId(null);
+    }
+  };
+
   useEffect(() => {
     cargarAgendaHoy();
     cargarSolicitudesPendientes();
+    cargarBloqueosAgenda();
   }, []);
+
+  useEffect(() => {
+    setPaginaBloqueos(1);
+  }, [filtroFechaBloqueos, filtroTipoBloqueos]);
+
+  useEffect(() => {
+    if (paginaBloqueos > totalPaginasBloqueos) {
+      setPaginaBloqueos(totalPaginasBloqueos);
+    }
+  }, [paginaBloqueos, totalPaginasBloqueos]);
 
   useEffect(() => {
     if (!notificacionRechazo) {
@@ -1076,8 +1421,89 @@ export default function AgendaDisciplinariaView({
     return () => window.clearTimeout(temporizador);
   }, [notificacionReprogramacion]);
 
+  useEffect(() => {
+    if (!notificacionBloqueo) {
+      return undefined;
+    }
+
+    const temporizador = window.setTimeout(() => {
+      setNotificacionBloqueo(null);
+    }, 20000);
+
+    return () => window.clearTimeout(temporizador);
+  }, [notificacionBloqueo]);
+
   return (
     <div className="w-full min-w-0 bg-slate-50 min-h-screen p-3 sm:p-4 xl:p-5">
+      {notificacionBloqueo && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[1px]">
+          <div className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setNotificacionBloqueo(null)}
+              className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-xl font-bold text-slate-500 shadow-sm transition hover:bg-slate-100 hover:text-slate-800"
+              aria-label="Cerrar confirmación de bloqueo"
+            >
+              ×
+            </button>
+
+            <div className="px-6 pb-7 pt-8 text-center sm:px-8">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl font-black text-emerald-700">
+                ✓
+              </div>
+
+              <p className="mt-5 text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
+                Bloqueo exitoso
+              </p>
+
+              <h3 className="mt-2 text-2xl font-black text-slate-900 sm:text-3xl">
+                Agenda bloqueada correctamente
+              </h3>
+
+              {notificacionBloqueo.tipo === "DIA_COMPLETO" ? (
+                <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-slate-600">
+                  El día{" "}
+                  <span className="font-bold text-slate-900">
+                    {notificacionBloqueo.fecha}
+                  </span>{" "}
+                  fue bloqueado por Relaciones Laborales. No se podrán programar
+                  nuevas citaciones disciplinarias durante esta fecha.
+                </p>
+              ) : (
+                <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-slate-600">
+                  El día{" "}
+                  <span className="font-bold text-slate-900">
+                    {notificacionBloqueo.fecha}
+                  </span>{" "}
+                  quedó bloqueado desde las{" "}
+                  <span className="font-bold text-slate-900">
+                    {notificacionBloqueo.horaInicio}
+                  </span>{" "}
+                  hasta las{" "}
+                  <span className="font-bold text-slate-900">
+                    {notificacionBloqueo.horaFin}
+                  </span>
+                  . No se podrán programar nuevas citaciones disciplinarias
+                  durante este período.
+                </p>
+              )}
+
+              <p className="mt-4 text-xs text-slate-400">
+                Esta confirmación se cerrará automáticamente en 20 segundos.
+              </p>
+
+              <Button
+                type="button"
+                onClick={() => setNotificacionBloqueo(null)}
+                className="mt-6 min-w-[190px] rounded-xl bg-emerald-700 font-bold text-white hover:bg-emerald-800"
+              >
+                Entendido
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {notificacionReprogramacion && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[1px]">
           <div className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-2xl">
@@ -1149,14 +1575,38 @@ export default function AgendaDisciplinariaView({
             </p>
           </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onVolver}
-            className="rounded-xl border-slate-300 bg-white font-semibold text-slate-700 hover:bg-slate-100"
-          >
-            Volver
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              onClick={abrirModalBloqueo}
+              className="rounded-xl bg-slate-800 font-semibold text-white hover:bg-slate-900"
+            >
+              Bloquear agenda
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setModalDiasBloqueadosAbierto(true)}
+              className="rounded-xl border-slate-300 bg-white font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              Días bloqueados
+              {bloqueosAgenda.length > 0 && (
+                <span className="ml-2 inline-flex min-w-6 items-center justify-center rounded-full bg-slate-800 px-2 py-0.5 text-xs font-bold text-white">
+                  {bloqueosAgenda.length}
+                </span>
+              )}
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onVolver}
+              className="rounded-xl border-slate-300 bg-white font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              Volver
+            </Button>
+          </div>
         </div>
 
         <div className="mb-5 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 xl:p-5 shadow-sm">
@@ -2194,6 +2644,550 @@ export default function AgendaDisciplinariaView({
           </div>
         </div>
       )}
+      {modalDiasBloqueadosAbierto && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center bg-black/45 p-3 sm:p-4 backdrop-blur-[1px]">
+          <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                  Relaciones Laborales
+                </p>
+                <h3 className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">
+                  Días bloqueados
+                </h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Consulta y administra los bloqueos activos de la agenda disciplinaria.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex min-h-10 items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
+                  Activos:
+                  <span className="ml-2 text-lg font-black text-slate-900">
+                    {bloqueosAgenda.length}
+                  </span>
+                </div>
+
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setModalDiasBloqueadosAbierto(false);
+                    abrirModalBloqueo();
+                  }}
+                  className="rounded-xl bg-slate-800 font-semibold text-white hover:bg-slate-900"
+                >
+                  Nuevo bloqueo
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setModalDiasBloqueadosAbierto(false)}
+                  className="rounded-xl border-slate-300 bg-white font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  Cerrar
+                </Button>
+              </div>
+            </div>
+
+            <div className="border-b border-slate-200 bg-white px-5 py-4">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                    Filtrar por fecha
+                  </label>
+                  <input
+                    type="date"
+                    value={filtroFechaBloqueos}
+                    onChange={(event) => setFiltroFechaBloqueos(event.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                    Tipo de bloqueo
+                  </label>
+                  <select
+                    value={filtroTipoBloqueos}
+                    onChange={(event) => setFiltroTipoBloqueos(event.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  >
+                    <option value="TODOS">Todos</option>
+                    <option value="DIA_COMPLETO">Día completo</option>
+                    <option value="RANGO_HORARIO">Rango horario</option>
+                  </select>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setFiltroFechaBloqueos("");
+                    setFiltroTipoBloqueos("TODOS");
+                    setPaginaBloqueos(1);
+                  }}
+                  disabled={!filtroFechaBloqueos && filtroTipoBloqueos === "TODOS"}
+                  className="h-[42px] rounded-xl border-slate-300 bg-white font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  Limpiar filtros
+                </Button>
+              </div>
+
+              <div className="mt-3 flex flex-col gap-1 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+                <span>
+                  Mostrando {bloqueosFiltrados.length} de {bloqueosAgenda.length} bloqueos activos.
+                </span>
+                <span>
+                  Máximo {BLOQUEOS_POR_PAGINA} registros por página.
+                </span>
+              </div>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-auto">
+              {errorBloqueos && (
+                <div className="m-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {errorBloqueos}
+                </div>
+              )}
+
+              {loadingBloqueos ? (
+                <div className="px-5 py-10 text-center text-sm text-slate-500">
+                  Cargando bloqueos de agenda...
+                </div>
+              ) : bloqueosFiltrados.length === 0 ? (
+                <div className="px-5 py-12 text-center">
+                  <p className="font-bold text-slate-700">
+                    {bloqueosAgenda.length === 0
+                      ? "No hay bloqueos activos."
+                      : "No se encontraron bloqueos con los filtros seleccionados."}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {bloqueosAgenda.length === 0
+                      ? "Cuando RRLL bloquee un día o un rango horario, aparecerá aquí."
+                      : "Cambie o limpie los filtros para consultar otros registros."}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="hidden overflow-x-auto md:block">
+                    <table className="w-full min-w-[850px] text-sm">
+                      <thead className="sticky top-0 z-10 bg-slate-100 text-xs uppercase tracking-wide text-slate-600">
+                        <tr>
+                          <th className="px-4 py-3 text-left">Fecha</th>
+                          <th className="px-4 py-3 text-left">Tipo</th>
+                          <th className="px-4 py-3 text-left">Período</th>
+                          <th className="px-4 py-3 text-left">Motivo</th>
+                          <th className="px-4 py-3 text-left">Creado por</th>
+                          <th className="px-4 py-3 text-center">Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {bloqueosPaginados.map((bloqueo) => {
+                          const esDiaCompleto =
+                            String(bloqueo?.TipoBloqueo || "").toUpperCase() ===
+                            "DIA_COMPLETO";
+
+                          return (
+                            <tr
+                              key={bloqueo.IdBloqueoAgendaDisciplinaria}
+                              className="bg-white transition hover:bg-slate-50"
+                            >
+                              <td className="whitespace-nowrap px-4 py-3 font-bold text-slate-900">
+                                {formatearFechaVisual(bloqueo.FechaBloqueo)}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span
+                                  className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${
+                                    esDiaCompleto
+                                      ? "border-slate-300 bg-slate-100 text-slate-700"
+                                      : "border-blue-200 bg-blue-50 text-blue-700"
+                                  }`}
+                                >
+                                  {esDiaCompleto ? "Día completo" : "Rango horario"}
+                                </span>
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-700">
+                                {esDiaCompleto
+                                  ? "Todo el día"
+                                  : `${String(bloqueo?.HoraInicio || "").slice(0, 5)} a ${String(
+                                      bloqueo?.HoraFin || ""
+                                    ).slice(0, 5)}`}
+                              </td>
+                              <td className="max-w-[320px] px-4 py-3 text-slate-600">
+                                <span className="line-clamp-2" title={bloqueo?.Motivo || ""}>
+                                  {bloqueo?.Motivo || "—"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-slate-600">
+                                {bloqueo?.UsuarioCreacion || "—"}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => desbloquearAgenda(bloqueo)}
+                                  disabled={
+                                    desbloqueandoId ===
+                                    bloqueo.IdBloqueoAgendaDisciplinaria
+                                  }
+                                  className="rounded-xl border-red-200 bg-white font-semibold text-red-700 hover:bg-red-50"
+                                >
+                                  {desbloqueandoId ===
+                                  bloqueo.IdBloqueoAgendaDisciplinaria
+                                    ? "Desbloqueando..."
+                                    : "Desbloquear"}
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="divide-y divide-slate-200 md:hidden">
+                    {bloqueosPaginados.map((bloqueo) => {
+                      const esDiaCompleto =
+                        String(bloqueo?.TipoBloqueo || "").toUpperCase() ===
+                        "DIA_COMPLETO";
+
+                      return (
+                        <div
+                          key={bloqueo.IdBloqueoAgendaDisciplinaria}
+                          className="space-y-3 px-4 py-4"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-xs font-bold uppercase text-slate-500">
+                                Fecha
+                              </p>
+                              <p className="mt-0.5 font-black text-slate-900">
+                                {formatearFechaVisual(bloqueo.FechaBloqueo)}
+                              </p>
+                            </div>
+                            <span className="rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
+                              {esDiaCompleto ? "Día completo" : "Rango horario"}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                              <p className="text-xs font-bold uppercase text-slate-500">
+                                Período
+                              </p>
+                              <p className="mt-0.5 font-semibold text-slate-700">
+                                {esDiaCompleto
+                                  ? "Todo el día"
+                                  : `${String(bloqueo?.HoraInicio || "").slice(0, 5)} a ${String(
+                                      bloqueo?.HoraFin || ""
+                                    ).slice(0, 5)}`}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold uppercase text-slate-500">
+                                Creado por
+                              </p>
+                              <p className="mt-0.5 font-semibold text-slate-700">
+                                {bloqueo?.UsuarioCreacion || "—"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-bold uppercase text-slate-500">
+                              Motivo
+                            </p>
+                            <p className="mt-0.5 break-words text-sm text-slate-600">
+                              {bloqueo?.Motivo || "—"}
+                            </p>
+                          </div>
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => desbloquearAgenda(bloqueo)}
+                            disabled={
+                              desbloqueandoId ===
+                              bloqueo.IdBloqueoAgendaDisciplinaria
+                            }
+                            className="w-full rounded-xl border-red-200 bg-white font-semibold text-red-700 hover:bg-red-50"
+                          >
+                            {desbloqueandoId ===
+                            bloqueo.IdBloqueoAgendaDisciplinaria
+                              ? "Desbloqueando..."
+                              : "Desbloquear"}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-slate-600">
+                Página{" "}
+                <span className="font-bold text-slate-900">{paginaBloqueos}</span>{" "}
+                de{" "}
+                <span className="font-bold text-slate-900">
+                  {totalPaginasBloqueos}
+                </span>
+              </p>
+
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    setPaginaBloqueos((paginaActual) =>
+                      Math.max(1, paginaActual - 1)
+                    )
+                  }
+                  disabled={paginaBloqueos <= 1 || bloqueosFiltrados.length === 0}
+                  className="rounded-xl border-slate-300 bg-white font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  Anterior
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    setPaginaBloqueos((paginaActual) =>
+                      Math.min(totalPaginasBloqueos, paginaActual + 1)
+                    )
+                  }
+                  disabled={
+                    paginaBloqueos >= totalPaginasBloqueos ||
+                    bloqueosFiltrados.length === 0
+                  }
+                  className="rounded-xl border-slate-300 bg-white font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalBloqueoAbierto && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+            <div className="border-b border-slate-200 px-6 py-5">
+              <p className="text-sm font-semibold text-slate-600">
+                Relaciones Laborales
+              </p>
+              <h3 className="mt-1 text-2xl font-bold text-gray-900">
+                Bloquear agenda
+              </h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Reserve un día completo o un período específico para impedir nuevas citaciones en ese espacio.
+              </p>
+            </div>
+
+            <div className="space-y-5 px-6 py-5">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label className="text-sm font-semibold text-gray-700">
+                    Fecha *
+                  </label>
+                  <input
+                    type="date"
+                    value={fechaBloqueo}
+                    min={formatearFechaInput(new Date())}
+                    onChange={(event) => {
+                      setFechaBloqueo(event.target.value);
+                      setErrorBloqueo("");
+                      setConflictosBloqueo([]);
+                    }}
+                    className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-semibold text-gray-700">
+                    Tipo de bloqueo *
+                  </label>
+                  <select
+                    value={tipoBloqueo}
+                    onChange={(event) => {
+                      const nuevoTipo = event.target.value;
+                      setTipoBloqueo(nuevoTipo);
+                      setHoraInicioBloqueo("");
+                      setHoraFinBloqueo("");
+                      setErrorBloqueo("");
+                      setConflictosBloqueo([]);
+                    }}
+                    className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+                  >
+                    <option value="DIA_COMPLETO">Día completo</option>
+                    <option value="RANGO_HORARIO">Rango horario</option>
+                  </select>
+                </div>
+              </div>
+
+              {tipoBloqueo === "RANGO_HORARIO" && (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="text-sm font-semibold text-gray-700">
+                      Desde *
+                    </label>
+                    <input
+                      type="time"
+                      value={horaInicioBloqueo}
+                      onChange={(event) => {
+                        setHoraInicioBloqueo(event.target.value);
+                        setErrorBloqueo("");
+                        setConflictosBloqueo([]);
+                      }}
+                      className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold text-gray-700">
+                      Hasta *
+                    </label>
+                    <input
+                      type="time"
+                      value={horaFinBloqueo}
+                      onChange={(event) => {
+                        setHoraFinBloqueo(event.target.value);
+                        setErrorBloqueo("");
+                        setConflictosBloqueo([]);
+                      }}
+                      className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="text-sm font-semibold text-gray-700">
+                  Motivo *
+                </label>
+                <textarea
+                  value={motivoBloqueo}
+                  onChange={(event) => {
+                    setMotivoBloqueo(event.target.value);
+                    setErrorBloqueo("");
+                  }}
+                  rows={4}
+                  maxLength={1000}
+                  placeholder="Ejemplo: Visita a sede Girardot / organización de documentación."
+                  className="mt-1 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+                />
+              </div>
+
+              <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+                <p className="font-semibold text-blue-800">
+                  Validación antes de bloquear
+                </p>
+                <p className="mt-1 text-sm leading-relaxed text-blue-700">
+                  Si existen citaciones activas dentro del período, el sistema no realizará el bloqueo. Primero deberá reprogramarlas o cancelarlas desde la Agenda Disciplinaria.
+                </p>
+              </div>
+
+              {errorBloqueo && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  <p className="font-bold">{errorBloqueo}</p>
+                </div>
+              )}
+
+              {conflictosBloqueo.length > 0 && (
+                <div className="overflow-hidden rounded-xl border border-red-200 bg-white">
+                  <div className="border-b border-red-200 bg-red-50 px-4 py-3">
+                    <p className="font-bold text-red-800">
+                      Citaciones que debe gestionar antes del bloqueo
+                    </p>
+                    <p className="mt-1 text-sm text-red-700">
+                      Se encontraron {conflictosBloqueo.length} proceso(s) activo(s) dentro del período seleccionado.
+                    </p>
+                  </div>
+
+                  <div className="divide-y divide-slate-200">
+                    {conflictosBloqueo.map((conflicto) => (
+                      <div
+                        key={conflicto.IdAgendaProcesoDisciplinario}
+                        className="grid grid-cols-1 gap-2 px-4 py-3 sm:grid-cols-[1.4fr_0.9fr_0.8fr]"
+                      >
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase text-gray-500">
+                            Trabajador
+                          </p>
+                          <p className="font-bold text-gray-900">
+                            {conflicto.NombreCompleto || "—"}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            Documento: {conflicto.NumeroIdentificacion || "—"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase text-gray-500">
+                            Horario
+                          </p>
+                          <p className="font-semibold text-gray-800">
+                            {String(conflicto.HoraInicio || "").slice(0, 5)} -{" "}
+                            {String(conflicto.HoraFin || "").slice(0, 5)}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase text-gray-500">
+                            Estado
+                          </p>
+                          <p className="font-semibold text-gray-800">
+                            {conflicto.EstadoAgenda || "—"}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 sm:flex-row sm:justify-end">
+              {conflictosBloqueo.length > 0 ? (
+                <Button
+                  type="button"
+                  onClick={cerrarModalBloqueo}
+                  disabled={guardandoBloqueo}
+                  className="rounded-xl bg-slate-800 font-semibold text-white hover:bg-slate-900"
+                >
+                  Entendido
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={cerrarModalBloqueo}
+                    disabled={guardandoBloqueo}
+                    className="rounded-xl border-slate-300"
+                  >
+                    Cancelar
+                  </Button>
+
+                  <Button
+                    type="button"
+                    onClick={guardarBloqueoAgenda}
+                    disabled={guardandoBloqueo}
+                    className="rounded-xl bg-slate-800 font-semibold text-white hover:bg-slate-900"
+                  >
+                    {guardandoBloqueo ? "Bloqueando..." : "Bloquear agenda"}
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
