@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { formatearExpedienteDisciplinario } from "@/utils/formatearExpedienteDisciplinario";
 
-const DIAS_HABILES_REPROGRAMACION = 5;
+const DIAS_MINIMOS_REPROGRAMACION = 1;
 
 function formatearFechaInput(fecha) {
   const year = fecha.getFullYear();
@@ -26,20 +26,9 @@ function formatearFechaVisual(fecha) {
   return `${day}/${month}/${year}`;
 }
 
-function sumarDiasHabiles(fechaInicial, cantidadDias) {
+function sumarDiasCalendario(fechaInicial, cantidadDias) {
   const resultado = new Date(fechaInicial);
-  let diasSumados = 0;
-
-  while (diasSumados < cantidadDias) {
-    resultado.setDate(resultado.getDate() + 1);
-
-    const diaSemana = resultado.getDay();
-
-    if (diaSemana !== 0 && diaSemana !== 6) {
-      diasSumados += 1;
-    }
-  }
-
+  resultado.setDate(resultado.getDate() + cantidadDias);
   return resultado;
 }
 
@@ -169,9 +158,9 @@ export default function AgendaDisciplinariaView({
     hoy.setHours(0, 0, 0, 0);
 
     return formatearFechaInput(
-      sumarDiasHabiles(
+      sumarDiasCalendario(
         hoy,
-        DIAS_HABILES_REPROGRAMACION
+        DIAS_MINIMOS_REPROGRAMACION
       )
     );
   }, []);
@@ -557,6 +546,7 @@ export default function AgendaDisciplinariaView({
       setHoraInicioNueva("");
 
       const parametrosViernes = new URLSearchParams();
+      parametrosViernes.set("es_reprogramacion", "true");
 
       if (eventoSeleccionado?.IdRegistroPersonal) {
         parametrosViernes.set(
@@ -2005,7 +1995,7 @@ export default function AgendaDisciplinariaView({
                   Regla de reprogramación
                 </p>
                 <p className="mt-1 text-sm text-blue-700">
-                  La nueva cita debe programarse como mínimo cinco días hábiles después de hoy. Cada atención dura 40 minutos.
+                  La nueva cita puede reprogramarse desde el día siguiente. Cada atención dura 40 minutos.
                 </p>
                 <p className="mt-2 text-sm text-blue-800">
                   Fecha mínima permitida:{" "}
