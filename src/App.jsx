@@ -23,6 +23,7 @@ import TrabajadorMisIncapacidadesPage from "@/pages/TrabajadorMisIncapacidadesPa
 import OperacionesProcesosDisciplinariosView from "@/pages/OperacionesProcesosDisciplinariosView";
 import AgendaDisciplinariaOperacionesView from "@/pages/AgendaDisciplinariaOperacionesView";
 import OperacionesRetirosView from "@/pages/OperacionesRetirosView";
+import ProcesosAbiertosOperacionesView from "@/pages/ProcesosAbiertosOperacionesView";
 import IniciarProcesoOperacionesView from "@/pages/IniciarProcesoOperacionesView";
 import RevisionProcesoOperacionesView from "@/pages/RevisionProcesoOperacionesView";
 
@@ -32,6 +33,7 @@ import IndicadoresProcesosDisciplinariosView from "@/pages/IndicadoresProcesosDi
 import AspiranteView from "@/components/AspiranteView";
 import ContratacionView from "@/components/ContratacionView";
 import SeleccionView from "@/components/SeleccionView";
+import SeleccionRQView from "@/pages/SeleccionRQView";
 import SeguimientoView from "@/components/SeguimientoView";
 import RelacionesLaboralesView from "@/components/RelacionesLaboralesView";
 import ArchivosView from "@/components/ArchivosView";
@@ -330,6 +332,11 @@ function App() {
           />
 
           <Route
+            path="seleccion/rq"
+            element={<SeleccionRQView />}
+          />
+
+          <Route
             path="indicadores-seleccion"
             element={<IndicadoresSeleccionView />}
           />
@@ -395,6 +402,17 @@ function App() {
                 permission="OPERACIONES_RETIROS"
               >
                 <OperacionesRetirosView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
+            path="operaciones/retiros/procesos-abiertos"
+            element={
+              <OperationsPermissionRoute
+                permission="OPERACIONES_RETIROS"
+              >
+                <ProcesosAbiertosOperacionesView />
               </OperationsPermissionRoute>
             }
           />

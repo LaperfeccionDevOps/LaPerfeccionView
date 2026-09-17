@@ -124,11 +124,18 @@ const Sidebar = ({
           to: "/seleccion",
           label: "Selección",
           roles: ["Administrador", "Selección"],
-        },
-        {
-          to: "/indicadores-seleccion",
-          label: "Indicadores",
-          roles: ["Administrador", "Selección"],
+          children: [
+            {
+              to: "/seleccion/rq",
+              label: "RQ",
+              roles: ["Administrador", "Selección"],
+            },
+            {
+              to: "/indicadores-seleccion",
+              label: "Indicadores",
+              roles: ["Administrador", "Selección"],
+            },
+          ],
         },
         {
           to: "/contratacion",
@@ -177,6 +184,14 @@ const Sidebar = ({
           label: "Retiros",
           roles: ["Operaciones"],
           permiso: "OPERACIONES_RETIROS",
+          children: [
+            {
+              to: "/operaciones/retiros/procesos-abiertos",
+              label: "Procesos abiertos",
+              roles: ["Operaciones"],
+              permiso: "OPERACIONES_RETIROS",
+            },
+          ],
         },
         {
           to: "/nomina-actualizacion-datos",
@@ -300,6 +315,10 @@ const Sidebar = ({
           label: "Selección",
           children: [
             {
+              to: "/seleccion/rq",
+              label: "RQ",
+            },
+            {
               to: "/indicadores-seleccion",
               label: "Indicadores",
             },
@@ -332,6 +351,12 @@ const Sidebar = ({
               {
                 to: "/operaciones/retiros",
                 label: "Retiros",
+                children: [
+                  {
+                    to: "/operaciones/retiros/procesos-abiertos",
+                    label: "Procesos abiertos",
+                  },
+                ],
               },
             ]
           : []),
@@ -417,6 +442,10 @@ const Sidebar = ({
           label: "Selección",
           children: [
             {
+              to: "/seleccion/rq",
+              label: "RQ",
+            },
+            {
               to: "/indicadores-seleccion",
               label: "Indicadores",
             },
@@ -453,6 +482,12 @@ const Sidebar = ({
               {
                 to: "/operaciones/retiros",
                 label: "Retiros",
+                children: [
+                  {
+                    to: "/operaciones/retiros/procesos-abiertos",
+                    label: "Procesos abiertos",
+                  },
+                ],
               },
             ]
           : []),
