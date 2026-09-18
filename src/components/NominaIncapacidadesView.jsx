@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   Download,
   Eye,
   FileSpreadsheet,
@@ -486,6 +487,27 @@ const formatearMonedaColombia = (valor) => {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+};
+
+
+const perteneceAPestana = (estadoOriginal, pestana) => {
+  const estado = normalizarEstado(estadoOriginal);
+
+  if (pestana === 'REGISTRADAS') return estado === 'REGISTRADA';
+  if (pestana === 'RECHAZADAS') {
+    return estado === 'RECHAZADA' || estado === 'NEGADA' || estado === 'NEGADO';
+  }
+  if (pestana === 'APROBADAS') {
+    return estado === 'APROBADA' || estado === 'PENDIENTE RADICACION';
+  }
+  if (pestana === 'RADICADAS') {
+    return estado === 'RADICADO' || estado === 'EN PROCESO DE PAGO' || estado === 'PAGADO';
+  }
+  if (pestana === 'SIN_RECOBRO') {
+    return estado === 'SIN RECOBRO' || estado === 'SIN_RECOBRO';
+  }
+
+  return true;
 };
 
 
@@ -1906,6 +1928,48 @@ const NominaIncapacidadesView = () => {
   }, [incapacidades]);
 
 
+  // Opciones únicas para los filtros tipo Excel de cada columna.
+  // Se calculan a partir de los datos ya cargados; no cambia el backend ni el flujo de gestión.
+  const opcionesFiltrosColumnas = useMemo(() => {
+    const unicos = (valores) =>
+      [...new Set(valores.filter((valor) => String(valor ?? '').trim() !== ''))]
+        .sort((a, b) =>
+          String(a).localeCompare(String(b), 'es', {
+            numeric: true,
+            sensitivity: 'base',
+          }),
+        );
+
+    const datosPestana = incapacidades.filter((item) =>
+      perteneceAPestana(item.estado, pestanaActiva),
+    );
+
+    return {
+      identificaciones: unicos(
+        datosPestana.map((item) => item.identificacion || ''),
+      ),
+      trabajadores: unicos(
+        datosPestana.map((item) => item.nombre || ''),
+      ),
+      tipos: unicos(
+        datosPestana.map((item) => item.tipoIncapacidad || ''),
+      ),
+      inicios: unicos(
+        datosPestana.map((item) => String(item.fechaInicio || '').slice(0, 10)),
+      ),
+      dias: unicos(
+        datosPestana.map((item) => String(item.diasIncapacidad ?? '')),
+      ),
+      estados: unicos(
+        datosPestana.map((item) => normalizarEstado(item.estado)),
+      ),
+      eps: unicos(
+        datosPestana.map((item) => item.eps || 'No registrada'),
+      ),
+    };
+  }, [incapacidades, pestanaActiva]);
+
+
   const incapacidadesFiltradas = useMemo(() => {
     const textoBusqueda =
       busqueda.trim().toLowerCase();
@@ -2402,165 +2466,82 @@ const NominaIncapacidadesView = () => {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-600">
               <tr>
-                <th className="min-w-[140px] p-4 text-left">
-                  Identificación
-                </th>
+                {[
+                  { titulo: 'Identificación', valor: filtroIdentificacion, setValor: setFiltroIdentificacion, opciones: opcionesFiltrosColumnas.identificaciones, ancho: 'min-w-[140px]', alinear: 'text-left', etiqueta: 'identificación' },
+                  { titulo: 'Trabajador', valor: filtroTrabajador, setValor: setFiltroTrabajador, opciones: opcionesFiltrosColumnas.trabajadores, ancho: 'min-w-[230px]', alinear: 'text-left', etiqueta: 'trabajador' },
+                  { titulo: 'Tipo', valor: filtroTipo, setValor: setFiltroTipo, opciones: opcionesFiltrosColumnas.tipos, ancho: 'min-w-[220px]', alinear: 'text-left', etiqueta: 'tipo', formatear: formatearTipoIncapacidad },
+                  { titulo: 'Inicio', valor: filtroInicio, setValor: setFiltroInicio, opciones: opcionesFiltrosColumnas.inicios, ancho: 'min-w-[140px]', alinear: 'text-left', etiqueta: 'fecha de inicio', formatear: formatearFecha },
+                  { titulo: 'Días', valor: filtroDias, setValor: setFiltroDias, opciones: opcionesFiltrosColumnas.dias, ancho: 'min-w-[90px]', alinear: 'text-center', etiqueta: 'días' },
+                  { titulo: 'Estado', valor: filtroEstado, setValor: setFiltroEstado, opciones: opcionesFiltrosColumnas.estados, ancho: 'min-w-[150px]', alinear: 'text-left', etiqueta: 'estado' },
+                  { titulo: 'EPS', valor: filtroEps, setValor: setFiltroEps, opciones: opcionesFiltrosColumnas.eps, ancho: 'min-w-[240px]', alinear: 'text-left', etiqueta: 'EPS' },
+                ].map((columna) => {
+                  const tieneDatos = columna.opciones.length > 0;
+                  const filtroActivo = Boolean(columna.valor);
 
-                <th className="min-w-[230px] p-4 text-left">
-                  Trabajador
-                </th>
+                  return (
+                    <th key={columna.titulo} className={`${columna.ancho} p-4 ${columna.alinear}`}>
+                      <div className={`flex items-center gap-2 ${columna.alinear === 'text-center' ? 'justify-center' : 'justify-between'}`}>
+                        <span>{columna.titulo}</span>
 
-                <th className="min-w-[220px] p-4 text-left">
-                  Tipo
-                </th>
+                        <div
+                          className={`relative h-7 w-8 shrink-0 rounded border shadow-sm transition-colors ${
+                            !tieneDatos
+                              ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-300'
+                              : filtroActivo
+                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                                : 'border-gray-300 bg-white text-gray-600 hover:border-emerald-500'
+                          }`}
+                          title={
+                            tieneDatos
+                              ? `Filtrar por ${columna.etiqueta}`
+                              : `Sin datos para filtrar por ${columna.etiqueta}`
+                          }
+                        >
+                          <ChevronDown className="pointer-events-none absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2" />
 
-                <th className="min-w-[140px] p-4 text-left">
-                  Inicio
-                </th>
-
-                <th className="min-w-[90px] p-4 text-center">
-                  Días
-                </th>
-
-                <th className="min-w-[150px] p-4 text-left">
-                  Estado
-                </th>
-
-                <th className="min-w-[240px] p-4 text-left">
-                  EPS
-                </th>
+                          <select
+                            aria-label={`Filtrar por ${columna.etiqueta}`}
+                            value={columna.valor}
+                            onChange={(e) => columna.setValor(e.target.value)}
+                            disabled={!tieneDatos}
+                            className={`absolute inset-0 h-full w-full appearance-none opacity-0 ${
+                              tieneDatos ? 'cursor-pointer' : 'cursor-not-allowed'
+                            }`}
+                          >
+                            <option value="">Todos</option>
+                            {columna.opciones.map((valor) => (
+                              <option key={valor} value={valor}>
+                                {columna.formatear ? columna.formatear(valor) : valor}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </th>
+                  );
+                })}
 
                 <th className="min-w-[110px] p-4 text-center">
-                  Acción
-                </th>
-              </tr>
-
-              <tr className="border-t bg-white align-top">
-                <th className="p-2">
-                  <Input
-                    value={filtroIdentificacion}
-                    onChange={(e) =>
-                      setFiltroIdentificacion(e.target.value)
-                    }
-                    placeholder="Filtrar..."
-                    className="h-9 bg-white text-xs font-normal"
-                  />
-                </th>
-
-                <th className="p-2">
-                  <Input
-                    value={filtroTrabajador}
-                    onChange={(e) =>
-                      setFiltroTrabajador(e.target.value)
-                    }
-                    placeholder="Nombre..."
-                    className="h-9 bg-white text-xs font-normal"
-                  />
-                </th>
-
-                <th className="p-2">
-                  <select
-                    value={filtroTipo}
-                    onChange={(e) =>
-                      setFiltroTipo(e.target.value)
-                    }
-                    className="h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-emerald-500"
-                  >
-                    <option value="">Todos</option>
-                    {TIPOS_INCAPACIDAD_EDITABLES.map((tipo) => (
-                      <option
-                        key={tipo.value}
-                        value={tipo.value}
+                  <div className="flex flex-col items-center gap-1">
+                    <span>Acción</span>
+                    {(filtroIdentificacion || filtroTrabajador || filtroTipo || filtroInicio || filtroDias || filtroEstado || filtroEps) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFiltroIdentificacion('');
+                          setFiltroTrabajador('');
+                          setFiltroTipo('');
+                          setFiltroInicio('');
+                          setFiltroDias('');
+                          setFiltroEstado('');
+                          setFiltroEps('');
+                        }}
+                        className="text-[10px] font-semibold text-emerald-700 hover:underline"
                       >
-                        {tipo.label}
-                      </option>
-                    ))}
-                  </select>
-                </th>
-
-                <th className="p-2">
-                  <Input
-                    type="date"
-                    value={filtroInicio}
-                    onChange={(e) =>
-                      setFiltroInicio(e.target.value)
-                    }
-                    className="h-9 bg-white text-xs font-normal"
-                  />
-                </th>
-
-                <th className="p-2">
-                  <Input
-                    type="number"
-                    min="1"
-                    value={filtroDias}
-                    onChange={(e) =>
-                      setFiltroDias(e.target.value)
-                    }
-                    placeholder="Días"
-                    className="h-9 bg-white text-center text-xs font-normal"
-                  />
-                </th>
-
-                <th className="p-2">
-                  <select
-                    value={filtroEstado}
-                    onChange={(e) =>
-                      setFiltroEstado(e.target.value)
-                    }
-                    className="h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-xs font-normal text-gray-700 outline-none focus:border-emerald-500"
-                  >
-                    <option value="">Todos</option>
-                    <option value="REGISTRADA">REGISTRADA</option>
-                    <option value="RECHAZADA">RECHAZADA</option>
-                    <option value="APROBADA">APROBADA</option>
-                    <option value="PENDIENTE RADICACION">PENDIENTE RADICACIÓN</option>
-                    <option value="RADICADO">RADICADO</option>
-                    <option value="NEGADO">NEGADO</option>
-                    <option value="EN PROCESO DE PAGO">EN PROCESO DE PAGO</option>
-                    <option value="PAGADO">PAGADO</option>
-                    <option value="SIN RECOBRO">SIN RECOBRO</option>
-                  </select>
-                </th>
-
-                <th className="p-2">
-                  <Input
-                    value={filtroEps}
-                    onChange={(e) =>
-                      setFiltroEps(e.target.value)
-                    }
-                    placeholder="EPS..."
-                    className="h-9 bg-white text-xs font-normal"
-                  />
-                </th>
-
-                <th className="p-2 text-center">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setFiltroIdentificacion('');
-                      setFiltroTrabajador('');
-                      setFiltroTipo('');
-                      setFiltroInicio('');
-                      setFiltroDias('');
-                      setFiltroEstado('');
-                      setFiltroEps('');
-                    }}
-                    disabled={
-                      !filtroIdentificacion &&
-                      !filtroTrabajador &&
-                      !filtroTipo &&
-                      !filtroInicio &&
-                      !filtroDias &&
-                      !filtroEstado &&
-                      !filtroEps
-                    }
-                    className="h-9 text-xs"
-                  >
-                    Limpiar
-                  </Button>
+                        Limpiar filtros
+                      </button>
+                    )}
+                  </div>
                 </th>
               </tr>
             </thead>

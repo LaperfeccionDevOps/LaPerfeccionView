@@ -792,6 +792,8 @@ export default function RelacionesLaboralesView() {
     cerrados_operaciones: [],
   });
   const [tabBandejaRetirosRRLL, setTabBandejaRetirosRRLL] = useState("ABIERTOS_OPERACIONES");
+  const [busquedaBandejaRetirosRRLL, setBusquedaBandejaRetirosRRLL] = useState("");
+  const [paginaBandejaRetirosRRLL, setPaginaBandejaRetirosRRLL] = useState(1);
   const [loadingBandejaRetirosRRLL, setLoadingBandejaRetirosRRLL] = useState(false);
   const [errorBandejaRetirosRRLL, setErrorBandejaRetirosRRLL] = useState("");
 
@@ -3781,10 +3783,51 @@ if (step === "agenda_general_rrll") {
   if (step === "retiros_inicio") {
     const abiertosOperaciones = bandejaRetirosRRLL.abiertos_operaciones || [];
     const cerradosOperaciones = bandejaRetirosRRLL.cerrados_operaciones || [];
-    const retirosMostrados =
+    const retirosBase =
       tabBandejaRetirosRRLL === "ABIERTOS_OPERACIONES"
         ? abiertosOperaciones
         : cerradosOperaciones;
+
+    const terminoBusquedaBandeja = String(busquedaBandejaRetirosRRLL || "")
+      .trim()
+      .toLowerCase();
+
+    const retirosFiltrados = retirosBase.filter((retiro) => {
+      if (!terminoBusquedaBandeja) return true;
+
+      const nombreCompleto = String(
+        retiro?.NombreCompleto ||
+          `${retiro?.Nombres || ""} ${retiro?.Apellidos || ""}`
+      )
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+
+      const identificacion = String(retiro?.NumeroIdentificacion || "")
+        .trim()
+        .toLowerCase();
+
+      return (
+        nombreCompleto.includes(terminoBusquedaBandeja) ||
+        identificacion.includes(terminoBusquedaBandeja)
+      );
+    });
+
+    const RETIROS_POR_PAGINA = 10;
+    const totalPaginasBandeja = Math.max(
+      1,
+      Math.ceil(retirosFiltrados.length / RETIROS_POR_PAGINA)
+    );
+    const paginaActualBandeja = Math.min(
+      paginaBandejaRetirosRRLL,
+      totalPaginasBandeja
+    );
+    const indiceInicioBandeja =
+      (paginaActualBandeja - 1) * RETIROS_POR_PAGINA;
+    const retirosMostrados = retirosFiltrados.slice(
+      indiceInicioBandeja,
+      indiceInicioBandeja + RETIROS_POR_PAGINA
+    );
 
     const formatearFechaBandeja = (fecha) => {
       if (!fecha) return "Sin fecha";
@@ -3829,7 +3872,10 @@ if (step === "agenda_general_rrll") {
             <div className="flex flex-wrap gap-8">
               <button
                 type="button"
-                onClick={() => setTabBandejaRetirosRRLL("ABIERTOS_OPERACIONES")}
+                onClick={() => {
+                  setTabBandejaRetirosRRLL("ABIERTOS_OPERACIONES");
+                  setPaginaBandejaRetirosRRLL(1);
+                }}
                 className={`border-b-2 px-1 pb-3 text-sm font-semibold transition ${
                   tabBandejaRetirosRRLL === "ABIERTOS_OPERACIONES"
                     ? "border-emerald-600 text-emerald-700"
@@ -3841,7 +3887,10 @@ if (step === "agenda_general_rrll") {
 
               <button
                 type="button"
-                onClick={() => setTabBandejaRetirosRRLL("CERRADOS_OPERACIONES")}
+                onClick={() => {
+                  setTabBandejaRetirosRRLL("CERRADOS_OPERACIONES");
+                  setPaginaBandejaRetirosRRLL(1);
+                }}
                 className={`border-b-2 px-1 pb-3 text-sm font-semibold transition ${
                   tabBandejaRetirosRRLL === "CERRADOS_OPERACIONES"
                     ? "border-emerald-600 text-emerald-700"
@@ -3868,6 +3917,19 @@ if (step === "agenda_general_rrll") {
               {errorBandejaRetirosRRLL}
             </div>
           )}
+
+          <div className="mt-5">
+            <Input
+              type="text"
+              value={busquedaBandejaRetirosRRLL}
+              onChange={(event) => {
+                setBusquedaBandejaRetirosRRLL(event.target.value);
+                setPaginaBandejaRetirosRRLL(1);
+              }}
+              placeholder="Buscar por nombre o número de identificación..."
+              className="h-11"
+            />
+          </div>
 
           <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
             <div className="overflow-x-auto">
@@ -3972,13 +4034,15 @@ if (step === "agenda_general_rrll") {
                     })}
 
                   {!loadingBandejaRetirosRRLL &&
-                    retirosMostrados.length === 0 &&
+                    retirosFiltrados.length === 0 &&
                     !errorBandejaRetirosRRLL && (
                       <tr>
                         <td colSpan="7" className="px-5 py-12 text-center text-gray-500">
-                          {tabBandejaRetirosRRLL === "ABIERTOS_OPERACIONES"
-                            ? "No hay retiros abiertos actualmente en Operaciones."
-                            : "No hay retiros cerrados por Operaciones pendientes de gestión en RRLL."}
+                          {terminoBusquedaBandeja
+                            ? "No se encontraron retiros que coincidan con la búsqueda."
+                            : tabBandejaRetirosRRLL === "ABIERTOS_OPERACIONES"
+                              ? "No hay retiros abiertos actualmente en Operaciones."
+                              : "No hay retiros cerrados por Operaciones pendientes de gestión en RRLL."}
                         </td>
                       </tr>
                     )}
@@ -3986,6 +4050,52 @@ if (step === "agenda_general_rrll") {
               </table>
             </div>
           </div>
+
+          {!loadingBandejaRetirosRRLL && retirosFiltrados.length > 0 && (
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-gray-500">
+                Mostrando {indiceInicioBandeja + 1} a{" "}
+                {Math.min(
+                  indiceInicioBandeja + RETIROS_POR_PAGINA,
+                  retirosFiltrados.length
+                )}{" "}
+                de {retirosFiltrados.length} registro
+                {retirosFiltrados.length === 1 ? "" : "s"}
+              </p>
+
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    setPaginaBandejaRetirosRRLL((pagina) =>
+                      Math.max(1, pagina - 1)
+                    )
+                  }
+                  disabled={paginaActualBandeja <= 1}
+                >
+                  Anterior
+                </Button>
+
+                <span className="text-sm font-medium text-gray-700">
+                  Página {paginaActualBandeja} de {totalPaginasBandeja}
+                </span>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    setPaginaBandejaRetirosRRLL((pagina) =>
+                      Math.min(totalPaginasBandeja, pagina + 1)
+                    )
+                  }
+                  disabled={paginaActualBandeja >= totalPaginasBandeja}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div className="mt-5">
             <Button type="button" variant="outline" onClick={() => setStep("inicio")}>
