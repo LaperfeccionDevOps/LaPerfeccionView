@@ -165,8 +165,6 @@ const ADJUNTOS_INICIALES = {
 };
 
 const TURNOS_RQ = ["ROTATIVO", "DIURNO"];
-const MOTIVOS_VACANTE_RQ = ["RENUNCIA", "ABANDONO", "NUNCA INGRESO"];
-
 const RQ_INICIAL = {
   observacion: "",
   requiereReemplazo: "",
@@ -1932,6 +1930,13 @@ const OperacionesRetirosView = () => {
       .map(([, etiqueta]) => etiqueta);
 
     if (
+      String(formulario.aplicaDescuento || "").trim().toUpperCase() === "SI" &&
+      !String(formulario.novedadesNomina || "").trim()
+    ) {
+      faltantes.push("Observaciones para nómina");
+    }
+
+    if (
       formulario.clienteNombre &&
       !formulario.idCliente
     ) {
@@ -2390,7 +2395,6 @@ const OperacionesRetirosView = () => {
         siguiente.idPerfilRQ = "";
         siguiente.ciudad = "";
         siguiente.turno = "";
-        siguiente.motivoVacante = "";
         siguiente.observacionCliente = "";
       }
 
@@ -2439,6 +2443,45 @@ const OperacionesRetirosView = () => {
       return [];
     } finally {
       setLoadingPerfilesRQ(false);
+    }
+  };
+
+  const consultarCiudadRQ = async (idRegistroPersonal) => {
+    if (!idRegistroPersonal) return "";
+
+    try {
+      const response = await fetch(
+        `${API_URL}/operaciones/retiros/rq/ciudad/trabajador/${idRegistroPersonal}`,
+        {
+          method: "GET",
+          headers: construirHeaders(),
+        }
+      );
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            `No fue posible consultar la ciudad del trabajador. Código HTTP: ${response.status}.`
+        );
+      }
+
+      const ciudad = String(data?.data?.NombreCiudad || "").trim();
+
+      setFormularioRQ((actual) => ({
+        ...actual,
+        ciudad,
+      }));
+
+      return ciudad;
+    } catch (error) {
+      setMensajeGestion(
+        error?.message ||
+          "No fue posible obtener automáticamente la ciudad del trabajador."
+      );
+      setTipoMensajeGestion("error");
+      return "";
     }
   };
 
@@ -2780,6 +2823,22 @@ const OperacionesRetirosView = () => {
     }
   }, [retiroGuardado?.IdRetiroLaboral]);
 
+  useEffect(() => {
+    const idRegistroPersonal =
+      retiroGuardado?.IdRegistroPersonal ||
+      obtenerIdRegistroPersonal(trabajadorSeleccionado);
+
+    if (
+      idRegistroPersonal &&
+      formularioRQ.requiereReemplazo === "SI"
+    ) {
+      consultarCiudadRQ(idRegistroPersonal);
+    }
+  }, [
+    retiroGuardado?.IdRegistroPersonal,
+    formularioRQ.requiereReemplazo,
+  ]);
+
   const validarRQ = () => {
     const faltantes = [];
 
@@ -2791,7 +2850,6 @@ const OperacionesRetirosView = () => {
       if (!formularioRQ.idPerfilRQ) faltantes.push("Perfil");
       if (!formularioRQ.ciudad.trim()) faltantes.push("Ciudad");
       if (!formularioRQ.turno) faltantes.push("Turno");
-      if (!formularioRQ.motivoVacante) faltantes.push("Motivo de la vacante");
       if (!formularioRQ.observacionCliente.trim()) {
         faltantes.push("Observaciones del cliente");
       }
@@ -2877,10 +2935,6 @@ const OperacionesRetirosView = () => {
         formData.append("IdPerfilRQ", formularioRQ.idPerfilRQ);
         formData.append("Ciudad", formularioRQ.ciudad.trim());
         formData.append("Turno", formularioRQ.turno);
-        formData.append(
-          "MotivoVacante",
-          formularioRQ.motivoVacante
-        );
         formData.append(
           "ObservacionCliente",
           formularioRQ.observacionCliente.trim()
@@ -3043,6 +3097,11 @@ const OperacionesRetirosView = () => {
       setEnviandoRRLL(false);
     }
   };
+
+  const perfilRQSeleccionado = perfilesRQ.find(
+    (perfil) =>
+      String(perfil.IdPerfilRQ) === String(formularioRQ.idPerfilRQ)
+  );
 
   return (
     <motion.div
@@ -3664,6 +3723,7 @@ const OperacionesRetirosView = () => {
                       }
                       rows={4}
                       placeholder="Registra las novedades de nómina..."
+                      required={formulario.aplicaDescuento === "SI"}
                     />
                   </div>
 
@@ -4103,6 +4163,16 @@ const OperacionesRetirosView = () => {
                                   </option>
                                 ))}
                               </select>
+
+                              {perfilRQSeleccionado && (
+                                <div className="mt-3 rounded-xl border border-emerald-200 bg-white p-3 text-sm text-gray-700">
+                                  <div><strong>Código:</strong> {perfilRQSeleccionado.CodigoPerfil || "—"}</div>
+                                  <div><strong>Descripción:</strong> {perfilRQSeleccionado.DescripcionPerfil || "—"}</div>
+                                  <div><strong>Género:</strong> {perfilRQSeleccionado.Genero || "—"}</div>
+                                  <div><strong>Nivel escolaridad:</strong> {perfilRQSeleccionado.NivelEscolaridad || "—"}</div>
+                                  <div><strong>Observaciones:</strong> {perfilRQSeleccionado.Observaciones || "—"}</div>
+                                </div>
+                              )}
                             </div>
 
                             <div>
@@ -4116,14 +4186,9 @@ const OperacionesRetirosView = () => {
                               <Input
                                 id="ciudadRQ"
                                 value={formularioRQ.ciudad}
-                                onChange={(event) =>
-                                  actualizarCampoRQ(
-                                    "ciudad",
-                                    event.target.value
-                                  )
-                                }
-                                placeholder="Ej. Bogotá"
-                                className="min-h-12"
+                                readOnly
+                                placeholder="Ciudad cargada automáticamente"
+                                className="min-h-12 bg-gray-50"
                               />
                             </div>
 
@@ -4138,19 +4203,6 @@ const OperacionesRetirosView = () => {
                               required
                             />
 
-                            <CampoSelect
-                              id="motivoVacanteRQ"
-                              label="Motivo de la vacante"
-                              value={formularioRQ.motivoVacante}
-                              onChange={(valor) =>
-                                actualizarCampoRQ(
-                                  "motivoVacante",
-                                  valor
-                                )
-                              }
-                              options={MOTIVOS_VACANTE_RQ}
-                              required
-                            />
                           </div>
 
                           <div className="mt-5">
@@ -4172,34 +4224,23 @@ const OperacionesRetirosView = () => {
                         </div>
                       )}
 
-                      <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-                        <Button
-                          type="button"
-                          onClick={guardarRQ}
-                          disabled={guardandoRQ || enviandoRRLL}
-                          className="min-h-12 rounded-xl bg-blue-600 px-6 font-semibold text-white hover:bg-blue-700 disabled:bg-gray-300"
-                        >
-                          {guardandoRQ
-                            ? "Guardando..."
-                            : formularioRQ.requiereReemplazo === "NO"
-                              ? "Confirmar sin reemplazo"
-                              : "Guardar RQ"}
-                        </Button>
-
-                        {String(rqGuardado?.EstadoRQ || "").toUpperCase() ===
-                          "LISTO_PARA_ENVIO" && (
+                      {String(rqGuardado?.EstadoRQ || "").toUpperCase() !==
+                        "LISTO_PARA_ENVIO" && (
+                        <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
                           <Button
                             type="button"
-                            onClick={enviarCasoARRLL}
-                            disabled={enviandoRRLL}
-                            className="min-h-12 rounded-xl bg-emerald-600 px-6 font-semibold text-white hover:bg-emerald-700 disabled:bg-gray-300"
+                            onClick={guardarRQ}
+                            disabled={guardandoRQ || enviandoRRLL}
+                            className="min-h-12 rounded-xl bg-blue-600 px-6 font-semibold text-white hover:bg-blue-700 disabled:bg-gray-300"
                           >
-                            {enviandoRRLL
-                              ? "Enviando a RRLL..."
-                              : "Enviar a Relaciones Laborales"}
+                            {guardandoRQ
+                              ? "Guardando..."
+                              : formularioRQ.requiereReemplazo === "NO"
+                                ? "Confirmar sin reemplazo"
+                                : "Guardar RQ"}
                           </Button>
-                        )}
-                      </div>
+                        </div>
+                      )}
 
                       {[
                         "PENDIENTE_OPERACIONES",
@@ -4239,7 +4280,16 @@ const OperacionesRetirosView = () => {
                                   : "El RQ fue guardado correctamente."}
                               </p>
 
-                              <p className="mt-1 text-sm leading-relaxed sm:text-base">
+                              <p
+                                className={cn(
+                                  "mt-2 leading-relaxed",
+                                  String(
+                                    rqGuardado?.EstadoRQ || ""
+                                  ).toUpperCase() === "LISTO_PARA_ENVIO"
+                                    ? "text-base font-bold sm:text-lg"
+                                    : "text-sm sm:text-base"
+                                )}
+                              >
                                 {String(
                                   rqGuardado?.EstadoRQ || ""
                                 ).toUpperCase() === "LISTO_PARA_ENVIO"
@@ -4248,6 +4298,22 @@ const OperacionesRetirosView = () => {
                               </p>
                             </div>
                           </div>
+                        </div>
+                      )}
+
+                      {String(rqGuardado?.EstadoRQ || "").toUpperCase() ===
+                        "LISTO_PARA_ENVIO" && (
+                        <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                          <Button
+                            type="button"
+                            onClick={enviarCasoARRLL}
+                            disabled={enviandoRRLL}
+                            className="min-h-12 rounded-xl bg-emerald-600 px-6 font-semibold text-white hover:bg-emerald-700 disabled:bg-gray-300"
+                          >
+                            {enviandoRRLL
+                              ? "Enviando a RRLL..."
+                              : "Enviar a Relaciones Laborales"}
+                          </Button>
                         </div>
                       )}
                     </div>

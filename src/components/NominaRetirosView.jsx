@@ -1295,157 +1295,191 @@ const retiroIndicador = useMemo(() => {
           </div>
         </div>
 
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600">
-            <tr>
-              <th className="text-left p-4 min-w-[150px]">Identificación</th>
-              <th className="text-left p-4 min-w-[260px]">Trabajador</th>
-              <th className="text-left p-4 min-w-[150px]">Estado</th>
-              <th className="text-center p-4 min-w-[300px]">
-                 {filtroEstado === 'operaciones' ? 'Días en Operaciones' : 'Comunicaciones'}
-               </th>
-              <th className="text-left p-4 min-w-[190px]">Fecha pago liquidación</th>
-              <th className="text-center p-4 min-w-[120px]">Acción</th>
-            </tr>
-          </thead>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-gray-600">
+              {filtroEstado === 'operaciones' ? (
+                <tr>
+                  <th className="text-left p-4 min-w-[145px]">Identificación</th>
+                  <th className="text-left p-4 min-w-[250px]">Trabajador</th>
+                  <th className="text-left p-4 min-w-[250px]">Sede</th>
+                  <th className="text-left p-4 min-w-[150px]">Fecha de retiro</th>
+                  <th className="text-center p-4 min-w-[170px]">Días en Operaciones</th>
+                  <th className="text-center p-4 min-w-[110px]">Acción</th>
+                </tr>
+              ) : (
+                <tr>
+                  <th className="text-left p-4 min-w-[150px]">Identificación</th>
+                  <th className="text-left p-4 min-w-[260px]">Trabajador</th>
+                  <th className="text-left p-4 min-w-[150px]">Estado</th>
+                  <th className="text-center p-4 min-w-[300px]">Comunicaciones</th>
+                  <th className="text-left p-4 min-w-[190px]">Fecha pago liquidación</th>
+                  <th className="text-center p-4 min-w-[120px]">Acción</th>
+                </tr>
+              )}
+            </thead>
 
-          <tbody>
-            {cargando && (
-              <tr>
-                <td colSpan="6" className="p-10 text-center text-gray-500">
-                  Consultando retiros...
-                </td>
-              </tr>
-            )}
+            <tbody>
+              {cargando && (
+                <tr>
+                  <td colSpan="6" className="p-10 text-center text-gray-500">
+                    Consultando retiros...
+                  </td>
+                </tr>
+              )}
 
-            {!cargando && retirosPaginados.map((r) => (
-              <tr key={r.id} className="border-t hover:bg-gray-50">
-                <td className="p-4 whitespace-nowrap">{r.identificacion}</td>
+              {!cargando && retirosPaginados.map((r) => (
+                <tr key={r.id} className="border-t hover:bg-gray-50">
+                  {filtroEstado === 'operaciones' ? (
+                    <>
+                      <td className="p-4 whitespace-nowrap">{r.identificacion}</td>
 
-                <td className="p-4 font-medium">
-                  {r.nombre}
-                </td>
+                      <td className="p-4 font-medium min-w-[250px]">
+                        {r.nombre}
+                      </td>
 
-                <td className="p-4">
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getEstadoBadge(r.estado)}`}>
-                  {r.esAbiertoOperaciones
-                    ? 'Abierto Operaciones'
-                    : grupoEstadoRetiro(r) === 'nomina'
-                      ? 'Cerrado'
-                      : grupoEstadoRetiro(r) === 'retirados'
-                        ? 'Retirado'
-                        : 'Abierto RRLL'}
-                </span>
-              </td>
+                      <td className="p-4 min-w-[250px] text-gray-700">
+                        {r.cliente || 'SIN SEDE'}
+                      </td>
 
-            <td className="p-4">
-            {r.esAbiertoOperaciones ? (
-              <div className="flex items-center justify-center">
-                {(() => {
-                  const dias = calcularDiasAbiertoOperaciones(r.fechaCreacion);
+                      <td className="p-4 whitespace-nowrap">
+                        {r.fechaRetiro
+                          ? new Date(`${r.fechaRetiro}T00:00:00`).toLocaleDateString('es-CO', {
+                              timeZone: 'America/Bogota',
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                            })
+                          : 'Sin fecha'}
+                      </td>
 
-                  return (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">
-                      <Clock className="h-4 w-4" />
-                      {dias === null
-                        ? 'Sin información'
-                        : `${dias} ${dias === 1 ? 'día' : 'días'}`}
-                    </span>
-                  );
-                })()}
-              </div>
-            ) : (
-            <div className="flex flex-row items-center justify-center gap-1.5 whitespace-nowrap">
-              <button
-                type="button"
-                title="Enviar certificado laboral"
-                onClick={() => enviarCertificadoLaboral(r)}
-                disabled={procesando}
-                className="w-8 h-8 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center justify-center text-sm disabled:opacity-50"
-              >
-                ✉️
-              </button>
+                      <td className="p-4">
+                        <div className="flex items-center justify-center">
+                          {(() => {
+                            const dias = calcularDiasAbiertoOperaciones(r.fechaCreacion);
 
-              <button
-                type="button"
-                title="Descargar certificado laboral"
-                onClick={() => descargarCertificadoLaboral(r)}
-                className="w-8 h-8 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center justify-center text-sm"
-              >
-                ⬇️
-              </button>
+                            return (
+                              <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 whitespace-nowrap">
+                                <Clock className="h-4 w-4" />
+                                {dias === null
+                                  ? 'Sin información'
+                                  : `${dias} ${dias === 1 ? 'día' : 'días'}`}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="p-4 whitespace-nowrap">{r.identificacion}</td>
 
-              <span className="w-px h-6 bg-gray-300 mx-1" />
+                      <td className="p-4 font-medium">
+                        {r.nombre}
+                      </td>
 
-              <button
-                type="button"
-                title="Enviar carta de cesantías"
-                onClick={() => enviarCartaCesantias(r)}
-                disabled={procesando}
-                className="w-8 h-8 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center justify-center text-sm disabled:opacity-50"
-              >
-                💰
-              </button>
+                      <td className="p-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getEstadoBadge(r.estado)}`}>
+                          {grupoEstadoRetiro(r) === 'nomina'
+                            ? 'Cerrado'
+                            : grupoEstadoRetiro(r) === 'retirados'
+                              ? 'Retirado'
+                              : 'Abierto RRLL'}
+                        </span>
+                      </td>
 
-              <button
-                type="button"
-                title="Descargar carta de cesantías"
-                onClick={() => descargarCartaCesantias(r)}
-                className="w-8 h-8 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center justify-center text-sm"
-              >
-                ⬇️
-              </button>
-            </div>
-            )}
-          </td>
+                      <td className="p-4">
+                        <div className="flex flex-row items-center justify-center gap-1.5 whitespace-nowrap">
+                          <button
+                            type="button"
+                            title="Enviar certificado laboral"
+                            onClick={() => enviarCertificadoLaboral(r)}
+                            disabled={procesando}
+                            className="w-8 h-8 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center justify-center text-sm disabled:opacity-50"
+                          >
+                            ✉️
+                          </button>
 
-              <td className="p-4 whitespace-nowrap">
-                {r.esAbiertoOperaciones
-                  ? 'No aplica'
-                  : r.fechaPagoLiquidacion
-                  ? new Date(`${r.fechaPagoLiquidacion}T00:00:00`).toLocaleDateString('es-CO', {
-                      timeZone: 'America/Bogota',
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric',
-                    })
-                  : 'Sin fecha'}
-              </td>
+                          <button
+                            type="button"
+                            title="Descargar certificado laboral"
+                            onClick={() => descargarCertificadoLaboral(r)}
+                            className="w-8 h-8 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center justify-center text-sm"
+                          >
+                            ⬇️
+                          </button>
 
-              <td className="p-4 text-center">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                    setRetiroSeleccionado(r);
-                    setTextoObservacionNomina(r.observacionNomina || '');
-                    setEditandoObservacionNomina(false);
-                    setDocumentosRetiro([]);
-                    setMensajeAccion('');
-                    setErrorCarga('');
-                    if (!r.esAbiertoOperaciones) {
-                      cargarDocumentosRetiro(r);
-                    }
-                    }}
-                  >
-                    <Eye className="w-4 h-4 mr-1" />
-                    Ver
-                  </Button>
-                </td>
-              </tr>
-            ))}
+                          <span className="w-px h-6 bg-gray-300 mx-1" />
 
-            {!cargando && retirosFiltrados.length === 0 && (
-              <tr>
-                <td colSpan="6" className="p-10 text-center text-gray-500">
-                  <FileText className="w-10 h-10 mx-auto mb-3 text-gray-400" />
-                  No hay retiros para el filtro seleccionado.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                          <button
+                            type="button"
+                            title="Enviar carta de cesantías"
+                            onClick={() => enviarCartaCesantias(r)}
+                            disabled={procesando}
+                            className="w-8 h-8 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center justify-center text-sm disabled:opacity-50"
+                          >
+                            💰
+                          </button>
+
+                          <button
+                            type="button"
+                            title="Descargar carta de cesantías"
+                            onClick={() => descargarCartaCesantias(r)}
+                            className="w-8 h-8 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center justify-center text-sm"
+                          >
+                            ⬇️
+                          </button>
+                        </div>
+                      </td>
+
+                      <td className="p-4 whitespace-nowrap">
+                        {r.fechaPagoLiquidacion
+                          ? new Date(`${r.fechaPagoLiquidacion}T00:00:00`).toLocaleDateString('es-CO', {
+                              timeZone: 'America/Bogota',
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                            })
+                          : 'Sin fecha'}
+                      </td>
+                    </>
+                  )}
+
+                  <td className="p-4 text-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setRetiroSeleccionado(r);
+                        setTextoObservacionNomina(r.observacionNomina || '');
+                        setEditandoObservacionNomina(false);
+                        setDocumentosRetiro([]);
+                        setMensajeAccion('');
+                        setErrorCarga('');
+                        if (!r.esAbiertoOperaciones) {
+                          cargarDocumentosRetiro(r);
+                        }
+                      }}
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      Ver
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+
+              {!cargando && retirosFiltrados.length === 0 && (
+                <tr>
+                  <td colSpan="6" className="p-10 text-center text-gray-500">
+                    <FileText className="w-10 h-10 mx-auto mb-3 text-gray-400" />
+                    No hay retiros para el filtro seleccionado.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
 
         {!cargando && retirosFiltrados.length > 0 && (
           <div className="flex flex-col gap-3 border-t bg-gray-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">

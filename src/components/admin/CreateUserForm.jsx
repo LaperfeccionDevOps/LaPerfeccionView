@@ -24,7 +24,6 @@ import {
   Shield,
   Key,
   Activity,
-  Mail,
   User,
   Eye,
   EyeOff,
@@ -33,8 +32,8 @@ import {
 const INITIAL_FORM = {
   name: '',
   username: '',
-  email: '',
   pass: '',
+  confirmPass: '',
   role: '',
   status: 'ACTIVO',
 };
@@ -43,6 +42,10 @@ const CreateUserForm = () => {
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const passwordsDoNotMatch =
+    formData.confirmPass.length > 0 && formData.pass !== formData.confirmPass;
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({
@@ -55,8 +58,8 @@ const CreateUserForm = () => {
     if (
       !formData.name.trim() ||
       !formData.username.trim() ||
-      !formData.email.trim() ||
       !formData.pass ||
+      !formData.confirmPass ||
       !formData.role
     ) {
       toast({
@@ -68,22 +71,20 @@ const CreateUserForm = () => {
       return false;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (!emailRegex.test(formData.email.trim())) {
+    if (formData.pass.length < 8) {
       toast({
-        title: 'Correo no válido',
-        description: 'Ingresa un correo corporativo válido.',
+        title: 'Contraseña no válida',
+        description: 'La contraseña debe tener mínimo 8 caracteres.',
         variant: 'destructive',
       });
 
       return false;
     }
 
-    if (formData.pass.length < 8) {
+    if (formData.pass !== formData.confirmPass) {
       toast({
-        title: 'Contraseña no válida',
-        description: 'La contraseña debe tener mínimo 8 caracteres.',
+        title: 'Las contraseñas no coinciden',
+        description: 'La contraseña y su confirmación deben ser exactamente iguales.',
         variant: 'destructive',
       });
 
@@ -106,7 +107,7 @@ const CreateUserForm = () => {
       const payload = {
         name: formData.name.trim(),
         username: formData.username.trim(),
-        email: formData.email.trim().toLowerCase(),
+        email: '',
         pass: formData.pass,
         role: formData.role,
         status: formData.status,
@@ -121,6 +122,7 @@ const CreateUserForm = () => {
 
       setFormData(INITIAL_FORM);
       setShowPassword(false);
+      setShowConfirmPassword(false);
     } catch (error) {
       const message =
         error?.response?.data?.detail ||
@@ -208,28 +210,6 @@ const CreateUserForm = () => {
             </p>
           </div>
 
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="email">
-              Correo Corporativo <span className="text-red-500">*</span>
-            </Label>
-
-            <div className="relative">
-              <Input
-                id="email"
-                type="email"
-                placeholder="Ej. usuario@aseoslaperfeccion.com"
-                value={formData.email}
-                onChange={(e) =>
-                  handleChange('email', e.target.value.toLowerCase())
-                }
-                className="pl-10"
-                autoComplete="off"
-              />
-
-              <Mail className="w-4 h-4 absolute left-3 top-3.5 text-gray-400" />
-            </div>
-          </div>
-
           <div className="space-y-2">
             <Label htmlFor="pass">
               Contraseña <span className="text-red-500">*</span>
@@ -242,6 +222,10 @@ const CreateUserForm = () => {
                 placeholder="Mínimo 8 caracteres"
                 value={formData.pass}
                 onChange={(e) => handleChange('pass', e.target.value)}
+                onCopy={(e) => e.preventDefault()}
+                onCut={(e) => e.preventDefault()}
+                onPaste={(e) => e.preventDefault()}
+                onDrop={(e) => e.preventDefault()}
                 className="pl-10 pr-10 no-uppercase"
                 autoComplete="new-password"
               />
@@ -269,6 +253,62 @@ const CreateUserForm = () => {
             <p className="text-xs text-gray-500">
               La contraseña distingue mayúsculas y minúsculas. Escríbela exactamente como será utilizada.
             </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="confirmPass">
+              Confirmar Contraseña <span className="text-red-500">*</span>
+            </Label>
+
+            <div className="relative">
+              <Input
+                id="confirmPass"
+                type={showConfirmPassword ? 'text' : 'password'}
+                placeholder="Repita la contraseña"
+                value={formData.confirmPass}
+                onChange={(e) => handleChange('confirmPass', e.target.value)}
+                onCopy={(e) => e.preventDefault()}
+                onCut={(e) => e.preventDefault()}
+                onPaste={(e) => e.preventDefault()}
+                onDrop={(e) => e.preventDefault()}
+                className={`pl-10 pr-10 no-uppercase ${
+                  passwordsDoNotMatch
+                    ? 'border-red-500 focus-visible:ring-red-500'
+                    : ''
+                }`}
+                aria-invalid={passwordsDoNotMatch}
+                autoComplete="new-password"
+              />
+
+              <Key className="w-4 h-4 absolute left-3 top-3.5 text-gray-400" />
+
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword((prev) => !prev)}
+                className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label={
+                  showConfirmPassword
+                    ? 'Ocultar confirmación de contraseña'
+                    : 'Mostrar confirmación de contraseña'
+                }
+              >
+                {showConfirmPassword ? (
+                  <EyeOff className="w-5 h-5" />
+                ) : (
+                  <Eye className="w-5 h-5" />
+                )}
+              </button>
+            </div>
+
+            {passwordsDoNotMatch ? (
+              <p className="text-xs font-medium text-red-600" role="alert">
+                Las contraseñas no coinciden. Verifique e inténtelo nuevamente.
+              </p>
+            ) : (
+              <p className="text-xs text-gray-500">
+                Debe coincidir exactamente con la contraseña escrita arriba.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -381,7 +421,7 @@ const CreateUserForm = () => {
         <div className="pt-6">
           <Button
             type="submit"
-            disabled={saving}
+            disabled={saving || passwordsDoNotMatch}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 text-base disabled:opacity-60"
           >
             <Save className="w-5 h-5 mr-2" />
