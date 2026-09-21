@@ -23,6 +23,7 @@ import TrabajadorMisIncapacidadesPage from "@/pages/TrabajadorMisIncapacidadesPa
 import OperacionesProcesosDisciplinariosView from "@/pages/OperacionesProcesosDisciplinariosView";
 import AgendaDisciplinariaOperacionesView from "@/pages/AgendaDisciplinariaOperacionesView";
 import OperacionesRetirosView from "@/pages/OperacionesRetirosView";
+import OperacionesRequisicionPersonalView from "@/components/OperacionesRequisicionPersonalView";
 import ProcesosAbiertosOperacionesView from "@/pages/ProcesosAbiertosOperacionesView";
 import IniciarProcesoOperacionesView from "@/pages/IniciarProcesoOperacionesView";
 import RevisionProcesoOperacionesView from "@/pages/RevisionProcesoOperacionesView";
@@ -391,6 +392,17 @@ function App() {
                 ]}
               >
                 <AgendaDisciplinariaOperacionesView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
+            path="operaciones/requisicion-personal"
+            element={
+              <OperationsPermissionRoute
+                permission="OPERACIONES_RETIROS"
+              >
+                <OperacionesRequisicionPersonalView />
               </OperationsPermissionRoute>
             }
           />

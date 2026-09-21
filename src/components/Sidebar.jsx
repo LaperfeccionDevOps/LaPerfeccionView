@@ -180,6 +180,12 @@ const Sidebar = ({
           ],
         },
         {
+          to: "/operaciones/requisicion-personal",
+          label: "Requisición de personal",
+          roles: ["Operaciones"],
+          permiso: "OPERACIONES_RETIROS",
+        },
+        {
           to: "/operaciones/retiros",
           label: "Retiros",
           roles: ["Operaciones"],
@@ -349,6 +355,10 @@ const Sidebar = ({
         ...(tienePermiso("OPERACIONES_RETIROS")
           ? [
               {
+                to: "/operaciones/requisicion-personal",
+                label: "Requisición de personal",
+              },
+              {
                 to: "/operaciones/retiros",
                 label: "Retiros",
                 children: [
@@ -479,6 +489,10 @@ const Sidebar = ({
           : []),
         ...(tienePermiso("OPERACIONES_RETIROS")
           ? [
+              {
+                to: "/operaciones/requisicion-personal",
+                label: "Requisición de personal",
+              },
               {
                 to: "/operaciones/retiros",
                 label: "Retiros",
