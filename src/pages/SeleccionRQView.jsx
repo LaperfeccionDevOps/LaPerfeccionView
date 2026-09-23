@@ -401,7 +401,7 @@ const SeleccionRQView = () => {
   const obtenerEstadoAspirante = (aspirante) =>
     textoSeguro(aspirante?.EstadoProceso ?? aspirante?.estadoProceso ?? aspirante?.estado ?? aspirante?.Estado, "Estado no registrado");
 
-  const ESTADOS_GESTIONABLES_SELECCION = new Set([18, 19, 20, 21, 22, 24, 26, 34]);
+  const ESTADOS_GESTIONABLES_SELECCION = new Set([18, 19, 20, 21, 22, 26, 34]);
 
   const candidatosDisponibles = (idRq) =>
     Array.isArray(resultadosAspirantesPorRq[idRq])
@@ -819,6 +819,32 @@ const SeleccionRQView = () => {
                           valor={textoSeguro(rq.EstadoBandeja)}
                         />
                       </div>
+
+                      {String(rq.TipoRQ || "").toUpperCase() === "REEMPLAZO" && (
+                        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                            Persona a quien se reemplaza
+                          </p>
+                          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                            <div className="rounded-xl border border-amber-200 bg-white p-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Nombre completo
+                              </p>
+                              <p className="mt-1 break-words text-sm font-semibold text-slate-900">
+                                {textoSeguro(rq.NombreCompleto)}
+                              </p>
+                            </div>
+                            <div className="rounded-xl border border-amber-200 bg-white p-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Número de identificación
+                              </p>
+                              <p className="mt-1 break-words text-sm font-semibold text-slate-900">
+                                {textoSeguro(rq.NumeroIdentificacion)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="mt-4 grid gap-4 lg:grid-cols-2">
                         <BloqueTexto
