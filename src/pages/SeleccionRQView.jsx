@@ -99,6 +99,7 @@ const SeleccionRQView = () => {
   const [resultadosAspirantesPorRq, setResultadosAspirantesPorRq] = useState({});
   const [buscandoAspirantePorRq, setBuscandoAspirantePorRq] = useState({});
   const [modalCandidatoVinculado, setModalCandidatoVinculado] = useState(null);
+  const [descargandoExcel, setDescargandoExcel] = useState(false);
 
   const token = () => localStorage.getItem("token");
 
@@ -523,6 +524,62 @@ const SeleccionRQView = () => {
     setResultadosAspirantesPorRq((actual) => ({ ...actual, [idRq]: [] }));
   };
 
+  const descargarExcel = async () => {
+    setDescargandoExcel(true);
+    setError("");
+    setMensaje("");
+
+    try {
+      const authToken = token();
+      if (!authToken) {
+        throw new Error("No se encontró una sesión válida. Inicia sesión nuevamente.");
+      }
+
+      const response = await fetch(`${API_BASE_URL}/seleccion/rq/exportar/excel`, {
+        method: "GET",
+        headers: {
+          Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          Authorization: `Bearer ${authToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          await mensajeErrorApi(
+            response,
+            "No fue posible generar el Excel de requisiciones."
+          )
+        );
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get("Content-Disposition") || "";
+      const match =
+        disposition.match(/filename\\*=UTF-8''([^;]+)/i) ||
+        disposition.match(/filename="?([^";]+)"?/i);
+
+      const nombreArchivo = match?.[1]
+        ? decodeURIComponent(match[1].trim())
+        : `RQ_Seleccion_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+      const urlDescarga = window.URL.createObjectURL(blob);
+      const enlace = document.createElement("a");
+      enlace.href = urlDescarga;
+      enlace.download = nombreArchivo;
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+      window.URL.revokeObjectURL(urlDescarga);
+
+      setMensaje("Excel de requisiciones descargado correctamente.");
+    } catch (err) {
+      console.error("Error descargando Excel de RQ:", err);
+      setError(err?.message || "No fue posible descargar el Excel de requisiciones.");
+    } finally {
+      setDescargandoExcel(false);
+    }
+  };
+
   return (
     <div className="min-h-full bg-slate-50 p-3 sm:p-4 md:p-6">
       <div className="mx-auto w-full max-w-[1500px] space-y-5">
@@ -554,21 +611,32 @@ const SeleccionRQView = () => {
 
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 p-4 md:p-5">
-            <div className="flex flex-wrap gap-2">
-              {ESTADOS.map((estado) => (
-                <button
-                  key={estado.id}
-                  type="button"
-                  onClick={() => setPestanaActiva(estado.id)}
-                  className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${
-                    pestanaActiva === estado.id
-                      ? "border-emerald-600 bg-emerald-600 text-white"
-                      : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
-                  }`}
-                >
-                  {estado.label} ({resumen[estado.id] || 0})
-                </button>
-              ))}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap gap-2">
+                {ESTADOS.map((estado) => (
+                  <button
+                    key={estado.id}
+                    type="button"
+                    onClick={() => setPestanaActiva(estado.id)}
+                    className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                      pestanaActiva === estado.id
+                        ? "border-emerald-600 bg-emerald-600 text-white"
+                        : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
+                    }`}
+                  >
+                    {estado.label} ({resumen[estado.id] || 0})
+                  </button>
+                ))}
+              </div>
+
+              <Button
+                type="button"
+                onClick={descargarExcel}
+                disabled={descargandoExcel}
+                className="w-full bg-emerald-700 text-white hover:bg-emerald-800 sm:w-auto"
+              >
+                {descargandoExcel ? "Generando Excel..." : "Descargar Excel"}
+              </Button>
             </div>
 
             <div className="mt-4">
@@ -1114,21 +1182,40 @@ const SeleccionRQView = () => {
                                   )}
                                 </div>
 
-                                {((candidato.CuentaComoCubierto &&
+                                {((candidato.FechaEntregaContratacion ||
+                                    candidato.FechaAvanzaContratacion ||
+                                    candidato.FechaIngreso ||
                                     candidato.FechaContratado) ||
                                   (!candidato.ActivoVinculacion &&
                                     (candidato.FechaCancelacion ||
                                       candidato.ObservacionContratacion))) && (
                                   <div className="lg:col-span-5 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
-                                    {candidato.CuentaComoCubierto &&
-                                      candidato.FechaContratado && (
+                                    {(candidato.FechaEntregaContratacion ||
+                                      candidato.FechaAvanzaContratacion) && (
                                       <span className="mr-4">
-                                        Contratado:{" "}
+                                        Entrega a Contratación:{" "}
                                         <strong>
-                                          {formatearFecha(candidato.FechaContratado)}
+                                          {formatearFecha(
+                                            candidato.FechaEntregaContratacion ||
+                                              candidato.FechaAvanzaContratacion
+                                          )}
                                         </strong>
                                       </span>
                                     )}
+
+                                    {(candidato.FechaIngreso ||
+                                      candidato.FechaContratado) && (
+                                      <span className="mr-4">
+                                        Fecha de ingreso:{" "}
+                                        <strong>
+                                          {formatearFecha(
+                                            candidato.FechaIngreso ||
+                                              candidato.FechaContratado
+                                          )}
+                                        </strong>
+                                      </span>
+                                    )}
+
                                     {!candidato.ActivoVinculacion &&
                                       candidato.FechaCancelacion && (
                                         <span className="mr-4">
@@ -1138,6 +1225,7 @@ const SeleccionRQView = () => {
                                           </strong>
                                         </span>
                                       )}
+
                                     {!candidato.ActivoVinculacion &&
                                       candidato.ObservacionContratacion && (
                                         <span>
