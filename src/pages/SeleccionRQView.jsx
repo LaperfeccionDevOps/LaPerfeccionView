@@ -100,6 +100,9 @@ const SeleccionRQView = () => {
   const [buscandoAspirantePorRq, setBuscandoAspirantePorRq] = useState({});
   const [modalCandidatoVinculado, setModalCandidatoVinculado] = useState(null);
   const [descargandoExcel, setDescargandoExcel] = useState(false);
+  const [fechaInicioContratados, setFechaInicioContratados] = useState("");
+  const [fechaFinContratados, setFechaFinContratados] = useState("");
+  const [descargandoContratados, setDescargandoContratados] = useState(false);
 
   const token = () => localStorage.getItem("token");
 
@@ -524,6 +527,85 @@ const SeleccionRQView = () => {
     setResultadosAspirantesPorRq((actual) => ({ ...actual, [idRq]: [] }));
   };
 
+  const descargarExcelContratados = async () => {
+    setError("");
+    setMensaje("");
+
+    if (!fechaInicioContratados || !fechaFinContratados) {
+      setError("Selecciona la fecha de inicio y la fecha final para descargar los contratados.");
+      return;
+    }
+
+    if (fechaFinContratados < fechaInicioContratados) {
+      setError("La fecha final no puede ser anterior a la fecha de inicio.");
+      return;
+    }
+
+    setDescargandoContratados(true);
+
+    try {
+      const authToken = token();
+      if (!authToken) {
+        throw new Error("No se encontró una sesión válida. Inicia sesión nuevamente.");
+      }
+
+      const parametros = new URLSearchParams({
+        fecha_inicio: fechaInicioContratados,
+        fecha_fin: fechaFinContratados,
+      });
+
+      const response = await fetch(
+        `${API_BASE_URL}/seleccion/rq/exportar/contratados?${parametros.toString()}`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            Authorization: `Bearer ${authToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          await mensajeErrorApi(
+            response,
+            "No fue posible generar el Excel de personal contratado."
+          )
+        );
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get("Content-Disposition") || "";
+      const match =
+        disposition.match(/filename\*=UTF-8''([^;]+)/i) ||
+        disposition.match(/filename="?([^";]+)"?/i);
+
+      const nombreArchivo = match?.[1]
+        ? decodeURIComponent(match[1].trim())
+        : `Contratados_RQ_${fechaInicioContratados}_${fechaFinContratados}.xlsx`;
+
+      const urlDescarga = window.URL.createObjectURL(blob);
+      const enlace = document.createElement("a");
+      enlace.href = urlDescarga;
+      enlace.download = nombreArchivo;
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+      window.URL.revokeObjectURL(urlDescarga);
+
+      setMensaje(
+        `Excel de personal contratado descargado correctamente (${formatearFecha(
+          fechaInicioContratados
+        )} al ${formatearFecha(fechaFinContratados)}).`
+      );
+    } catch (err) {
+      console.error("Error descargando Excel de contratados por RQ:", err);
+      setError(err?.message || "No fue posible descargar el Excel de personal contratado.");
+    } finally {
+      setDescargandoContratados(false);
+    }
+  };
+
   const descargarExcel = async () => {
     setDescargandoExcel(true);
     setError("");
@@ -611,6 +693,82 @@ const SeleccionRQView = () => {
 
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 p-4 md:p-5">
+            <div className="mb-5 overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-teal-50">
+              <div className="grid gap-4 p-4 md:p-5 xl:grid-cols-[1.25fr_180px_180px_auto] xl:items-end">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-700 text-xl text-white shadow-sm">
+                      ↓
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">
+                        Reporte de contratación
+                      </p>
+                      <h2 className="mt-0.5 text-lg font-bold text-slate-900">
+                        Personal contratado por RQ
+                      </h2>
+                    </div>
+                  </div>
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+                    Selecciona el periodo de contratación para descargar únicamente las personas
+                    que fueron contratadas dentro de una requisición.
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="fecha-inicio-contratados-rq"
+                    className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600"
+                  >
+                    Fecha inicio
+                  </label>
+                  <input
+                    id="fecha-inicio-contratados-rq"
+                    type="date"
+                    value={fechaInicioContratados}
+                    onChange={(event) => {
+                      setFechaInicioContratados(event.target.value);
+                      setError("");
+                    }}
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="fecha-fin-contratados-rq"
+                    className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600"
+                  >
+                    Fecha fin
+                  </label>
+                  <input
+                    id="fecha-fin-contratados-rq"
+                    type="date"
+                    value={fechaFinContratados}
+                    min={fechaInicioContratados || undefined}
+                    onChange={(event) => {
+                      setFechaFinContratados(event.target.value);
+                      setError("");
+                    }}
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  />
+                </div>
+
+                <Button
+                  type="button"
+                  onClick={descargarExcelContratados}
+                  disabled={
+                    descargandoContratados ||
+                    !fechaInicioContratados ||
+                    !fechaFinContratados
+                  }
+                  className="h-11 w-full bg-emerald-700 px-5 font-semibold text-white shadow-sm hover:bg-emerald-800 xl:w-auto"
+                >
+                  {descargandoContratados ? "Generando..." : "Descargar contratados"}
+                </Button>
+              </div>
+            </div>
+
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap gap-2">
                 {ESTADOS.map((estado) => (
@@ -677,7 +835,7 @@ const SeleccionRQView = () => {
           </section>
         ) : (
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="hidden grid-cols-[135px_130px_1.15fr_1.3fr_125px_150px_120px_100px] gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4 text-xs font-semibold uppercase tracking-wide text-slate-600 xl:grid">
+            <div className="hidden grid-cols-[125px_120px_1.1fr_1.25fr_110px_135px_105px_120px_95px] gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4 text-xs font-semibold uppercase tracking-wide text-slate-600 xl:grid">
               <div>RQ</div>
               <div>Tipo</div>
               <div>Cargo</div>
@@ -685,6 +843,9 @@ const SeleccionRQView = () => {
               <div>Cobertura</div>
               <div>Tipificación</div>
               <div>Recibida</div>
+              <div className="text-center">
+                {pestanaActiva === "CERRADO" ? "Días totales de gestión" : "Días en proceso"}
+              </div>
               <div className="text-center">Acción</div>
             </div>
 
@@ -707,13 +868,10 @@ const SeleccionRQView = () => {
                   key={rq.IdRQOperaciones}
                   className="border-b border-slate-200 last:border-b-0"
                 >
-                  <div className="grid gap-3 px-4 py-4 xl:grid-cols-[135px_130px_1.15fr_1.3fr_125px_150px_120px_100px] xl:items-center xl:gap-3 xl:px-5">
+                  <div className="grid gap-3 px-4 py-4 xl:grid-cols-[125px_120px_1.1fr_1.25fr_110px_135px_105px_120px_95px] xl:items-center xl:gap-3 xl:px-5">
                     <CeldaMovil titulo="RQ">
                       <p className="font-bold text-slate-900">
                         {rq.CodigoRQ || `RQ #${rq.IdRQOperaciones}`}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {rq.DiasGestionRQ ?? 0} día(s) de gestión
                       </p>
                     </CeldaMovil>
 
@@ -775,6 +933,34 @@ const SeleccionRQView = () => {
                       <p className="text-sm text-slate-700">
                         {formatearFecha(rq.FechaRecibidoSeleccion)}
                       </p>
+                    </CeldaMovil>
+
+                    <CeldaMovil
+                      titulo={
+                        pestanaActiva === "CERRADO"
+                          ? "Días totales de gestión"
+                          : "Días en proceso"
+                      }
+                    >
+                      <div className="xl:flex xl:justify-center">
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                            String(rq.EstadoBandeja || "").toUpperCase() === "CERRADO"
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : "border-blue-200 bg-blue-50 text-blue-700"
+                          }`}
+                          title={
+                            String(rq.EstadoBandeja || "").toUpperCase() === "CERRADO"
+                              ? "Tiempo total hasta completar la contratación"
+                              : "Tiempo transcurrido desde que la RQ llegó a Selección"
+                          }
+                        >
+                          <span aria-hidden="true" className="text-sm leading-none">
+                            ◷
+                          </span>
+                          {rq.DiasGestionRQ ?? 0} {Number(rq.DiasGestionRQ ?? 0) === 1 ? "día" : "días"}
+                        </span>
+                      </div>
                     </CeldaMovil>
 
                     <div className="xl:text-center">
