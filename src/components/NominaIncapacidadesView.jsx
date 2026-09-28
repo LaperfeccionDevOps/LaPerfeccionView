@@ -2,12 +2,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarDays,
   CheckCircle2,
+  Clock3,
   ChevronDown,
   Download,
   Eye,
   FileSpreadsheet,
   FileText,
   HeartPulse,
+  History,
   RefreshCw,
   Search,
   User,
@@ -498,10 +500,15 @@ const perteneceAPestana = (estadoOriginal, pestana) => {
     return estado === 'RECHAZADA' || estado === 'NEGADA' || estado === 'NEGADO';
   }
   if (pestana === 'APROBADAS') {
-    return estado === 'APROBADA' || estado === 'PENDIENTE RADICACION';
+    return estado === 'APROBADA';
   }
   if (pestana === 'RADICADAS') {
-    return estado === 'RADICADO' || estado === 'EN PROCESO DE PAGO' || estado === 'PAGADO';
+    return (
+      estado === 'PENDIENTE RADICACION' ||
+      estado === 'RADICADO' ||
+      estado === 'EN PROCESO DE PAGO' ||
+      estado === 'PAGADO'
+    );
   }
   if (pestana === 'SIN_RECOBRO') {
     return estado === 'SIN RECOBRO' || estado === 'SIN_RECOBRO';
@@ -564,6 +571,10 @@ const NominaIncapacidadesView = () => {
   const [fechaInicioExcel, setFechaInicioExcel] = useState('');
   const [fechaFinExcel, setFechaFinExcel] = useState('');
   const [descargandoExcel, setDescargandoExcel] = useState(false);
+  const [cortesSinergy, setCortesSinergy] = useState([]);
+  const [cargandoCortesSinergy, setCargandoCortesSinergy] = useState(false);
+  const [confirmandoCorteSinergy, setConfirmandoCorteSinergy] = useState(null);
+  const [mensajeSinergy, setMensajeSinergy] = useState('');
 
 
   const cargarIncapacidades = async () => {
@@ -635,6 +646,7 @@ const NominaIncapacidadesView = () => {
 
   useEffect(() => {
     cargarIncapacidades();
+    cargarCortesSinergy();
   }, []);
 
 
@@ -1045,6 +1057,103 @@ const NominaIncapacidadesView = () => {
   };
 
 
+  const cargarCortesSinergy = async () => {
+    setCargandoCortesSinergy(true);
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        `${API_BASE_URL}/nomina-incapacidades/cortes-sinergy`,
+        {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        },
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data?.success) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            'No fue posible consultar los cortes de Sinergy.',
+        );
+      }
+
+      setCortesSinergy(Array.isArray(data?.data) ? data.data : []);
+    } catch (error) {
+      console.error('Error cargando cortes de Sinergy:', error);
+      setErrorCarga(
+        error?.message || 'No fue posible consultar los cortes de Sinergy.',
+      );
+      setCortesSinergy([]);
+    } finally {
+      setCargandoCortesSinergy(false);
+    }
+  };
+
+
+  const confirmarCargueSinergy = async (corte) => {
+    const idCorte = corte?.id_corte;
+    if (!idCorte) return;
+
+    const confirmar = window.confirm(
+      `¿Confirmas que el Excel del corte #${idCorte}, correspondiente al período ${formatearFecha(
+        corte.fecha_inicio,
+      )} - ${formatearFecha(
+        corte.fecha_fin,
+      )}, ya fue cargado correctamente en Sinergy?`,
+    );
+
+    if (!confirmar) return;
+
+    setConfirmandoCorteSinergy(idCorte);
+    setErrorCarga('');
+    setMensajeSinergy('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        `${API_BASE_URL}/nomina-incapacidades/cortes-sinergy/${idCorte}/confirmar-cargue`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ confirmar: true }),
+        },
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data?.success) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            'No fue posible confirmar el cargue a Sinergy.',
+        );
+      }
+
+      setMensajeSinergy(
+        data?.message || 'Cargue a Sinergy confirmado correctamente.',
+      );
+      await cargarCortesSinergy();
+    } catch (error) {
+      console.error('Error confirmando cargue a Sinergy:', error);
+      setErrorCarga(
+        error?.message || 'No fue posible confirmar el cargue a Sinergy.',
+      );
+    } finally {
+      setConfirmandoCorteSinergy(null);
+    }
+  };
+
+
   const descargarExcelAprobadas = async () => {
     if (
       fechaInicioExcel &&
@@ -1124,6 +1233,14 @@ const NominaIncapacidadesView = () => {
       setTimeout(() => {
         URL.revokeObjectURL(blobUrl);
       }, 5000);
+
+      const idCorteCreado = response.headers.get('X-Id-Corte-Sinergy');
+      setMensajeSinergy(
+        idCorteCreado
+          ? `Excel generado. Corte #${idCorteCreado} registrado como pendiente de cargue a Sinergy.`
+          : 'Excel generado correctamente. Se actualizará el control de cortes de Sinergy.',
+      );
+      await cargarCortesSinergy();
     } catch (error) {
       console.error(
         'Error descargando Excel de incapacidades:',
@@ -1329,15 +1446,33 @@ const NominaIncapacidadesView = () => {
 
 
   const aprobarIncapacidad = async () => {
-    const idIncapacidad =
-      incapacidadSeleccionada?.idIncapacidad;
-
+    const idIncapacidad = incapacidadSeleccionada?.idIncapacidad;
     if (!idIncapacidad) return;
+
+    const concepto = String(
+      conceptoSinergyEditado || incapacidadSeleccionada?.conceptoSinergy || '',
+    ).trim();
+    const diagnostico = String(
+      diagnosticoEditado || incapacidadSeleccionada?.diagnostico || '',
+    ).trim();
+
+    if (!concepto) {
+      setErrorCarga(
+        'Debes registrar y guardar el concepto de Sinergy antes de aprobar la incapacidad.',
+      );
+      return;
+    }
+
+    if (!diagnostico) {
+      setErrorCarga(
+        'Debes registrar y guardar el diagnóstico antes de aprobar la incapacidad.',
+      );
+      return;
+    }
 
     const confirmar = window.confirm(
       '¿Confirmas que deseas aprobar esta incapacidad?',
     );
-
     if (!confirmar) return;
 
     setProcesandoGestion(true);
@@ -1346,76 +1481,45 @@ const NominaIncapacidadesView = () => {
 
     try {
       const token = localStorage.getItem('token');
-
-      const headers = {
-        Accept: 'application/json',
-        ...(token
-          ? { Authorization: `Bearer ${token}` }
-          : {}),
-      };
-
-      const responseAprobar = await fetch(
+      const response = await fetch(
         `${API_BASE_URL}/nomina-incapacidades/${idIncapacidad}/aprobar`,
         {
           method: 'PUT',
-          headers,
+          headers: {
+            Accept: 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
         },
       );
 
-      const dataAprobar = await responseAprobar
-        .json()
-        .catch(() => ({}));
+      const data = await response.json().catch(() => ({}));
 
-      if (!responseAprobar.ok || !dataAprobar?.success) {
+      if (!response.ok || !data?.success) {
         throw new Error(
-          dataAprobar?.detail ||
-          dataAprobar?.message ||
+          data?.detail ||
+          data?.message ||
           'No fue posible aprobar la incapacidad.',
         );
       }
 
-      const responsePendiente = await fetch(
-        `${API_BASE_URL}/nomina-incapacidades/${idIncapacidad}/pendiente-radicacion`,
-        {
-          method: 'PUT',
-          headers,
-        },
-      );
-
-      const dataPendiente = await responsePendiente
-        .json()
-        .catch(() => ({}));
-
-      if (!responsePendiente.ok || !dataPendiente?.success) {
-        throw new Error(
-          dataPendiente?.detail ||
-          dataPendiente?.message ||
-          'La incapacidad fue aprobada, pero no fue posible continuar automáticamente a radicación.',
-        );
-      }
-
+      // Aprobar termina únicamente en APROBADA.
+      // La siguiente transición se ejecuta desde Aprobadas
+      // mediante el botón "Pasar a radicar".
       setMostrarRechazo(false);
       setMotivoRechazo('');
-
-      await refrescarDetalleGestionado(
-        idIncapacidad,
-        'Incapacidad aprobada correctamente. Continúe con la información de radicación.',
-      );
+      cerrarDetalle();
+      setPestanaActiva('APROBADAS');
+      setPaginaActual(1);
+      await cargarIncapacidades();
     } catch (error) {
-      console.error(
-        'Error aprobando incapacidad:',
-        error,
-      );
-
+      console.error('Error aprobando incapacidad:', error);
       setErrorCarga(
-        error?.message ||
-        'No fue posible aprobar la incapacidad.',
+        error?.message || 'No fue posible aprobar la incapacidad.',
       );
     } finally {
       setProcesandoGestion(false);
     }
   };
-
 
   const rechazarIncapacidad = async () => {
     const idIncapacidad =
@@ -1542,11 +1646,10 @@ const NominaIncapacidadesView = () => {
         );
       }
 
-      await refrescarDetalleGestionado(
-        idIncapacidad,
-        data?.message ||
-          'Incapacidad marcada como pendiente de radicación correctamente.',
-      );
+      cerrarDetalle();
+      setPestanaActiva('RADICADAS');
+      setPaginaActual(1);
+      await cargarIncapacidades();
     } catch (error) {
       console.error(
         'Error marcando incapacidad como pendiente de radicación:',
@@ -1873,6 +1976,22 @@ const NominaIncapacidadesView = () => {
   };
 
 
+  const corteSinergyPendiente = useMemo(
+    () =>
+      cortesSinergy.find(
+        (corte) =>
+          String(corte?.estado || '').trim().toUpperCase() ===
+          'PENDIENTE_CARGUE',
+      ) || null,
+    [cortesSinergy],
+  );
+
+  const ultimoCorteSinergy = useMemo(
+    () => cortesSinergy[0] || null,
+    [cortesSinergy],
+  );
+
+
   const totales = useMemo(() => {
     return incapacidades.reduce(
       (acumulado, item) => {
@@ -1892,14 +2011,12 @@ const NominaIncapacidadesView = () => {
           acumulado.rechazadas += 1;
         }
 
-        if (
-          estado === 'APROBADA' ||
-          estado === 'PENDIENTE RADICACION'
-        ) {
+        if (estado === 'APROBADA') {
           acumulado.aprobadas += 1;
         }
 
         if (
+          estado === 'PENDIENTE RADICACION' ||
           estado === 'RADICADO' ||
           estado === 'EN PROCESO DE PAGO' ||
           estado === 'PAGADO'
@@ -2072,12 +2189,12 @@ const NominaIncapacidadesView = () => {
 
       if (pestanaActiva === 'APROBADAS') {
         coincidePestana =
-          estado === 'APROBADA' ||
-          estado === 'PENDIENTE RADICACION';
+          estado === 'APROBADA';
       }
 
       if (pestanaActiva === 'RADICADAS') {
         coincidePestana =
+          estado === 'PENDIENTE RADICACION' ||
           estado === 'RADICADO' ||
           estado === 'EN PROCESO DE PAGO' ||
           estado === 'PAGADO';
@@ -2326,56 +2443,185 @@ const NominaIncapacidadesView = () => {
 
       <div className="overflow-hidden rounded-2xl border bg-white shadow-md">
         <div className="border-b p-4 sm:p-5">
-          <div className="mb-5 flex justify-end">
-            <div className="w-full rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4 lg:w-auto">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-                <div className="min-w-[180px]">
-                  <label className="text-xs font-semibold text-gray-600">
-                    Fecha inicio
-                  </label>
+          <div className="mb-6">
+            <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50 shadow-sm">
+              <div className="border-b border-emerald-100 px-5 py-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-xl bg-emerald-600 p-2.5 text-white shadow-sm">
+                      <FileSpreadsheet className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-900">
+                        Control de cargue a Sinergy
+                      </h3>
+                      <p className="mt-1 text-xs text-gray-600">
+                        Genera el Excel por fecha de aprobación y conserva la trazabilidad de cada corte.
+                      </p>
+                    </div>
+                  </div>
 
-                  <Input
-                    type="date"
-                    value={fechaInicioExcel}
-                    onChange={(e) =>
-                      setFechaInicioExcel(e.target.value)
-                    }
-                    className="mt-1 bg-white"
-                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={cargarCortesSinergy}
+                    disabled={cargandoCortesSinergy}
+                    className="border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50"
+                  >
+                    <RefreshCw
+                      className={`mr-2 h-4 w-4 ${
+                        cargandoCortesSinergy ? 'animate-spin' : ''
+                      }`}
+                    />
+                    {cargandoCortesSinergy ? 'Actualizando...' : 'Actualizar cortes'}
+                  </Button>
                 </div>
-
-                <div className="min-w-[180px]">
-                  <label className="text-xs font-semibold text-gray-600">
-                    Fecha fin
-                  </label>
-
-                  <Input
-                    type="date"
-                    value={fechaFinExcel}
-                    onChange={(e) =>
-                      setFechaFinExcel(e.target.value)
-                    }
-                    className="mt-1 bg-white"
-                  />
-                </div>
-
-                <Button
-                  type="button"
-                  onClick={descargarExcelAprobadas}
-                  disabled={descargandoExcel}
-                  className="h-10 min-w-[185px] border border-emerald-600 bg-white font-bold text-emerald-700 shadow-sm hover:bg-emerald-50"
-                >
-                  <FileSpreadsheet className="mr-2 h-4 w-4" />
-
-                  {descargandoExcel
-                    ? 'Generando Excel...'
-                    : 'Descargar Excel'}
-                </Button>
               </div>
 
-              <p className="mt-2 text-xs text-emerald-800/80">
-                Exporta incapacidades aprobadas. Si no seleccionas fechas, se descargan todas.
-              </p>
+              {corteSinergyPendiente && (
+                <div className="border-b border-amber-200 bg-amber-50 px-5 py-4">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 rounded-full bg-amber-100 p-2 text-amber-700">
+                        <Clock3 className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-bold text-amber-900">
+                            Corte #{corteSinergyPendiente.id_corte} pendiente de cargue
+                          </p>
+                          <span className="rounded-full border border-amber-300 bg-white px-2.5 py-1 text-[11px] font-bold text-amber-700">
+                            PENDIENTE CARGUE
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm text-amber-800">
+                          {formatearFecha(corteSinergyPendiente.fecha_inicio)} al{' '}
+                          {formatearFecha(corteSinergyPendiente.fecha_fin)}
+                          {' · '}
+                          {corteSinergyPendiente.cantidad_incapacidades} incapacidades
+                        </p>
+                        <p className="mt-1 text-xs text-amber-700">
+                          Descargado el {formatearFechaHoraColombia(corteSinergyPendiente.fecha_descarga)}.
+                          Confirma únicamente cuando el archivo ya esté cargado en Sinergy.
+                        </p>
+                      </div>
+                    </div>
+
+                    <Button
+                      type="button"
+                      onClick={() => confirmarCargueSinergy(corteSinergyPendiente)}
+                      disabled={
+                        confirmandoCorteSinergy === corteSinergyPendiente.id_corte
+                      }
+                      className="min-w-[220px] bg-amber-600 font-bold text-white shadow-sm hover:bg-amber-700"
+                    >
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      {confirmandoCorteSinergy === corteSinergyPendiente.id_corte
+                        ? 'Confirmando...'
+                        : 'Confirmar cargue a Sinergy'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {!corteSinergyPendiente && !cargandoCortesSinergy && (
+                <div className="border-b border-emerald-100 bg-emerald-50/70 px-5 py-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-emerald-800">
+                    <CheckCircle2 className="h-4 w-4" />
+                    No hay cortes pendientes de confirmar en Sinergy.
+                  </div>
+                </div>
+              )}
+
+              {mensajeSinergy && (
+                <div className="border-b border-emerald-100 bg-white px-5 py-3">
+                  <p className="text-sm font-semibold text-emerald-700">
+                    {mensajeSinergy}
+                  </p>
+                </div>
+              )}
+
+              <div className="p-5">
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
+                  <div className="min-w-[180px] flex-1">
+                    <label className="text-xs font-semibold text-gray-600">
+                      Fecha aprobación desde
+                    </label>
+                    <Input
+                      type="date"
+                      value={fechaInicioExcel}
+                      onChange={(e) => setFechaInicioExcel(e.target.value)}
+                      className="mt-1 bg-white"
+                    />
+                  </div>
+
+                  <div className="min-w-[180px] flex-1">
+                    <label className="text-xs font-semibold text-gray-600">
+                      Fecha aprobación hasta
+                    </label>
+                    <Input
+                      type="date"
+                      value={fechaFinExcel}
+                      onChange={(e) => setFechaFinExcel(e.target.value)}
+                      className="mt-1 bg-white"
+                    />
+                  </div>
+
+                  <Button
+                    type="button"
+                    onClick={descargarExcelAprobadas}
+                    disabled={descargandoExcel}
+                    className="h-10 min-w-[205px] bg-emerald-600 font-bold text-white shadow-sm hover:bg-emerald-700"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    {descargandoExcel ? 'Generando Excel...' : 'Generar corte y Excel'}
+                  </Button>
+                </div>
+
+                <p className="mt-2 text-xs text-gray-500">
+                  Las fechas corresponden al momento en que Nómina aprobó la incapacidad.
+                  Cada descarga queda registrada como un corte para controlar su cargue a Sinergy.
+                </p>
+
+                {ultimoCorteSinergy && !corteSinergyPendiente && (
+                  <div className="mt-5 border-t border-emerald-100 pt-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <History className="h-4 w-4 text-emerald-700" />
+                      <p className="text-xs font-bold uppercase tracking-wide text-gray-600">
+                        Último corte cargado
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-emerald-100 bg-white px-4 py-3 shadow-sm">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-sm font-bold text-gray-800">
+                            Corte #{ultimoCorteSinergy.id_corte}
+                            <span className="ml-2 font-medium text-gray-500">
+                              {formatearFecha(ultimoCorteSinergy.fecha_inicio)} -{' '}
+                              {formatearFecha(ultimoCorteSinergy.fecha_fin)}
+                            </span>
+                          </p>
+                          <p className="mt-0.5 text-xs text-gray-500">
+                            {ultimoCorteSinergy.cantidad_incapacidades} incapacidades · Descarga:{' '}
+                            {formatearFechaHoraColombia(ultimoCorteSinergy.fecha_descarga)}
+                          </p>
+                          {ultimoCorteSinergy.fecha_confirmacion && (
+                            <p className="mt-0.5 text-xs font-medium text-emerald-700">
+                              Confirmado en Sinergy:{' '}
+                              {formatearFechaHoraColombia(ultimoCorteSinergy.fecha_confirmacion)}
+                            </p>
+                          )}
+                        </div>
+
+                        <span className="w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700">
+                          CARGADO SINERGY
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -2441,7 +2687,7 @@ const NominaIncapacidadesView = () => {
                   : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
               }`}
             >
-              Radicadas ({totales.radicadas})
+              Radicar ({totales.radicadas})
             </button>
 
             <button
@@ -3656,6 +3902,37 @@ const NominaIncapacidadesView = () => {
                       </div>
                     </div>
                   </div>
+
+                  {normalizarEstado(
+                    incapacidadSeleccionada.estado,
+                  ) === 'APROBADA' && (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <h3 className="font-bold text-gray-800">
+                            Incapacidad aprobada
+                          </h3>
+                          <p className="mt-1 text-sm text-gray-600">
+                            La incapacidad ya fue aprobada por Nómina. Para continuar con el recobro, pásala a la etapa de radicación.
+                          </p>
+                        </div>
+
+                        <Button
+                          type="button"
+                          onClick={marcarPendienteRadicacion}
+                          disabled={procesandoGestion}
+                          className="shrink-0 bg-blue-600 text-white hover:bg-blue-700"
+                        >
+                          {procesandoGestion ? (
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                          )}
+                          Pasar a radicar
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
                   {normalizarEstado(
                     incapacidadSeleccionada.estado,
