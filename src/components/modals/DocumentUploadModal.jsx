@@ -839,7 +839,11 @@ const descargarDocumentoRetiro = async (doc) => {
       };
 
       let pdf_base64 = '';
-      const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos');
+      const response = await DescargarDocumentoPdf(
+        campos,
+        'tratamiento_datos',
+        Number(idVinculacionLaboral)
+      );
 
       if (response?.data?.pdf_base64) {
         pdf_base64 = response.data.pdf_base64;

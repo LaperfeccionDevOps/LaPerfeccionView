@@ -629,9 +629,10 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
            ciclosData?.vinculacionActual?.IdVinculacionLaboral
          );
 
-         const idVinculacionActual = esReintegroActual
-           ? ciclosData.vinculacionActual.IdVinculacionLaboral
-           : null;
+         // La vinculación actual aplica tanto para procesos NUEVOS como para REINTEGROS.
+         // La separación visual por ciclos sigue siendo exclusiva del reintegro.
+         const idVinculacionActual =
+           ciclosData?.vinculacionActual?.IdVinculacionLaboral || null;
 
          // Documentos de ingreso:
          // - Aspirante normal: conserva el endpoint legado.
@@ -1112,7 +1113,7 @@ const handleDescargarReferencia = async (ref) => {
     };
 
     let pdf_base64 = '';
-    const response = await DescargarDocumentoPdf(campos, 'referencias');
+    const response = await DescargarDocumentoPdf(campos, 'referencias', formData?.IdVinculacionLaboral);
 
     if (response && typeof response.json === 'function') {
       const data = await response.json();
@@ -1149,7 +1150,7 @@ const handleDescargarReferencia = async (ref) => {
     };
 
     let pdf_base64 = '';
-    const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos');
+    const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos', formData?.IdVinculacionLaboral);
     if (response && typeof response.json === 'function') {
       const data = await response.json();
       pdf_base64 = data.pdf_base64;
@@ -1490,7 +1491,7 @@ console.log('observacionExperiencia final:', observacionExperiencia);
 console.log('campos.EXPERIENCIA:', campos?.EXPERIENCIA);
 console.log('campos completos:', campos);
 
-    const response = await DescargarDocumentoPdf(campos, 'entrevista');
+    const response = await DescargarDocumentoPdf(campos, 'entrevista', formData?.IdVinculacionLaboral);
     if (response && typeof response.json === 'function') {
       const data = await response.json();
       pdf_base64 = data.pdf_base64;
@@ -2210,7 +2211,7 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
          };
          let pdf_base64 = '';
          try {
-            const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos');
+            const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos', formData?.IdVinculacionLaboral);
             if (response && typeof response.json === 'function') {
                const data = await response.json();
                pdf_base64 = data.pdf_base64;
@@ -2879,26 +2880,72 @@ if (response && response.status === 201) {
   };
 
   const descargarDocumento = (doc) => {
-   if (!doc?.DocumentoBase64) return;
-      let prefix = '';
-      if (doc.Formato === 'image/png') {
-         prefix = doc && doc.Formato === 'image/png'
-      ? 'data:image/png;base64,'
-      : '';
-      } else if (doc.Formato === 'application/pdf') {
-         prefix = doc && doc.Formato === 'application/pdf'
-         ? 'data:application/pdf;base64,'
-         : '';
+    try {
+      if (!doc?.DocumentoBase64) {
+        console.error('No se recibió contenido para descargar el documento.');
+        return;
+      }
+
+      const contenidoOriginal = String(doc.DocumentoBase64).trim();
+
+      // El backend puede entregar Base64 puro o una data URI completa.
+      // Se normaliza antes de crear el archivo para evitar prefijos duplicados
+      // y PDFs que Adobe interpreta como dañados.
+      const tieneDataUri = contenidoOriginal.startsWith('data:');
+      const mimeDesdeDataUri = tieneDataUri
+        ? (contenidoOriginal.match(/^data:([^;,]+)[;,]/i)?.[1] || '')
+        : '';
+
+      const mimeType =
+        mimeDesdeDataUri ||
+        doc?.Formato ||
+        'application/pdf';
+
+      const base64Limpio = tieneDataUri
+        ? contenidoOriginal.substring(contenidoOriginal.indexOf(',') + 1)
+        : contenidoOriginal;
+
+      if (!base64Limpio) {
+        console.error('El documento no contiene Base64 válido.');
+        return;
+      }
+
+      const byteCharacters = atob(base64Limpio);
+      const byteNumbers = new Uint8Array(byteCharacters.length);
+
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+
+      const blob = new Blob([byteNumbers], { type: mimeType });
+      const blobUrl = URL.createObjectURL(blob);
+
+      const extension = mimeType === 'application/pdf'
+        ? '.pdf'
+        : mimeType === 'image/png'
+          ? '.png'
+          : '';
+
+      let nombreArchivo = String(doc?.Nombre || 'documento').trim() || 'documento';
+      if (extension && !nombreArchivo.toLowerCase().endsWith(extension)) {
+        nombreArchivo += extension;
       }
 
       const link = document.createElement('a');
-      link.href = `${prefix}${doc.DocumentoBase64}`;
-      link.download = doc.Nombre || 'documento';
+      link.href = blobUrl;
+      link.download = nombreArchivo;
 
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-   };
+
+      // Se libera la URL temporal después de iniciar la descarga.
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    } catch (error) {
+      console.error('Error al descargar documento:', error);
+      alert('No fue posible descargar el documento.');
+    }
+  };
 
   const handelObservacionesExperienciaLaboral = async () => {
   setSavingDatosProceso(true);
