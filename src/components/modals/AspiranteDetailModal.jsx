@@ -1636,10 +1636,9 @@ console.log('campos completos:', campos);
   }, [isOpen, aspirante?.id]);
 
   const handleGuardarAsignacionCargoCliente = async () => {
-    // Protección visual/funcional del módulo de Selección:
-    // si el trabajador ya salió del flujo manipulable de Selección,
-    // no permite guardar cambios de cargo, salario o cliente.
-    if (!puedeModificarEstadoDesdeSeleccion) {
+    // Protección visual/funcional de cargo, salario y cliente.
+    // Estado 24 permite ajustes desde Selección; estados posteriores permanecen bloqueados.
+    if (!puedeModificarAsignacionDesdeSeleccion) {
       toast({
         title: 'Registro de solo consulta',
         description: 'El trabajador ya no se encuentra en un estado modificable desde Selección.',
@@ -1894,15 +1893,21 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
     return filtered.includes('RECHAZADO') ? filtered : ['RECHAZADO', ...filtered];
   })();
 
-  // Estados que Selección puede consultar, pero no modificar desde este modal.
-  // 24 queda bloqueado una vez alcanzado; el paso HACIA 24 sigue funcionando
-  // desde los estados propios de Selección.
+  // Estados cuyo ESTADO GENERAL Selección puede consultar, pero no modificar.
+  // El 24 permanece protegido para evitar que el aspirante regrese al flujo de Selección.
   const estadosSoloConsultaSeleccion = new Set([24, 25, 30, 31, 32, 33, 35]);
   const estadoActualProceso = Number(
     formData?.idEstadoProcesoActual ?? formData?.estadoProceso ?? 0
   );
   const puedeModificarEstadoDesdeSeleccion =
     !estadosSoloConsultaSeleccion.has(estadoActualProceso);
+
+  // Cargo, salario y cliente:
+  // En estado 24 - Avanza a Contratación, Selección SÍ puede ajustarlos.
+  // Desde 25 en adelante continúan siendo de solo consulta desde Selección.
+  const estadosAsignacionSoloConsultaSeleccion = new Set([25, 30, 31, 32, 33, 35]);
+  const puedeModificarAsignacionDesdeSeleccion =
+    !estadosAsignacionSoloConsultaSeleccion.has(estadoActualProceso);
 
   useEffect(() => {
     if (aspirante) {
@@ -5077,7 +5082,7 @@ if (response && response.status === 201) {
                                     <Label>Cargo</Label>
 
                                     <Select
-                                       disabled={!puedeModificarEstadoDesdeSeleccion}
+                                       disabled={!puedeModificarAsignacionDesdeSeleccion}
                                        value={
                                           formData?.asignacionCargo?.IdCargo
                                              ? String(formData.asignacionCargo.IdCargo)
@@ -5139,7 +5144,7 @@ if (response && response.status === 201) {
                                     <Label>Salario</Label>
 
                                     <Input
-                                       disabled={!puedeModificarEstadoDesdeSeleccion}
+                                       disabled={!puedeModificarAsignacionDesdeSeleccion}
                                        value={formData?.asignacionCargo?.Salario || ''}
                                        inputMode="numeric"
                                        pattern="[0-9]*"
@@ -5163,7 +5168,7 @@ if (response && response.status === 201) {
                                     <Label>Cliente</Label>
 
                                     <Select
-                                       disabled={!puedeModificarEstadoDesdeSeleccion}
+                                       disabled={!puedeModificarAsignacionDesdeSeleccion}
                                        value={
                                           formData?.asignacionCargo?.IdCliente
                                              ? String(formData.asignacionCargo.IdCliente)
@@ -5237,7 +5242,7 @@ if (response && response.status === 201) {
                                  </div>
 
                                  {/* BOTÓN GUARDAR: solo disponible en estados manipulables por Selección */}
-                                 {puedeModificarEstadoDesdeSeleccion && (
+                                 {puedeModificarAsignacionDesdeSeleccion && (
                                     <Button
                                        type="button"
                                        size="sm"
