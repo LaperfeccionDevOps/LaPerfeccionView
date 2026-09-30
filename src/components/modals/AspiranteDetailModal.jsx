@@ -222,6 +222,8 @@ const clientesALP = [
    { id: 106, name: "Conj Res Quintas S Cl 127BIS 88-07 Mantenimiento General" },
    { id: 107, name: "Conj Res Surala II S Cr 57 138-66 Aseo" },
    { id: 108, name: "Conj Res Surala II S Cr 57 138-66 Mantenimiento General" },
+   { id: 230, name: "Conjunto Residencial Atardeceres De Madelena PH S CR 70 C 57 R 57 SUR Aseo" },
+   { id: 231, name: "Conjunto Residencial Atardeceres De Madelena PH S CR 70 C 57 R 57 SUR Mantenimiento general" },
    { id: 109, name: "Conjunto Residencial Austro P H S Cr 68 D 19 A 37 Aseo" },
    { id: 110, name: "Conjunto Residencial Austro P H S Cr 68 D 19 A 37 Mantenimiento General" },
    { id: 111, name: "Conjunto Residencial Torres de la 100 Propiedad Horizontal S Cr 65 100 15 Aseo" },
