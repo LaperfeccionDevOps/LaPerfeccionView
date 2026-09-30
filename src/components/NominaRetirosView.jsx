@@ -143,6 +143,9 @@ const mapRetiroApi = (item) => ({
   identificacion: item.NumeroIdentificacion || '',
   nombre: `${item.Nombres || ''} ${item.Apellidos || ''}`.toUpperCase().trim(),
   cliente: item.NombreCliente || 'SIN CLIENTE',
+  idVinculacionLaboral: item.IdVinculacionLaboral ?? null,
+  empresaCodigo: item.EmpresaCodigo || 'SIN_ASIGNAR',
+  empresaNombre: item.EmpresaNombre || 'Sin asignar',
   fechaRetiro: item.FechaRetiro || '',
   fechaProceso: item.FechaProceso || '',
   fechaCreacion: item.FechaCreacion || '',
@@ -183,6 +186,7 @@ const NominaRetirosView = () => {
   const [busqueda, setBusqueda] = useState('');
   const [busquedaIndicador, setBusquedaIndicador] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('operaciones');
+  const [filtroEmpresa, setFiltroEmpresa] = useState('TODAS');
   const [retiros, setRetiros] = useState([]);
   const [retirosOperaciones, setRetirosOperaciones] = useState([]);
   const [indicadores, setIndicadores] = useState(indicadoresIniciales);
@@ -945,17 +949,19 @@ const totalRetirados = totalesPeriodo.retirados;
 
 const retirosFiltrados = useMemo(() => {
   const q = busqueda.trim().toLowerCase();
+  const coincideEmpresa = (r) => filtroEmpresa === 'TODAS' || r.empresaCodigo === filtroEmpresa;
 
   if (filtroEstado === 'operaciones') {
-    return retirosOperacionesPeriodo.filter((r) =>
+    return retirosOperacionesPeriodo.filter((r) => coincideEmpresa(r) && (
       !q ||
       String(r.identificacion || '').toLowerCase().includes(q) ||
       String(r.nombre || '').toLowerCase().includes(q) ||
       String(r.cliente || '').toLowerCase().includes(q)
-    );
+    ));
   }
 
   return retirosPeriodo.filter((r) => {
+    if (!coincideEmpresa(r)) return false;
     const coincideBusqueda =
       !q ||
       String(r.identificacion || '').toLowerCase().includes(q) ||
@@ -970,11 +976,11 @@ const retirosFiltrados = useMemo(() => {
 
     return coincideEstado;
   });
-}, [busqueda, retirosPeriodo, retirosOperacionesPeriodo, filtroEstado]);
+}, [busqueda, retirosPeriodo, retirosOperacionesPeriodo, filtroEstado, filtroEmpresa]);
 
 useEffect(() => {
   setPaginaActual(1);
-}, [busqueda, filtroEstado, anioFiltro, mesFiltro]);
+}, [busqueda, filtroEstado, filtroEmpresa, anioFiltro, mesFiltro]);
 
 const totalPaginas = Math.max(
   1,
@@ -1276,7 +1282,17 @@ const retiroIndicador = useMemo(() => {
             Los abiertos en Operaciones y los abiertos en RRLL son solo consulta. Los enviados a nómina permiten gestión. Los retirados quedan como histórico.
           </p>
 
-          <div className="flex flex-wrap gap-2 mt-3">
+                     <div className="mt-4 max-w-xs">
+             <label htmlFor="nomina-filtro-empresa" className="block text-xs font-semibold text-gray-700 mb-1">Empresa contratante</label>
+             <select id="nomina-filtro-empresa" value={filtroEmpresa} onChange={(e) => setFiltroEmpresa(e.target.value)} className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm">
+               <option value="TODAS">Todas</option>
+               <option value="ALP">ALP - Aseos La Perfección</option>
+               <option value="MI">MI - Mantener Ingeniería</option>
+               <option value="SIN_ASIGNAR">Sin asignar (históricos)</option>
+             </select>
+           </div>
+
+<div className="flex flex-wrap gap-2 mt-3">
             <Button type="button" variant={getFiltroButtonVariant('operaciones')} size="sm" onClick={() => setFiltroEstado('operaciones')}>
               Abiertos Operaciones
             </Button>
@@ -1300,7 +1316,8 @@ const retiroIndicador = useMemo(() => {
             <thead className="bg-gray-50 text-gray-600">
               {filtroEstado === 'operaciones' ? (
                 <tr>
-                  <th className="text-left p-4 min-w-[145px]">Identificación</th>
+                  <th className="text-left p-4 min-w-[160px]">Empresa</th>
+                   <th className="text-left p-4 min-w-[145px]">Identificación</th>
                   <th className="text-left p-4 min-w-[250px]">Trabajador</th>
                   <th className="text-left p-4 min-w-[250px]">Sede</th>
                   <th className="text-left p-4 min-w-[150px]">Fecha de retiro</th>
@@ -1309,7 +1326,8 @@ const retiroIndicador = useMemo(() => {
                 </tr>
               ) : (
                 <tr>
-                  <th className="text-left p-4 min-w-[150px]">Identificación</th>
+                  <th className="text-left p-4 min-w-[160px]">Empresa</th>
+                   <th className="text-left p-4 min-w-[150px]">Identificación</th>
                   <th className="text-left p-4 min-w-[260px]">Trabajador</th>
                   <th className="text-left p-4 min-w-[150px]">Estado</th>
                   <th className="text-center p-4 min-w-[300px]">Comunicaciones</th>
@@ -1322,7 +1340,7 @@ const retiroIndicador = useMemo(() => {
             <tbody>
               {cargando && (
                 <tr>
-                  <td colSpan="6" className="p-10 text-center text-gray-500">
+                  <td colSpan="7" className="p-10 text-center text-gray-500">
                     Consultando retiros...
                   </td>
                 </tr>
@@ -1332,7 +1350,8 @@ const retiroIndicador = useMemo(() => {
                 <tr key={r.id} className="border-t hover:bg-gray-50">
                   {filtroEstado === 'operaciones' ? (
                     <>
-                      <td className="p-4 whitespace-nowrap">{r.identificacion}</td>
+                      <td className="p-4 whitespace-nowrap font-semibold">{r.empresaCodigo === "SIN_ASIGNAR" ? "Sin asignar" : r.empresaCodigo}</td>
+                       <td className="p-4 whitespace-nowrap">{r.identificacion}</td>
 
                       <td className="p-4 font-medium min-w-[250px]">
                         {r.nombre}
@@ -1372,7 +1391,8 @@ const retiroIndicador = useMemo(() => {
                     </>
                   ) : (
                     <>
-                      <td className="p-4 whitespace-nowrap">{r.identificacion}</td>
+                      <td className="p-4 whitespace-nowrap font-semibold">{r.empresaCodigo === "SIN_ASIGNAR" ? "Sin asignar" : r.empresaCodigo}</td>
+                       <td className="p-4 whitespace-nowrap">{r.identificacion}</td>
 
                       <td className="p-4 font-medium">
                         {r.nombre}
@@ -1394,7 +1414,7 @@ const retiroIndicador = useMemo(() => {
                             type="button"
                             title="Enviar certificado laboral"
                             onClick={() => enviarCertificadoLaboral(r)}
-                            disabled={procesando}
+                            disabled={procesando || !["ALP", "MI"].includes(r.empresaCodigo)}
                             className="w-8 h-8 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center justify-center text-sm disabled:opacity-50"
                           >
                             ✉️
@@ -1404,6 +1424,7 @@ const retiroIndicador = useMemo(() => {
                             type="button"
                             title="Descargar certificado laboral"
                             onClick={() => descargarCertificadoLaboral(r)}
+                            disabled={!["ALP", "MI"].includes(r.empresaCodigo)}
                             className="w-8 h-8 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center justify-center text-sm"
                           >
                             ⬇️
@@ -1415,7 +1436,7 @@ const retiroIndicador = useMemo(() => {
                             type="button"
                             title="Enviar carta de cesantías"
                             onClick={() => enviarCartaCesantias(r)}
-                            disabled={procesando}
+                            disabled={procesando || !["ALP", "MI"].includes(r.empresaCodigo)}
                             className="w-8 h-8 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center justify-center text-sm disabled:opacity-50"
                           >
                             💰
@@ -1425,6 +1446,7 @@ const retiroIndicador = useMemo(() => {
                             type="button"
                             title="Descargar carta de cesantías"
                             onClick={() => descargarCartaCesantias(r)}
+                            disabled={!["ALP", "MI"].includes(r.empresaCodigo)}
                             className="w-8 h-8 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center justify-center text-sm"
                           >
                             ⬇️
@@ -1471,7 +1493,7 @@ const retiroIndicador = useMemo(() => {
 
               {!cargando && retirosFiltrados.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="p-10 text-center text-gray-500">
+                  <td colSpan="7" className="p-10 text-center text-gray-500">
                     <FileText className="w-10 h-10 mx-auto mb-3 text-gray-400" />
                     No hay retiros para el filtro seleccionado.
                   </td>

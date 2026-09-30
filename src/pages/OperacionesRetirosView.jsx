@@ -2848,7 +2848,6 @@ const OperacionesRetirosView = () => {
 
     if (formularioRQ.requiereReemplazo === "SI") {
       if (!formularioRQ.idPerfilRQ) faltantes.push("Perfil");
-      if (!formularioRQ.ciudad.trim()) faltantes.push("Ciudad");
       if (!formularioRQ.turno) faltantes.push("Turno");
       if (!formularioRQ.observacionCliente.trim()) {
         faltantes.push("Observaciones del cliente");
@@ -2933,7 +2932,17 @@ const OperacionesRetirosView = () => {
 
       if (requiereReemplazo) {
         formData.append("IdPerfilRQ", formularioRQ.idPerfilRQ);
-        formData.append("Ciudad", formularioRQ.ciudad.trim());
+        // La ciudad es automática: no exigir que Operaciones la escriba.
+        // Si todavía no está en el estado, reconsultar su origen antes de guardar.
+        const idTrabajadorRQ =
+          retiroGuardado?.IdRegistroPersonal ||
+          obtenerIdRegistroPersonal(trabajadorSeleccionado);
+        const ciudadAutomatica =
+          formularioRQ.ciudad.trim() ||
+          (idTrabajadorRQ ? await consultarCiudadRQ(idTrabajadorRQ) : "");
+        if (ciudadAutomatica) {
+          formData.append("Ciudad", ciudadAutomatica);
+        }
         formData.append("Turno", formularioRQ.turno);
         formData.append(
           "ObservacionCliente",
@@ -4180,14 +4189,13 @@ const OperacionesRetirosView = () => {
                                 htmlFor="ciudadRQ"
                                 className="mb-2 block text-sm font-semibold text-gray-800"
                               >
-                                Ciudad
-                                <span className="text-red-500"> *</span>
+                                Ciudad (automática)
                               </label>
                               <Input
                                 id="ciudadRQ"
                                 value={formularioRQ.ciudad}
                                 readOnly
-                                placeholder="Ciudad cargada automáticamente"
+                                placeholder="Se consulta automáticamente; no requiere digitación"
                                 className="min-h-12 bg-gray-50"
                               />
                             </div>
