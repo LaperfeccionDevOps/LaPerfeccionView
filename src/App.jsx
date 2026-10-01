@@ -15,10 +15,16 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import LoginPage from "@/pages/LoginPage";
 import HomePage from "@/pages/HomePage";
 import EntrevistaRetiroPage from "@/pages/EntrevistaRetiroPage";
+import PortalTrabajadorPage from "@/pages/PortalTrabajadorPage";
+import TrabajadorIncapacidadesPage from "@/pages/TrabajadorIncapacidadesPage";
+import TrabajadorNuevaIncapacidadPage from "@/pages/TrabajadorNuevaIncapacidadPage";
+import TrabajadorMisIncapacidadesPage from "@/pages/TrabajadorMisIncapacidadesPage";
 
 import OperacionesProcesosDisciplinariosView from "@/pages/OperacionesProcesosDisciplinariosView";
 import AgendaDisciplinariaOperacionesView from "@/pages/AgendaDisciplinariaOperacionesView";
 import OperacionesRetirosView from "@/pages/OperacionesRetirosView";
+import OperacionesRequisicionPersonalView from "@/components/OperacionesRequisicionPersonalView";
+import ProcesosAbiertosOperacionesView from "@/pages/ProcesosAbiertosOperacionesView";
 import IniciarProcesoOperacionesView from "@/pages/IniciarProcesoOperacionesView";
 import RevisionProcesoOperacionesView from "@/pages/RevisionProcesoOperacionesView";
 
@@ -28,6 +34,7 @@ import IndicadoresProcesosDisciplinariosView from "@/pages/IndicadoresProcesosDi
 import AspiranteView from "@/components/AspiranteView";
 import ContratacionView from "@/components/ContratacionView";
 import SeleccionView from "@/components/SeleccionView";
+import SeleccionRQView from "@/pages/SeleccionRQView";
 import SeguimientoView from "@/components/SeguimientoView";
 import RelacionesLaboralesView from "@/components/RelacionesLaboralesView";
 import ArchivosView from "@/components/ArchivosView";
@@ -41,6 +48,7 @@ import IndicadoresRRLLView from "./components/IndicadoresRRLLView";
 
 import NominaRetirosView from "@/components/NominaRetirosView";
 import NominaActualizacionDatosView from "@/components/NominaActualizacionDatosView";
+import NominaIncapacidadesView from "@/components/NominaIncapacidadesView";
 import IndicadoresNominaView from "@/components/IndicadoresNominaView";
 import PanelGerencialRRLLView from "@/components/PanelGerencialRRLLView";
 
@@ -267,6 +275,31 @@ function App() {
         />
 
         <Route
+          path="/trabajador"
+          element={<PortalTrabajadorPage />}
+        />
+
+        <Route
+          path="/trabajador/incapacidades"
+          element={<TrabajadorIncapacidadesPage />}
+        />
+
+        <Route
+          path="/trabajador/incapacidades/nueva"
+          element={<TrabajadorNuevaIncapacidadPage />}
+        />
+
+        <Route
+          path="/trabajador/incapacidades/corregir/:token"
+          element={<TrabajadorNuevaIncapacidadPage />}
+        />
+
+        <Route
+          path="/trabajador/incapacidades/mis"
+          element={<TrabajadorMisIncapacidadesPage />}
+        />
+
+        <Route
           path="/entrevista-retiro"
           element={<EntrevistaRetiroPage />}
         />
@@ -297,6 +330,11 @@ function App() {
           <Route
             path="seleccion"
             element={<SeleccionView />}
+          />
+
+          <Route
+            path="seleccion/rq"
+            element={<SeleccionRQView />}
           />
 
           <Route
@@ -359,12 +397,34 @@ function App() {
           />
 
           <Route
+            path="operaciones/requisicion-personal"
+            element={
+              <OperationsPermissionRoute
+                permission="OPERACIONES_RETIROS"
+              >
+                <OperacionesRequisicionPersonalView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
             path="operaciones/retiros"
             element={
               <OperationsPermissionRoute
                 permission="OPERACIONES_RETIROS"
               >
                 <OperacionesRetirosView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
+            path="operaciones/retiros/procesos-abiertos"
+            element={
+              <OperationsPermissionRoute
+                permission="OPERACIONES_RETIROS"
+              >
+                <ProcesosAbiertosOperacionesView />
               </OperationsPermissionRoute>
             }
           />
@@ -431,6 +491,11 @@ function App() {
           <Route
             path="nomina-actualizacion-datos"
             element={<NominaActualizacionDatosView />}
+          />
+
+          <Route
+            path="nomina-incapacidades"
+            element={<NominaIncapacidadesView />}
           />
 
           <Route

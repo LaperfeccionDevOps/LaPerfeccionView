@@ -172,6 +172,8 @@ const ArchivosView = () => {
     esHistorico: false,
     numeroCiclo: null,
     estadoVinculacion: null,
+    codigoEmpresa: null,
+    nombreEmpresa: null,
   });
 
   const [ciclosPorAspirante, setCiclosPorAspirante] = useState({});
@@ -249,6 +251,16 @@ const ArchivosView = () => {
       esHistorico: Boolean(opciones?.esHistorico),
       numeroCiclo: opciones?.numeroCiclo || null,
       estadoVinculacion: opciones?.estadoVinculacion || null,
+      codigoEmpresa:
+        opciones?.codigoEmpresa ??
+        aspirante?.CodigoEmpresa ??
+        aspirante?.codigoEmpresa ??
+        null,
+      nombreEmpresa:
+        opciones?.nombreEmpresa ??
+        aspirante?.NombreEmpresa ??
+        aspirante?.nombreEmpresa ??
+        null,
     });
   };
 
@@ -262,6 +274,8 @@ const ArchivosView = () => {
       esHistorico: false,
       numeroCiclo: null,
       estadoVinculacion: null,
+      codigoEmpresa: null,
+      nombreEmpresa: null,
     });
   };
 
@@ -493,6 +507,62 @@ const ArchivosView = () => {
     aspirante?.Cargo ||
     'No asignado';
 
+  const getEmpresaInfo = (origen) => {
+    const codigo = String(
+      origen?.CodigoEmpresa ||
+      origen?.codigoEmpresa ||
+      ''
+    ).trim().toUpperCase();
+
+    const nombre = String(
+      origen?.NombreEmpresa ||
+      origen?.nombreEmpresa ||
+      ''
+    ).trim();
+
+    if (codigo === 'ALP') {
+      return {
+        codigo: 'ALP',
+        nombre: nombre || 'Aseos La Perfección S.A.S.',
+        className: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+      };
+    }
+
+    if (codigo === 'MI') {
+      return {
+        codigo: 'MI',
+        nombre: nombre || 'Mantener Ingeniería',
+        className: 'bg-sky-100 text-sky-800 border-sky-200',
+      };
+    }
+
+    return {
+      codigo: 'SIN ASIGNAR',
+      nombre: nombre || 'Sin empresa contratante asignada',
+      className: 'bg-gray-100 text-gray-600 border-gray-200',
+    };
+  };
+
+  const renderEmpresa = (origen) => {
+    const empresa = getEmpresaInfo(origen);
+
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <span
+          className={cn(
+            'inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide',
+            empresa.className
+          )}
+        >
+          {empresa.codigo}
+        </span>
+        <span className="max-w-[190px] text-xs leading-tight text-gray-500">
+          {empresa.nombre}
+        </span>
+      </div>
+    );
+  };
+
   const SortIcon = ({ columnKey }) => {
     if (sortConfig.key !== columnKey) {
       return <ArrowUpDown className="w-4 h-4 ml-2 text-gray-500 opacity-50" />;
@@ -673,6 +743,8 @@ const ArchivosView = () => {
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-gray-900 text-white">
+                  <th className="p-4 font-semibold">Empresa</th>
+
                   <th className="p-4 font-semibold cursor-pointer hover:bg-gray-800 transition-colors" onClick={() => handleSort('nombres')}>
                     <div className="flex items-center">
                       Colaborador <SortIcon columnKey="nombres" />
@@ -718,6 +790,10 @@ const ArchivosView = () => {
                         )}
                         
                       >
+                        <td className="p-4 align-top">
+                          {renderEmpresa(aspirante)}
+                        </td>
+
                         <td className="p-4">
                           <div className="font-medium text-gray-900 flex items-center gap-2">
                             {`${aspirante.nombres || ''} ${aspirante.apellidos || ''}`.toUpperCase()}
@@ -884,6 +960,10 @@ const ArchivosView = () => {
                             animate={{ opacity: 1 }}
                             className="bg-slate-50/80 border-t border-dashed border-slate-300"
                           >
+                            <td className="p-4 align-top">
+                              {renderEmpresa(vinculacion)}
+                            </td>
+
                             <td className="p-4">
                               <div className="font-semibold text-slate-700">
                                 {`${aspirante.nombres || ''} ${aspirante.apellidos || ''}`.toUpperCase()}
@@ -924,6 +1004,10 @@ const ArchivosView = () => {
                                           vinculacion.NumeroCiclo || null,
                                         estadoVinculacion:
                                           vinculacion.EstadoVinculacion || null,
+                                        codigoEmpresa:
+                                          vinculacion.CodigoEmpresa || null,
+                                        nombreEmpresa:
+                                          vinculacion.NombreEmpresa || null,
                                       }
                                     )
                                   }
@@ -943,7 +1027,7 @@ const ArchivosView = () => {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="5" className="text-center py-16">
+                    <td colSpan="6" className="text-center py-16">
                       <div className="flex flex-col items-center text-gray-500">
                         <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                           <Search className="w-8 h-8 text-gray-400" />
@@ -1016,6 +1100,8 @@ const ArchivosView = () => {
         esHistorico={modalState.esHistorico}
         numeroCiclo={modalState.numeroCiclo}
         estadoVinculacion={modalState.estadoVinculacion}
+        codigoEmpresa={modalState.codigoEmpresa}
+        nombreEmpresa={modalState.nombreEmpresa}
         soloLectura={
           modalState.esHistorico ||
           modalState.carpeta === 'ingreso' ||

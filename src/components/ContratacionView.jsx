@@ -169,6 +169,60 @@ const getIdRegistroPersonal = (a) => {
   );
 };
 
+// ✅ Empresa contratante heredada desde VinculacionLaboral.
+// No se selecciona nuevamente en Contratación.
+const getEmpresaContratante = (a) => {
+  if (!a) return { id: null, codigo: '', nombre: '' };
+
+  const id =
+    a.IdEmpresaContratante ??
+    a.idEmpresaContratante ??
+    a.id_empresa_contratante ??
+    a.vinculacionActual?.IdEmpresaContratante ??
+    a.VinculacionActual?.IdEmpresaContratante ??
+    null;
+
+  const codigo = String(
+    a.EmpresaContratanteCodigo ??
+    a.empresaContratanteCodigo ??
+    a.CodigoEmpresaContratante ??
+    a.codigoEmpresaContratante ??
+    a.EmpresaCodigo ??
+    a.empresaCodigo ??
+    a.CodigoEmpresa ??
+    a.codigoEmpresa ??
+    a.vinculacionActual?.EmpresaContratanteCodigo ??
+    a.vinculacionActual?.CodigoEmpresaContratante ??
+    ''
+  ).trim().toUpperCase();
+
+  const nombre = String(
+    a.EmpresaContratanteNombre ??
+    a.empresaContratanteNombre ??
+    a.NombreEmpresaContratante ??
+    a.nombreEmpresaContratante ??
+    a.EmpresaNombre ??
+    a.empresaNombre ??
+    a.vinculacionActual?.EmpresaContratanteNombre ??
+    a.vinculacionActual?.NombreEmpresaContratante ??
+    ''
+  ).trim();
+
+  const codigoFinal =
+    codigo ||
+    (Number(id) === 1 ? 'ALP' : Number(id) === 2 ? 'MI' : '');
+
+  const nombreFinal =
+    nombre ||
+    (codigoFinal === 'ALP'
+      ? 'Aseos La Perfección'
+      : codigoFinal === 'MI'
+        ? 'Mantener Ingeniería'
+        : '');
+
+  return { id: id ?? null, codigo: codigoFinal, nombre: nombreFinal };
+};
+
 // ✅ helpers numéricos / strings
 const isNumericLike = (v) => {
   if (v === null || v === undefined) return false;
@@ -1352,7 +1406,8 @@ const ContratacionView = () => {
 
   const [filteredAspirantes, setFilteredAspirantes] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
- const [statusFilter, setStatusFilter] = useState('todos');
+  const [empresaFilter, setEmpresaFilter] = useState('todas');
+  const [statusFilter, setStatusFilter] = useState('todos');
 
   const [asignacionMap, setAsignacionMap] = useState({});
   const [cargoMap, setCargoMap] = useState({});
@@ -1399,6 +1454,18 @@ const ContratacionView = () => {
       );
     });
 
+    if (empresaFilter !== 'todas') {
+      filtered = filtered.filter((a) => {
+        const empresa = getEmpresaContratante(a);
+
+        if (empresaFilter === 'sin_asignar') {
+          return !empresa.codigo;
+        }
+
+        return empresa.codigo === empresaFilter;
+      });
+    }
+
     if (statusFilter !== 'todos') {
       filtered = filtered.filter(
         (a) => String(a?.estado ?? '').trim() === statusFilter
@@ -1414,7 +1481,7 @@ const ContratacionView = () => {
 
     setFilteredAspirantes(filtered);
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, aspirantes]);
+  }, [searchTerm, empresaFilter, statusFilter, aspirantes]);
 
  const openModal = (aspirante, docType) => {
   const idReg = getIdRegistroPersonal(aspirante);
@@ -1850,8 +1917,14 @@ const currentIdsKey = currentItems
       ) || null;
 
     // 9) Data final para el PDF
+    const empresaContratante = getEmpresaContratante(aspirante);
+
     const contractData = {
       ...aspirante,
+
+      IdEmpresaContratante: empresaContratante.id,
+      EmpresaContratanteCodigo: empresaContratante.codigo,
+      EmpresaContratanteNombre: empresaContratante.nombre,
 
       celular: aspirante?.celular ?? celular,
       correo: aspirante?.correo ?? correo,
@@ -1899,6 +1972,39 @@ const currentIdsKey = currentItems
 
   const descargarContrato = async (aspirante) => {
     try {
+      const empresa = getEmpresaContratante(aspirante);
+
+      // 🔒 Nunca generar el contrato ALP por defecto si el ciclo no tiene empresa.
+      if (!empresa.codigo) {
+        toast({
+          title: "❌ Empresa contratante no definida",
+          description: "Este proceso no tiene empresa contratante asociada al ciclo laboral. No se generó ningún contrato.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // ⚖️ Mantener Ingeniería tendrá su propio modelo contractual.
+      // Hasta recibir y parametrizar la plantilla oficial aprobada por Jurídica,
+      // NO reutilizamos el contrato de Aseos La Perfección.
+      if (empresa.codigo === "MI") {
+        toast({
+          title: "Contrato MI pendiente de plantilla",
+          description: "El contrato de Mantener Ingeniería debe generarse con su modelo jurídico propio. La plantilla oficial aún no está parametrizada.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (empresa.codigo !== "ALP") {
+        toast({
+          title: "❌ Empresa contratante no soportada",
+          description: `No existe una plantilla contractual configurada para ${empresa.nombre || empresa.codigo}.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
       const contractData = await buildContractData(aspirante);
 
       console.log("CONTRATO DATA FINAL:", contractData);
@@ -1915,8 +2021,8 @@ const currentIdsKey = currentItems
       URL.revokeObjectURL(url);
 
       toast({
-        title: "✅ Contrato generado",
-        description: "PDF descargado correctamente.",
+        title: "✅ Contrato ALP generado",
+        description: "PDF descargado correctamente para Aseos La Perfección.",
       });
     } catch (e) {
       console.error(e);
@@ -1989,6 +2095,21 @@ const currentIdsKey = currentItems
               </div>
 
               <div className="w-full sm:w-64 flex flex-col gap-2">
+                <Select value={empresaFilter} onValueChange={setEmpresaFilter}>
+                  <SelectTrigger className="border-emerald-200 focus:border-emerald-500 rounded-xl">
+                    <Briefcase className="w-4 h-4 mr-2 text-emerald-600" />
+                    <SelectValue placeholder="Filtrar por empresa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas las Empresas</SelectItem>
+                    <SelectItem value="ALP">Aseos La Perfección</SelectItem>
+                    <SelectItem value="MI">Mantener Ingeniería</SelectItem>
+                    <SelectItem value="sin_asignar">Sin asignar</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="w-full sm:w-64 flex flex-col gap-2">
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="border-emerald-200 focus:border-emerald-500 rounded-xl">
                     <Filter className="w-4 h-4 mr-2 text-emerald-600" />
@@ -2056,6 +2177,7 @@ const currentIdsKey = currentItems
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
                   <tr>
+                    <th className="px-6 py-3">Empresa</th>
                     <th className="px-6 py-3 text-center">Estado</th>
                     <th className="px-6 py-3">Nombre</th>
                     <th className="px-6 py-3">Apellido</th>
@@ -2102,9 +2224,31 @@ const currentIdsKey = currentItems
 
                 const clienteCell = clienteNombre || '—';
 
+                const empresaContratante = getEmpresaContratante(aspirante);
+
                                           
                       return (
                          <tr key={String(getIdRegistroPersonal(aspirante) ?? aspirante.cedula ?? `${aspirante.nombres}-${aspirante.apellidos}`)}>
+                          <td className="px-6 py-4">
+                            {empresaContratante.codigo ? (
+                              <div className="flex flex-col items-start gap-1 normal-case">
+                                <span
+                                  className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold ${
+                                    empresaContratante.codigo === 'MI'
+                                      ? 'border-blue-200 bg-blue-50 text-blue-700'
+                                      : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                  }`}
+                                >
+                                  {empresaContratante.codigo}
+                                </span>
+                                <span className="text-[11px] text-gray-500">
+                                  {empresaContratante.nombre}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-xs normal-case text-gray-400">Sin asignar</span>
+                            )}
+                          </td>
                           <td className="px-6 py-4 font-medium text-gray-900">{aspirante.estado}</td>
                           <td className="px-6 py-4 font-medium text-gray-900">{aspirante.nombres}</td>
                           <td className="px-6 py-4 text-gray-600">{aspirante.apellidos}</td>
@@ -2203,7 +2347,7 @@ const currentIdsKey = currentItems
                     })
                   ) : (
                     <tr>
-                      <td colSpan="6" className="px-6 py-8 text-center text-gray-500">No se encontraron resultados</td>
+                      <td colSpan="9" className="px-6 py-8 text-center text-gray-500">No se encontraron resultados</td>
                     </tr>
                   )}
                 </tbody>

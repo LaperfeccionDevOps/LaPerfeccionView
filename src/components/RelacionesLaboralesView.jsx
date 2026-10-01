@@ -526,6 +526,29 @@ function keyFromLabel(label) {
     .replace(/^_+|_+$/g, "");
 }
 
+
+const EVIDENCIA_OPERACIONES_LABELS = {
+  NOVEDADES_NOMINA: "Documentos de novedades de nómina",
+  FORMATO_DESCUENTO_VACUNAS: "Formato descuento de vacunas",
+  CARNET_ACCESO: "Foto / documento carnet de acceso",
+  LISTADO_HERRAMIENTAS: "Foto listado de herramientas",
+  PLANILLA_NOMINA: "Foto planilla de nómina",
+};
+
+function getLabelEvidenciaOperaciones(tipoEvidencia) {
+  const codigo = String(tipoEvidencia || "").trim().toUpperCase();
+  return EVIDENCIA_OPERACIONES_LABELS[codigo] || pretty(codigo.replace(/_/g, " "));
+}
+
+function formatFileSize(bytes) {
+  const value = Number(bytes || 0);
+  if (!Number.isFinite(value) || value <= 0) return "";
+
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 /* =========================================================
    ✅ FIX CLAVE: toDateInput (ANTES NO EXISTÍA y rompía la carga)
    Convierte cualquier fecha a formato YYYY-MM-DD para inputs type="date"
@@ -737,6 +760,40 @@ const DocCard = ({
   </div>
 );
 
+function getEmpresaContratanteInfo(source = {}) {
+  const codigo = String(
+    source?.CodigoEmpresa || source?.codigoEmpresa || source?.empresaCodigo || ""
+  )
+    .trim()
+    .toUpperCase();
+
+  const nombreBackend = String(
+    source?.NombreEmpresa || source?.nombreEmpresa || source?.empresaNombre || ""
+  ).trim();
+
+  if (codigo === "ALP") {
+    return {
+      codigo: "ALP",
+      nombre: nombreBackend || "Aseos La Perfección",
+      badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    };
+  }
+
+  if (codigo === "MI") {
+    return {
+      codigo: "MI",
+      nombre: nombreBackend || "Mantener Ingeniería",
+      badgeClass: "bg-sky-100 text-sky-800 border-sky-200",
+    };
+  }
+
+  return {
+    codigo: "SIN ASIGNAR",
+    nombre: "Sin empresa contratante asignada",
+    badgeClass: "bg-slate-100 text-slate-600 border-slate-200",
+  };
+}
+
 export default function RelacionesLaboralesView() {
   const navigate = useNavigate();
 
@@ -763,6 +820,16 @@ export default function RelacionesLaboralesView() {
   const [retirosDevueltosNomina, setRetirosDevueltosNomina] = useState([]);
   const [loadingDevueltosNomina, setLoadingDevueltosNomina] = useState(false);
   const [errorDevueltosNomina, setErrorDevueltosNomina] = useState("");
+
+  const [bandejaRetirosRRLL, setBandejaRetirosRRLL] = useState({
+    abiertos_operaciones: [],
+    cerrados_operaciones: [],
+  });
+  const [tabBandejaRetirosRRLL, setTabBandejaRetirosRRLL] = useState("ABIERTOS_OPERACIONES");
+  const [busquedaBandejaRetirosRRLL, setBusquedaBandejaRetirosRRLL] = useState("");
+  const [paginaBandejaRetirosRRLL, setPaginaBandejaRetirosRRLL] = useState(1);
+  const [loadingBandejaRetirosRRLL, setLoadingBandejaRetirosRRLL] = useState(false);
+  const [errorBandejaRetirosRRLL, setErrorBandejaRetirosRRLL] = useState("");
 
   const [
     fechaInicioExcelDisciplinarios,
@@ -867,6 +934,11 @@ export default function RelacionesLaboralesView() {
   // ✅ NUEVO: para poder hacer PUT
   idRetiroLaboral: null,
   idMotivoRetiro: null,
+  idVinculacionLaboral: null,
+  idEmpresaContratante: null,
+  codigoEmpresa: "",
+  nombreEmpresa: "",
+  logoEmpresa: "",
 
   fechaProceso: "",
   tipoId: "",
@@ -891,6 +963,13 @@ export default function RelacionesLaboralesView() {
 
   const [adjuntosBackend, setAdjuntosBackend] = useState({});
   const [loadingAdjuntosBackend, setLoadingAdjuntosBackend] = useState(false);
+
+
+  // Evidencias cargadas por Operaciones y asociadas al Paz y Salvo.
+  // RRLL solo las consulta/visualiza; no se mezclan con RetiroLaboralAdjunto.
+  const [evidenciasOperaciones, setEvidenciasOperaciones] = useState([]);
+  const [loadingEvidenciasOperaciones, setLoadingEvidenciasOperaciones] = useState(false);
+  const [errorEvidenciasOperaciones, setErrorEvidenciasOperaciones] = useState("");
 
   const [entrevistaRetiroData, setEntrevistaRetiroData] = useState(null);
   const [loadingEntrevistaRetiro, setLoadingEntrevistaRetiro] = useState(false);
@@ -955,6 +1034,85 @@ const [mensajeEntrevista, setMensajeEntrevista] = useState({
     return data;
   };
 
+
+ const cargarBandejaRetirosRRLL = async () => {
+   try {
+     setLoadingBandejaRetirosRRLL(true);
+     setErrorBandejaRetirosRRLL("");
+
+     if (!API_BASE) {
+       setBandejaRetirosRRLL({ abiertos_operaciones: [], cerrados_operaciones: [] });
+       setErrorBandejaRetirosRRLL("No se encontró VITE_API_BASE_URL en el .env");
+       return;
+     }
+
+     const token = localStorage.getItem("token");
+     const response = await fetch(`${API_BASE}/retiros-laborales/bandeja-rrll`, {
+       method: "GET",
+       headers: {
+         Accept: "application/json",
+         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+       },
+     });
+
+     const data = await response.json().catch(() => ({}));
+     if (!response.ok || !data?.success) {
+       throw new Error(
+         data?.detail || data?.message || "No fue posible consultar la bandeja de retiros."
+       );
+     }
+
+     setBandejaRetirosRRLL({
+       abiertos_operaciones: Array.isArray(data?.data?.abiertos_operaciones)
+         ? data.data.abiertos_operaciones
+         : [],
+       cerrados_operaciones: Array.isArray(data?.data?.cerrados_operaciones)
+         ? data.data.cerrados_operaciones
+         : [],
+     });
+   } catch (error) {
+     console.error("Error consultando bandeja de retiros RRLL:", error);
+     setBandejaRetirosRRLL({ abiertos_operaciones: [], cerrados_operaciones: [] });
+     setErrorBandejaRetirosRRLL(
+       error?.message || "No fue posible consultar la bandeja de retiros."
+     );
+   } finally {
+     setLoadingBandejaRetirosRRLL(false);
+   }
+ };
+
+ const abrirRetiroDesdeBandejaRRLL = async (retiro) => {
+   const numeroDocumento = String(retiro?.NumeroIdentificacion || "").trim();
+
+   if (!numeroDocumento) {
+     setErrorBandejaRetirosRRLL("El retiro no tiene número de identificación disponible.");
+     return;
+   }
+
+   try {
+     setErrorBandejaRetirosRRLL("");
+     setErrorBuscar("");
+     setMsgActualizar("");
+     setResultadosBusqueda([]);
+     setFiltroDocumento(numeroDocumento);
+
+     const trabajadorDetectado = await detectarTipoDocumentoPorNumero(numeroDocumento);
+     setStep("retiros");
+     await handleBuscar({
+       ...trabajadorDetectado,
+       NumeroDocumento:
+         trabajadorDetectado?.NumeroDocumento ||
+         trabajadorDetectado?.NumeroIdentificacion ||
+         numeroDocumento,
+     });
+   } catch (error) {
+     console.error("Error abriendo retiro desde bandeja RRLL:", error);
+     setStep("retiros_inicio");
+     setErrorBandejaRetirosRRLL(
+       error?.message || "No fue posible abrir el retiro para su gestión."
+     );
+   }
+ };
 
  const cargarRetirosDevueltosNomina = async () => {
    try {
@@ -1051,7 +1209,7 @@ const [mensajeEntrevista, setMensajeEntrevista] = useState({
 
  useEffect(() => {
    if (step === "retiros_inicio") {
-     cargarRetirosDevueltosNomina();
+     cargarBandejaRetirosRRLL();
    }
  }, [step]);
 
@@ -1407,9 +1565,9 @@ const getMotivoValueById = (idMotivo) => {
     const retiroObj = retiroActivo?.retiro ?? retiroActivo;
 
     const estadoRecuperadoBusqueda = String(
-      detalleRetiroBusqueda?.EstadoCasoRRLL ||
-        retiroDb?.EstadoCasoRRLL ||
+      retiroDb?.EstadoCasoRRLL ||
         retiroObj?.EstadoCasoRRLL ||
+        detalleRetiroBusqueda?.EstadoCasoRRLL ||
         ""
     ).toUpperCase();
 
@@ -1442,8 +1600,8 @@ const getMotivoValueById = (idMotivo) => {
       toDateInput(retiroDb?.FechaProceso || data?.FechaProceso) || "";
 
     const motivoIdDb =
-      detalleRetiroBusqueda?.IdMotivoRetiro ??
       retiroDb?.IdMotivoRetiro ??
+      detalleRetiroBusqueda?.IdMotivoRetiro ??
       data?.IdMotivoRetiro ??
       null;
 
@@ -1472,8 +1630,8 @@ const getMotivoValueById = (idMotivo) => {
         ...prev,
         idRegistroPersonal: data?.IdRegistroPersonal ?? null,
         idRetiroLaboral:
-          detalleRetiroBusqueda?.IdRetiroLaboral ??
           retiroDb?.IdRetiroLaboral ??
+          detalleRetiroBusqueda?.IdRetiroLaboral ??
           data?.IdRetiroLaboral ??
           prev.idRetiroLaboral ??
           null,
@@ -1483,6 +1641,32 @@ const getMotivoValueById = (idMotivo) => {
 
         idMotivoRetiro: motivoIdDb ?? prev.idMotivoRetiro ?? null,
         motivoRetiro: motivoVisualFinal || prev.motivoRetiro || "",
+
+        idVinculacionLaboral:
+          detalleRetiroBusqueda?.IdVinculacionLaboral ??
+          retiroDb?.IdVinculacionLaboral ??
+          data?.IdVinculacionLaboral ??
+          null,
+        idEmpresaContratante:
+          detalleRetiroBusqueda?.IdEmpresaContratante ??
+          retiroDb?.IdEmpresaContratante ??
+          data?.IdEmpresaContratante ??
+          null,
+        codigoEmpresa:
+          detalleRetiroBusqueda?.CodigoEmpresa ??
+          retiroDb?.CodigoEmpresa ??
+          data?.CodigoEmpresa ??
+          "",
+        nombreEmpresa:
+          detalleRetiroBusqueda?.NombreEmpresa ??
+          retiroDb?.NombreEmpresa ??
+          data?.NombreEmpresa ??
+          "",
+        logoEmpresa:
+          detalleRetiroBusqueda?.LogoEmpresa ??
+          retiroDb?.LogoEmpresa ??
+          data?.LogoEmpresa ??
+          "",
 
         fechaFinal: fechaFinalFromBackend || "",
         fechaProceso: fechaProcesoFromBackend || prev.fechaProceso || "",
@@ -1974,6 +2158,8 @@ const getMotivoValueById = (idMotivo) => {
       setChecks({});
       setTipificacionRetiro("");
       setRetiroLegalizado("");
+      setEvidenciasOperaciones([]);
+      setErrorEvidenciasOperaciones("");
     };
 
     // ✅ util: quitar adjunto sin romper nada
@@ -2063,6 +2249,150 @@ const cargarAdjuntosDesdeBackend = async (idRetiroLaboral) => {
   } finally {
     setLoadingAdjuntosBackend(false);
   }
+};
+
+const listarEvidenciasOperacionesBackend = async (idRetiroLaboral) => {
+  if (!idRetiroLaboral) return [];
+
+  const token = localStorage.getItem("token");
+
+  const res = await fetch(
+    `${API_BASE}/retiros-laborales/${idRetiroLaboral}/evidencias-operaciones`,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    }
+  );
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok || !data?.success) {
+    throw new Error(
+      data?.detail ||
+        data?.message ||
+        "No se pudieron consultar las evidencias de Operaciones."
+    );
+  }
+
+  return Array.isArray(data?.data) ? data.data : [];
+};
+
+const cargarEvidenciasOperaciones = async (idRetiroLaboral) => {
+  if (!idRetiroLaboral) {
+    setEvidenciasOperaciones([]);
+    setErrorEvidenciasOperaciones("");
+    return;
+  }
+
+  try {
+    setLoadingEvidenciasOperaciones(true);
+    setErrorEvidenciasOperaciones("");
+
+    const data = await listarEvidenciasOperacionesBackend(idRetiroLaboral);
+    setEvidenciasOperaciones(data);
+  } catch (error) {
+    console.error("Error cargando evidencias de Operaciones:", error);
+    setEvidenciasOperaciones([]);
+    setErrorEvidenciasOperaciones(
+      error?.message || "No se pudieron consultar las evidencias de Operaciones."
+    );
+  } finally {
+    setLoadingEvidenciasOperaciones(false);
+  }
+};
+
+const abrirEvidenciaOperaciones = async (evidencia) => {
+  if (!form?.idRetiroLaboral || !evidencia?.IdPazYSalvoEvidencia) return;
+
+  const nombreArchivo = String(
+    evidencia?.NombreArchivoOriginal ||
+      evidencia?.NombreArchivo ||
+      ""
+  ).toLowerCase();
+
+  const extensionDesdeCampo = String(
+    evidencia?.ExtensionArchivo || ""
+  ).toLowerCase().trim();
+
+  const extension = extensionDesdeCampo
+    ? extensionDesdeCampo.startsWith(".")
+      ? extensionDesdeCampo
+      : `.${extensionDesdeCampo}`
+    : (nombreArchivo.match(/\.[a-z0-9]+$/i)?.[0] || "");
+
+  if ([".xls", ".xlsx"].includes(extension)) {
+    throw new Error(
+      "Los archivos de Excel se encuentran disponibles únicamente para descarga."
+    );
+  }
+
+  const token = localStorage.getItem("token");
+
+  const res = await fetch(
+    `${API_BASE}/retiros-laborales/${form.idRetiroLaboral}/evidencias-operaciones/${evidencia.IdPazYSalvoEvidencia}/descargar`,
+    {
+      method: "GET",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    }
+  );
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => null);
+    throw new Error(
+      errorData?.detail || "No se pudo abrir la evidencia de Operaciones."
+    );
+  }
+
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  window.open(url, "_blank", "noopener,noreferrer");
+
+  setTimeout(() => {
+    window.URL.revokeObjectURL(url);
+  }, 60000);
+};
+
+const descargarEvidenciaOperaciones = async (evidencia) => {
+  if (!form?.idRetiroLaboral || !evidencia?.IdPazYSalvoEvidencia) return;
+
+  const token = localStorage.getItem("token");
+
+  const res = await fetch(
+    `${API_BASE}/retiros-laborales/${form.idRetiroLaboral}/evidencias-operaciones/${evidencia.IdPazYSalvoEvidencia}/descargar`,
+    {
+      method: "GET",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    }
+  );
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => null);
+    throw new Error(
+      errorData?.detail || "No se pudo descargar la evidencia de Operaciones."
+    );
+  }
+
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download =
+    evidencia?.NombreArchivoOriginal ||
+    evidencia?.NombreArchivo ||
+    `evidencia_operaciones_${evidencia.IdPazYSalvoEvidencia}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  window.URL.revokeObjectURL(url);
 };
 
 const retiroBloqueado =
@@ -2166,6 +2496,30 @@ useEffect(() => {
     setDescripcionRetiroRRLL("");
     setMensajeMotivoRRLL({ tipo: "", texto: "" });
   }
+}, [step, form.idRetiroLaboral]);
+
+
+useEffect(() => {
+  if (step !== "retiros_docs") {
+    setEvidenciasOperaciones([]);
+    setErrorEvidenciasOperaciones("");
+    return;
+  }
+
+  const idRetiroActual = Number(form.idRetiroLaboral || 0);
+
+  if (!idRetiroActual) {
+    setEvidenciasOperaciones([]);
+    setErrorEvidenciasOperaciones("");
+    return;
+  }
+
+  console.log(
+    "CARGANDO EVIDENCIAS OPERACIONES - IdRetiroLaboral =>",
+    idRetiroActual
+  );
+
+  cargarEvidenciasOperaciones(idRetiroActual);
 }, [step, form.idRetiroLaboral]);
 
 const subirAdjuntoRetiroBackend = async ({
@@ -3398,7 +3752,7 @@ if (step === "agenda_general_rrll") {
   // --------------------------
   if (step === "inicio") {
     return (
-      <div className="p-6">
+      <div className="w-full p-4 md:p-6 xl:w-[calc(100%+12rem)] xl:-ml-24">
         <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
           <div className="mb-6">
             <p className="text-sm font-semibold text-emerald-700">
@@ -3492,280 +3846,342 @@ if (step === "agenda_general_rrll") {
   // VISTA INICIAL DE RETIROS
   // --------------------------
   if (step === "retiros_inicio") {
+    const abiertosOperaciones = bandejaRetirosRRLL.abiertos_operaciones || [];
+    const cerradosOperaciones = bandejaRetirosRRLL.cerrados_operaciones || [];
+    const retirosBase =
+      tabBandejaRetirosRRLL === "ABIERTOS_OPERACIONES"
+        ? abiertosOperaciones
+        : cerradosOperaciones;
+
+    const terminoBusquedaBandeja = String(busquedaBandejaRetirosRRLL || "")
+      .trim()
+      .toLowerCase();
+
+    const retirosFiltrados = retirosBase.filter((retiro) => {
+      if (!terminoBusquedaBandeja) return true;
+
+      const nombreCompleto = String(
+        retiro?.NombreCompleto ||
+          `${retiro?.Nombres || ""} ${retiro?.Apellidos || ""}`
+      )
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+
+      const identificacion = String(retiro?.NumeroIdentificacion || "")
+        .trim()
+        .toLowerCase();
+
+      return (
+        nombreCompleto.includes(terminoBusquedaBandeja) ||
+        identificacion.includes(terminoBusquedaBandeja)
+      );
+    });
+
+    const RETIROS_POR_PAGINA = 10;
+    const totalPaginasBandeja = Math.max(
+      1,
+      Math.ceil(retirosFiltrados.length / RETIROS_POR_PAGINA)
+    );
+    const paginaActualBandeja = Math.min(
+      paginaBandejaRetirosRRLL,
+      totalPaginasBandeja
+    );
+    const indiceInicioBandeja =
+      (paginaActualBandeja - 1) * RETIROS_POR_PAGINA;
+    const retirosMostrados = retirosFiltrados.slice(
+      indiceInicioBandeja,
+      indiceInicioBandeja + RETIROS_POR_PAGINA
+    );
+
+    const formatearFechaBandeja = (fecha) => {
+      if (!fecha) return "Sin fecha";
+      try {
+        return new Date(fecha).toLocaleString("es-CO", {
+          timeZone: "America/Bogota",
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        });
+      } catch (error) {
+        return String(fecha);
+      }
+    };
+
     return (
-      <div className="p-6">
+      <div className="w-full p-4 md:p-6 xl:w-[calc(100%+12rem)] xl:-ml-24">
         <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
-          <div className="mb-1">
-            <h2 className="text-2xl font-bold text-gray-800">
-              Relaciones Laborales
-            </h2>
-            <p className="text-sm text-gray-500">
-              Gestión de retiros
-            </p>
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800">Retiros recibidos</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Seguimiento de los retiros iniciados por Operaciones y gestión de los casos enviados a Relaciones Laborales.
+              </p>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={cargarBandejaRetirosRRLL}
+              disabled={loadingBandejaRetirosRRLL}
+              className="border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+            >
+              {loadingBandejaRetirosRRLL ? "Actualizando..." : "Actualizar"}
+            </Button>
           </div>
 
-          <div className="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-6">
-            <div className="mb-4">
-              <p className="text-sm font-semibold text-emerald-800">
-                Retiros
-              </p>
-              <p className="mt-1 text-xs text-gray-500">
-                Gestión, seguimiento e indicadores del proceso de retiro.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="mt-6 border-b border-gray-200">
+            <div className="flex flex-wrap gap-8">
               <button
                 type="button"
-                onClick={() => setStep("retiros")}
-                className="text-left bg-white rounded-xl border border-emerald-200 p-5 hover:border-emerald-400 hover:shadow-sm transition"
+                onClick={() => {
+                  setTabBandejaRetirosRRLL("ABIERTOS_OPERACIONES");
+                  setPaginaBandejaRetirosRRLL(1);
+                }}
+                className={`border-b-2 px-1 pb-3 text-sm font-semibold transition ${
+                  tabBandejaRetirosRRLL === "ABIERTOS_OPERACIONES"
+                    ? "border-emerald-600 text-emerald-700"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
               >
-                <p className="font-bold text-emerald-700">
-                  Retiros
-                </p>
-                <p className="mt-1 text-xs text-gray-500">
-                  Gestión de retiros y documentación.
-                </p>
+                Abiertos en Operaciones ({abiertosOperaciones.length})
               </button>
 
               <button
                 type="button"
-                onClick={() => navigate("/indicadores-rrll")}
-                className="text-left bg-white rounded-xl border border-emerald-200 p-5 hover:border-emerald-400 hover:shadow-sm transition"
+                onClick={() => {
+                  setTabBandejaRetirosRRLL("CERRADOS_OPERACIONES");
+                  setPaginaBandejaRetirosRRLL(1);
+                }}
+                className={`border-b-2 px-1 pb-3 text-sm font-semibold transition ${
+                  tabBandejaRetirosRRLL === "CERRADOS_OPERACIONES"
+                    ? "border-emerald-600 text-emerald-700"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
               >
-                <p className="font-bold text-emerald-700">
-                  Indicadores de Retiros
-                </p>
-                <p className="mt-1 text-xs text-gray-500">
-                  Consulta y seguimiento de los indicadores del proceso de retiro.
-                </p>
+                Cerrados ({cerradosOperaciones.length})
               </button>
             </div>
+          </div>
 
-            {/* ========================================================= */}
-            {/* EXCEL DE RETIROS */}
-            {/* ========================================================= */}
-
-            <div className="mt-6 rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm">
-              <div className="mb-4">
-                <h3 className="text-base font-bold text-emerald-700">
-                  Excel de Retiros
-                </h3>
-
-                <p className="mt-1 text-xs text-gray-500">
-                  Descarga el reporte de retiros dentro del rango de fechas
-                  seleccionado.
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-4 md:flex-row md:items-end">
-                <div className="w-full md:w-auto">
-                  <Label className="text-sm font-medium text-gray-700">
-                    Fecha inicio:
-                  </Label>
-
-                  <Input
-                    type="date"
-                    value={fechaInicioExcel}
-                    onChange={(e) =>
-                      setFechaInicioExcel(e.target.value)
-                    }
-                    className="mt-2 h-12 w-full bg-white md:w-[190px]"
-                  />
-                </div>
-
-                <div className="w-full md:w-auto">
-                  <Label className="text-sm font-medium text-gray-700">
-                    Fecha fin:
-                  </Label>
-
-                  <Input
-                    type="date"
-                    value={fechaFinExcel}
-                    onChange={(e) =>
-                      setFechaFinExcel(e.target.value)
-                    }
-                    className="mt-2 h-12 w-full bg-white md:w-[190px]"
-                  />
-                </div>
-
-                <div className="w-full md:w-auto">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleDescargarExcel}
-                    className="h-12 w-full border-emerald-500 text-emerald-700 hover:bg-emerald-50 md:w-[220px]"
-                  >
-                    Descargar Excel
-                  </Button>
-                </div>
-              </div>
+          {tabBandejaRetirosRRLL === "ABIERTOS_OPERACIONES" ? (
+            <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+              Estos trabajadores todavía están siendo gestionados por Operaciones. La información es únicamente de consulta para Relaciones Laborales.
             </div>
+          ) : (
+            <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+              Estos procesos ya fueron cerrados por Operaciones y enviados a Relaciones Laborales. Selecciona Ver para continuar la gestión del retiro.
+            </div>
+          )}
 
-            <div className="mt-6 overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
-              <div className="flex flex-col gap-3 border-b border-amber-100 bg-amber-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-base font-bold text-gray-900">
-                      Devueltos por Nómina
-                    </h3>
-                    <span className="inline-flex min-w-7 items-center justify-center rounded-full bg-amber-200 px-2 py-0.5 text-xs font-bold text-amber-900">
-                      {loadingDevueltosNomina
-                        ? "..."
-                        : retirosDevueltosNomina.length}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-gray-600">
-                    Procesos que requieren corrección por parte de Relaciones Laborales.
-                  </p>
-                </div>
+          {errorBandejaRetirosRRLL && (
+            <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {errorBandejaRetirosRRLL}
+            </div>
+          )}
+
+          <div className="mt-5">
+            <Input
+              type="text"
+              value={busquedaBandejaRetirosRRLL}
+              onChange={(event) => {
+                setBusquedaBandejaRetirosRRLL(event.target.value);
+                setPaginaBandejaRetirosRRLL(1);
+              }}
+              placeholder="Buscar por nombre o número de identificación..."
+              className="h-11"
+            />
+          </div>
+
+          <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1220px] text-sm">
+                <thead className="bg-gray-50 text-gray-600">
+                  <tr>
+                    <th className="px-5 py-3 text-left font-semibold">Empresa</th>
+                    <th className="px-5 py-3 text-left font-semibold">Identificación</th>
+                    <th className="px-5 py-3 text-left font-semibold">Trabajador</th>
+                    <th className="px-5 py-3 text-left font-semibold">Cliente</th>
+                    <th className="px-5 py-3 text-left font-semibold">Motivo</th>
+                    <th className="px-5 py-3 text-left font-semibold">Paz y Salvo</th>
+                    <th className="px-5 py-3 text-left font-semibold">
+                      {tabBandejaRetirosRRLL === "ABIERTOS_OPERACIONES"
+                        ? "Fecha proceso"
+                        : "Fecha envío Operaciones"}
+                    </th>
+                    <th className="px-5 py-3 text-center font-semibold">Acción</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {loadingBandejaRetirosRRLL && (
+                    <tr>
+                      <td colSpan="8" className="px-5 py-10 text-center text-gray-500">
+                        Consultando retiros...
+                      </td>
+                    </tr>
+                  )}
+
+                  {!loadingBandejaRetirosRRLL &&
+                    retirosMostrados.map((retiro) => {
+                      const nombreCompleto =
+                        retiro?.NombreCompleto ||
+                        `${retiro?.Nombres || ""} ${retiro?.Apellidos || ""}`
+                          .replace(/\s+/g, " ")
+                          .trim() ||
+                        "Sin información";
+
+                      const esDevueltoNomina =
+                        String(retiro?.EstadoCasoRRLL || "").toUpperCase() ===
+                        "DEVUELTO_NOMINA";
+
+                      const empresaRetiro = getEmpresaContratanteInfo(retiro);
+
+                      return (
+                        <tr
+                          key={retiro?.IdRetiroLaboral}
+                          className="border-t border-gray-100 hover:bg-gray-50"
+                        >
+                          <td className="px-5 py-4">
+                            <div className="flex min-w-[190px] flex-col items-start gap-1.5">
+                              <span
+                                className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${empresaRetiro.badgeClass}`}
+                              >
+                                {empresaRetiro.codigo}
+                              </span>
+                              <span className="text-xs font-medium leading-4 text-gray-600">
+                                {empresaRetiro.nombre}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-5 py-4 font-medium text-gray-800">
+                            {retiro?.NumeroIdentificacion || "Sin información"}
+                          </td>
+                          <td className="px-5 py-4 font-semibold text-gray-900">
+                            <div>{nombreCompleto}</div>
+                            {esDevueltoNomina && (
+                              <span className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                                Devuelto por Nómina
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-5 py-4 text-gray-700">
+                            {retiro?.NombreCliente || "Sin información"}
+                          </td>
+                          <td className="px-5 py-4 text-gray-700">
+                            {retiro?.NombreMotivoRetiro || "Sin información"}
+                          </td>
+                          <td className="px-5 py-4">
+                            <span
+                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                String(retiro?.EstadoPazYSalvo || "").toUpperCase() === "CERRADO"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-blue-100 text-blue-800"
+                              }`}
+                            >
+                              {retiro?.EstadoPazYSalvo || "SIN ESTADO"}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap text-gray-700">
+                            {formatearFechaBandeja(
+                              tabBandejaRetirosRRLL === "ABIERTOS_OPERACIONES"
+                                ? retiro?.FechaProceso
+                                : retiro?.FechaEnvioOperaciones
+                            )}
+                          </td>
+                          <td className="px-5 py-4 text-center">
+                            {tabBandejaRetirosRRLL === "CERRADOS_OPERACIONES" ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => abrirRetiroDesdeBandejaRRLL(retiro)}
+                                disabled={loadingBuscar}
+                                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                              >
+                                Ver
+                              </Button>
+                            ) : (
+                              <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
+                                En Operaciones
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                  {!loadingBandejaRetirosRRLL &&
+                    retirosFiltrados.length === 0 &&
+                    !errorBandejaRetirosRRLL && (
+                      <tr>
+                        <td colSpan="8" className="px-5 py-12 text-center text-gray-500">
+                          {terminoBusquedaBandeja
+                            ? "No se encontraron retiros que coincidan con la búsqueda."
+                            : tabBandejaRetirosRRLL === "ABIERTOS_OPERACIONES"
+                              ? "No hay retiros abiertos actualmente en Operaciones."
+                              : "No hay retiros cerrados por Operaciones pendientes de gestión en RRLL."}
+                        </td>
+                      </tr>
+                    )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {!loadingBandejaRetirosRRLL && retirosFiltrados.length > 0 && (
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-gray-500">
+                Mostrando {indiceInicioBandeja + 1} a{" "}
+                {Math.min(
+                  indiceInicioBandeja + RETIROS_POR_PAGINA,
+                  retirosFiltrados.length
+                )}{" "}
+                de {retirosFiltrados.length} registro
+                {retirosFiltrados.length === 1 ? "" : "s"}
+              </p>
+
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    setPaginaBandejaRetirosRRLL((pagina) =>
+                      Math.max(1, pagina - 1)
+                    )
+                  }
+                  disabled={paginaActualBandeja <= 1}
+                >
+                  Anterior
+                </Button>
+
+                <span className="text-sm font-medium text-gray-700">
+                  Página {paginaActualBandeja} de {totalPaginasBandeja}
+                </span>
 
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={cargarRetirosDevueltosNomina}
-                  disabled={loadingDevueltosNomina}
-                  className="border-amber-400 text-amber-800 hover:bg-amber-100"
+                  onClick={() =>
+                    setPaginaBandejaRetirosRRLL((pagina) =>
+                      Math.min(totalPaginasBandeja, pagina + 1)
+                    )
+                  }
+                  disabled={paginaActualBandeja >= totalPaginasBandeja}
                 >
-                  {loadingDevueltosNomina ? "Actualizando..." : "Actualizar"}
+                  Siguiente
                 </Button>
               </div>
-
-              {errorDevueltosNomina && (
-                <div className="border-b border-red-100 bg-red-50 px-5 py-3 text-sm text-red-700">
-                  {errorDevueltosNomina}
-                </div>
-              )}
-
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[900px] text-sm">
-                  <thead className="bg-gray-50 text-gray-600">
-                    <tr>
-                      <th className="px-5 py-3 text-left font-semibold">
-                        Identificación
-                      </th>
-                      <th className="px-5 py-3 text-left font-semibold">
-                        Trabajador
-                      </th>
-                      <th className="px-5 py-3 text-left font-semibold">
-                        Fecha devolución
-                      </th>
-                      <th className="px-5 py-3 text-left font-semibold">
-                        Motivo de devolución
-                      </th>
-                      <th className="px-5 py-3 text-center font-semibold">
-                        Acción
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {loadingDevueltosNomina && (
-                      <tr>
-                        <td
-                          colSpan="5"
-                          className="px-5 py-8 text-center text-gray-500"
-                        >
-                          Consultando devoluciones de Nómina...
-                        </td>
-                      </tr>
-                    )}
-
-                    {!loadingDevueltosNomina &&
-                      retirosDevueltosNomina.map((retiro) => {
-                        const fechaDevolucion =
-                          retiro?.FechaDevolucionNomina ||
-                          retiro?.FechaObservacionNomina ||
-                          null;
-
-                        const fechaTexto = fechaDevolucion
-                          ? new Date(fechaDevolucion).toLocaleString("es-CO", {
-                              timeZone: "America/Bogota",
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                              hour: "numeric",
-                              minute: "2-digit",
-                              hour12: true,
-                            })
-                          : "Sin fecha";
-
-                        const nombreCompleto =
-                          retiro?.NombreCompleto ||
-                          `${retiro?.Nombres || ""} ${retiro?.Apellidos || ""}`
-                            .replace(/\s+/g, " ")
-                            .trim()
-                            .toUpperCase() ||
-                          "Sin información";
-
-                        return (
-                          <tr
-                            key={retiro?.IdRetiroLaboral}
-                            className="border-t border-gray-100 hover:bg-amber-50/40"
-                          >
-                            <td className="px-5 py-4 font-medium text-gray-800">
-                              {retiro?.NumeroIdentificacion || "Sin información"}
-                            </td>
-
-                            <td className="px-5 py-4 font-semibold text-gray-900">
-                              {nombreCompleto}
-                            </td>
-
-                            <td className="px-5 py-4 whitespace-nowrap text-gray-700">
-                              {fechaTexto}
-                            </td>
-
-                            <td className="px-5 py-4 text-gray-700">
-                              <div className="max-w-[460px] whitespace-pre-wrap break-words">
-                                {retiro?.MotivoDevolucion ||
-                                  retiro?.ObservacionNomina ||
-                                  "Sin motivo registrado"}
-                              </div>
-                            </td>
-
-                            <td className="px-5 py-4 text-center">
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={() => gestionarRetiroDevuelto(retiro)}
-                                disabled={loadingBuscar}
-                                className="bg-emerald-600 text-white hover:bg-emerald-700"
-                              >
-                                Gestionar
-                              </Button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-
-                    {!loadingDevueltosNomina &&
-                      retirosDevueltosNomina.length === 0 &&
-                      !errorDevueltosNomina && (
-                        <tr>
-                          <td
-                            colSpan="5"
-                            className="px-5 py-10 text-center text-gray-500"
-                          >
-                            No hay retiros devueltos por Nómina pendientes de gestión.
-                          </td>
-                        </tr>
-                      )}
-                  </tbody>
-                </table>
-              </div>
             </div>
+          )}
 
-            <div className="mt-5">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setStep("inicio")}
-              >
-                Volver al módulo
-              </Button>
-            </div>
+          <div className="mt-5">
+            <Button type="button" variant="outline" onClick={() => setStep("inicio")}>
+              Volver al módulo
+            </Button>
           </div>
-
         </div>
       </div>
     );
@@ -3809,7 +4225,7 @@ if (step === "retiros_docs") {
   console.log("form.idRetiroLaboral =>", form.idRetiroLaboral);
 
         return (
-          <div className="p-6">
+          <div className="w-full p-4 md:p-6 xl:w-[calc(100%+12rem)] xl:-ml-24">
           <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
             {qrEntrevistaInfo.open && (
       <div className="fixed top-4 right-4 z-50 w-[420px] max-w-[95vw] rounded-xl border border-emerald-200 bg-white shadow-2xl px-4 py-4 text-sm text-slate-800">
@@ -3885,6 +4301,30 @@ if (step === "retiros_docs") {
               </Button>
             </div>
           </div>
+
+          {/* Empresa contratante del ciclo laboral asociado al retiro */}
+          {(() => {
+            const empresa = getEmpresaContratanteInfo({
+              CodigoEmpresa: form.codigoEmpresa,
+              NombreEmpresa: form.nombreEmpresa,
+            });
+
+            return (
+              <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Empresa contratante
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <span
+                    className={`inline-flex rounded-full border px-3 py-1.5 text-xs font-bold ${empresa.badgeClass}`}
+                  >
+                    {empresa.codigo}
+                  </span>
+                  <span className="font-semibold text-gray-800">{empresa.nombre}</span>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Motivo seleccionado */}
           <div className="mt-6 bg-gray-50 p-5 rounded-xl border border-gray-100">
@@ -5045,11 +5485,159 @@ if (step === "retiros_docs") {
             </div>
 
             <div className="mt-5 text-xs text-gray-500">
-              * Por ahora esto es interfaz. Luego conectamos BD/API para guardar y descargar desde servidor.
+              * Los documentos del retiro se administran según el flujo definido para RRLL.
             </div>
           </div>
 
+          {/* Sección RRLL: evidencias asociadas al Paz y Salvo de Operaciones */}
+          <div className="mt-6 bg-white p-5 rounded-xl border border-gray-100">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <p className="font-semibold text-gray-700">
+                  Evidencias de Operaciones
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Soportes asociados al Paz y Salvo enviado por Operaciones.
+                  Son documentos de consulta para RRLL y no hacen parte del PDF oficial.
+                </p>
+              </div>
 
+              {!loadingEvidenciasOperaciones &&
+                evidenciasOperaciones.length > 0 && (
+                  <div className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-3 py-1">
+                    {evidenciasOperaciones.length} evidencia
+                    {evidenciasOperaciones.length === 1 ? "" : "s"}
+                  </div>
+                )}
+            </div>
+
+            {loadingEvidenciasOperaciones ? (
+              <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                Cargando evidencias de Operaciones...
+              </div>
+            ) : errorEvidenciasOperaciones ? (
+              <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
+                {errorEvidenciasOperaciones}
+              </div>
+            ) : evidenciasOperaciones.length === 0 ? (
+              <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                No hay evidencias de Operaciones registradas para este retiro.
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {evidenciasOperaciones.map((evidencia, index) => {
+                  const nombreArchivo =
+                    evidencia?.NombreArchivoOriginal ||
+                    evidencia?.NombreArchivo ||
+                    "archivo";
+
+                  const extension = String(
+                    evidencia?.ExtensionArchivo ||
+                      (nombreArchivo.match(/\.[a-z0-9]+$/i)?.[0] || "")
+                  )
+                    .toLowerCase()
+                    .trim();
+
+                  const esExcel = [".xls", ".xlsx", "xls", "xlsx"].includes(
+                    extension
+                  );
+
+                  return (
+                    <div
+                      key={
+                        evidencia?.IdPazYSalvoEvidencia ||
+                        `${evidencia?.TipoEvidencia || "evidencia"}-${index}`
+                      }
+                      className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-4 flex-wrap">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold text-slate-900">
+                            {index + 1}.{" "}
+                            {getLabelEvidenciaOperaciones(
+                              evidencia?.TipoEvidencia
+                            )}
+                          </p>
+
+                          <p className="mt-1 text-xs text-emerald-700 font-semibold break-words">
+                            {nombreArchivo}
+                          </p>
+
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                            {evidencia?.ExtensionArchivo ? (
+                              <span>{evidencia.ExtensionArchivo}</span>
+                            ) : null}
+                            {evidencia?.PesoArchivo ? (
+                              <span>
+                                {formatFileSize(evidencia.PesoArchivo)}
+                              </span>
+                            ) : null}
+                            {evidencia?.CreadoPor ? (
+                              <span>
+                                Cargado por: {evidencia.CreadoPor}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="border-gray-200"
+                            disabled={esExcel}
+                            title={
+                              esExcel
+                                ? "Los archivos de Excel se descargan para su consulta."
+                                : "Ver evidencia"
+                            }
+                            onClick={async () => {
+                              try {
+                                await abrirEvidenciaOperaciones(evidencia);
+                              } catch (error) {
+                                console.error(
+                                  "Error abriendo evidencia de Operaciones:",
+                                  error
+                                );
+                                alert(
+                                  error?.message ||
+                                    "No se pudo abrir la evidencia de Operaciones."
+                                );
+                              }
+                            }}
+                          >
+                            Ver
+                          </Button>
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="border-gray-200"
+                            onClick={async () => {
+                              try {
+                                await descargarEvidenciaOperaciones(evidencia);
+                              } catch (error) {
+                                console.error(
+                                  "Error descargando evidencia de Operaciones:",
+                                  error
+                                );
+                                alert(
+                                  error?.message ||
+                                    "No se pudo descargar la evidencia de Operaciones."
+                                );
+                              }
+                            }}
+                          >
+                            Descargar
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {/* ✅ Estado del Proceso General (UI) — AL FINAL */}
           <div className="mt-6 bg-white p-5 rounded-xl border border-gray-100">
@@ -5114,7 +5702,7 @@ if (step === "retiros_docs") {
   // VISTA RETIROS (CABECERA)
   // --------------------------
   return (
-    <div className="p-6">
+    <div className="w-full p-4 md:p-6 xl:w-[calc(100%+12rem)] xl:-ml-24">
       <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
@@ -5237,6 +5825,27 @@ if (step === "retiros_docs") {
           <p className="font-semibold text-gray-700 mb-4">Datos Personales</p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-4">
+            <div className="col-span-1 sm:col-span-2 md:col-span-12">
+              <Label className="text-xs text-gray-600">Empresa contratante</Label>
+              {(() => {
+                const empresa = getEmpresaContratanteInfo({
+                  CodigoEmpresa: form.codigoEmpresa,
+                  NombreEmpresa: form.nombreEmpresa,
+                });
+
+                return (
+                  <div className="mt-1 flex min-h-[42px] flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5">
+                    <span
+                      className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${empresa.badgeClass}`}
+                    >
+                      {empresa.codigo}
+                    </span>
+                    <span className="font-semibold text-gray-800">{empresa.nombre}</span>
+                  </div>
+                );
+              })()}
+            </div>
+
            <div className="col-span-1 sm:col-span-2 md:col-span-3">
               <Label className="text-xs text-gray-600">Fecha de Proceso</Label>
              <Input

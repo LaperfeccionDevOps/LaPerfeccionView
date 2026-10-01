@@ -431,6 +431,7 @@ return (
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
                   <tr>
+                    <th className="px-6 py-3">Empresa</th>
                     <th className="px-6 py-3">Nombre</th>
                     <th className="px-6 py-3">Cédula</th>
                     <th className="px-6 py-3">Cargo</th>
@@ -444,6 +445,28 @@ return (
                     const estadoInfo = getEstadoInfo(item.estado);
                     return (
                       <tr key={item.id} className="bg-white border-b hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4">
+                          {(() => {
+                            const empresa =
+                              item.NombreEmpresa ||
+                              item.nombreEmpresa ||
+                              item.EmpresaContratante ||
+                              item.empresaContratante ||
+                              item.NombreEmpresaContratante ||
+                              item.nombreEmpresaContratante ||
+                              '';
+
+                            return empresa ? (
+                              <span className="font-medium text-gray-700 normal-case">
+                                {empresa}
+                              </span>
+                            ) : (
+                              <span className="text-xs font-medium text-amber-700 normal-case">
+                                Sin asignar
+                              </span>
+                            );
+                          })()}
+                        </td>
                         <td className="px-6 py-4 font-medium text-gray-900">{item.nombres} {item.apellidos}</td>
                         <td className="px-6 py-4 text-gray-600">{item.cedula}</td>
                         <td className="px-6 py-4 text-gray-600">{item.nombreCargo || 'No especificado'}</td>
@@ -499,7 +522,7 @@ return (
                   )})}
                   {currentItems.length === 0 && (
                     <tr>
-                        <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                        <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
                             <div className="flex flex-col items-center gap-3">
                                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
                                     <Search className="w-8 h-8 text-gray-400" />

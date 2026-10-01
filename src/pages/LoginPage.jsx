@@ -23,8 +23,11 @@ import { useAuth } from '@/context/AuthContext';
 // Ejemplo producción: VITE_API_BASE_URL=https://api.laperfeccion.app/api
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
-// Endpoint correcto de login corporativo
+// Endpoint actual de login corporativo
 const LOGIN_URL = `${API_BASE_URL}/auth/login`;
+
+// Endpoint independiente para acceso del trabajador
+const WORKER_LOGIN_URL = `${API_BASE_URL}/auth/trabajador`;
 
 const LoginPage = () => {
   const { login } = useAuth();
@@ -33,8 +36,14 @@ const LoginPage = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [view, setView] = useState('selection'); // 'selection' | 'login'
+
+  const [workerDocument, setWorkerDocument] = useState('');
+
+  const [view, setView] = useState('selection');
+  // 'selection' | 'login' | 'worker'
+
   const [loading, setLoading] = useState(false);
+  const [workerLoading, setWorkerLoading] = useState(false);
 
   // LOGIN CORPORATIVO contra la API
   const handleLoginSubmit = async (e) => {
@@ -72,7 +81,8 @@ const LoginPage = () => {
       }
 
       if (!resp.ok) {
-        const detail = data?.detail || 'Usuario o contraseña incorrectos.';
+        const detail =
+          data?.detail || 'Usuario o contraseña incorrectos.';
 
         toast({
           title: '⛔ Error de acceso',
@@ -90,7 +100,8 @@ const LoginPage = () => {
 
         toast({
           title: '⛔ Token inválido',
-          description: 'La respuesta del servidor no contiene access_token.',
+          description:
+            'La respuesta del servidor no contiene access_token.',
           variant: 'destructive',
         });
 
@@ -100,11 +111,23 @@ const LoginPage = () => {
       // Guardamos la información devuelta por la API
       // data: { access_token, token_type, usuario, id_usuario, roles, roles_ids, permisos, message }
       localStorage.setItem('token', finalToken);
-      localStorage.setItem('usuario', data.usuario || username.trim());
+      localStorage.setItem(
+        'usuario',
+        data.usuario || username.trim()
+      );
       localStorage.setItem('id_usuario', data.id_usuario || '');
-      localStorage.setItem('roles', JSON.stringify(data.roles || []));
-      localStorage.setItem('roles_ids', JSON.stringify(data.roles_ids || []));
-      localStorage.setItem('permisos', JSON.stringify(data.permisos || []));
+      localStorage.setItem(
+        'roles',
+        JSON.stringify(data.roles || [])
+      );
+      localStorage.setItem(
+        'roles_ids',
+        JSON.stringify(data.roles_ids || [])
+      );
+      localStorage.setItem(
+        'permisos',
+        JSON.stringify(data.permisos || [])
+      );
 
       // Rol principal para el contexto
       const mainRole =
@@ -118,13 +141,20 @@ const LoginPage = () => {
         role: mainRole,
         name: data.usuario || username.trim(),
         token: finalToken,
-        permisos: Array.isArray(data.permisos) ? data.permisos : [],
+        permisos: Array.isArray(data.permisos)
+          ? data.permisos
+          : [],
       });
 
       toast({
-        title: `👋 Bienvenid@, ${data.usuario || username.trim()}`,
-        description: data.message || `Has ingresado con perfil de ${mainRole}.`,
-        className: 'bg-emerald-50 border-emerald-200 text-emerald-800',
+        title: `👋 Bienvenid@, ${
+          data.usuario || username.trim()
+        }`,
+        description:
+          data.message ||
+          `Has ingresado con perfil de ${mainRole}.`,
+        className:
+          'bg-emerald-50 border-emerald-200 text-emerald-800',
       });
 
       navigate('/');
@@ -133,7 +163,8 @@ const LoginPage = () => {
 
       toast({
         title: '⛔ Error al conectar',
-        description: 'No fue posible comunicarse con el servidor de autenticación.',
+        description:
+          'No fue posible comunicarse con el servidor de autenticación.',
         variant: 'destructive',
       });
     } finally {
@@ -158,6 +189,136 @@ const LoginPage = () => {
     navigate('/aspirantes');
   };
 
+  // ACCESO DEL TRABAJADOR
+  const handleWorkerSubmit = async (e) => {
+    e.preventDefault();
+
+    const cleanDocument = workerDocument
+      .trim()
+      .replace(/\D/g, '');
+
+    if (!cleanDocument) {
+      toast({
+        title: '⚠️ Número de identificación requerido',
+        description:
+          'Por favor ingrese su número de identificación.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setWorkerLoading(true);
+
+    try {
+      const resp = await fetch(WORKER_LOGIN_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          numero_identificacion: cleanDocument,
+        }),
+      });
+
+      let data = null;
+
+      try {
+        data = await resp.json();
+      } catch (_) {
+        data = null;
+      }
+
+      if (!resp.ok) {
+        const detail =
+          data?.detail ||
+          'No encontramos un trabajador activo asociado a este número de identificación.';
+
+        toast({
+          title: '⛔ Acceso no disponible',
+          description: detail,
+          variant: 'destructive',
+        });
+
+        return;
+      }
+
+      const workerToken = data?.access_token;
+      const idRegistroPersonal =
+        data?.id_registro_personal ??
+        data?.IdRegistroPersonal ??
+        '';
+
+      if (!workerToken || !idRegistroPersonal) {
+        console.error(
+          'Respuesta inválida del acceso de trabajador:',
+          data
+        );
+
+        toast({
+          title: '⛔ No fue posible iniciar sesión',
+          description:
+            'La respuesta del servidor no contiene la información necesaria del trabajador.',
+          variant: 'destructive',
+        });
+
+        return;
+      }
+
+      // Sesión independiente del trabajador
+      localStorage.setItem(
+        'trabajador_token',
+        workerToken
+      );
+
+      localStorage.setItem(
+        'trabajador_id_registro_personal',
+        String(idRegistroPersonal)
+      );
+
+      localStorage.setItem(
+        'trabajador_documento',
+        data?.numero_identificacion || cleanDocument
+      );
+
+      localStorage.setItem(
+        'trabajador_nombre',
+        data?.nombre_completo || ''
+      );
+
+      localStorage.setItem(
+        'trabajador_eps',
+        data?.eps || ''
+      );
+
+      toast({
+        title: `👋 Bienvenid${
+          data?.genero === 'F' ? 'a' : 'o'
+        }`,
+        description:
+          data?.nombre_completo ||
+          'Ingreso al Portal del Trabajador exitoso.',
+        className:
+          'bg-emerald-50 border-emerald-200 text-emerald-800',
+      });
+
+      navigate('/trabajador');
+    } catch (err) {
+      console.error(
+        'Error en acceso del trabajador:',
+        err
+      );
+
+      toast({
+        title: '⛔ Error al conectar',
+        description:
+          'No fue posible validar la información del trabajador.',
+        variant: 'destructive',
+      });
+    } finally {
+      setWorkerLoading(false);
+    }
+  };
+
   const renderSelectionView = () => (
     <motion.div
       key="selection"
@@ -167,8 +328,13 @@ const LoginPage = () => {
       className="space-y-6"
     >
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Portal Corporativo</h1>
-        <p className="text-gray-500">Seleccione una opción para continuar</p>
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">
+          Portal Corporativo
+        </h1>
+
+        <p className="text-gray-500">
+          Seleccione una opción para continuar
+        </p>
       </div>
 
       <div className="grid gap-4">
@@ -179,11 +345,34 @@ const LoginPage = () => {
           <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
             <UserPlus className="w-6 h-6" />
           </div>
+
           <div className="ml-4">
             <h3 className="font-bold text-gray-800 group-hover:text-emerald-700">
               Soy Aspirante
             </h3>
-            <p className="text-sm text-gray-500">Registrar mi hoja de vida</p>
+
+            <p className="text-sm text-gray-500">
+              Registrar mi hoja de vida
+            </p>
+          </div>
+        </button>
+
+        <button
+          onClick={() => setView('worker')}
+          className="group relative flex items-center p-4 bg-white border-2 border-teal-100 rounded-2xl hover:border-teal-500 hover:shadow-lg transition-all duration-200 text-left w-full"
+        >
+          <div className="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center text-teal-600 group-hover:bg-teal-600 group-hover:text-white transition-colors">
+            <User className="w-6 h-6" />
+          </div>
+
+          <div className="ml-4">
+            <h3 className="font-bold text-gray-800 group-hover:text-teal-700">
+              Soy Trabajador
+            </h3>
+
+            <p className="text-sm text-gray-500">
+              Incapacidades y servicios laborales
+            </p>
           </div>
         </button>
 
@@ -194,18 +383,102 @@ const LoginPage = () => {
           <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
             <Building2 className="w-6 h-6" />
           </div>
+
           <div className="ml-4">
             <h3 className="font-bold text-gray-800 group-hover:text-blue-700">
               Ingreso Corporativo
             </h3>
-            <p className="text-sm text-gray-500">Administrativos y Empleados</p>
+
+            <p className="text-sm text-gray-500">
+              Personal administrativo
+            </p>
           </div>
         </button>
       </div>
 
       <div className="text-center pt-4">
-        <p className="text-xs text-gray-400">Portal de Recursos Humanos v1.0</p>
+        <p className="text-xs text-gray-400">
+          Portal de Recursos Humanos v1.0
+        </p>
       </div>
+    </motion.div>
+  );
+
+  const renderWorkerView = () => (
+    <motion.div
+      key="worker"
+      initial={{ opacity: 0, x: 50 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 50 }}
+    >
+      <Button
+        variant="ghost"
+        onClick={() => {
+          setWorkerDocument('');
+          setView('selection');
+        }}
+        className="mb-4 -ml-2 text-gray-500 hover:text-gray-900"
+      >
+        <ArrowLeft className="w-4 h-4 mr-2" />
+        Volver
+      </Button>
+
+      <div className="flex flex-col items-center mb-6">
+        <div className="w-16 h-16 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
+          <User className="w-8 h-8 text-white" />
+        </div>
+
+        <h1 className="text-2xl font-bold text-gray-800">
+          Portal del Trabajador
+        </h1>
+
+        <p className="text-gray-500 text-center mt-1">
+          Ingrese su número de identificación
+        </p>
+      </div>
+
+      <form
+        onSubmit={handleWorkerSubmit}
+        className="space-y-6"
+      >
+        <div className="space-y-2">
+          <Label htmlFor="workerDocument">
+            Número de identificación
+          </Label>
+
+          <div className="relative">
+            <Input
+              id="workerDocument"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="Ingrese su número de identificación"
+              value={workerDocument}
+              onChange={(e) =>
+                setWorkerDocument(
+                  e.target.value.replace(/\D/g, '')
+                )
+              }
+              maxLength={15}
+              className="border-teal-200 focus:border-teal-500 pl-10"
+            />
+
+            <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+          </div>
+        </div>
+
+        <Button
+          type="submit"
+          disabled={workerLoading}
+          className="w-full bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white py-6 text-lg shadow-lg shadow-teal-600/20"
+        >
+          <LogIn className="w-5 h-5 mr-2" />
+
+          {workerLoading
+            ? 'Validando...'
+            : 'Ingresar'}
+        </Button>
+      </form>
     </motion.div>
   );
 
@@ -221,51 +494,82 @@ const LoginPage = () => {
         onClick={() => setView('selection')}
         className="mb-4 -ml-2 text-gray-500 hover:text-gray-900"
       >
-        <ArrowLeft className="w-4 h-4 mr-2" /> Volver
+        <ArrowLeft className="w-4 h-4 mr-2" />
+        Volver
       </Button>
 
       <div className="flex flex-col items-center mb-6">
         <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
           <ShieldCheck className="w-8 h-8 text-white" />
         </div>
-        <h1 className="text-2xl font-bold text-gray-800">Acceso Seguro</h1>
-        <p className="text-gray-500">Credenciales corporativas</p>
+
+        <h1 className="text-2xl font-bold text-gray-800">
+          Acceso Seguro
+        </h1>
+
+        <p className="text-gray-500">
+          Credenciales corporativas
+        </p>
       </div>
 
-      <form onSubmit={handleLoginSubmit} className="space-y-6">
+      <form
+        onSubmit={handleLoginSubmit}
+        className="space-y-6"
+      >
         <div className="space-y-2">
-          <Label htmlFor="username">Usuario</Label>
+          <Label htmlFor="username">
+            Usuario
+          </Label>
+
           <div className="relative">
             <Input
               id="username"
               type="text"
               placeholder="Usuario de red"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) =>
+                setUsername(e.target.value)
+              }
               className="border-blue-200 focus:border-blue-500 pl-10"
             />
+
             <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           </div>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="password">Contraseña</Label>
+          <Label htmlFor="password">
+            Contraseña
+          </Label>
+
           <div className="relative">
             <Input
               id="password"
-              type={showPassword ? 'text' : 'password'}
+              type={
+                showPassword ? 'text' : 'password'
+              }
               placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) =>
+                setPassword(e.target.value)
+              }
               className="border-blue-200 focus:border-blue-500 pl-10 pr-10"
             />
+
             <KeyRound className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+
             <button
               type="button"
-              onClick={() => setShowPassword(!showPassword)}
+              onClick={() =>
+                setShowPassword(!showPassword)
+              }
               className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-blue-600"
             >
-              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              {showPassword ? (
+                <EyeOff className="h-5 w-5" />
+              ) : (
+                <Eye className="h-5 w-5" />
+              )}
             </button>
           </div>
         </div>
@@ -276,7 +580,10 @@ const LoginPage = () => {
           className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white py-6 text-lg shadow-lg shadow-blue-600/20"
         >
           <LogIn className="w-5 h-5 mr-2" />
-          {loading ? 'Ingresando...' : 'Iniciar Sesión'}
+
+          {loading
+            ? 'Ingresando...'
+            : 'Iniciar Sesión'}
         </Button>
       </form>
     </motion.div>
@@ -289,8 +596,14 @@ const LoginPage = () => {
         <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-emerald-500 via-teal-500 to-blue-500" />
 
         <AnimatePresence mode="wait">
-          {view === 'selection' && renderSelectionView()}
-          {view === 'login' && renderLoginView()}
+          {view === 'selection' &&
+            renderSelectionView()}
+
+          {view === 'worker' &&
+            renderWorkerView()}
+
+          {view === 'login' &&
+            renderLoginView()}
         </AnimatePresence>
       </div>
     </div>

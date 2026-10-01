@@ -59,6 +59,8 @@ const DocumentUploadModal = ({
   esHistorico = false,
   numeroCiclo = null,
   estadoVinculacion = null,
+  codigoEmpresa = null,
+  nombreEmpresa = null,
   soloLectura = false,
 }) => {
   const [documentos, setDocumentos] = useState([]);
@@ -74,6 +76,42 @@ const DocumentUploadModal = ({
   const esCarpetaBienestar = tipoCarpeta === 'bienestar';
   const esCarpetaHSE = tipoCarpeta === 'hse';
   const esCarpetaSaludOcupacional = tipoCarpeta === 'salud_ocupacional';
+
+  const empresaCodigo = String(
+    codigoEmpresa ||
+    aspirante?.CodigoEmpresa ||
+    aspirante?.codigoEmpresa ||
+    ''
+  ).trim().toUpperCase();
+
+  const empresaNombre = String(
+    nombreEmpresa ||
+    aspirante?.NombreEmpresa ||
+    aspirante?.nombreEmpresa ||
+    ''
+  ).trim();
+
+  const empresaVisible =
+    empresaCodigo === 'ALP'
+      ? {
+          codigo: 'ALP',
+          nombre: empresaNombre || 'Aseos La Perfección S.A.S.',
+          className: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+        }
+      : empresaCodigo === 'MI'
+        ? {
+            codigo: 'MI',
+            nombre: empresaNombre || 'Mantener Ingeniería',
+            className: 'bg-sky-100 text-sky-800 border-sky-200',
+          }
+        : {
+            codigo: 'SIN ASIGNAR',
+            nombre: empresaNombre || 'Sin empresa contratante asignada',
+            className: 'bg-gray-100 text-gray-600 border-gray-200',
+          };
+
+  const mostrarEmpresaCarpeta =
+    esCarpetaIngreso || esCarpetaActivos || esCarpetaRetiro;
 
   const obtenerIngresoParaCarpeta = (id) => {
     if (esCarpetaIngreso && idVinculacionLaboral) {
@@ -839,7 +877,11 @@ const descargarDocumentoRetiro = async (doc) => {
       };
 
       let pdf_base64 = '';
-      const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos');
+      const response = await DescargarDocumentoPdf(
+        campos,
+        'tratamiento_datos',
+        Number(idVinculacionLaboral)
+      );
 
       if (response?.data?.pdf_base64) {
         pdf_base64 = response.data.pdf_base64;
@@ -2195,6 +2237,22 @@ const renderCarpetaSaludOcupacional = () => (
                   {aspirante.nombres} {aspirante.apellidos}
                 </span>.
               </DialogDescription>
+
+              {mostrarEmpresaCarpeta && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Empresa contratante
+                  </span>
+                  <span
+                    className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${empresaVisible.className}`}
+                  >
+                    {empresaVisible.codigo}
+                  </span>
+                  <span className="text-sm font-semibold text-gray-800">
+                    {empresaVisible.nombre}
+                  </span>
+                </div>
+              )}
 
               {(idVinculacionLaboral || esHistorico) && esCarpetaIngreso && (
                 <div

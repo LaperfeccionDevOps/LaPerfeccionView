@@ -162,6 +162,13 @@ const OperacionesProcesosDisciplinariosView = () => {
     trabajador?.DescripcionTipoCargo ||
     'Cargo no asignado';
 
+  const obtenerEmpresa = (trabajador) =>
+    trabajador?.NombreEmpresa ||
+    trabajador?.nombreEmpresa ||
+    trabajador?.EmpresaContratante ||
+    trabajador?.empresaContratante ||
+    'Empresa no asignada';
+
   const obtenerIdEstadoProceso = (trabajador) =>
     Number(
       trabajador?.IdEstadoProceso ||
@@ -944,6 +951,11 @@ const OperacionesProcesosDisciplinariosView = () => {
                           <p className="mt-1 break-words text-sm text-gray-600">
                             Cargo:{' '}
                             {obtenerCargo(trabajador)}
+                          </p>
+
+                          <p className="mt-1 break-words text-sm text-gray-600">
+                            Empresa contratante:{' '}
+                            {obtenerEmpresa(trabajador)}
                           </p>
 
                           <span

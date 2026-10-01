@@ -549,6 +549,12 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   // Solo se activa visualmente cuando el backend confirma REINTEGRO.
   const [detalleCiclos, setDetalleCiclos] = useState(null);
 
+  // Empresa contratante del ciclo actual.
+  const [empresaContratanteActual, setEmpresaContratanteActual] = useState(null);
+  const [empresaContratanteSeleccionada, setEmpresaContratanteSeleccionada] = useState('');
+  const [empresaContratanteConfirmada, setEmpresaContratanteConfirmada] = useState(false);
+  const [guardandoEmpresaContratante, setGuardandoEmpresaContratante] = useState(false);
+
   useEffect(() => {
     const fetchDropDownList = async () => {
       try {
@@ -573,6 +579,12 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   // Solo resetea payloads temporales cuando abres o cambias aspirante
   useEffect(() => {
     if (!isOpen) return;
+
+    setEmpresaContratanteActual(null);
+    setEmpresaContratanteSeleccionada('');
+    setEmpresaContratanteConfirmada(false);
+    setGuardandoEmpresaContratante(false);
+
     console.log("IdNivelEducativo:", formData?.IdNivelEducativo);
   console.log("nivelAcademico:", formData?.nivelAcademico);
     localStorage.removeItem('estadoValidacionExperienciaLaboral_payload_1');
@@ -602,14 +614,33 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
            ciclosData = null;
          }
 
+         const vinculacionActualEmpresa = ciclosData?.vinculacionActual || null;
+         const idEmpresaActual = vinculacionActualEmpresa?.IdEmpresaContratante ?? null;
+
+         if (idEmpresaActual) {
+           setEmpresaContratanteActual({
+             IdEmpresaContratante: Number(idEmpresaActual),
+             CodigoEmpresa: vinculacionActualEmpresa?.CodigoEmpresa || vinculacionActualEmpresa?.Codigo || '',
+             NombreEmpresa: vinculacionActualEmpresa?.NombreEmpresa || vinculacionActualEmpresa?.Nombre || '',
+             LogoEmpresa: vinculacionActualEmpresa?.LogoEmpresa || vinculacionActualEmpresa?.Logo || '',
+           });
+           setEmpresaContratanteSeleccionada(String(idEmpresaActual));
+           setEmpresaContratanteConfirmada(true);
+         } else {
+           setEmpresaContratanteActual(null);
+           setEmpresaContratanteSeleccionada('');
+           setEmpresaContratanteConfirmada(false);
+         }
+
          const esReintegroActual = Boolean(
            ciclosData?.esReintegroActual &&
            ciclosData?.vinculacionActual?.IdVinculacionLaboral
          );
 
-         const idVinculacionActual = esReintegroActual
-           ? ciclosData.vinculacionActual.IdVinculacionLaboral
-           : null;
+         // La vinculación actual aplica tanto para procesos NUEVOS como para REINTEGROS.
+         // La separación visual por ciclos sigue siendo exclusiva del reintegro.
+         const idVinculacionActual =
+           ciclosData?.vinculacionActual?.IdVinculacionLaboral || null;
 
          // Documentos de ingreso:
          // - Aspirante normal: conserva el endpoint legado.
@@ -1090,7 +1121,7 @@ const handleDescargarReferencia = async (ref) => {
     };
 
     let pdf_base64 = '';
-    const response = await DescargarDocumentoPdf(campos, 'referencias');
+    const response = await DescargarDocumentoPdf(campos, 'referencias', formData?.IdVinculacionLaboral);
 
     if (response && typeof response.json === 'function') {
       const data = await response.json();
@@ -1127,7 +1158,7 @@ const handleDescargarReferencia = async (ref) => {
     };
 
     let pdf_base64 = '';
-    const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos');
+    const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos', formData?.IdVinculacionLaboral);
     if (response && typeof response.json === 'function') {
       const data = await response.json();
       pdf_base64 = data.pdf_base64;
@@ -1468,7 +1499,7 @@ console.log('observacionExperiencia final:', observacionExperiencia);
 console.log('campos.EXPERIENCIA:', campos?.EXPERIENCIA);
 console.log('campos completos:', campos);
 
-    const response = await DescargarDocumentoPdf(campos, 'entrevista');
+    const response = await DescargarDocumentoPdf(campos, 'entrevista', formData?.IdVinculacionLaboral);
     if (response && typeof response.json === 'function') {
       const data = await response.json();
       pdf_base64 = data.pdf_base64;
@@ -1980,6 +2011,70 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
     }
   }, [aspirante, isOpen]);
 
+  const handleConfirmarEmpresaContratante = async () => {
+    if (!aspirante?.id || !empresaContratanteSeleccionada) {
+      toast({
+        title: 'Empresa contratante obligatoria',
+        description: 'Selecciona Aseos La Perfección o Mantener Ingeniería para continuar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setGuardandoEmpresaContratante(true);
+
+      const response = await axios.post(
+        `${API_BASE}/aspirantes/${aspirante.id}/empresa-contratante`,
+        {
+          IdEmpresaContratante: Number(empresaContratanteSeleccionada),
+          UsuarioActualizacion: localStorage.getItem('usuario') || null,
+        },
+        { headers: { ...authHeaders } }
+      );
+
+      const data = response?.data || {};
+      setEmpresaContratanteActual({
+        IdEmpresaContratante: Number(data?.IdEmpresaContratante),
+        CodigoEmpresa: data?.CodigoEmpresa || '',
+        NombreEmpresa: data?.NombreEmpresa || '',
+        LogoEmpresa: data?.LogoEmpresa || '',
+      });
+      setEmpresaContratanteSeleccionada(String(data?.IdEmpresaContratante));
+      setEmpresaContratanteConfirmada(true);
+
+      setFormData(prev => ({
+        ...prev,
+        IdVinculacionLaboral: data?.IdVinculacionLaboral ?? prev?.IdVinculacionLaboral ?? null,
+        IdEmpresaContratante: data?.IdEmpresaContratante ?? prev?.IdEmpresaContratante ?? null,
+      }));
+
+      try {
+        const responseCiclos = await getAspirantePorCiclos(aspirante.id);
+        const ciclosActualizados = responseCiclos?.data || null;
+        if (ciclosActualizados?.esReintegroActual) {
+          setDetalleCiclos(ciclosActualizados);
+        }
+      } catch (error) {
+        console.error('Empresa asignada; no fue posible refrescar ciclos:', error);
+      }
+
+      toast({
+        title: 'Empresa contratante asignada',
+        description: `${data?.CodigoEmpresa || ''} ${data?.NombreEmpresa || ''}`.trim(),
+      });
+    } catch (error) {
+      console.error('Error asignando empresa contratante:', error);
+      toast({
+        title: 'No fue posible asignar la empresa',
+        description: error?.response?.data?.detail || 'Ocurrió un error al guardar la empresa contratante.',
+        variant: 'destructive',
+      });
+    } finally {
+      setGuardandoEmpresaContratante(false);
+    }
+  };
+
   if (loadingAspiranteDetalle) {
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -2151,7 +2246,7 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
          };
          let pdf_base64 = '';
          try {
-            const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos');
+            const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos', formData?.IdVinculacionLaboral);
             if (response && typeof response.json === 'function') {
                const data = await response.json();
                pdf_base64 = data.pdf_base64;
@@ -2820,26 +2915,72 @@ if (response && response.status === 201) {
   };
 
   const descargarDocumento = (doc) => {
-   if (!doc?.DocumentoBase64) return;
-      let prefix = '';
-      if (doc.Formato === 'image/png') {
-         prefix = doc && doc.Formato === 'image/png'
-      ? 'data:image/png;base64,'
-      : '';
-      } else if (doc.Formato === 'application/pdf') {
-         prefix = doc && doc.Formato === 'application/pdf'
-         ? 'data:application/pdf;base64,'
-         : '';
+    try {
+      if (!doc?.DocumentoBase64) {
+        console.error('No se recibió contenido para descargar el documento.');
+        return;
+      }
+
+      const contenidoOriginal = String(doc.DocumentoBase64).trim();
+
+      // El backend puede entregar Base64 puro o una data URI completa.
+      // Se normaliza antes de crear el archivo para evitar prefijos duplicados
+      // y PDFs que Adobe interpreta como dañados.
+      const tieneDataUri = contenidoOriginal.startsWith('data:');
+      const mimeDesdeDataUri = tieneDataUri
+        ? (contenidoOriginal.match(/^data:([^;,]+)[;,]/i)?.[1] || '')
+        : '';
+
+      const mimeType =
+        mimeDesdeDataUri ||
+        doc?.Formato ||
+        'application/pdf';
+
+      const base64Limpio = tieneDataUri
+        ? contenidoOriginal.substring(contenidoOriginal.indexOf(',') + 1)
+        : contenidoOriginal;
+
+      if (!base64Limpio) {
+        console.error('El documento no contiene Base64 válido.');
+        return;
+      }
+
+      const byteCharacters = atob(base64Limpio);
+      const byteNumbers = new Uint8Array(byteCharacters.length);
+
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+
+      const blob = new Blob([byteNumbers], { type: mimeType });
+      const blobUrl = URL.createObjectURL(blob);
+
+      const extension = mimeType === 'application/pdf'
+        ? '.pdf'
+        : mimeType === 'image/png'
+          ? '.png'
+          : '';
+
+      let nombreArchivo = String(doc?.Nombre || 'documento').trim() || 'documento';
+      if (extension && !nombreArchivo.toLowerCase().endsWith(extension)) {
+        nombreArchivo += extension;
       }
 
       const link = document.createElement('a');
-      link.href = `${prefix}${doc.DocumentoBase64}`;
-      link.download = doc.Nombre || 'documento';
+      link.href = blobUrl;
+      link.download = nombreArchivo;
 
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-   };
+
+      // Se libera la URL temporal después de iniciar la descarga.
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    } catch (error) {
+      console.error('Error al descargar documento:', error);
+      alert('No fue posible descargar el documento.');
+    }
+  };
 
   const handelObservacionesExperienciaLaboral = async () => {
   setSavingDatosProceso(true);
@@ -2941,6 +3082,83 @@ if (response && response.status === 201) {
 
   if (!formData) return null;
 
+  if (!empresaContratanteConfirmada) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-2xl p-0 overflow-hidden bg-gray-50">
+          <DialogHeader className="px-6 py-4 bg-white border-b border-gray-200">
+            <DialogTitle className="text-xl font-bold text-gray-800">Detalle del Candidato</DialogTitle>
+            <DialogDescription className="text-sm text-gray-500">
+              Antes de iniciar el proceso de selección de {formData.nombres} {formData.apellidos},
+              define la empresa contratante.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-6">
+            <div className="rounded-xl border border-emerald-200 bg-white p-6 shadow-sm">
+              <h3 className="text-lg font-bold text-gray-800">
+                Empresa contratante <span className="text-red-500">*</span>
+              </h3>
+              <p className="mt-1 mb-5 text-sm text-gray-500">
+                Selecciona la empresa para habilitar el flujo del candidato.
+              </p>
+
+              <div className="space-y-3">
+                {[
+                  { id: '1', codigo: 'ALP', nombre: 'Aseos La Perfección' },
+                  { id: '2', codigo: 'MI', nombre: 'Mantener Ingeniería' },
+                ].map((empresa) => (
+                  <button
+                    key={empresa.id}
+                    type="button"
+                    onClick={() => setEmpresaContratanteSeleccionada(empresa.id)}
+                    className={`w-full rounded-xl border p-4 text-left transition-all ${
+                      empresaContratanteSeleccionada === empresa.id
+                        ? 'border-emerald-600 bg-emerald-50 ring-2 ring-emerald-100'
+                        : 'border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/40'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-5 w-5 items-center justify-center rounded-full border ${
+                        empresaContratanteSeleccionada === empresa.id
+                          ? 'border-emerald-600'
+                          : 'border-gray-400'
+                      }`}>
+                        {empresaContratanteSeleccionada === empresa.id && (
+                          <div className="h-2.5 w-2.5 rounded-full bg-emerald-600" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-800">
+                          {empresa.codigo} - {empresa.nombre}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          El proceso laboral se gestionará para {empresa.nombre}.
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-6 flex justify-end">
+                <Button
+                  type="button"
+                  className="bg-emerald-600 text-white hover:bg-emerald-700"
+                  disabled={!empresaContratanteSeleccionada || guardandoEmpresaContratante}
+                  onClick={handleConfirmarEmpresaContratante}
+                >
+                  {guardandoEmpresaContratante ? 'Guardando...' : 'Continuar'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+
   const getFondoLabelFromAny = (raw) => {
   if (raw == null) return "";
 
@@ -2993,9 +3211,18 @@ if (response && response.status === 201) {
         <DialogHeader className="px-6 py-4 bg-white border-b border-gray-200 shrink-0">
           <div className="flex items-center justify-between">
              <div>
-                <DialogTitle className="text-xl font-bold text-gray-800">Detalle del Candidato</DialogTitle>
+                <div className="flex items-center gap-3">
+                  <DialogTitle className="text-xl font-bold text-gray-800">Detalle del Candidato</DialogTitle>
+                  {empresaContratanteActual?.IdEmpresaContratante && (
+                    <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                      {empresaContratanteActual?.CodigoEmpresa ||
+                        (Number(empresaContratanteActual?.IdEmpresaContratante) === 1 ? 'ALP' : 'MI')}
+                    </span>
+                  )}
+                </div>
                 <DialogDescription className="text-sm text-gray-500">
                    Gestiona la información completa de {formData.nombres} {formData.apellidos}
+                   {empresaContratanteActual?.NombreEmpresa ? ` · ${empresaContratanteActual.NombreEmpresa}` : ''}
                 </DialogDescription>
              </div>
           </div>
