@@ -25,13 +25,93 @@ const PortalTrabajadorPage = () => {
   const workerEps =
     localStorage.getItem("trabajador_eps") || "";
 
+  const [workerCompany, setWorkerCompany] =
+    React.useState(
+      localStorage.getItem("trabajador_empresa") || ""
+    );
+
   React.useEffect(() => {
     if (!workerToken) {
       navigate("/login", {
         replace: true,
       });
+      return;
     }
-  }, [workerToken, navigate]);
+
+    if (workerCompany || !workerDocument) {
+      return;
+    }
+
+    let activo = true;
+
+    const cargarEmpresa = async () => {
+      try {
+        const apiBaseUrl = (
+          import.meta.env.VITE_API_BASE_URL ||
+          import.meta.env.VITE_API_URL ||
+          "http://127.0.0.1:8000/api"
+        ).replace(/\/+$/, "");
+
+        const response = await fetch(
+          `${apiBaseUrl}/auth/trabajador`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              Authorization: `Bearer ${workerToken}`,
+            },
+            body: JSON.stringify({
+              numero_identificacion: workerDocument,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          console.error(
+            "No fue posible consultar la información del trabajador.",
+            response.status
+          );
+          return;
+        }
+
+        const data = await response.json();
+
+        const empresa =
+          data?.empresa_contratante ||
+          data?.empresa ||
+          data?.NombreEmpresa ||
+          "";
+
+        if (!activo || !empresa) {
+          return;
+        }
+
+        localStorage.setItem(
+          "trabajador_empresa",
+          empresa
+        );
+
+        setWorkerCompany(empresa);
+      } catch (errorEmpresa) {
+        console.error(
+          "Error consultando empresa del trabajador:",
+          errorEmpresa
+        );
+      }
+    };
+
+    cargarEmpresa();
+
+    return () => {
+      activo = false;
+    };
+  }, [
+    workerToken,
+    workerDocument,
+    workerCompany,
+    navigate,
+  ]);
 
   const maskDocument = (document) => {
     const value = String(document || "").trim();
@@ -68,6 +148,10 @@ const PortalTrabajadorPage = () => {
 
     localStorage.removeItem(
       "trabajador_eps"
+    );
+
+    localStorage.removeItem(
+      "trabajador_empresa"
     );
 
     navigate("/login", {
@@ -115,6 +199,7 @@ const PortalTrabajadorPage = () => {
                   </p>
 
                 </div>
+
               </div>
 
               <Button
@@ -129,7 +214,7 @@ const PortalTrabajadorPage = () => {
 
             </div>
 
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
 
               <div className="bg-gray-50 border border-gray-100 rounded-2xl p-5">
 
@@ -145,6 +230,24 @@ const PortalTrabajadorPage = () => {
 
                 <p className="text-lg font-bold text-gray-800">
                   {maskDocument(workerDocument)}
+                </p>
+
+              </div>
+
+              <div className="bg-gray-50 border border-gray-100 rounded-2xl p-5">
+
+                <div className="flex items-center gap-3 mb-2">
+
+                  <Building2 className="w-5 h-5 text-emerald-600" />
+
+                  <p className="text-sm font-semibold text-gray-600">
+                    Empresa contratante
+                  </p>
+
+                </div>
+
+                <p className="text-lg font-bold text-gray-800">
+                  {workerCompany || "No registrada"}
                 </p>
 
               </div>

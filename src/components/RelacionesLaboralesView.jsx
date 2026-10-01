@@ -760,6 +760,40 @@ const DocCard = ({
   </div>
 );
 
+function getEmpresaContratanteInfo(source = {}) {
+  const codigo = String(
+    source?.CodigoEmpresa || source?.codigoEmpresa || source?.empresaCodigo || ""
+  )
+    .trim()
+    .toUpperCase();
+
+  const nombreBackend = String(
+    source?.NombreEmpresa || source?.nombreEmpresa || source?.empresaNombre || ""
+  ).trim();
+
+  if (codigo === "ALP") {
+    return {
+      codigo: "ALP",
+      nombre: nombreBackend || "Aseos La Perfección",
+      badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    };
+  }
+
+  if (codigo === "MI") {
+    return {
+      codigo: "MI",
+      nombre: nombreBackend || "Mantener Ingeniería",
+      badgeClass: "bg-sky-100 text-sky-800 border-sky-200",
+    };
+  }
+
+  return {
+    codigo: "SIN ASIGNAR",
+    nombre: "Sin empresa contratante asignada",
+    badgeClass: "bg-slate-100 text-slate-600 border-slate-200",
+  };
+}
+
 export default function RelacionesLaboralesView() {
   const navigate = useNavigate();
 
@@ -900,6 +934,11 @@ export default function RelacionesLaboralesView() {
   // ✅ NUEVO: para poder hacer PUT
   idRetiroLaboral: null,
   idMotivoRetiro: null,
+  idVinculacionLaboral: null,
+  idEmpresaContratante: null,
+  codigoEmpresa: "",
+  nombreEmpresa: "",
+  logoEmpresa: "",
 
   fechaProceso: "",
   tipoId: "",
@@ -1602,6 +1641,32 @@ const getMotivoValueById = (idMotivo) => {
 
         idMotivoRetiro: motivoIdDb ?? prev.idMotivoRetiro ?? null,
         motivoRetiro: motivoVisualFinal || prev.motivoRetiro || "",
+
+        idVinculacionLaboral:
+          detalleRetiroBusqueda?.IdVinculacionLaboral ??
+          retiroDb?.IdVinculacionLaboral ??
+          data?.IdVinculacionLaboral ??
+          null,
+        idEmpresaContratante:
+          detalleRetiroBusqueda?.IdEmpresaContratante ??
+          retiroDb?.IdEmpresaContratante ??
+          data?.IdEmpresaContratante ??
+          null,
+        codigoEmpresa:
+          detalleRetiroBusqueda?.CodigoEmpresa ??
+          retiroDb?.CodigoEmpresa ??
+          data?.CodigoEmpresa ??
+          "",
+        nombreEmpresa:
+          detalleRetiroBusqueda?.NombreEmpresa ??
+          retiroDb?.NombreEmpresa ??
+          data?.NombreEmpresa ??
+          "",
+        logoEmpresa:
+          detalleRetiroBusqueda?.LogoEmpresa ??
+          retiroDb?.LogoEmpresa ??
+          data?.LogoEmpresa ??
+          "",
 
         fechaFinal: fechaFinalFromBackend || "",
         fechaProceso: fechaProcesoFromBackend || prev.fechaProceso || "",
@@ -3687,7 +3752,7 @@ if (step === "agenda_general_rrll") {
   // --------------------------
   if (step === "inicio") {
     return (
-      <div className="p-6">
+      <div className="w-full p-4 md:p-6 xl:w-[calc(100%+12rem)] xl:-ml-24">
         <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
           <div className="mb-6">
             <p className="text-sm font-semibold text-emerald-700">
@@ -3847,7 +3912,7 @@ if (step === "agenda_general_rrll") {
     };
 
     return (
-      <div className="p-6">
+      <div className="w-full p-4 md:p-6 xl:w-[calc(100%+12rem)] xl:-ml-24">
         <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
@@ -3933,9 +3998,10 @@ if (step === "agenda_general_rrll") {
 
           <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1050px] text-sm">
+              <table className="w-full min-w-[1220px] text-sm">
                 <thead className="bg-gray-50 text-gray-600">
                   <tr>
+                    <th className="px-5 py-3 text-left font-semibold">Empresa</th>
                     <th className="px-5 py-3 text-left font-semibold">Identificación</th>
                     <th className="px-5 py-3 text-left font-semibold">Trabajador</th>
                     <th className="px-5 py-3 text-left font-semibold">Cliente</th>
@@ -3953,7 +4019,7 @@ if (step === "agenda_general_rrll") {
                 <tbody>
                   {loadingBandejaRetirosRRLL && (
                     <tr>
-                      <td colSpan="7" className="px-5 py-10 text-center text-gray-500">
+                      <td colSpan="8" className="px-5 py-10 text-center text-gray-500">
                         Consultando retiros...
                       </td>
                     </tr>
@@ -3972,11 +4038,25 @@ if (step === "agenda_general_rrll") {
                         String(retiro?.EstadoCasoRRLL || "").toUpperCase() ===
                         "DEVUELTO_NOMINA";
 
+                      const empresaRetiro = getEmpresaContratanteInfo(retiro);
+
                       return (
                         <tr
                           key={retiro?.IdRetiroLaboral}
                           className="border-t border-gray-100 hover:bg-gray-50"
                         >
+                          <td className="px-5 py-4">
+                            <div className="flex min-w-[190px] flex-col items-start gap-1.5">
+                              <span
+                                className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${empresaRetiro.badgeClass}`}
+                              >
+                                {empresaRetiro.codigo}
+                              </span>
+                              <span className="text-xs font-medium leading-4 text-gray-600">
+                                {empresaRetiro.nombre}
+                              </span>
+                            </div>
+                          </td>
                           <td className="px-5 py-4 font-medium text-gray-800">
                             {retiro?.NumeroIdentificacion || "Sin información"}
                           </td>
@@ -4037,7 +4117,7 @@ if (step === "agenda_general_rrll") {
                     retirosFiltrados.length === 0 &&
                     !errorBandejaRetirosRRLL && (
                       <tr>
-                        <td colSpan="7" className="px-5 py-12 text-center text-gray-500">
+                        <td colSpan="8" className="px-5 py-12 text-center text-gray-500">
                           {terminoBusquedaBandeja
                             ? "No se encontraron retiros que coincidan con la búsqueda."
                             : tabBandejaRetirosRRLL === "ABIERTOS_OPERACIONES"
@@ -4145,7 +4225,7 @@ if (step === "retiros_docs") {
   console.log("form.idRetiroLaboral =>", form.idRetiroLaboral);
 
         return (
-          <div className="p-6">
+          <div className="w-full p-4 md:p-6 xl:w-[calc(100%+12rem)] xl:-ml-24">
           <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
             {qrEntrevistaInfo.open && (
       <div className="fixed top-4 right-4 z-50 w-[420px] max-w-[95vw] rounded-xl border border-emerald-200 bg-white shadow-2xl px-4 py-4 text-sm text-slate-800">
@@ -4221,6 +4301,30 @@ if (step === "retiros_docs") {
               </Button>
             </div>
           </div>
+
+          {/* Empresa contratante del ciclo laboral asociado al retiro */}
+          {(() => {
+            const empresa = getEmpresaContratanteInfo({
+              CodigoEmpresa: form.codigoEmpresa,
+              NombreEmpresa: form.nombreEmpresa,
+            });
+
+            return (
+              <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Empresa contratante
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <span
+                    className={`inline-flex rounded-full border px-3 py-1.5 text-xs font-bold ${empresa.badgeClass}`}
+                  >
+                    {empresa.codigo}
+                  </span>
+                  <span className="font-semibold text-gray-800">{empresa.nombre}</span>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Motivo seleccionado */}
           <div className="mt-6 bg-gray-50 p-5 rounded-xl border border-gray-100">
@@ -5598,7 +5702,7 @@ if (step === "retiros_docs") {
   // VISTA RETIROS (CABECERA)
   // --------------------------
   return (
-    <div className="p-6">
+    <div className="w-full p-4 md:p-6 xl:w-[calc(100%+12rem)] xl:-ml-24">
       <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
@@ -5721,6 +5825,27 @@ if (step === "retiros_docs") {
           <p className="font-semibold text-gray-700 mb-4">Datos Personales</p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-4">
+            <div className="col-span-1 sm:col-span-2 md:col-span-12">
+              <Label className="text-xs text-gray-600">Empresa contratante</Label>
+              {(() => {
+                const empresa = getEmpresaContratanteInfo({
+                  CodigoEmpresa: form.codigoEmpresa,
+                  NombreEmpresa: form.nombreEmpresa,
+                });
+
+                return (
+                  <div className="mt-1 flex min-h-[42px] flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5">
+                    <span
+                      className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${empresa.badgeClass}`}
+                    >
+                      {empresa.codigo}
+                    </span>
+                    <span className="font-semibold text-gray-800">{empresa.nombre}</span>
+                  </div>
+                );
+              })()}
+            </div>
+
            <div className="col-span-1 sm:col-span-2 md:col-span-3">
               <Label className="text-xs text-gray-600">Fecha de Proceso</Label>
              <Input

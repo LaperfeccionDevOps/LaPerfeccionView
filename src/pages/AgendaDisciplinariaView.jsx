@@ -294,17 +294,124 @@ export default function AgendaDisciplinariaView({
   };
 
   const procesarRespuestaAgenda = (data, fechaAlterna = "") => {
-    setAgenda(
-      Array.isArray(data?.eventos)
-        ? data.eventos
-        : []
-    );
+    const eventos = Array.isArray(data?.eventos)
+      ? data.eventos
+      : [];
+
+    setAgenda(eventos);
 
     setTotal(Number(data?.total || 0));
 
     setFechaConsulta(
       data?.fecha || fechaAlterna || ""
     );
+
+    // La agenda puede traer la empresa directamente. Si un evento no la trae,
+    // consultamos el proceso disciplinario ya existente para completar el dato
+    // sin modificar la lógica de agenda.
+    const eventosSinEmpresa = eventos.filter(
+      (evento) =>
+        evento?.IdProcesoDisciplinario &&
+        !obtenerEmpresaEvento(evento)
+    );
+
+    if (eventosSinEmpresa.length > 0) {
+      const token = obtenerTokenAutenticacion();
+
+      Promise.all(
+        eventosSinEmpresa.map(async (evento) => {
+          try {
+            const res = await fetch(
+              `${API_BASE}/procesos-disciplinarios/${evento.IdProcesoDisciplinario}`,
+              {
+                headers: token
+                  ? {
+                      Authorization: `Bearer ${token}`,
+                    }
+                  : undefined,
+              }
+            );
+
+            if (!res.ok) {
+              return null;
+            }
+
+            const proceso = await res.json().catch(() => null);
+
+            if (!proceso) {
+              return null;
+            }
+
+            return {
+              IdAgendaProcesoDisciplinario:
+                evento.IdAgendaProcesoDisciplinario,
+              IdProcesoDisciplinario:
+                evento.IdProcesoDisciplinario,
+              NombreEmpresa:
+                proceso?.NombreEmpresa ||
+                proceso?.nombreEmpresa ||
+                proceso?.Empresa ||
+                proceso?.empresa ||
+                "",
+              CodigoEmpresa:
+                proceso?.CodigoEmpresa ||
+                proceso?.codigoEmpresa ||
+                "",
+              IdEmpresaContratante:
+                proceso?.IdEmpresaContratante ||
+                proceso?.idEmpresaContratante ||
+                null,
+              LogoEmpresa:
+                proceso?.LogoEmpresa ||
+                proceso?.logoEmpresa ||
+                "",
+            };
+          } catch (errorEmpresa) {
+            console.warn(
+              "No fue posible completar la empresa del evento de agenda:",
+              errorEmpresa
+            );
+            return null;
+          }
+        })
+      ).then((empresas) => {
+        const empresasValidas = empresas.filter(Boolean);
+
+        if (empresasValidas.length === 0) {
+          return;
+        }
+
+        setAgenda((agendaActual) =>
+          agendaActual.map((eventoActual) => {
+            const empresa = empresasValidas.find(
+              (item) =>
+                item.IdAgendaProcesoDisciplinario ===
+                eventoActual.IdAgendaProcesoDisciplinario
+            );
+
+            if (!empresa) {
+              return eventoActual;
+            }
+
+            return {
+              ...eventoActual,
+              NombreEmpresa:
+                empresa.NombreEmpresa ||
+                eventoActual.NombreEmpresa,
+              CodigoEmpresa:
+                empresa.CodigoEmpresa ||
+                eventoActual.CodigoEmpresa,
+              IdEmpresaContratante:
+                empresa.IdEmpresaContratante ||
+                eventoActual.IdEmpresaContratante,
+              LogoEmpresa:
+                empresa.LogoEmpresa ||
+                eventoActual.LogoEmpresa,
+            };
+          })
+        );
+      });
+    }
   };
 
   const cargarSolicitudesPendientes = async () => {
@@ -576,6 +683,30 @@ export default function AgendaDisciplinariaView({
     setMotivoCancelacion("");
     setErrorCancelacion("");
     setModalCancelarAbierto(true);
+  };
+
+  const obtenerEmpresaEvento = (evento) => {
+    const nombreEmpresa =
+      evento?.NombreEmpresa ||
+      evento?.nombreEmpresa ||
+      evento?.Empresa ||
+      evento?.empresa ||
+      evento?.NombreEmpresaContratante ||
+      evento?.nombreEmpresaContratante ||
+      "";
+
+    return String(nombreEmpresa).trim();
+  };
+
+  const obtenerCodigoEmpresaEvento = (evento) => {
+    const codigo =
+      evento?.CodigoEmpresa ||
+      evento?.codigoEmpresa ||
+      evento?.CodigoEmpresaContratante ||
+      evento?.codigoEmpresaContratante ||
+      "";
+
+    return String(codigo).trim();
   };
 
   const cargarHorariosDisponibles = async (fecha) => {
@@ -1897,6 +2028,9 @@ export default function AgendaDisciplinariaView({
                   Hora
                 </th>
                 <th className="px-2 xl:px-3 py-3 text-left">
+                  Empresa
+                </th>
+                <th className="px-2 xl:px-3 py-3 text-left">
                   Trabajador
                 </th>
                 <th className="px-2 xl:px-3 py-3 text-left">
@@ -1924,7 +2058,7 @@ export default function AgendaDisciplinariaView({
               {loading ? (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="px-4 py-10 text-center text-gray-500 bg-white"
                   >
                     Cargando agenda...
@@ -1933,7 +2067,7 @@ export default function AgendaDisciplinariaView({
               ) : agenda.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="px-4 py-10 text-center text-gray-500 bg-white"
                   >
                     No hay eventos para la fecha consultada.
@@ -1964,6 +2098,15 @@ export default function AgendaDisciplinariaView({
                       <td className="px-2 xl:px-3 py-3 whitespace-nowrap">
                         {evento.HoraInicio || "—"} -{" "}
                         {evento.HoraFin || "—"}
+                      </td>
+
+                      <td className="px-2 xl:px-3 py-3 min-w-[180px]">
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-gray-900">
+                            {obtenerEmpresaEvento(evento) || "—"}
+                          </span>
+
+                        </div>
                       </td>
 
                       <td className="px-2 xl:px-3 py-3 font-semibold text-gray-800">

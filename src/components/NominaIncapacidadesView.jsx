@@ -246,6 +246,17 @@ const mapIncapacidadApi = (item) => ({
     item?.NumeroIdentificacion ??
     '',
 
+  empresa:
+    item?.empresa_contratante ??
+    item?.EmpresaContratante ??
+    item?.empresa ??
+    item?.Empresa ??
+    item?.empresa_nombre ??
+    item?.EmpresaNombre ??
+    item?.nombre_empresa ??
+    item?.NombreEmpresa ??
+    'No registrada',
+
   nombres:
     item?.nombres ??
     item?.Nombres ??
@@ -524,6 +535,8 @@ const NominaIncapacidadesView = () => {
 
   const [busqueda, setBusqueda] = useState('');
   const [pestanaActiva, setPestanaActiva] = useState('REGISTRADAS');
+  const [filtroEmpresa, setFiltroEmpresa] = useState('');
+
 
   const [filtroIdentificacion, setFiltroIdentificacion] = useState('');
   const [filtroTrabajador, setFiltroTrabajador] = useState('');
@@ -2062,6 +2075,9 @@ const NominaIncapacidadesView = () => {
     );
 
     return {
+      empresas: unicos(
+        datosPestana.map((item) => item.empresa || 'No registrada'),
+      ),
       identificaciones: unicos(
         datosPestana.map((item) => item.identificacion || ''),
       ),
@@ -2091,6 +2107,11 @@ const NominaIncapacidadesView = () => {
     const textoBusqueda =
       busqueda.trim().toLowerCase();
 
+    const empresaFiltro =
+      filtroEmpresa.trim().toLowerCase();
+
+
+
     const identificacionFiltro =
       filtroIdentificacion.trim().toLowerCase();
 
@@ -2113,7 +2134,10 @@ const NominaIncapacidadesView = () => {
       const estado = normalizarEstado(item.estado);
 
       const coincideBusqueda =
-        !textoBusqueda ||
+        !textoBusqueda ||        String(item.empresa || '')
+          .toLowerCase()
+          .includes(textoBusqueda) ||
+
         String(item.identificacion || '')
           .toLowerCase()
           .includes(textoBusqueda) ||
@@ -2129,6 +2153,14 @@ const NominaIncapacidadesView = () => {
         String(item.descripcionTipo || '')
           .toLowerCase()
           .includes(textoBusqueda);
+
+      const coincideEmpresa =
+        !empresaFiltro ||
+        String(item.empresa || 'No registrada')
+          .toLowerCase()
+          .includes(empresaFiltro);
+
+
 
       const coincideIdentificacion =
         !identificacionFiltro ||
@@ -2208,6 +2240,7 @@ const NominaIncapacidadesView = () => {
 
       return (
         coincideBusqueda &&
+        coincideEmpresa &&
         coincideIdentificacion &&
         coincideTrabajador &&
         coincideTipo &&
@@ -2222,6 +2255,8 @@ const NominaIncapacidadesView = () => {
     incapacidades,
     busqueda,
     pestanaActiva,
+    filtroEmpresa,
+
     filtroIdentificacion,
     filtroTrabajador,
     filtroTipo,
@@ -2237,6 +2272,7 @@ const NominaIncapacidadesView = () => {
   }, [
     busqueda,
     pestanaActiva,
+    filtroEmpresa,
     filtroIdentificacion,
     filtroTrabajador,
     filtroTipo,
@@ -2335,7 +2371,7 @@ const NominaIncapacidadesView = () => {
 
 
   return (
-    <div className="space-y-6 p-4 sm:p-6">
+    <div className="w-full space-y-6 p-2 sm:p-4 lg:-mx-2 lg:w-[calc(100%+1rem)]">
       <div className="rounded-2xl border bg-white p-5 shadow-md sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -2708,24 +2744,25 @@ const NominaIncapacidadesView = () => {
         </div>
 
 
-        <div className="hidden overflow-x-auto lg:block">
-          <table className="w-full text-sm">
+        <div className="hidden w-full overflow-x-auto lg:block">
+          <table className="w-full min-w-[1150px] text-sm">
             <thead className="bg-gray-50 text-gray-600">
               <tr>
-                {[
-                  { titulo: 'Identificación', valor: filtroIdentificacion, setValor: setFiltroIdentificacion, opciones: opcionesFiltrosColumnas.identificaciones, ancho: 'min-w-[140px]', alinear: 'text-left', etiqueta: 'identificación' },
-                  { titulo: 'Trabajador', valor: filtroTrabajador, setValor: setFiltroTrabajador, opciones: opcionesFiltrosColumnas.trabajadores, ancho: 'min-w-[230px]', alinear: 'text-left', etiqueta: 'trabajador' },
-                  { titulo: 'Tipo', valor: filtroTipo, setValor: setFiltroTipo, opciones: opcionesFiltrosColumnas.tipos, ancho: 'min-w-[220px]', alinear: 'text-left', etiqueta: 'tipo', formatear: formatearTipoIncapacidad },
-                  { titulo: 'Inicio', valor: filtroInicio, setValor: setFiltroInicio, opciones: opcionesFiltrosColumnas.inicios, ancho: 'min-w-[140px]', alinear: 'text-left', etiqueta: 'fecha de inicio', formatear: formatearFecha },
-                  { titulo: 'Días', valor: filtroDias, setValor: setFiltroDias, opciones: opcionesFiltrosColumnas.dias, ancho: 'min-w-[90px]', alinear: 'text-center', etiqueta: 'días' },
-                  { titulo: 'Estado', valor: filtroEstado, setValor: setFiltroEstado, opciones: opcionesFiltrosColumnas.estados, ancho: 'min-w-[150px]', alinear: 'text-left', etiqueta: 'estado' },
-                  { titulo: 'EPS', valor: filtroEps, setValor: setFiltroEps, opciones: opcionesFiltrosColumnas.eps, ancho: 'min-w-[240px]', alinear: 'text-left', etiqueta: 'EPS' },
+                {[                  { titulo: 'Empresa', valor: filtroEmpresa, setValor: setFiltroEmpresa, opciones: opcionesFiltrosColumnas.empresas, ancho: 'min-w-[160px]', alinear: 'text-left', etiqueta: 'empresa' },
+
+                  { titulo: 'Identificación', valor: filtroIdentificacion, setValor: setFiltroIdentificacion, opciones: opcionesFiltrosColumnas.identificaciones, ancho: 'min-w-[120px]', alinear: 'text-left', etiqueta: 'identificación' },
+                  { titulo: 'Trabajador', valor: filtroTrabajador, setValor: setFiltroTrabajador, opciones: opcionesFiltrosColumnas.trabajadores, ancho: 'min-w-[190px]', alinear: 'text-left', etiqueta: 'trabajador' },
+                  { titulo: 'Tipo', valor: filtroTipo, setValor: setFiltroTipo, opciones: opcionesFiltrosColumnas.tipos, ancho: 'min-w-[180px]', alinear: 'text-left', etiqueta: 'tipo', formatear: formatearTipoIncapacidad },
+                  { titulo: 'Inicio', valor: filtroInicio, setValor: setFiltroInicio, opciones: opcionesFiltrosColumnas.inicios, ancho: 'min-w-[120px]', alinear: 'text-left', etiqueta: 'fecha de inicio', formatear: formatearFecha },
+                  { titulo: 'Días', valor: filtroDias, setValor: setFiltroDias, opciones: opcionesFiltrosColumnas.dias, ancho: 'min-w-[70px]', alinear: 'text-center', etiqueta: 'días' },
+                  { titulo: 'Estado', valor: filtroEstado, setValor: setFiltroEstado, opciones: opcionesFiltrosColumnas.estados, ancho: 'min-w-[125px]', alinear: 'text-left', etiqueta: 'estado' },
+                  { titulo: 'EPS', valor: filtroEps, setValor: setFiltroEps, opciones: opcionesFiltrosColumnas.eps, ancho: 'min-w-[190px]', alinear: 'text-left', etiqueta: 'EPS' },
                 ].map((columna) => {
                   const tieneDatos = columna.opciones.length > 0;
                   const filtroActivo = Boolean(columna.valor);
 
                   return (
-                    <th key={columna.titulo} className={`${columna.ancho} p-4 ${columna.alinear}`}>
+                    <th key={columna.titulo} className={`${columna.ancho} p-3 ${columna.alinear}`}>
                       <div className={`flex items-center gap-2 ${columna.alinear === 'text-center' ? 'justify-center' : 'justify-between'}`}>
                         <span>{columna.titulo}</span>
 
@@ -2767,13 +2804,14 @@ const NominaIncapacidadesView = () => {
                   );
                 })}
 
-                <th className="min-w-[110px] p-4 text-center">
+                <th className="min-w-[90px] p-3 text-center">
                   <div className="flex flex-col items-center gap-1">
                     <span>Acción</span>
-                    {(filtroIdentificacion || filtroTrabajador || filtroTipo || filtroInicio || filtroDias || filtroEstado || filtroEps) && (
+                    {(filtroEmpresa || filtroIdentificacion || filtroTrabajador || filtroTipo || filtroInicio || filtroDias || filtroEstado || filtroEps) && (
                       <button
                         type="button"
                         onClick={() => {
+                          setFiltroEmpresa('');
                           setFiltroIdentificacion('');
                           setFiltroTrabajador('');
                           setFiltroTipo('');
@@ -2796,7 +2834,7 @@ const NominaIncapacidadesView = () => {
               {cargando && (
                 <tr>
                   <td
-                    colSpan="8"
+                    colSpan="9"
                     className="p-10 text-center text-gray-500"
                   >
                     Consultando incapacidades...
@@ -2810,7 +2848,11 @@ const NominaIncapacidadesView = () => {
                     <tr
                       key={item.idIncapacidad}
                       className="border-t hover:bg-gray-50"
-                    >
+                    >                      <td className="p-4 font-semibold text-gray-800">
+                        {item.empresa || 'No registrada'}
+                      </td>
+
+
                       <td className="p-4 whitespace-nowrap">
                         {item.identificacion ||
                           'Sin información'}
@@ -2895,7 +2937,7 @@ const NominaIncapacidadesView = () => {
                   0 && (
                   <tr>
                     <td
-                      colSpan="8"
+                      colSpan="9"
                       className="p-10 text-center text-gray-500"
                     >
                       <HeartPulse className="mx-auto mb-3 h-10 w-10 text-gray-400" />
@@ -2929,6 +2971,11 @@ const NominaIncapacidadesView = () => {
                         {item.nombre ||
                           'SIN INFORMACIÓN'}
                       </p>
+                      <p className="mt-1 text-xs font-semibold text-emerald-700">
+                        {item.empresa || 'No registrada'}
+                      </p>
+
+
 
                       <p className="mt-1 text-sm text-gray-500">
                         {item.identificacion ||
