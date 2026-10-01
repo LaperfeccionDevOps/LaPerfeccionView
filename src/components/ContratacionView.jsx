@@ -56,14 +56,37 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 // ------------------------------
 
 const API_BASE_URL = (() => {
-  const rawBaseUrl =
-    import.meta?.env?.VITE_API_BASE_URL ||
-    import.meta?.env?.VITE_API_URL ||
-    (window.location.hostname === "localhost"
-      ? "http://localhost:8000"
-      : "https://api.laperfeccion.app");
+  const hostname =
+    typeof window !== "undefined"
+      ? window.location.hostname.toLowerCase()
+      : "";
 
-  const baseUrl = rawBaseUrl.replace(/\/+$/, "");
+  // QA debe apuntar SIEMPRE al backend QA cuando la aplicación
+  // está siendo servida desde qa.laperfeccion.app.
+  // Esto evita que un build generado con otro .env termine
+  // consultando accidentalmente producción.
+  const isQaHost =
+    hostname === "qa.laperfeccion.app" ||
+    hostname.startsWith("qa.");
+
+  const defaultBaseUrl =
+    hostname === "localhost" || hostname === "127.0.0.1"
+      ? "http://localhost:8000"
+      : isQaHost
+        ? "https://apiqa.laperfeccion.app"
+        : "https://api.laperfeccion.app";
+
+  // En QA se ignoran VITE_API_* para garantizar aislamiento.
+  // En local/prod sí se respetan las variables configuradas.
+  const rawBaseUrl = isQaHost
+    ? defaultBaseUrl
+    : (
+        import.meta?.env?.VITE_API_BASE_URL ||
+        import.meta?.env?.VITE_API_URL ||
+        defaultBaseUrl
+      );
+
+  const baseUrl = String(rawBaseUrl).replace(/\/+$/, "");
 
   return baseUrl.endsWith("/api")
     ? baseUrl
