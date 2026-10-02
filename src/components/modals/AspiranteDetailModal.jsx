@@ -1715,29 +1715,23 @@ console.log('campos completos:', campos);
 
     if (estadoInt === 28 && !rechazoContratacion.esRechazoContratacion) {
       if (!tipoMotivoCierre) {
-        toast({
-          title: 'Motivo de cierre requerido',
-          description: 'Debe seleccionar el motivo por el cual se rechaza al candidato.',
-          variant: 'destructive',
-        });
+        window.alert(
+          'Motivo de cierre requerido\n\nDebe seleccionar el motivo por el cual se rechaza al candidato.'
+        );
         return;
       }
 
       if (tipoMotivoCierre === 'OTRO' && !motivoCierreOtro.trim()) {
-        toast({
-          title: 'Motivo de cierre requerido',
-          description: 'Debe escribir el motivo del rechazo.',
-          variant: 'destructive',
-        });
+        window.alert(
+          'Motivo de cierre requerido\n\nDebe escribir el motivo del rechazo.'
+        );
         return;
       }
 
       if (!motivoCierreFinal) {
-        toast({
-          title: 'Motivo de cierre requerido',
-          description: 'Debe registrar un motivo válido para rechazar al candidato.',
-          variant: 'destructive',
-        });
+        window.alert(
+          'Motivo de cierre requerido\n\nDebe registrar un motivo válido para rechazar al candidato.'
+        );
         return;
       }
     }
@@ -1762,11 +1756,9 @@ console.log('campos completos:', campos);
 
     if (estadoInt === 24) {
       if (!tieneCargoCompleto || !tieneClienteCompleto || !tieneSalarioCompleto) {
-        toast({
-          title: 'No es posible avanzar a contratación',
-          description: 'Para avanzar a contratación debe tener cargo, cliente y salario completos.',
-          variant: 'destructive',
-        });
+        window.alert(
+          'No es posible avanzar a contratación\n\nPara avanzar a contratación debe tener cargo, cliente y salario completos.'
+        );
         return;
       }
     }
@@ -1777,47 +1769,55 @@ console.log('campos completos:', campos);
       localStorage.getItem('usuario') || 'sistema'
     );
 
-      if (estadoInt === 28 && !rechazoContratacion.esRechazoContratacion) {
-        const payload = {
-          MotivoCierre: motivoCierreFinal,
-          Observaciones: '',
-          UsuarioActualizacion: localStorage.getItem('usuario') || 'sistema',
-        };
-        const responseMotivo = await upsertMotivoCierre(formData.IdRegistroPersonal, payload);
-        if (responseMotivo.data.ok) {
-          toast({
-            title: 'Motivo Cierre',
-            description: 'El motivo de cierre se ha actualizado con éxito.',
-            variant: 'success',
-          });
-        } else {
-          toast({
-            title: 'Motivo Cierre',
-            description: 'Error al actualizar el motivo de cierre.',
-            variant: 'destructive',
-          });
-        }
-      }
+    if (estadoInt === 28 && !rechazoContratacion.esRechazoContratacion) {
+      const payload = {
+        MotivoCierre: motivoCierreFinal,
+        Observaciones: '',
+        UsuarioActualizacion: localStorage.getItem('usuario') || 'sistema',
+      };
 
-      if (response.ok) {
-        toast({
-          title: 'Estado Proceso',
-          description: 'Estado del proceso actualizado con éxito.',
-          variant: 'success',
-        });
+      const responseMotivo = await upsertMotivoCierre(
+        formData.IdRegistroPersonal,
+        payload
+      );
+
+      if (!responseMotivo.data.ok) {
+        window.alert(
+          'Estado actualizado, pero ocurrió un problema al guardar el motivo de cierre.'
+        );
+        return;
       }
-    } catch (error) {
-      toast({
-        title: 'Estado Proceso',
-        description: 'Lo sentimos, no fue posible actualizar el estado proceso, si el error persiste comunicarse con el administrador',
-        variant: 'destructive',
-      });
-      console.error('Error al guardar asignación cargo cliente:', error);
-    } finally {
-      setSavingDatosProceso(false);
-      setLoadingAspiranteDetalle(false);
     }
-  };
+
+    if (response.ok) {
+      if (estadoInt === 28) {
+        window.alert(
+          `Candidato rechazado correctamente.\n\nMotivo: ${motivoCierreFinal}`
+        );
+      } else if (estadoInt === 24) {
+        window.alert(
+          'Estado actualizado correctamente.\n\nEl candidato avanzó a Contratación.'
+        );
+      } else {
+        window.alert(
+          'Estado actualizado correctamente.\n\nEl estado del proceso fue actualizado con éxito.'
+        );
+      }
+    } else {
+      window.alert(
+        'No fue posible actualizar el estado.\n\nVerifique la información e intente nuevamente.'
+      );
+    }
+  } catch (error) {
+    window.alert(
+      'Error al actualizar el estado.\n\nNo fue posible actualizar el estado del proceso. Si el error persiste, comuníquese con el administrador.'
+    );
+    console.error('Error al actualizar estado del proceso:', error);
+  } finally {
+    setSavingDatosProceso(false);
+    setLoadingAspiranteDetalle(false);
+  }
+};
 
   const [clienteQuery, setClienteQuery] = useState('');
   const clientesFiltrados = clientesALP.filter((c) =>
