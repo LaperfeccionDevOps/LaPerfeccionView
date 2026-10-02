@@ -131,6 +131,8 @@ export default function DescargosProcesoDisciplinarioView({
   const [evidenciasTrabajador, setEvidenciasTrabajador] = useState([]);
   const [loadingGenerarCartaDescargos, setLoadingGenerarCartaDescargos] =
     useState(false);
+  const [loadingEliminarCartaDescargos, setLoadingEliminarCartaDescargos] =
+    useState(false);
   const [loadingCartaFirmada, setLoadingCartaFirmada] = useState(false);
   const [loadingEvidenciasTrabajador, setLoadingEvidenciasTrabajador] =
     useState(false);
@@ -1003,6 +1005,101 @@ const actualizarAsistente = (
     }
   };
 
+  const handleEliminarCartaDescargos = async () => {
+    const idDocumento =
+      cartaDescargosGenerada?.IdDocumentoProcesoDisciplinario;
+
+    if (!idDocumento) {
+      setMensajeCartaDescargos(
+        "No fue posible identificar el Acta de Descargos que se desea eliminar."
+      );
+      return;
+    }
+
+    const estadoProceso = String(
+      proceso?.EstadoProceso || ""
+    )
+      .trim()
+      .toUpperCase();
+
+    if (estadoProceso === "CERRADO") {
+      setMensajeCartaDescargos(
+        "El proceso disciplinario ya está cerrado y el Acta de Descargos no puede eliminarse."
+      );
+      return;
+    }
+
+    if (cartaDescargosFirmada) {
+      setMensajeCartaDescargos(
+        "El Acta de Descargos ya tiene una versión firmada adjunta y no puede eliminarse desde este punto."
+      );
+      return;
+    }
+
+    const nombreArchivo =
+      cartaDescargosGenerada?.NombreArchivo || "el Acta de Descargos";
+
+    const confirmar = window.confirm(
+      `¿Está seguro de eliminar "${nombreArchivo}"? El documento generado se eliminará del expediente y podrá generarse nuevamente.`
+    );
+
+    if (!confirmar) {
+      return;
+    }
+
+    try {
+      setLoadingEliminarCartaDescargos(true);
+      setMensajeCartaDescargos("");
+
+      const response = await fetch(
+        `${API_URL}/documento-proceso-disciplinario/rrll/acta-descargos-generada/${idDocumento}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!response.ok) {
+        let detalle = "";
+
+        try {
+          const data = await response.json();
+
+          detalle =
+            typeof data?.detail === "string"
+              ? data.detail
+              : data?.detail?.mensaje ||
+                data?.message ||
+                "";
+        } catch {
+          detalle = "";
+        }
+
+        throw new Error(
+          detalle ||
+            "No fue posible eliminar el Acta de Descargos generada."
+        );
+      }
+
+      await cargarDocumentos();
+
+      setMensajeCartaDescargos(
+        "Acta de Descargos eliminada correctamente. Ahora puede corregir la información y generarla nuevamente."
+      );
+    } catch (error) {
+      console.error(
+        "Error eliminando Acta de Descargos generada:",
+        error
+      );
+
+      setMensajeCartaDescargos(
+        error?.message ||
+          "No fue posible eliminar el Acta de Descargos generada."
+      );
+    } finally {
+      setLoadingEliminarCartaDescargos(false);
+    }
+  };
+
   const handleSeleccionarCartaFirmada = async (event) => {
     const archivo = event.target.files?.[0] || null;
     event.target.value = "";
@@ -1605,6 +1702,17 @@ function formatearTipoDocumento(valor) {
 
   const informacionLegacy =
     separarInformacionLegacy();
+
+  const procesoEstaCerrado =
+    String(proceso?.EstadoProceso || "")
+      .trim()
+      .toUpperCase() === "CERRADO";
+
+  const puedeEliminarCartaDescargos =
+    Boolean(cartaDescargosGenerada) &&
+    !procesoEstaCerrado &&
+    !cartaDescargosFirmada &&
+    !loadingEliminarCartaDescargos;
 
   const clienteMostrar =
     citacionExistente?.Cliente ||
@@ -2424,6 +2532,31 @@ function formatearTipoDocumento(valor) {
                       }
                     >
                       Descargar
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={
+                        procesoEstaCerrado || cartaDescargosFirmada
+                          ? "border-gray-300 bg-gray-100 text-gray-400"
+                          : "border-red-300 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
+                      }
+                      onClick={handleEliminarCartaDescargos}
+                      disabled={!puedeEliminarCartaDescargos}
+                      title={
+                        procesoEstaCerrado
+                          ? "No disponible: el proceso disciplinario está cerrado."
+                          : cartaDescargosFirmada
+                          ? "No disponible: ya existe un acta firmada adjunta."
+                          : !cartaDescargosGenerada
+                          ? "No hay un acta generada para eliminar."
+                          : "Eliminar el acta generada y permitir una nueva generación."
+                      }
+                    >
+                      {loadingEliminarCartaDescargos
+                        ? "Eliminando..."
+                        : "Eliminar acta"}
                     </Button>
 
                     <Button
