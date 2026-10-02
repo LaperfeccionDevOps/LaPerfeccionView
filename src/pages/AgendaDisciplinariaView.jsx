@@ -96,6 +96,29 @@ export default function AgendaDisciplinariaView({
   const [agenda, setAgenda] = useState([]);
   const [total, setTotal] = useState(0);
   const [fechaConsulta, setFechaConsulta] = useState("");
+
+  // Contexto de la consulta actual.
+  // Vacío = pantalla inicial; HOY/FECHA/GENERAL = consulta realizada.
+  const [tipoConsultaAgenda, setTipoConsultaAgenda] = useState("");
+
+  // Indica desde dónde se aplicó el filtro de estado.
+  // INICIAL = la pantalla estaba vacía.
+  // CONSULTA = ya existía una consulta antes del filtro.
+  const [origenFiltroEstado, setOrigenFiltroEstado] = useState("");
+
+  // Snapshot de la consulta que existía antes de aplicar un filtro de estado.
+  // Permite que "Limpiar filtro" regrese exactamente a esa consulta.
+  const [agendaAntesFiltroEstado, setAgendaAntesFiltroEstado] = useState(null);
+  const [totalAntesFiltroEstado, setTotalAntesFiltroEstado] = useState(0);
+  const [fechaConsultaAntesFiltroEstado, setFechaConsultaAntesFiltroEstado] =
+    useState("");
+  const [tipoConsultaAntesFiltroEstado, setTipoConsultaAntesFiltroEstado] =
+    useState("");
+
+  // Filtro visual de estados de la agenda. No modifica estados ni datos en BD.
+  const [filtroEstadoAgenda, setFiltroEstadoAgenda] = useState("TODOS");
+  const [paginaAgenda, setPaginaAgenda] = useState(1);
+  const EVENTOS_POR_PAGINA = 15;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [mensajeExito, setMensajeExito] = useState("");
@@ -305,6 +328,166 @@ export default function AgendaDisciplinariaView({
     setFechaConsulta(
       data?.fecha || fechaAlterna || ""
     );
+
+    setPaginaAgenda(1);
+  };
+
+  const eventosFiltradosAgenda = useMemo(() => {
+    if (filtroEstadoAgenda === "TODOS") {
+      return agenda;
+    }
+
+    return agenda.filter(
+      (evento) =>
+        String(evento?.EstadoAgenda || "")
+          .trim()
+          .toUpperCase() === filtroEstadoAgenda
+    );
+  }, [agenda, filtroEstadoAgenda]);
+
+  const totalPaginasAgenda = Math.max(
+    1,
+    filtroEstadoAgenda === "TODOS"
+      ? 1
+      : Math.ceil(
+          eventosFiltradosAgenda.length / EVENTOS_POR_PAGINA
+        )
+  );
+
+  const eventosPaginadosAgenda = useMemo(() => {
+    if (filtroEstadoAgenda === "TODOS") {
+      return eventosFiltradosAgenda;
+    }
+
+    const inicio =
+      (paginaAgenda - 1) * EVENTOS_POR_PAGINA;
+
+    return eventosFiltradosAgenda.slice(
+      inicio,
+      inicio + EVENTOS_POR_PAGINA
+    );
+  }, [eventosFiltradosAgenda, paginaAgenda, filtroEstadoAgenda]);
+
+  const contarEventosPorEstado = (estado) =>
+    agenda.filter(
+      (evento) =>
+        String(evento?.EstadoAgenda || "")
+          .trim()
+          .toUpperCase() === estado
+    ).length;
+
+  const limpiarFiltroEstadoAgenda = () => {
+    setFiltroEstadoAgenda("TODOS");
+    setPaginaAgenda(1);
+
+    // Si existía una consulta antes del filtro, restaurarla exactamente.
+    if (agendaAntesFiltroEstado !== null) {
+      setAgenda(agendaAntesFiltroEstado);
+      setTotal(totalAntesFiltroEstado);
+      setFechaConsulta(fechaConsultaAntesFiltroEstado);
+      setTipoConsultaAgenda(tipoConsultaAntesFiltroEstado);
+    } else {
+      // Si el filtro nació desde la pantalla inicial, volver a dejarla vacía.
+      setAgenda([]);
+      setTotal(0);
+      setFechaConsulta("");
+      setTipoConsultaAgenda("");
+    }
+
+    setOrigenFiltroEstado("");
+    setAgendaAntesFiltroEstado(null);
+    setTotalAntesFiltroEstado(0);
+    setFechaConsultaAntesFiltroEstado("");
+    setTipoConsultaAntesFiltroEstado("");
+  };
+
+  const consultarEstadoGlobal = async (estado) => {
+    try {
+      // Solo guardamos la consulta original una vez.
+      // Si Yeny cambia de un estado a otro, el "Limpiar filtro"
+      // debe regresar al mismo punto inicial, no al estado anterior.
+      if (origenFiltroEstado === "") {
+        setAgendaAntesFiltroEstado([...agenda]);
+        setTotalAntesFiltroEstado(total);
+        setFechaConsultaAntesFiltroEstado(fechaConsulta);
+        setTipoConsultaAntesFiltroEstado(tipoConsultaAgenda);
+        setOrigenFiltroEstado(
+          tipoConsultaAgenda ? "CONSULTA" : "INICIAL"
+        );
+      }
+
+      setLoading(true);
+      setError("");
+      setMensajeExito("");
+
+      const res = await fetch(
+        `${API_BASE}/agenda-disciplinaria/calendario/listado`
+      );
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(
+          obtenerMensajeBackend(
+            data,
+            "No se pudo consultar la agenda para el estado seleccionado."
+          )
+        );
+      }
+
+      // La consulta por estado SIEMPRE es global:
+      // no importa si Yeny estaba viendo hoy o una fecha específica.
+      procesarRespuestaAgenda(data);
+      setFechaConsulta("");
+      setTipoConsultaAgenda("GENERAL");
+      setFiltroEstadoAgenda(estado);
+      setPaginaAgenda(1);
+    } catch (err) {
+      setAgenda([]);
+      setTotal(0);
+      setError(
+        err?.message ||
+          "Error consultando los eventos del estado seleccionado."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cargarAgendaCompleta = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      setMensajeExito("");
+
+      const res = await fetch(
+        `${API_BASE}/agenda-disciplinaria/calendario/listado`
+      );
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(
+          obtenerMensajeBackend(
+            data,
+            "No se pudo cargar la agenda completa."
+          )
+        );
+      }
+
+      procesarRespuestaAgenda(data);
+      setFechaConsulta("");
+      setTipoConsultaAgenda("GENERAL");
+      setOrigenFiltroEstado("");
+      setPaginaAgenda(1);
+    } catch (err) {
+      setError(
+        err?.message ||
+          "Error cargando la agenda completa."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const cargarSolicitudesPendientes = async () => {
@@ -365,6 +548,8 @@ export default function AgendaDisciplinariaView({
       }
 
       procesarRespuestaAgenda(data);
+      setTipoConsultaAgenda("HOY");
+      setOrigenFiltroEstado("");
     } catch (err) {
       setError(
         err?.message ||
@@ -405,6 +590,8 @@ export default function AgendaDisciplinariaView({
         data,
         fechaFiltro
       );
+      setTipoConsultaAgenda("FECHA");
+      setOrigenFiltroEstado("");
     } catch (err) {
       setError(
         err?.message ||
@@ -1382,10 +1569,20 @@ export default function AgendaDisciplinariaView({
   };
 
   useEffect(() => {
-    cargarAgendaHoy();
+    // La pantalla inicia vacía. Yeny decide qué quiere consultar.
     cargarSolicitudesPendientes();
     cargarBloqueosAgenda();
   }, []);
+
+  useEffect(() => {
+    setPaginaAgenda(1);
+  }, [filtroEstadoAgenda]);
+
+  useEffect(() => {
+    if (paginaAgenda > totalPaginasAgenda) {
+      setPaginaAgenda(totalPaginasAgenda);
+    }
+  }, [paginaAgenda, totalPaginasAgenda]);
 
   useEffect(() => {
     setPaginaBloqueos(1);
@@ -1664,7 +1861,7 @@ export default function AgendaDisciplinariaView({
 
            <div className="flex min-h-[42px] items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm text-gray-600 shadow-sm">
             <p>
-              Eventos de la fecha:{" "}
+              Eventos consultados:{" "}
               <b className="text-lg text-slate-900">
                 {total}
               </b>
@@ -1820,66 +2017,132 @@ export default function AgendaDisciplinariaView({
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 xl:gap-3 mb-5">
-          <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+        <div className="mb-5 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-6 xl:gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              consultarEstadoGlobal("PROGRAMADO");
+            }}
+            className={`rounded-xl border px-4 py-3 text-left transition ${
+              filtroEstadoAgenda === "PROGRAMADO"
+                ? "border-blue-500 bg-blue-100 ring-2 ring-blue-200"
+                : "border-blue-200 bg-blue-50 hover:bg-blue-100"
+            }`}
+          >
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-blue-500" />
+              <span className="h-3 w-3 rounded-full bg-blue-500" />
               <span className="text-sm font-semibold text-blue-800">
                 Programado
               </span>
             </div>
-            <p className="text-xs text-blue-700 mt-1">
-              Pendiente por iniciar
+            <p className="mt-1 text-xs text-blue-700">
+              {contarEventosPorEstado("PROGRAMADO")} registro(s) · Pendiente por iniciar
             </p>
-          </div>
+          </button>
 
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <button
+            type="button"
+            onClick={() => {
+              consultarEstadoGlobal("EN_CURSO");
+            }}
+            className={`rounded-xl border px-4 py-3 text-left transition ${
+              filtroEstadoAgenda === "EN_CURSO"
+                ? "border-amber-500 bg-amber-100 ring-2 ring-amber-200"
+                : "border-amber-200 bg-amber-50 hover:bg-amber-100"
+            }`}
+          >
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-amber-500" />
+              <span className="h-3 w-3 rounded-full bg-amber-500" />
               <span className="text-sm font-semibold text-amber-800">
                 En curso
               </span>
             </div>
-            <p className="text-xs text-amber-700 mt-1">
-              RRLL inició la gestión
+            <p className="mt-1 text-xs text-amber-700">
+              {contarEventosPorEstado("EN_CURSO")} registro(s) · RRLL inició la gestión
             </p>
-          </div>
+          </button>
 
-          <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+          <button
+            type="button"
+            onClick={() => {
+              consultarEstadoGlobal("REPROGRAMADO");
+            }}
+            className={`rounded-xl border px-4 py-3 text-left transition ${
+              filtroEstadoAgenda === "REPROGRAMADO"
+                ? "border-gray-500 bg-gray-100 ring-2 ring-gray-200"
+                : "border-gray-200 bg-gray-50 hover:bg-gray-100"
+            }`}
+          >
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-gray-500" />
+              <span className="h-3 w-3 rounded-full bg-gray-500" />
               <span className="text-sm font-semibold text-gray-700">
                 Reprogramado
               </span>
             </div>
-            <p className="text-xs text-gray-600 mt-1">
-              Fecha u hora modificada
+            <p className="mt-1 text-xs text-gray-600">
+              {contarEventosPorEstado("REPROGRAMADO")} registro(s) · Fecha u hora modificada
             </p>
-          </div>
+          </button>
 
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <button
+            type="button"
+            onClick={() => {
+              consultarEstadoGlobal("CANCELADO");
+            }}
+            className={`rounded-xl border px-4 py-3 text-left transition ${
+              filtroEstadoAgenda === "CANCELADO"
+                ? "border-red-500 bg-red-100 ring-2 ring-red-200"
+                : "border-red-200 bg-red-50 hover:bg-red-100"
+            }`}
+          >
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-red-500" />
+              <span className="h-3 w-3 rounded-full bg-red-500" />
               <span className="text-sm font-semibold text-red-800">
                 Cancelado
               </span>
             </div>
-            <p className="text-xs text-red-700 mt-1">
-              Citación sin atención
+            <p className="mt-1 text-xs text-red-700">
+              {contarEventosPorEstado("CANCELADO")} registro(s) · Citación sin atención
             </p>
-          </div>
+          </button>
 
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <button
+            type="button"
+            onClick={() => {
+              consultarEstadoGlobal("ATENDIDO");
+            }}
+            className={`rounded-xl border px-4 py-3 text-left transition ${
+              filtroEstadoAgenda === "ATENDIDO"
+                ? "border-emerald-500 bg-emerald-100 ring-2 ring-emerald-200"
+                : "border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
+            }`}
+          >
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-emerald-500" />
+              <span className="h-3 w-3 rounded-full bg-emerald-500" />
               <span className="text-sm font-semibold text-emerald-800">
                 Atendido
               </span>
             </div>
-            <p className="text-xs text-emerald-700 mt-1">
-              Expediente finalizado
+            <p className="mt-1 text-xs text-emerald-700">
+              {contarEventosPorEstado("ATENDIDO")} registro(s) · Expediente finalizado
             </p>
-          </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={limpiarFiltroEstadoAgenda}
+            disabled={filtroEstadoAgenda === "TODOS"}
+            className={`rounded-xl border px-4 py-3 text-center font-semibold transition ${
+              filtroEstadoAgenda === "TODOS"
+                ? "cursor-default border-slate-200 bg-slate-100 text-slate-400"
+                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+            }`}
+          >
+            <span className="text-sm">Limpiar filtro</span>
+            <p className="mt-1 text-xs font-normal">
+              Volver a la agenda actual
+            </p>
+          </button>
         </div>
 
         <div className="mb-3 text-xs text-gray-500">
@@ -1930,17 +2193,19 @@ export default function AgendaDisciplinariaView({
                     Cargando agenda...
                   </td>
                 </tr>
-              ) : agenda.length === 0 ? (
+              ) : eventosFiltradosAgenda.length === 0 ? (
                 <tr>
                   <td
                     colSpan={9}
                     className="px-4 py-10 text-center text-gray-500 bg-white"
                   >
-                    No hay eventos para la fecha consultada.
+                    {!tipoConsultaAgenda && filtroEstadoAgenda === "TODOS"
+                      ? "Realice una consulta o seleccione un estado para ver los eventos."
+                      : "No hay eventos para el filtro seleccionado."}
                   </td>
                 </tr>
               ) : (
-                agenda.map((evento) => {
+                eventosPaginadosAgenda.map((evento) => {
                   const estilo =
                     obtenerEstiloEstado(evento);
 
@@ -2093,6 +2358,48 @@ export default function AgendaDisciplinariaView({
             </tbody>
           </table>
         </div>
+
+        {eventosFiltradosAgenda.length > 0 && (
+          <div className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-slate-600">
+              Mostrando {((paginaAgenda - 1) * EVENTOS_POR_PAGINA) + 1}–{Math.min(paginaAgenda * EVENTOS_POR_PAGINA, eventosFiltradosAgenda.length)} de {eventosFiltradosAgenda.length} registro(s)
+            </p>
+
+            <div className="flex items-center justify-center gap-1">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={paginaAgenda === 1}
+                onClick={() => setPaginaAgenda((pagina) => Math.max(1, pagina - 1))}
+                className="h-9 px-3 text-xs"
+              >
+                Anterior
+              </Button>
+
+              {Array.from({ length: totalPaginasAgenda }, (_, indice) => indice + 1).map((pagina) => (
+                <Button
+                  key={pagina}
+                  type="button"
+                  variant={paginaAgenda === pagina ? "default" : "outline"}
+                  onClick={() => setPaginaAgenda(pagina)}
+                  className="h-9 min-w-9 px-2 text-xs"
+                >
+                  {pagina}
+                </Button>
+              ))}
+
+              <Button
+                type="button"
+                variant="outline"
+                disabled={paginaAgenda === totalPaginasAgenda}
+                onClick={() => setPaginaAgenda((pagina) => Math.min(totalPaginasAgenda, pagina + 1))}
+                className="h-9 px-3 text-xs"
+              >
+                Siguiente
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {modalEnlaceVirtualAbierto &&
