@@ -62,6 +62,7 @@ import { cn, generarReferenciaLaboralHTML, generarEntrevistaHTML, descargarDocum
 import { DescargarDocumentoPdf } from '../../services/descargarDocumento';
 import { getAsignacionCargoCliente } from '../../services/asignacionCargoClienteServiceApi';
 import { listarClientes as listarClientesApi, crearCliente as crearClienteApi } from '../../services/clientesServiceApi';
+import { crearCargo as crearCargoApi } from '../../services/cargosServiceApi';
 import { GetObservacionesExperienciaLaboral } from "../../services/experiencia_laboral";
 
 
@@ -553,6 +554,11 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   const [crearClienteOpen, setCrearClienteOpen] = useState(false);
   const [nuevoClienteNombre, setNuevoClienteNombre] = useState('');
   const [creandoCliente, setCreandoCliente] = useState(false);
+
+  // Cargos: creación dinámica desde Selección.
+  const [crearCargoOpen, setCrearCargoOpen] = useState(false);
+  const [nuevoCargoNombre, setNuevoCargoNombre] = useState('');
+  const [creandoCargo, setCreandoCargo] = useState(false);
 
   const cargarClientes = async () => {
     try {
@@ -1853,6 +1859,89 @@ console.log('campos completos:', campos);
     } finally {
       setSavingDatosProceso(false);
       setLoadingAspiranteDetalle(false);
+    }
+  };
+
+  const handleCrearCargo = async () => {
+    const nombre = nuevoCargoNombre.trim().replace(/\s+/g, ' ');
+
+    if (!nombre) {
+      toast({
+        title: 'Campo requerido',
+        description: 'Debe escribir el nombre del cargo.',
+        className: 'bg-white border-2 border-red-500 text-slate-900 shadow-xl',
+      });
+      return;
+    }
+
+    setCreandoCargo(true);
+
+    try {
+      const nuevo = await crearCargoApi({
+        NombreCargo: nombre,
+        UsuarioActualizacion: localStorage.getItem('usuario') || 'TALENTO_SELECCION',
+      });
+
+      const cargoCreado = {
+        IdCargo: Number(nuevo.IdCargo),
+        NombreCargo: String(nuevo.NombreCargo || nombre).trim(),
+        IdTipoCargo: nuevo.IdTipoCargo ?? null,
+        Activo: nuevo.Activo ?? true,
+        UsuarioActualizacion: nuevo.UsuarioActualizacion ?? null,
+      };
+
+      // Actualiza el catálogo local y conserva el orden alfabético.
+      setListaCargo((prev) => {
+        const actuales = Array.isArray(prev) ? prev : [];
+        const sinDuplicar = actuales.filter(
+          (cargo) => Number(cargo.IdCargo) !== cargoCreado.IdCargo
+        );
+
+        return [...sinDuplicar, cargoCreado].sort((a, b) =>
+          String(a?.NombreCargo || '').localeCompare(
+            String(b?.NombreCargo || ''),
+            'es',
+            { sensitivity: 'base' }
+          )
+        );
+      });
+
+      // Deja seleccionado automáticamente el cargo recién creado.
+      setFormData((prev) => ({
+        ...prev,
+        asignacionCargo: {
+          ...(prev.asignacionCargo || {}),
+          IdCargo: cargoCreado.IdCargo,
+        },
+      }));
+
+      setNuevoCargoNombre('');
+      setCrearCargoOpen(false);
+
+      toast({
+        title: 'Cargo creado',
+        description: `El cargo ${cargoCreado.NombreCargo} fue creado y seleccionado.`,
+        className: 'bg-white border-2 border-emerald-500 text-slate-900 shadow-xl',
+      });
+    } catch (error) {
+      const esDuplicado = error?.status === 409;
+
+      toast({
+        title: esDuplicado
+          ? 'Cargo existente'
+          : 'No fue posible crear el cargo',
+        description:
+          error?.detail ||
+          error?.message ||
+          'Intente nuevamente.',
+        className: esDuplicado
+          ? 'bg-white border-2 border-amber-500 text-slate-900 shadow-xl'
+          : 'bg-white border-2 border-red-500 text-slate-900 shadow-xl',
+      });
+
+      // En duplicado NO se cierra el modal para permitir corregir el nombre.
+    } finally {
+      setCreandoCargo(false);
     }
   };
 
@@ -5353,7 +5442,22 @@ if (response && response.status === 201) {
 
                                  {/* CARGO */}
                                  <div className="space-y-2 min-w-0">
-                                    <Label>Cargo</Label>
+                                    <div className="flex items-center justify-between gap-2">
+                                       <Label>Cargo</Label>
+                                       <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 px-2 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                                          onClick={() => {
+                                             setNuevoCargoNombre('');
+                                             setCrearCargoOpen(true);
+                                          }}
+                                       >
+                                          <Plus className="h-4 w-4 mr-1" />
+                                          Crear cargo
+                                       </Button>
+                                    </div>
 
                                     <Select
                                        value={
@@ -5657,6 +5761,66 @@ if (response && response.status === 201) {
       </DialogContent>
     </Dialog>
 
+
+    {/* Modal Crear Cargo */}
+    <Dialog
+      open={crearCargoOpen}
+      onOpenChange={(open) => {
+        if (creandoCargo) return;
+        setCrearCargoOpen(open);
+        if (!open) setNuevoCargoNombre('');
+      }}
+    >
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Crear cargo</DialogTitle>
+          <DialogDescription>
+            Registre el nombre del nuevo cargo. Al crearlo quedará seleccionado automáticamente.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-2 py-2">
+          <Label htmlFor="nuevo-cargo-nombre">Nombre del cargo</Label>
+          <Input
+            id="nuevo-cargo-nombre"
+            value={nuevoCargoNombre}
+            onChange={(e) => setNuevoCargoNombre(e.target.value)}
+            placeholder="Ej: AUXILIAR ADMINISTRATIVO"
+            maxLength={150}
+            disabled={creandoCargo}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !creandoCargo) {
+                e.preventDefault();
+                handleCrearCargo();
+              }
+            }}
+          />
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={creandoCargo}
+            onClick={() => {
+              setCrearCargoOpen(false);
+              setNuevoCargoNombre('');
+            }}
+          >
+            Cancelar
+          </Button>
+
+          <Button
+            type="button"
+            className="bg-emerald-600 text-white hover:bg-emerald-700"
+            disabled={creandoCargo || !nuevoCargoNombre.trim()}
+            onClick={handleCrearCargo}
+          >
+            {creandoCargo ? 'Creando...' : 'Crear cargo'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     {/* Modal Crear Cliente */}
     <Dialog
