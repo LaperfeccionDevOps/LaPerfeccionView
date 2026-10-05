@@ -61,6 +61,7 @@ import { DatosSeleccion, ActualizarDatosSeleccion, getListaLugarNacimiento } fro
 import { cn, generarReferenciaLaboralHTML, generarEntrevistaHTML, descargarDocumentoPDF, generarTratamientoDatosHTML } from '@/lib/utils';
 import { DescargarDocumentoPdf } from '../../services/descargarDocumento';
 import { getAsignacionCargoCliente } from '../../services/asignacionCargoClienteServiceApi';
+import { listarClientes as listarClientesApi, crearCliente as crearClienteApi } from '../../services/clientesServiceApi';
 import { GetObservacionesExperienciaLaboral } from "../../services/experiencia_laboral";
 
 
@@ -547,11 +548,35 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   const [empresaContratanteConfirmada, setEmpresaContratanteConfirmada] = useState(false);
   const [guardandoEmpresaContratante, setGuardandoEmpresaContratante] = useState(false);
 
+  // Clientes: BD como fuente principal y catálogo actual como respaldo seguro.
+  const [listaClientes, setListaClientes] = useState(clientesALP);
+  const [crearClienteOpen, setCrearClienteOpen] = useState(false);
+  const [nuevoClienteNombre, setNuevoClienteNombre] = useState('');
+  const [creandoCliente, setCreandoCliente] = useState(false);
+
+  const cargarClientes = async () => {
+    try {
+      const data = await listarClientesApi();
+      const normalizados = (Array.isArray(data) ? data : [])
+        .map((cliente) => ({
+          id: Number(cliente.IdCliente),
+          name: String(cliente.Nombre || '').trim(),
+        }))
+        .filter((cliente) => cliente.id > 0 && cliente.name)
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+
+      if (normalizados.length > 0) setListaClientes(normalizados);
+    } catch (error) {
+      console.error('Error cargando clientes desde BD. Se conserva catálogo actual:', error);
+    }
+  };
+
   useEffect(() => {
     const fetchDropDownList = async () => {
       try {
         const response = await getListaCargo();
         setListaCargo(response.data || []);
+        await cargarClientes();
         const responseNacimiento = await getListaLugarNacimiento();
         setLugarNacimiento(
           (responseNacimiento.data || [])
@@ -1832,9 +1857,60 @@ console.log('campos completos:', campos);
   };
 
   const [clienteQuery, setClienteQuery] = useState('');
-  const clientesFiltrados = clientesALP.filter((c) =>
+  const clientesFiltrados = listaClientes.filter((c) =>
     c.name.toLowerCase().includes(clienteQuery.toLowerCase().trim())
   );
+
+  const handleCrearCliente = async () => {
+    const nombre = nuevoClienteNombre.trim().replace(/\s+/g, ' ');
+    if (!nombre) {
+      toast({ title: 'Campo requerido', description: 'Debe escribir el nombre del cliente.', variant: 'destructive' });
+      return;
+    }
+
+    setCreandoCliente(true);
+    try {
+      const nuevo = await crearClienteApi({
+        Nombre: nombre,
+        CreadoPor: localStorage.getItem('usuario') || 'sistema',
+      });
+
+      const clienteCreado = { id: Number(nuevo.IdCliente), name: String(nuevo.Nombre || nombre).trim() };
+      setListaClientes((prev) => {
+        const sinDuplicar = prev.filter((c) => Number(c.id) !== clienteCreado.id);
+        return [...sinDuplicar, clienteCreado].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+      });
+      setFormData((prev) => ({
+        ...prev,
+        asignacionCargo: { ...(prev.asignacionCargo || {}), IdCliente: clienteCreado.id },
+      }));
+      setClienteQuery('');
+      setNuevoClienteNombre('');
+      setCrearClienteOpen(false);
+      toast({
+        title: 'Cliente creado',
+        description: `El cliente ${clienteCreado.name} fue creado y seleccionado.`,
+        className: 'bg-white border-2 border-emerald-500 text-slate-900 shadow-xl',
+      });
+    } catch (error) {
+      const esDuplicado = error?.status === 409;
+
+      toast({
+        title: esDuplicado
+          ? 'Cliente existente'
+          : 'No fue posible crear el cliente',
+        description:
+          error?.detail ||
+          error?.message ||
+          'Intente nuevamente.',
+        className: esDuplicado
+          ? 'bg-white border-2 border-amber-500 text-slate-900 shadow-xl'
+          : 'bg-white border-2 border-red-500 text-slate-900 shadow-xl',
+      });
+    } finally {
+      setCreandoCliente(false);
+    }
+  };
 
   // Helper states for dynamic lists
   const [newFamiliar, setNewFamiliar] = useState({
@@ -5361,7 +5437,22 @@ if (response && response.status === 201) {
 
                                  {/* CLIENTE */}
                                  <div className="space-y-2 min-w-0">
-                                    <Label>Cliente</Label>
+                                    <div className="flex items-center justify-between gap-2">
+                                       <Label>Cliente</Label>
+                                       <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 px-2 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                                          onClick={() => {
+                                             setNuevoClienteNombre('');
+                                             setCrearClienteOpen(true);
+                                          }}
+                                       >
+                                          <Plus className="h-4 w-4 mr-1" />
+                                          Crear cliente
+                                       </Button>
+                                    </div>
 
                                     <Select
                                        value={
@@ -5566,6 +5657,50 @@ if (response && response.status === 201) {
       </DialogContent>
     </Dialog>
 
+
+    {/* Modal Crear Cliente */}
+    <Dialog
+      open={crearClienteOpen}
+      onOpenChange={(open) => {
+        if (creandoCliente) return;
+        setCrearClienteOpen(open);
+        if (!open) setNuevoClienteNombre('');
+      }}
+    >
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Crear cliente</DialogTitle>
+          <DialogDescription>
+            Registre el nombre del nuevo cliente. Al crearlo quedará seleccionado automáticamente.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <Label htmlFor="nuevo-cliente-nombre">Nombre del cliente</Label>
+          <Input
+            id="nuevo-cliente-nombre"
+            value={nuevoClienteNombre}
+            onChange={(e) => setNuevoClienteNombre(e.target.value)}
+            placeholder="Ej: Nombre del cliente - servicio"
+            maxLength={250}
+            disabled={creandoCliente}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !creandoCliente) {
+                e.preventDefault();
+                handleCrearCliente();
+              }
+            }}
+          />
+        </div>
+        <DialogFooter className="gap-2">
+          <Button type="button" variant="outline" disabled={creandoCliente} onClick={() => { setCrearClienteOpen(false); setNuevoClienteNombre(''); }}>
+            Cancelar
+          </Button>
+          <Button type="button" className="bg-emerald-600 text-white hover:bg-emerald-700" disabled={creandoCliente || !nuevoClienteNombre.trim()} onClick={handleCrearCliente}>
+            {creandoCliente ? 'Creando...' : 'Crear cliente'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     {/* Modal Observaciones - Experiencia Laboral */}
     <Dialog open={obsRefLabOpen} onOpenChange={setObsRefLabOpen}>
