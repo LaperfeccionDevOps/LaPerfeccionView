@@ -19,6 +19,7 @@ import EntrevistaRetiroPage from "@/pages/EntrevistaRetiroPage";
 import OperacionesProcesosDisciplinariosView from "@/pages/OperacionesProcesosDisciplinariosView";
 import AgendaDisciplinariaOperacionesView from "@/pages/AgendaDisciplinariaOperacionesView";
 import OperacionesRetirosView from "@/pages/OperacionesRetirosView";
+import PermisosTrabajoAlturasView from "@/pages/PermisosTrabajoAlturasView";
 import IniciarProcesoOperacionesView from "@/pages/IniciarProcesoOperacionesView";
 import RevisionProcesoOperacionesView from "@/pages/RevisionProcesoOperacionesView";
 
@@ -365,6 +366,15 @@ function App() {
                 permission="OPERACIONES_RETIROS"
               >
                 <OperacionesRetirosView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
+            path="operaciones/alturas/permisos-trabajo"
+            element={
+              <OperationsPermissionRoute>
+                <PermisosTrabajoAlturasView />
               </OperationsPermissionRoute>
             }
           />
