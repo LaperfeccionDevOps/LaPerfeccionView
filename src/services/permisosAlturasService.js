@@ -48,7 +48,11 @@ export const obtenerPermisosAlturas = async () => {
   return procesarRespuesta(response);
 };
 
-export const crearPermisoAlturas = async ({ idCliente, sede }) => {
+export const crearPermisoAlturas = async ({
+  idCliente,
+  horaInicioTarea,
+  horaFinTarea,
+}) => {
   const response = await fetch(
     getApiUrl("/operaciones/alturas/permisos"),
     {
@@ -56,7 +60,8 @@ export const crearPermisoAlturas = async ({ idCliente, sede }) => {
       headers: construirHeaders(),
       body: JSON.stringify({
         id_cliente: Number(idCliente),
-        sede,
+        hora_inicio_tarea: horaInicioTarea,
+        hora_fin_tarea: horaFinTarea,
       }),
     }
   );

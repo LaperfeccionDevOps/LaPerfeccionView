@@ -14,8 +14,12 @@ import {
 
 const FORMULARIO_INICIAL = {
   idCliente: "",
-  sede: "",
+  horaInicioTarea: "",
+  horaFinTarea: "",
 };
+
+// Las fechas se muestran siempre en hora de Colombia, igual que las guarda el backend.
+const ZONA_HORARIA = "America/Bogota";
 
 const formatearFecha = (valor) => {
   if (!valor) {
@@ -25,8 +29,30 @@ const formatearFecha = (valor) => {
   return new Date(valor).toLocaleString("es-CO", {
     dateStyle: "short",
     timeStyle: "short",
+    timeZone: ZONA_HORARIA,
   });
 };
+
+const formatearHora = (valor) => {
+  if (!valor) {
+    return "—";
+  }
+
+  return new Date(valor).toLocaleTimeString("es-CO", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: ZONA_HORARIA,
+  });
+};
+
+const obtenerFechaHoyTexto = () =>
+  new Date().toLocaleDateString("es-CO", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: ZONA_HORARIA,
+  });
 
 const PermisosTrabajoAlturasView = () => {
   const [clientes, setClientes] = useState([]);
@@ -61,6 +87,12 @@ const PermisosTrabajoAlturasView = () => {
     cargarDatos();
   }, []);
 
+  const horarioInvalido = Boolean(
+    formulario.horaInicioTarea &&
+      formulario.horaFinTarea &&
+      formulario.horaFinTarea <= formulario.horaInicioTarea
+  );
+
   const actualizarCampo = (campo, valor) => {
     setFormulario((prev) => ({
       ...prev,
@@ -71,12 +103,28 @@ const PermisosTrabajoAlturasView = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const sede = formulario.sede.trim();
+    const {
+      idCliente,
+      horaInicioTarea,
+      horaFinTarea,
+    } = formulario;
 
-    if (!formulario.idCliente || !sede) {
+    if (!idCliente || !horaInicioTarea || !horaFinTarea) {
       toast({
         title: "Campos requeridos",
-        description: "Selecciona el cliente y escribe la sede.",
+        description:
+          "Selecciona el cliente, la hora de inicio y la hora de finalización.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Formato "HH:MM": la comparación de texto equivale a comparar horas.
+    if (horaFinTarea <= horaInicioTarea) {
+      toast({
+        title: "Horario no válido",
+        description:
+          "La hora de finalización debe ser mayor a la hora de inicio.",
         variant: "destructive",
       });
       return;
@@ -86,8 +134,9 @@ const PermisosTrabajoAlturasView = () => {
 
     try {
       const permiso = await crearPermisoAlturas({
-        idCliente: formulario.idCliente,
-        sede,
+        idCliente,
+        horaInicioTarea,
+        horaFinTarea,
       });
 
       setPermisos((prev) => [permiso, ...prev]);
@@ -173,9 +222,17 @@ const PermisosTrabajoAlturasView = () => {
           1. Datos del permiso
         </h2>
 
+        <p className="mt-1 text-sm text-gray-500">
+          El trabajo debe realizarse hoy,{" "}
+          <span className="font-semibold capitalize text-emerald-700">
+            {obtenerFechaHoyTexto()}
+          </span>
+          .
+        </p>
+
         <form
           onSubmit={handleSubmit}
-          className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end"
+          className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_auto] lg:items-start"
         >
           <div className="space-y-2">
             <Label htmlFor="cliente">Cliente *</Label>
@@ -207,24 +264,52 @@ const PermisosTrabajoAlturasView = () => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="sede">Sede *</Label>
+            <Label htmlFor="horaInicioTarea">
+              Hora de inicio *
+            </Label>
 
             <Input
-              id="sede"
-              value={formulario.sede}
-              maxLength={150}
-              placeholder="Escribe la sede"
+              id="horaInicioTarea"
+              type="time"
+              value={formulario.horaInicioTarea}
               onChange={(e) =>
-                actualizarCampo("sede", e.target.value)
+                actualizarCampo("horaInicioTarea", e.target.value)
               }
               disabled={guardando}
             />
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="horaFinTarea">
+              Hora de finalización *
+            </Label>
+
+            <Input
+              id="horaFinTarea"
+              type="time"
+              value={formulario.horaFinTarea}
+              onChange={(e) =>
+                actualizarCampo("horaFinTarea", e.target.value)
+              }
+              disabled={guardando}
+              className={
+                horarioInvalido
+                  ? "border-red-400 focus:border-red-500 focus:ring-red-500/20"
+                  : undefined
+              }
+            />
+
+            {horarioInvalido && (
+              <p className="text-xs text-red-600">
+                Debe ser mayor a la hora de inicio.
+              </p>
+            )}
+          </div>
+
           <Button
             type="submit"
-            disabled={cargando || guardando}
-            className="h-11 gap-2 rounded-xl bg-emerald-600 px-6 text-white hover:bg-emerald-700"
+            disabled={cargando || guardando || horarioInvalido}
+            className="h-11 gap-2 rounded-xl bg-emerald-600 px-6 text-white hover:bg-emerald-700 lg:mt-7"
           >
             {guardando ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -255,12 +340,13 @@ const PermisosTrabajoAlturasView = () => {
           </p>
         ) : (
           <div className="mt-4 overflow-x-auto rounded-xl border border-gray-100">
-            <table className="w-full min-w-[520px] text-left text-sm">
+            <table className="w-full min-w-[600px] text-left text-sm">
               <thead className="bg-gray-50 text-xs uppercase text-gray-500">
                 <tr>
                   <th className="px-4 py-3">ID permiso</th>
                   <th className="px-4 py-3">Cliente</th>
-                  <th className="px-4 py-3">Sede</th>
+                  <th className="px-4 py-3">Hora inicio</th>
+                  <th className="px-4 py-3">Hora fin</th>
                   <th className="px-4 py-3">Fecha creación</th>
                 </tr>
               </thead>
@@ -278,7 +364,10 @@ const PermisosTrabajoAlturasView = () => {
                       {permiso.cliente}
                     </td>
                     <td className="px-4 py-3 text-gray-700">
-                      {permiso.sede}
+                      {formatearHora(permiso.fecha_hora_inicio_tarea)}
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">
+                      {formatearHora(permiso.fecha_hora_fin_tarea)}
                     </td>
                     <td className="px-4 py-3 text-gray-500">
                       {formatearFecha(permiso.fecha_creacion)}
