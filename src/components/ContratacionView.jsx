@@ -4,6 +4,7 @@ import { saveAs } from 'file-saver';
 import { motion } from 'framer-motion';
 import { pdf } from "@react-pdf/renderer";
 import CreateContract from "@/utils/plantillas/contrato/createContract";
+import CreateContractTerminoFijo from "@/utils/plantillas/contrato/createContractTerminoFijo";
 import { getReporteSinergy } from '../services/reporteServiceApi';
 import { MotivoRechazoProceso } from '../services/motivoRechazoContratacion';
 import { MarcarContratadoProceso } from '../services/motivoContratadoContratacion';
@@ -1836,6 +1837,16 @@ const currentIdsKey = currentItems
     const regRaw = unwrapApiPayload(regResp);
     const regObj = Array.isArray(regRaw) ? (regRaw[0] || null) : regRaw;
 
+    // 2.1) Contratación Básica: fuente de verdad para tipo de contrato y fechas.
+    let contratacionBasica = null;
+    if (idReg) {
+      try {
+        contratacionBasica = await apiGetContratacionBasicaByRegistroPersonal(idReg);
+      } catch (e) {
+        console.warn("[CONTRATO] No pude traer ContratacionBasica:", e);
+      }
+    }
+
     // 3) DatosAdicionales
     let daResp = null;
     if (idReg) {
@@ -1960,6 +1971,33 @@ const currentIdsKey = currentItems
       EmpresaContratanteCodigo: empresaContratante.codigo,
       EmpresaContratanteNombre: empresaContratante.nombre,
 
+      // Tipo y fechas contractuales: se prioriza ContratacionBasica persistida en BD.
+      IdTipoContrato:
+        contratacionBasica?.IdTipoContrato ??
+        aspirante?.IdTipoContrato ??
+        aspirante?.idTipoContrato ??
+        null,
+      FechaIngreso:
+        contratacionBasica?.FechaIngreso ??
+        aspirante?.FechaIngreso ??
+        aspirante?.fechaIngreso ??
+        null,
+      fechaIngreso:
+        contratacionBasica?.FechaIngreso ??
+        aspirante?.fechaIngreso ??
+        aspirante?.FechaIngreso ??
+        null,
+      FechaVencimientoContrato:
+        contratacionBasica?.FechaVencimientoContrato ??
+        aspirante?.FechaVencimientoContrato ??
+        aspirante?.fechaVencimientoContrato ??
+        null,
+      fechaVencimientoContrato:
+        contratacionBasica?.FechaVencimientoContrato ??
+        aspirante?.fechaVencimientoContrato ??
+        aspirante?.FechaVencimientoContrato ??
+        null,
+
       celular: aspirante?.celular ?? celular,
       correo: aspirante?.correo ?? correo,
 
@@ -2043,14 +2081,60 @@ const currentIdsKey = currentItems
 
       console.log("CONTRATO DATA FINAL:", contractData);
 
-      const blob = await pdf(
-        <CreateContract data={contractData} />
-      ).toBlob();
+      const idTipoContrato = Number(
+        contractData?.IdTipoContrato ??
+        contractData?.idTipoContrato ??
+        0
+      );
+
+      let contratoPdf = null;
+
+      if (idTipoContrato === 2) {
+        if (!contractData?.FechaVencimientoContrato && !contractData?.fechaVencimientoContrato) {
+          toast({
+            title: "❌ Falta fecha de vencimiento",
+            description: "El contrato a Término Fijo requiere una fecha de vencimiento antes de generar el PDF.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        contratoPdf = <CreateContractTerminoFijo data={contractData} />;
+      } else if (idTipoContrato === 3) {
+        contratoPdf = <CreateContract data={contractData} />;
+      } else if (idTipoContrato === 1) {
+        toast({
+          title: "⚠️ Contrato indefinido pendiente",
+          description: "La plantilla de contrato Indefinido aún no está conectada. No se generó un contrato incorrecto.",
+          variant: "destructive",
+        });
+        return;
+      } else if (idTipoContrato === 4) {
+        toast({
+          title: "⚠️ Contrato de aprendizaje pendiente",
+          description: "La plantilla de Aprendizaje SENA aún no está parametrizada. No se generó un contrato incorrecto.",
+          variant: "destructive",
+        });
+        return;
+      } else {
+        toast({
+          title: "❌ Tipo de contrato no definido",
+          description: "No fue posible identificar el tipo de contrato guardado en Contratación Básica.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const blob = await pdf(contratoPdf).toBlob();
 
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `contrato_laboral_${contractData?.cedula || "aspirante"}.pdf`;
+      const tipoArchivo =
+        idTipoContrato === 2 ? "termino_fijo" :
+        idTipoContrato === 3 ? "labor_contratada" :
+        "laboral";
+      a.download = `contrato_${tipoArchivo}_${contractData?.cedula || "aspirante"}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
 
