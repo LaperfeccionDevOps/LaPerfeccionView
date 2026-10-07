@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { pdf } from "@react-pdf/renderer";
 import CreateContract from "@/utils/plantillas/contrato/createContract";
 import CreateContractTerminoFijo from "@/utils/plantillas/contrato/createContractTerminoFijo";
+import CreateContractIndefinido from "@/utils/plantillas/contrato/createContractIndefinido";
 import { getReporteSinergy } from '../services/reporteServiceApi';
 import { MotivoRechazoProceso } from '../services/motivoRechazoContratacion';
 import { MarcarContratadoProceso } from '../services/motivoContratadoContratacion';
@@ -2103,12 +2104,7 @@ const currentIdsKey = currentItems
       } else if (idTipoContrato === 3) {
         contratoPdf = <CreateContract data={contractData} />;
       } else if (idTipoContrato === 1) {
-        toast({
-          title: "⚠️ Contrato indefinido pendiente",
-          description: "La plantilla de contrato Indefinido aún no está conectada. No se generó un contrato incorrecto.",
-          variant: "destructive",
-        });
-        return;
+        contratoPdf = <CreateContractIndefinido data={contractData} />;
       } else if (idTipoContrato === 4) {
         toast({
           title: "⚠️ Contrato de aprendizaje pendiente",
@@ -2131,6 +2127,7 @@ const currentIdsKey = currentItems
       const a = document.createElement("a");
       a.href = url;
       const tipoArchivo =
+        idTipoContrato === 1 ? "indefinido" :
         idTipoContrato === 2 ? "termino_fijo" :
         idTipoContrato === 3 ? "labor_contratada" :
         "laboral";
