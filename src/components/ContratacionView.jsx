@@ -521,7 +521,7 @@ const RegistroContratacionModal = ({
   const [banco, setBanco] = useState('');
   const [riesgoLaboral, setRiesgoLaboral] = useState('');
   const [tipoContrato, setTipoContrato] = useState('');
-  const [duracionFijo, setDuracionFijo] = useState('');
+  const [fechaVencimientoContrato, setFechaVencimientoContrato] = useState('');
 
   // ✅ NUEVOS
   const [posicion, setPosicion] = useState('');
@@ -549,7 +549,7 @@ const RegistroContratacionModal = ({
       setBanco('');
       setTipoContrato('');
       setRiesgoLaboral('');
-      setDuracionFijo('');
+      setFechaVencimientoContrato('');
       setPosicion('');
       setEscalafon('');
       setNumeroCuenta('');
@@ -581,6 +581,11 @@ const RegistroContratacionModal = ({
             setBanco(fromDb.IdBanco !== null && fromDb.IdBanco !== undefined ? String(fromDb.IdBanco) : '');
             setTipoContrato(fromDb.IdTipoContrato !== null && fromDb.IdTipoContrato !== undefined ? String(fromDb.IdTipoContrato) : '');
             setRiesgoLaboral(fromDb.RiesgoLaboral || '');
+            setFechaVencimientoContrato(
+              fromDb.FechaVencimientoContrato
+                ? String(fromDb.FechaVencimientoContrato).slice(0, 10)
+                : ''
+            );
 
             // ✅ NUEVOS
             setPosicion(fromDb.Posicion || '');
@@ -605,7 +610,6 @@ const RegistroContratacionModal = ({
                 : ''
             );
 
-            setDuracionFijo('');
             return;
           }
         } catch (e) {
@@ -625,7 +629,9 @@ const RegistroContratacionModal = ({
       setTipoContrato(tipoId ? String(tipoId) : '');
 
       setRiesgoLaboral(cm.riesgoLaboral || '');
-      setDuracionFijo(cm.duracionFijo || '');
+      setFechaVencimientoContrato(
+        cm.FechaVencimientoContrato || cm.fechaVencimientoContrato || ''
+      );
     };
 
     precargar();
@@ -634,12 +640,14 @@ const RegistroContratacionModal = ({
   }, [aspirante, isOpen, bancosLabelToId, tiposLabelToId]);
 
   useEffect(() => {
-    const fijoId = resolveId('Fijo', tiposLabelToId);
-    if (String(tipoContrato) !== String(fijoId ?? '')) setDuracionFijo('');
-  }, [tipoContrato, tiposLabelToId]);
+    // IdTipoContrato = 2 corresponde a Término Fijo.
+    // Al cambiar a otro tipo, limpiamos la fecha para evitar datos obsoletos.
+    if (Number(tipoContrato) !== 2) {
+      setFechaVencimientoContrato('');
+    }
+  }, [tipoContrato]);
 
   const riesgos = ['I', 'II', 'III', 'IV', 'V'];
-  const duraciones = ['2 meses', '4 meses', '6 meses', '8 meses', '12 meses'];
 
   const guardar = () => {
     if (!aspirante) return;
@@ -650,7 +658,7 @@ const RegistroContratacionModal = ({
       bancoId: banco,
       riesgoLaboral,
       tipoContratoId: tipoContrato,
-      duracionFijo,
+      fechaVencimientoContrato,
 
       // NUEVOS
       posicion,
@@ -680,8 +688,8 @@ const RegistroContratacionModal = ({
     ? tiposContratoOptions
     : TIPOS_CONTRATO_FALLBACK;
 
-  const fijoId = resolveId('Fijo', tiposLabelToId);
-  const isFijo = fijoId ? (String(tipoContrato) === String(fijoId)) : false;
+  // Catálogo confirmado en BD: 2 = Término Fijo.
+  const isFijo = Number(tipoContrato) === 2;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -807,25 +815,24 @@ const RegistroContratacionModal = ({
 
             {isFijo && (
               <div className="md:col-span-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div>
-                    <Label className="text-sm font-semibold text-emerald-800">Duración del contrato fijo</Label>
-                    <p className="text-xs text-emerald-700 mt-1">Solo aplica cuando el contrato es “Fijo”.</p>
-                  </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <CalendarDays className="w-4 h-4 text-emerald-700" />
+                  <Label className="text-sm font-semibold text-emerald-800">
+                    Fecha de vencimiento del contrato
+                  </Label>
                 </div>
 
-                <div className="mt-3">
-                  <Select value={duracionFijo} onValueChange={setDuracionFijo}>
-                    <SelectTrigger className="rounded-xl bg-white">
-                      <SelectValue placeholder="Selecciona duración (2,4,6,8,12 meses)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {duraciones.map((d) => (
-                        <SelectItem key={d} value={d}>{d}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Input
+                  type="date"
+                  value={fechaVencimientoContrato}
+                  min={fechaIngreso || undefined}
+                  onChange={(e) => setFechaVencimientoContrato(e.target.value)}
+                  className="rounded-xl bg-white"
+                />
+
+                <p className="text-xs text-emerald-700 mt-2">
+                  Obligatoria para contratos a Término Fijo. Esta fecha será la base para calcular la duración del contrato.
+                </p>
               </div>
             )}
 
@@ -1576,6 +1583,29 @@ const ContratacionView = () => {
       return;
     }
 
+    if (Number(idTipoContrato) === 2 && !payload.fechaVencimientoContrato) {
+      toast({
+        title: "❌ Falta fecha de vencimiento",
+        description: "Para un contrato a Término Fijo debes seleccionar la fecha de vencimiento.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (
+      Number(idTipoContrato) === 2 &&
+      payload.fechaInicio &&
+      payload.fechaVencimientoContrato &&
+      payload.fechaVencimientoContrato <= payload.fechaInicio
+    ) {
+      toast({
+        title: "❌ Fecha de vencimiento inválida",
+        description: "La fecha de vencimiento debe ser posterior a la fecha de ingreso.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!payload.riesgoLaboral) {
       toast({
         title: "❌ Falta riesgo",
@@ -1590,6 +1620,10 @@ const ContratacionView = () => {
       IdBanco: Number(idBanco),
       IdTipoContrato: Number(idTipoContrato),
       FechaIngreso: payload.fechaInicioProtegida ? null : payload.fechaInicio,
+      FechaVencimientoContrato:
+        Number(idTipoContrato) === 2
+          ? (payload.fechaVencimientoContrato || null)
+          : null,
       RiesgoLaboral: payload.riesgoLaboral,
 
       Posicion: (payload.posicion ?? '').trim() || null,
