@@ -1034,20 +1034,30 @@ const retiroIndicador = useMemo(() => {
     return 'bg-yellow-100 text-yellow-700';
   };
 
+  const abrirDetalleRetiro = (r) => {
+    setRetiroSeleccionado(r);
+    setTextoObservacionNomina(r.observacionNomina || '');
+    setEditandoObservacionNomina(false);
+    setDocumentosRetiro([]);
+    setMensajeAccion('');
+    setErrorCarga('');
+    if (!r.esAbiertoOperaciones) cargarDocumentosRetiro(r);
+  };
+
   const getFiltroButtonVariant = (value) => {
     return filtroEstado === value ? 'default' : 'outline';
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="bg-white rounded-2xl shadow-md border p-6">
-        <div className="flex items-center gap-3">
+    <div className="w-full min-w-0 space-y-4 p-2 sm:space-y-6 sm:p-6">
+      <div className="min-w-0 bg-white rounded-2xl shadow-md border p-4 sm:p-6">
+        <div className="flex items-start gap-3">
           <div className="bg-emerald-100 text-emerald-700 rounded-xl p-3">
             <WalletCards className="w-7 h-7" />
           </div>
 
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">Nómina Retiros</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Nómina Retiros</h1>
             <p className="text-sm text-gray-500">
               Consulta de retiros abiertos en Operaciones y gestión de retiros recibidos desde Relaciones Laborales.
             </p>
@@ -1055,7 +1065,7 @@ const retiroIndicador = useMemo(() => {
         </div>
       </div>
 
-      <div className="rounded-2xl border bg-white p-6 shadow-md">
+      <div className="min-w-0 rounded-2xl border bg-white p-4 sm:p-6 shadow-md">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-lg font-bold text-gray-800">
@@ -1154,7 +1164,7 @@ const retiroIndicador = useMemo(() => {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-md border p-6">
+      <div className="min-w-0 bg-white rounded-2xl shadow-md border p-4 sm:p-6">
       <div className="flex items-center justify-between mb-5">
         <div>
           <h2 className="text-lg font-bold text-gray-800">
@@ -1241,7 +1251,7 @@ const retiroIndicador = useMemo(() => {
       )}
     </div>
 
-      <div className="bg-white rounded-2xl shadow-md border p-6">
+      <div className="min-w-0 bg-white rounded-2xl shadow-md border p-4 sm:p-6">
         <label className="text-sm font-semibold text-gray-700">Buscar trabajador</label>
 
         <div className="flex flex-col lg:flex-row gap-3 mt-2">
@@ -1292,26 +1302,26 @@ const retiroIndicador = useMemo(() => {
              </select>
            </div>
 
-<div className="flex flex-wrap gap-2 mt-3">
-            <Button type="button" variant={getFiltroButtonVariant('operaciones')} size="sm" onClick={() => setFiltroEstado('operaciones')}>
+<div className="grid grid-cols-2 gap-2 mt-3 sm:flex sm:flex-wrap">
+            <Button type="button" variant={getFiltroButtonVariant('operaciones')} size="sm" className="h-auto min-h-9 whitespace-normal px-2 py-2 text-xs sm:text-sm" onClick={() => setFiltroEstado('operaciones')}>
               Abiertos Operaciones
             </Button>
 
-            <Button type="button" variant={getFiltroButtonVariant('abiertos')} size="sm" onClick={() => setFiltroEstado('abiertos')}>
+            <Button type="button" variant={getFiltroButtonVariant('abiertos')} size="sm" className="h-auto min-h-9 whitespace-normal px-2 py-2 text-xs sm:text-sm" onClick={() => setFiltroEstado('abiertos')}>
               Abiertos RRLL
             </Button>
 
-            <Button type="button" variant={getFiltroButtonVariant('nomina')} size="sm" onClick={() => setFiltroEstado('nomina')}>
+            <Button type="button" variant={getFiltroButtonVariant('nomina')} size="sm" className="h-auto min-h-9 whitespace-normal px-2 py-2 text-xs sm:text-sm" onClick={() => setFiltroEstado('nomina')}>
               Cerrados
             </Button>
 
-            <Button type="button" variant={getFiltroButtonVariant('retirados')} size="sm" onClick={() => setFiltroEstado('retirados')}>
+            <Button type="button" variant={getFiltroButtonVariant('retirados')} size="sm" className="h-auto min-h-9 whitespace-normal px-2 py-2 text-xs sm:text-sm" onClick={() => setFiltroEstado('retirados')}>
               Retirados
             </Button>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-600">
               {filtroEstado === 'operaciones' ? (
@@ -1472,17 +1482,7 @@ const retiroIndicador = useMemo(() => {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        setRetiroSeleccionado(r);
-                        setTextoObservacionNomina(r.observacionNomina || '');
-                        setEditandoObservacionNomina(false);
-                        setDocumentosRetiro([]);
-                        setMensajeAccion('');
-                        setErrorCarga('');
-                        if (!r.esAbiertoOperaciones) {
-                          cargarDocumentosRetiro(r);
-                        }
-                      }}
+                      onClick={() => abrirDetalleRetiro(r)}
                     >
                       <Eye className="w-4 h-4 mr-1" />
                       Ver
@@ -1503,6 +1503,54 @@ const retiroIndicador = useMemo(() => {
           </table>
         </div>
 
+        {/* Vista móvil: las mismas acciones y datos de la tabla, sin desplazamiento horizontal. */}
+        <div className="space-y-3 p-3 md:hidden">
+          {cargando && <p className="py-8 text-center text-sm text-gray-500">Consultando retiros...</p>}
+          {!cargando && retirosFiltrados.length === 0 && (
+            <div className="rounded-xl border border-dashed p-6 text-center text-sm text-gray-500">
+              <FileText className="mx-auto mb-2 h-8 w-8" />
+              No hay retiros para el filtro seleccionado.
+            </div>
+          )}
+          {!cargando && retirosPaginados.map((r) => (
+            <article key={r.id} className="min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="flex min-w-0 items-start justify-between gap-2 border-b pb-3">
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-bold text-gray-900">{r.nombre || 'Sin nombre'}</p>
+                  <p className="mt-1 text-xs text-gray-500">CC {r.identificacion || 'Sin identificación'}</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
+                  {r.empresaCodigo === 'SIN_ASIGNAR' ? 'Sin asignar' : r.empresaCodigo}
+                </span>
+              </div>
+              <div className="mt-3 space-y-2 text-xs">
+                {filtroEstado === 'operaciones' ? (
+                  <>
+                    <p className="break-words"><span className="font-semibold text-gray-500">Sede: </span>{r.cliente || 'SIN SEDE'}</p>
+                    <p><span className="font-semibold text-gray-500">Fecha de retiro: </span>{r.fechaRetiro ? new Date(`${r.fechaRetiro}T00:00:00`).toLocaleDateString('es-CO', {timeZone:'America/Bogota',day:'2-digit',month:'2-digit',year:'numeric'}) : 'Sin fecha'}</p>
+                    <p><span className="font-semibold text-gray-500">Días en Operaciones: </span>{(() => { const dias = calcularDiasAbiertoOperaciones(r.fechaCreacion); return dias === null ? 'Sin información' : `${dias} ${dias === 1 ? 'día' : 'días'}`; })()}</p>
+                  </>
+                ) : (
+                  <>
+                    <p><span className="font-semibold text-gray-500">Estado: </span><span className={`rounded-full px-2 py-1 font-semibold ${getEstadoBadge(r.estado)}`}>{grupoEstadoRetiro(r) === 'nomina' ? 'Cerrado' : grupoEstadoRetiro(r) === 'retirados' ? 'Retirado' : 'Abierto RRLL'}</span></p>
+                    <p><span className="font-semibold text-gray-500">Fecha pago liquidación: </span>{r.fechaPagoLiquidacion ? new Date(`${r.fechaPagoLiquidacion}T00:00:00`).toLocaleDateString('es-CO', {timeZone:'America/Bogota',day:'2-digit',month:'2-digit',year:'numeric'}) : 'Sin fecha'}</p>
+                    <div className="rounded-xl bg-gray-50 p-3">
+                      <p className="mb-2 font-semibold text-gray-600">Comunicaciones</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button type="button" size="sm" variant="outline" className="h-auto min-h-9 whitespace-normal text-xs" disabled={procesando || !['ALP','MI'].includes(r.empresaCodigo)} onClick={() => enviarCertificadoLaboral(r)}>Enviar certificado</Button>
+                        <Button type="button" size="sm" variant="outline" className="h-auto min-h-9 whitespace-normal text-xs" disabled={!['ALP','MI'].includes(r.empresaCodigo)} onClick={() => descargarCertificadoLaboral(r)}>Descargar certificado</Button>
+                        <Button type="button" size="sm" variant="outline" className="h-auto min-h-9 whitespace-normal text-xs" disabled={procesando || !['ALP','MI'].includes(r.empresaCodigo)} onClick={() => enviarCartaCesantias(r)}>Enviar cesantías</Button>
+                        <Button type="button" size="sm" variant="outline" className="h-auto min-h-9 whitespace-normal text-xs" disabled={!['ALP','MI'].includes(r.empresaCodigo)} onClick={() => descargarCartaCesantias(r)}>Descargar cesantías</Button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+              <Button type="button" variant="outline" size="sm" className="mt-3 w-full" onClick={() => abrirDetalleRetiro(r)}><Eye className="mr-2 h-4 w-4" />Ver detalle</Button>
+            </article>
+          ))}
+        </div>
+
         {!cargando && retirosFiltrados.length > 0 && (
           <div className="flex flex-col gap-3 border-t bg-gray-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs font-medium text-gray-500">
@@ -1510,7 +1558,7 @@ const retiroIndicador = useMemo(() => {
               {retirosFiltrados.length} retiros
             </p>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-center gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -1546,11 +1594,11 @@ const retiroIndicador = useMemo(() => {
       </div>
 
       {retiroSeleccionado && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="bg-white w-full max-w-6xl max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl border">
-            <div className="sticky top-0 bg-white z-10 border-b px-8 py-5 flex items-center justify-between rounded-t-3xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:px-4">
+          <div className="min-w-0 bg-white w-full max-w-6xl max-h-[95dvh] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-2xl sm:rounded-3xl shadow-2xl border">
+            <div className="sticky top-0 bg-white z-10 border-b px-4 py-4 sm:px-8 sm:py-5 flex items-center justify-between gap-2 rounded-t-2xl sm:rounded-t-3xl">
               <div>
-                <h2 className="text-2xl font-bold text-gray-800">
+                <h2 className="text-lg sm:text-2xl font-bold text-gray-800">
                   Detalle del retiro
                 </h2>
                 <p className="text-sm text-gray-500">
@@ -1567,7 +1615,7 @@ const retiroIndicador = useMemo(() => {
               </button>
             </div>
 
-            <div className="p-8 space-y-6">
+            <div className="min-w-0 p-3 sm:p-8 space-y-4 sm:space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="border rounded-2xl p-5 bg-gray-50">
                   <div className="flex items-center gap-2 text-emerald-700 font-bold mb-4">

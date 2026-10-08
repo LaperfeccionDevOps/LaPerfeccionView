@@ -10,10 +10,13 @@ import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { getEstadoInfo, ALL_STATUS_OPTIONS_SELECCION } from '@/utils/statusUtils';
 import { useAspirantes } from '@/hooks/useAspirantes';
+import { useAuth } from '@/context/AuthContext';
 import StatusUpdateModal from '@/components/modals/StatusUpdateModal';
 import AspiranteDetailModal from '@/components/modals/AspiranteDetailModal';
 
 const SeleccionView = () => {
+  const { user } = useAuth();
+  const esSuperAdministrador = user?.role === 'Super Administrador';
   const { aspirantes, updateAspirante, loadAspirantes, token } = useAspirantes();
   const [filteredAspirantes, setFilteredAspirantes] = useState([]);
   
@@ -367,21 +370,21 @@ console.log("Blob size Excel:", blob.size);
 
 return (
   <>
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-        <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="min-w-0 space-y-6">
+        <div className={cn("min-w-0 bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600", esSuperAdministrador && "max-md:p-3")}>
+          <div className={cn("flex items-center gap-3 mb-6", esSuperAdministrador && "max-md:items-start max-md:gap-2")}>
+            <div className="w-12 h-12 shrink-0 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
               <UserCheck className="w-6 h-6 text-white" />
             </div>
-            <div>
-              <h2 className="text-2xl font-bold text-gray-800">Selección y Seguimiento</h2>
+            <div className="min-w-0">
+              <h2 className={cn("text-2xl font-bold text-gray-800", esSuperAdministrador && "max-md:text-lg max-md:leading-tight")}>Selección y Seguimiento</h2>
                 <p className="text-sm text-gray-500">Gestiona el flujo completo y detalles de los candidatos.</p>
                 <p className="text-xs text-gray-400 mt-1">Token: {token ? `${String(token).slice(0, 8)}…` : 'no disponible'}</p>
             </div>
           </div>
 
           {/* Search Filters Section */}
-          <div className="bg-gray-50 p-5 rounded-xl border border-gray-100 mb-6">
+          <div className={cn("bg-gray-50 p-5 rounded-xl border border-gray-100 mb-6", esSuperAdministrador && "max-md:p-3")}>
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
                 <div className="md:col-span-4">
                     <Label className="mb-2 block text-sm font-semibold text-gray-700">Buscar Candidato</Label>
@@ -426,8 +429,75 @@ return (
             </div>
           </div>
 
-          <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
+          <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm min-w-0">
+            {/* Tarjetas móviles exclusivas de SUPERADMIN. Se reutilizan datos y acciones de la tabla. */}
+            {esSuperAdministrador && (
+              <div className="space-y-3 p-3 md:hidden">
+                {currentItems.map((item) => {
+                  const estadoInfo = getEstadoInfo(item.estado);
+                  const empresa = item.NombreEmpresa || item.nombreEmpresa ||
+                    item.EmpresaContratante || item.empresaContratante ||
+                    item.NombreEmpresaContratante || item.nombreEmpresaContratante || '';
+                  const idRegistro = item.IdRegistroPersonal ?? item.idRegistroPersonal ?? item.id;
+                  return (
+                    <article key={item.id} className="min-w-0 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+                      <h3 className="break-words text-base font-bold text-gray-900">
+                        {item.nombres} {item.apellidos}
+                      </h3>
+                      <p className="mt-1 break-words text-sm text-gray-600">{empresa || 'Sin asignar'}</p>
+                      <dl className="mt-3 space-y-2 text-sm">
+                        <div className="rounded-lg bg-gray-50 p-2">
+                          <dt className="text-xs font-semibold text-gray-500">Cédula</dt>
+                          <dd className="break-all text-gray-900">{item.cedula || '-'}</dd>
+                        </div>
+                        <div className="rounded-lg bg-gray-50 p-2">
+                          <dt className="text-xs font-semibold text-gray-500">Cargo</dt>
+                          <dd className="break-words text-gray-900">{item.nombreCargo || 'No especificado'}</dd>
+                        </div>
+                        <div className="rounded-lg bg-gray-50 p-2">
+                          <dt className="text-xs font-semibold text-gray-500">Fecha de registro</dt>
+                          <dd className="text-gray-900">{item.fechaRegistro ? new Date(item.fechaRegistro).toLocaleDateString() : '-'}</dd>
+                        </div>
+                        <div className="rounded-lg bg-gray-50 p-2">
+                          <dt className="mb-1 text-xs font-semibold text-gray-500">Estado</dt>
+                          <dd>
+                            {estadoInfo.label ? (
+                              <span className={cn("inline-flex max-w-full items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold", estadoInfo.color)}>
+                                {estadoInfo.icon && <estadoInfo.icon className="h-3 w-3 shrink-0" />}
+                                <span className="break-words">{estadoInfo.label}</span>
+                              </span>
+                            ) : <span className="text-gray-500">Desconocido</span>}
+                          </dd>
+                        </div>
+                      </dl>
+                      <div className="mt-3 flex flex-col gap-2">
+                        <Button variant="outline" size="sm" className="w-full border-blue-200 text-blue-600 hover:bg-blue-50" onClick={() => openDetailModal(item)}>
+                          <Eye className="mr-2 h-4 w-4" /> Ver detalle completo
+                        </Button>
+                        {esEstadoRetirado(item.estado) && (
+                          <Button type="button" variant="outline" size="sm"
+                            className="w-full border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                            title="Validar e iniciar reintegro"
+                            onClick={() => handleIniciarReintegro(item)}
+                            disabled={reintegroLoadingId === idRegistro}>
+                            <RefreshCw className={cn("mr-2 h-4 w-4", reintegroLoadingId === idRegistro && "animate-spin")} />
+                            {reintegroLoadingId === idRegistro ? 'Procesando...' : 'Iniciar reintegro'}
+                          </Button>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+                {currentItems.length === 0 && (
+                  <div className="rounded-xl bg-gray-50 px-3 py-8 text-center text-gray-500">
+                    <Search className="mx-auto mb-2 h-8 w-8 text-gray-400" />
+                    <p className="font-medium text-gray-900">No se encontraron aspirantes</p>
+                    <p className="text-sm">Intenta ajustar los filtros.</p>
+                  </div>
+                )}
+              </div>
+            )}
+            <div className={cn("overflow-x-auto", esSuperAdministrador && "max-md:hidden")}>
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
                   <tr>
@@ -538,7 +608,7 @@ return (
             </div>
             {/* Pagination */}
             {totalPages > 1 && (
-                <div className="flex items-center justify-between px-4 py-4 border-t border-gray-200 bg-gray-50/50">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-4 border-t border-gray-200 bg-gray-50/50">
                     <div className="text-sm text-gray-500">
                         {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, sortedData.length)} de {sortedData.length}
                     </div>
@@ -549,7 +619,7 @@ return (
                             key={i + 1} 
                             variant={currentPage === i + 1 ? "default" : "outline"} 
                             size="sm" 
-                            className="h-8 w-8 p-0" 
+                            className={cn("h-8 w-8 p-0", esSuperAdministrador && "max-md:hidden")} 
                             onClick={() => paginate(i + 1)}
                           >
                             {i + 1}

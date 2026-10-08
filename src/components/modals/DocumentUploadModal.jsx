@@ -2196,15 +2196,15 @@ const renderCarpetaSaludOcupacional = () => (
           className={
             esCarpetaOperaciones
               ? 'w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] max-h-[calc(100vh-1rem)] overflow-hidden rounded-2xl border-0 p-0 shadow-2xl sm:max-w-[850px] sm:rounded-3xl'
-              : 'rounded-3xl border-0 p-0 shadow-2xl sm:max-w-[850px]'
+              : 'left-2 right-2 top-1/2 w-auto min-w-0 max-w-none -translate-y-1/2 translate-x-0 max-h-[calc(100dvh-1rem)] overflow-y-auto overflow-x-hidden rounded-2xl border-0 p-0 shadow-2xl sm:left-1/2 sm:right-auto sm:w-full sm:max-w-[850px] sm:-translate-x-1/2 sm:max-h-[90vh] sm:rounded-3xl'
           }
         >
-        <div className="rounded-t-3xl bg-gradient-to-br from-yellow-50 via-white to-emerald-50 px-0 pt-0 pb-0">
+        <div className="min-w-0 w-full overflow-x-hidden rounded-t-3xl bg-gradient-to-br from-yellow-50 via-white to-emerald-50 px-0 pt-0 pb-0">
           <div
               className={
                 esCarpetaOperaciones
                   ? 'border-b border-emerald-100 px-4 pb-3 pt-5 sm:px-8 sm:pb-4 sm:pt-8'
-                  : 'border-b border-emerald-100 px-8 pb-4 pt-8'
+                  : 'min-w-0 border-b border-emerald-100 px-3 pb-3 pt-5 sm:px-8 sm:pb-4 sm:pt-8'
               }
             >
             <DialogHeader>
@@ -2212,24 +2212,24 @@ const renderCarpetaSaludOcupacional = () => (
                 className={
                   esCarpetaOperaciones
                     ? 'flex min-w-0 items-center gap-3 break-words pr-6 text-xl font-extrabold leading-tight text-emerald-700 drop-shadow-sm sm:gap-4 sm:text-3xl'
-                    : 'flex items-center gap-4 text-3xl font-extrabold text-emerald-700 drop-shadow-sm'
+                    : 'flex w-full min-w-0 items-start gap-2 break-words pr-6 text-lg font-extrabold leading-tight text-emerald-700 drop-shadow-sm sm:items-center sm:gap-4 sm:pr-0 sm:text-3xl'
                 }
               >
                 <Folder
                   className={
                     esCarpetaOperaciones
                       ? `h-7 w-7 shrink-0 sm:h-10 sm:w-10 ${colorIcono}`
-                      : `h-10 w-10 ${colorIcono}`
+                      : `h-7 w-7 shrink-0 sm:h-10 sm:w-10 ${colorIcono}`
                   }
                 />
-                <span className="min-w-0 break-words">{tituloModal}</span>
+                <span className="min-w-0 flex-1 whitespace-normal break-words">{tituloModal}</span>
               </DialogTitle>
 
               <DialogDescription
                   className={
                     esCarpetaOperaciones
                       ? 'mt-2 break-words pr-4 text-sm leading-relaxed text-gray-600 sm:text-lg'
-                      : 'mt-2 text-lg text-gray-600'
+                      : 'mt-2 min-w-0 whitespace-normal break-words text-sm leading-relaxed text-gray-600 sm:text-lg'
                   }
                 >
                 Gestiona la documentación para{' '}
@@ -2239,7 +2239,7 @@ const renderCarpetaSaludOcupacional = () => (
               </DialogDescription>
 
               {mostrarEmpresaCarpeta && (
-                <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 sm:px-4">
                   <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                     Empresa contratante
                   </span>
@@ -2248,7 +2248,7 @@ const renderCarpetaSaludOcupacional = () => (
                   >
                     {empresaVisible.codigo}
                   </span>
-                  <span className="text-sm font-semibold text-gray-800">
+                  <span className="min-w-0 break-words text-sm font-semibold text-gray-800">
                     {empresaVisible.nombre}
                   </span>
                 </div>
@@ -2288,17 +2288,17 @@ const renderCarpetaSaludOcupacional = () => (
             </DialogHeader>
 
             {esCarpetaIngreso && (
-              <Tabs value={tab} onValueChange={setTab} className="w-full mt-6">
-                <TabsList className="flex gap-2 mb-2 bg-emerald-50 rounded-xl p-1 border border-emerald-100 shadow-sm">
-                  <TabsTrigger value="ingreso" className="rounded-lg px-6 py-2 text-base font-semibold data-[state=active]:bg-yellow-400 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-yellow-500 data-[state=active]:border">
+              <Tabs value={tab} onValueChange={setTab} className="mt-4 w-full min-w-0 sm:mt-6">
+                <TabsList className="mb-2 grid h-auto w-full min-w-0 grid-cols-1 gap-1 rounded-xl border border-emerald-100 bg-emerald-50 p-1 shadow-sm sm:flex sm:justify-start sm:gap-2">
+                  <TabsTrigger value="ingreso" className="min-w-0 whitespace-normal rounded-lg px-2 py-2 text-xs font-semibold sm:shrink-0 sm:px-6 sm:text-base data-[state=active]:bg-yellow-400 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-yellow-500 data-[state=active]:border">
                     Documentos de Aspirante
                   </TabsTrigger>
 
-                  <TabsTrigger value="seguridad" className="rounded-lg px-6 py-2 text-base font-semibold data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-orange-600 data-[state=active]:border">
+                  <TabsTrigger value="seguridad" className="min-w-0 whitespace-normal rounded-lg px-2 py-2 text-xs font-semibold sm:shrink-0 sm:px-6 sm:text-base data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-orange-600 data-[state=active]:border">
                     Documentos de Selección
                   </TabsTrigger>
 
-                  <TabsTrigger value="contratacion" className="rounded-lg px-6 py-2 text-base font-semibold data-[state=active]:bg-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-emerald-600 data-[state=active]:border">
+                  <TabsTrigger value="contratacion" className="min-w-0 whitespace-normal rounded-lg px-2 py-2 text-xs font-semibold sm:shrink-0 sm:px-6 sm:text-base data-[state=active]:bg-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-emerald-600 data-[state=active]:border">
                     Documentos de Contratación
                   </TabsTrigger>
                 </TabsList>
@@ -2310,7 +2310,7 @@ const renderCarpetaSaludOcupacional = () => (
               className={
                 esCarpetaOperaciones
                   ? 'min-w-0 overflow-hidden px-3 pb-2 pt-2 sm:px-8'
-                  : 'px-8 pb-2 pt-2'
+                  : 'w-full min-w-0 overflow-x-hidden px-3 pb-2 pt-2 sm:px-8'
               }
             >
             {esCarpetaActivos && renderCarpetaActivos()}
@@ -2829,7 +2829,7 @@ const renderCarpetaSaludOcupacional = () => (
             className={
               esCarpetaOperaciones
                 ? 'flex shrink-0 justify-end rounded-b-2xl border-t border-emerald-100 bg-gradient-to-r from-emerald-50 to-yellow-50 px-3 py-3 sm:rounded-b-3xl sm:px-8 sm:py-4'
-                : 'flex justify-end rounded-b-3xl border-t border-emerald-100 bg-gradient-to-r from-emerald-50 to-yellow-50 px-8 py-4'
+                : 'flex justify-end rounded-b-2xl border-t border-emerald-100 bg-gradient-to-r from-emerald-50 to-yellow-50 px-3 py-3 sm:rounded-b-3xl sm:px-8 sm:py-4'
             }
           >
           <Button
@@ -2838,7 +2838,7 @@ const renderCarpetaSaludOcupacional = () => (
             className={
             esCarpetaOperaciones
               ? 'min-h-11 w-full rounded-xl border-emerald-300 bg-white px-6 py-2 text-base font-semibold text-emerald-700 shadow-sm hover:bg-emerald-50 sm:w-auto sm:px-8 sm:text-lg'
-              : 'rounded-xl border-emerald-300 bg-white px-8 py-2 text-lg font-semibold text-emerald-700 shadow-sm hover:bg-emerald-50'
+              : 'min-h-11 w-full rounded-xl border-emerald-300 bg-white px-6 py-2 text-base font-semibold text-emerald-700 shadow-sm hover:bg-emerald-50 sm:w-auto sm:px-8 sm:text-lg'
           }
           >
             Cerrar

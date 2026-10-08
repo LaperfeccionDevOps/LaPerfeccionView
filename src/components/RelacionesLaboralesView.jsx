@@ -729,7 +729,7 @@ const DocCard = ({
   fileNode,
   children,
 }) => (
-  <div className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5">
+  <div className="min-w-0 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm sm:p-5">
     <div className="flex items-start justify-between gap-3 flex-wrap">
       <div>
         <p className="text-base font-bold text-slate-900">
@@ -3752,8 +3752,8 @@ if (step === "agenda_general_rrll") {
   // --------------------------
   if (step === "inicio") {
     return (
-      <div className="w-full p-4 md:p-6 xl:w-[calc(100%+12rem)] xl:-ml-24">
-        <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
+      <div className="w-full min-w-0 px-0 py-3 sm:p-4 md:p-6 xl:w-[calc(100%+12rem)] xl:-ml-24">
+        <div className="min-w-0 w-full rounded-2xl border-t-4 border-emerald-600 bg-white p-3 shadow-xl sm:p-5 md:p-8">
           <div className="mb-6">
             <p className="text-sm font-semibold text-emerald-700">
               Talento Humano
@@ -3768,7 +3768,7 @@ if (step === "agenda_general_rrll") {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-6">
+          <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50/70 p-3 sm:p-6">
             <div className="mb-5">
               <h3 className="text-lg font-bold text-gray-800">
                 Gestión de Relaciones Laborales
@@ -3783,7 +3783,7 @@ if (step === "agenda_general_rrll") {
               <button
                 type="button"
                 onClick={() => setStep("retiros_inicio")}
-                className="group rounded-2xl border border-emerald-200 bg-white p-6 text-left transition hover:border-emerald-400 hover:shadow-md"
+                className="group min-w-0 w-full rounded-2xl border border-emerald-200 bg-white p-4 text-left transition hover:border-emerald-400 hover:shadow-md sm:p-6"
               >
                 <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-lg font-bold text-emerald-700">
                   R
@@ -3803,7 +3803,7 @@ if (step === "agenda_general_rrll") {
                 onClick={() =>
                   navigate("/relaciones-laborales/procesos-disciplinarios")
                 }
-                className="group rounded-2xl border border-blue-200 bg-white p-6 text-left transition hover:border-blue-400 hover:shadow-md"
+                className="group min-w-0 w-full rounded-2xl border border-blue-200 bg-white p-4 text-left transition hover:border-blue-400 hover:shadow-md sm:p-6"
               >
                 <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-lg font-bold text-blue-700">
                   PD
@@ -3821,7 +3821,7 @@ if (step === "agenda_general_rrll") {
               <button
                 type="button"
                 onClick={() => navigate("/panel-gerencial-rrll")}
-                className="group rounded-2xl border border-slate-300 bg-white p-6 text-left transition hover:border-slate-500 hover:shadow-md"
+                className="group min-w-0 w-full rounded-2xl border border-slate-300 bg-white p-4 text-left transition hover:border-slate-500 hover:shadow-md sm:p-6"
               >
                 <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-lg font-bold text-slate-700">
                   PG
@@ -3912,11 +3912,11 @@ if (step === "agenda_general_rrll") {
     };
 
     return (
-      <div className="w-full p-4 md:p-6 xl:w-[calc(100%+12rem)] xl:-ml-24">
-        <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
+      <div className="w-full min-w-0 px-0 py-3 sm:p-4 md:p-6 xl:w-[calc(100%+12rem)] xl:-ml-24">
+        <div className="min-w-0 w-full rounded-2xl border-t-4 border-emerald-600 bg-white p-3 shadow-xl sm:p-5 md:p-8">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-gray-800">Retiros recibidos</h2>
+              <h2 className="text-xl font-bold text-gray-800 sm:text-2xl">Retiros recibidos</h2>
               <p className="mt-1 text-sm text-gray-500">
                 Seguimiento de los retiros iniciados por Operaciones y gestión de los casos enviados a Relaciones Laborales.
               </p>
@@ -3927,14 +3927,14 @@ if (step === "agenda_general_rrll") {
               variant="outline"
               onClick={cargarBandejaRetirosRRLL}
               disabled={loadingBandejaRetirosRRLL}
-              className="border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+              className="w-full border-emerald-500 text-emerald-700 hover:bg-emerald-50 sm:w-auto"
             >
               {loadingBandejaRetirosRRLL ? "Actualizando..." : "Actualizar"}
             </Button>
           </div>
 
           <div className="mt-6 border-b border-gray-200">
-            <div className="flex flex-wrap gap-8">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-8">
               <button
                 type="button"
                 onClick={() => {
@@ -3992,11 +3992,63 @@ if (step === "agenda_general_rrll") {
                 setPaginaBandejaRetirosRRLL(1);
               }}
               placeholder="Buscar por nombre o número de identificación..."
-              className="h-11"
+              className="h-11 min-w-0 w-full"
             />
           </div>
 
-          <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+          {/* En celular, los retiros se presentan como tarjetas; la tabla de escritorio se conserva. */}
+          <div className="mt-6 space-y-3 md:hidden">
+            {loadingBandejaRetirosRRLL && (
+              <p className="rounded-xl border bg-white p-5 text-center text-sm text-gray-500">Consultando retiros...</p>
+            )}
+            {!loadingBandejaRetirosRRLL && retirosMostrados.map((retiro) => {
+              const nombreCompleto = retiro?.NombreCompleto ||
+                `${retiro?.Nombres || ""} ${retiro?.Apellidos || ""}`.replace(/\\s+/g, " ").trim() ||
+                "Sin información";
+              const empresaRetiro = getEmpresaContratanteInfo(retiro);
+              const esDevueltoNomina = String(retiro?.EstadoCasoRRLL || "").toUpperCase() === "DEVUELTO_NOMINA";
+              const pazCerrado = String(retiro?.EstadoPazYSalvo || "").toUpperCase() === "CERRADO";
+              return (
+                <article key={retiro?.IdRetiroLaboral} className="min-w-0 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="min-w-0 flex-1 break-words text-sm font-bold text-gray-900">{nombreCompleto}</p>
+                    <span className={`shrink-0 rounded-full border px-2 py-1 text-[11px] font-bold ${empresaRetiro.badgeClass}`}>{empresaRetiro.codigo}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-600">Identificación: <span className="font-semibold">{retiro?.NumeroIdentificacion || "Sin información"}</span></p>
+                  {esDevueltoNomina && <p className="mt-2 text-xs font-semibold text-amber-700">Devuelto por Nómina</p>}
+                  <div className="mt-3 space-y-2 border-t border-gray-100 pt-3 text-xs">
+                    <p className="break-words"><span className="font-semibold text-gray-600">Empresa:</span> {empresaRetiro.nombre}</p>
+                    <p className="break-words"><span className="font-semibold text-gray-600">Cliente:</span> {retiro?.NombreCliente || "Sin información"}</p>
+                    <p className="break-words"><span className="font-semibold text-gray-600">Motivo:</span> {retiro?.NombreMotivoRetiro || "Sin información"}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-gray-600">Paz y Salvo:</span>
+                      <span className={`rounded-full px-2 py-1 font-semibold ${pazCerrado ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-blue-800"}`}>{retiro?.EstadoPazYSalvo || "SIN ESTADO"}</span>
+                    </div>
+                    <p className="break-words"><span className="font-semibold text-gray-600">{tabBandejaRetirosRRLL === "ABIERTOS_OPERACIONES" ? "Fecha proceso:" : "Fecha envío Operaciones:"}</span>{" "}
+                      {formatearFechaBandeja(tabBandejaRetirosRRLL === "ABIERTOS_OPERACIONES" ? retiro?.FechaProceso : retiro?.FechaEnvioOperaciones)}
+                    </p>
+                  </div>
+                  {tabBandejaRetirosRRLL === "CERRADOS_OPERACIONES" ? (
+                    <Button type="button" size="sm" onClick={() => abrirRetiroDesdeBandejaRRLL(retiro)}
+                      disabled={loadingBuscar} className="mt-3 w-full bg-emerald-600 text-white hover:bg-emerald-700">Ver retiro</Button>
+                  ) : (
+                    <div className="mt-3 rounded-lg bg-gray-100 px-3 py-2 text-center text-xs font-semibold text-gray-600">En Operaciones · Solo consulta</div>
+                  )}
+                </article>
+              );
+            })}
+            {!loadingBandejaRetirosRRLL && retirosFiltrados.length === 0 && !errorBandejaRetirosRRLL && (
+              <p className="rounded-xl border bg-white p-5 text-center text-sm text-gray-500">
+                {terminoBusquedaBandeja
+                  ? "No se encontraron retiros que coincidan con la búsqueda."
+                  : tabBandejaRetirosRRLL === "ABIERTOS_OPERACIONES"
+                    ? "No hay retiros abiertos actualmente en Operaciones."
+                    : "No hay retiros cerrados por Operaciones pendientes de gestión en RRLL."}
+              </p>
+            )}
+          </div>
+
+          <div className="mt-6 hidden overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm md:block">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1220px] text-sm">
                 <thead className="bg-gray-50 text-gray-600">
@@ -4225,8 +4277,8 @@ if (step === "retiros_docs") {
   console.log("form.idRetiroLaboral =>", form.idRetiroLaboral);
 
         return (
-          <div className="w-full p-4 md:p-6 xl:w-[calc(100%+12rem)] xl:-ml-24">
-          <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
+          <div className="w-full min-w-0 px-0 py-3 sm:p-4 md:p-6 xl:w-[calc(100%+12rem)] xl:-ml-24">
+          <div className="min-w-0 w-full rounded-2xl border-t-4 border-emerald-600 bg-white p-3 shadow-xl sm:p-5 md:p-8">
             {qrEntrevistaInfo.open && (
       <div className="fixed top-4 right-4 z-50 w-[420px] max-w-[95vw] rounded-xl border border-emerald-200 bg-white shadow-2xl px-4 py-4 text-sm text-slate-800">
         <div className="flex items-start justify-between gap-3">
@@ -4327,7 +4379,7 @@ if (step === "retiros_docs") {
           })()}
 
           {/* Motivo seleccionado */}
-          <div className="mt-6 bg-gray-50 p-5 rounded-xl border border-gray-100">
+          <div className="mt-6 min-w-0 rounded-xl border border-gray-100 bg-gray-50 p-3 sm:p-5">
             <p className="text-sm font-semibold text-gray-700">
               Motivo seleccionado
             </p>
@@ -5148,7 +5200,7 @@ if (step === "retiros_docs") {
               return (
                 <div
                   key={req.key}
-                  className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5"
+                  className="min-w-0 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm sm:p-5"
                 >
                   <p className="text-base font-bold text-slate-900">
                     {idx + 1}. {req.labelPretty}
@@ -5223,7 +5275,7 @@ if (step === "retiros_docs") {
                   return (
                     <div
                       key={req.key}
-                      className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5"
+                      className="min-w-0 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm sm:p-5"
                     >
                       <p className="text-base font-bold text-slate-900">
                         {idx + 1}. {req.labelPretty}
@@ -5290,7 +5342,7 @@ if (step === "retiros_docs") {
                   return (
                     <div
                       key={req.key}
-                      className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5"
+                      className="min-w-0 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm sm:p-5"
                     >
                       <p className="text-base font-bold text-slate-900">
                         {idx + 1}. {req.labelPretty}
@@ -5345,7 +5397,7 @@ if (step === "retiros_docs") {
                 return (
                   <div
                     key={req.key}
-                    className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5"
+                    className="min-w-0 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm sm:p-5"
                   >
                     <p className="text-base font-bold text-slate-900">
                       {idx + 1}. {req.labelPretty}
@@ -5702,8 +5754,8 @@ if (step === "retiros_docs") {
   // VISTA RETIROS (CABECERA)
   // --------------------------
   return (
-    <div className="w-full p-4 md:p-6 xl:w-[calc(100%+12rem)] xl:-ml-24">
-      <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
+    <div className="w-full min-w-0 px-0 py-3 sm:p-4 md:p-6 xl:w-[calc(100%+12rem)] xl:-ml-24">
+      <div className="min-w-0 w-full rounded-2xl border-t-4 border-emerald-600 bg-white p-3 shadow-xl sm:p-5 md:p-8">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h2 className="text-2xl font-bold text-gray-800">Relaciones Laborales</h2>
@@ -5720,7 +5772,7 @@ if (step === "retiros_docs") {
         </div>
 
         {/* Filtro */}
-        <div className="mt-6 bg-gray-50 p-5 rounded-xl border border-gray-100">
+        <div className="mt-6 min-w-0 rounded-xl border border-gray-100 bg-gray-50 p-3 sm:p-5">
           <p className="font-semibold text-gray-700">Filtro</p>
 
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end mt-3">

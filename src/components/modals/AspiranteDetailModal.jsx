@@ -29,6 +29,7 @@ import axios from 'axios';
 import { upsertObservacionNF } from "@/services/observacionesNucleoFamiliarService";
 import { upsertAsignacionCargoCliente } from "../../services/asignacionCargoClienteServiceApi";
 import { toast } from '@/components/ui/use-toast';
+import { useAuth } from '@/context/AuthContext';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -438,6 +439,8 @@ const MOTIVOS_CIERRE_PREDEFINIDOS = [
 ];
 
 const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
+  const { user } = useAuth();
+  const esSuperAdmin = user?.role === 'Super Administrador';
   // Estado para loader al abrir modal
   const [loadingAspiranteDetalle, setLoadingAspiranteDetalle] = useState(false);
   const [listaCargo, setListaCargo] = useState([]);
@@ -3337,8 +3340,8 @@ if (response && response.status === 201) {
   return (
     <>
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0 overflow-hidden bg-gray-50">
-        <DialogHeader className="px-6 py-4 bg-white border-b border-gray-200 shrink-0">
+      <DialogContent className={cn("max-w-5xl h-[90vh] flex flex-col p-0 overflow-hidden bg-gray-50", esSuperAdmin && "max-md:!w-[calc(100vw-16px)] max-md:!max-w-none max-md:!h-[calc(100dvh-16px)] max-md:!max-h-none max-md:!p-0")}>
+        <DialogHeader className={cn("px-6 py-4 bg-white border-b border-gray-200 shrink-0", esSuperAdmin && "max-md:px-4 max-md:py-3 max-md:pr-10")}>
           <div className="flex items-center justify-between">
              <div>
                 <div className="flex items-center gap-3">
@@ -3358,11 +3361,11 @@ if (response && response.status === 201) {
           </div>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-hidden flex">
-           <Tabs value={activeTab} onValueChange={setActiveTab} orientation="vertical" className="flex-1 flex h-full min-h-0">
+        <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex">
+           <Tabs value={activeTab} onValueChange={setActiveTab} orientation="vertical" className={cn("flex-1 flex h-full min-h-0 min-w-0", esSuperAdmin && "max-md:flex-col")}>
               {/* Sidebar Navigation for Tabs */}
-              <div className="w-64 bg-white border-r border-gray-200 h-full overflow-y-auto shrink-0 py-2">
-                 <TabsList className="flex flex-col h-auto w-full bg-transparent space-y-1 p-2">
+              <div className={cn("w-64 bg-white border-r border-gray-200 h-full overflow-y-auto shrink-0 py-2", esSuperAdmin && "max-md:w-full max-md:h-auto max-md:overflow-x-auto max-md:overflow-y-hidden max-md:border-r-0 max-md:border-b max-md:py-1")}>
+                 <TabsList className={cn("flex flex-col h-auto w-full bg-transparent space-y-1 p-2", esSuperAdmin && "max-md:flex-row max-md:w-max max-md:min-w-full max-md:space-y-0 max-md:gap-1 max-md:p-2")}>
                     {[
                        { id: 'personal', label: 'Datos Personales', icon: User },
                        { id: 'familiar', label: 'Núcleo Familiar', icon: Users },
@@ -3377,7 +3380,7 @@ if (response && response.status === 201) {
                        <TabsTrigger 
                           key={tab.id} 
                           value={tab.id} 
-                          className="w-full justify-start px-3 py-2.5 text-sm font-medium text-gray-600 data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700 data-[state=active]:border-r-4 data-[state=active]:border-emerald-600 rounded-none transition-all"
+                          className={cn("w-full justify-start px-3 py-2.5 text-sm font-medium text-gray-600 data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700 data-[state=active]:border-r-4 data-[state=active]:border-emerald-600 rounded-none transition-all", esSuperAdmin && "max-md:w-auto max-md:shrink-0 max-md:whitespace-nowrap max-md:rounded-lg max-md:px-3 max-md:py-2 max-md:data-[state=active]:border-r-0 max-md:data-[state=active]:border-b-2")}
                        >
                           <tab.icon className="w-4 h-4 mr-3" />
                           {tab.label}
@@ -3387,8 +3390,22 @@ if (response && response.status === 201) {
               </div>
 
               {/* Content Area */}
-              <div className="aspirante-detail-scroll flex-1 h-full min-h-0 overflow-y-scroll bg-gray-50/50">
+              <div className={cn("aspirante-detail-scroll flex-1 h-full min-h-0 overflow-y-scroll bg-gray-50/50", esSuperAdmin && "aspirante-superadmin-mobile max-md:min-w-0 max-md:w-full max-md:overflow-x-hidden")}>
                   <style>{`
+                    @media (max-width: 767px) {
+                      .aspirante-superadmin-mobile .bg-white.p-6.rounded-xl {
+                        padding: 0.875rem;
+                        min-width: 0;
+                      }
+                      .aspirante-superadmin-mobile input,
+                      .aspirante-superadmin-mobile textarea,
+                      .aspirante-superadmin-mobile select {
+                        max-width: 100%;
+                      }
+                      .aspirante-superadmin-mobile table {
+                        max-width: none;
+                      }
+                    }
                     .aspirante-detail-scroll {
                       scrollbar-width: auto;
                       scrollbar-color: #6b7280 #f3f4f6;
@@ -3413,7 +3430,7 @@ if (response && response.status === 201) {
                       background: #4b5563;
                     }
                   `}</style>
-                 <div className="p-6 max-w-4xl mx-auto pb-20">
+                 <div className={cn("p-6 max-w-4xl mx-auto pb-20", esSuperAdmin && "max-md:w-full max-md:min-w-0 max-md:p-3 max-md:pb-20")}>
                     {/* 2. Datos Personales */}
                     <TabsContent value="personal" className="mt-0 space-y-6">
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">

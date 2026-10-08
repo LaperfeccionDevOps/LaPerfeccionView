@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -1013,6 +1014,9 @@ const RegistroContratacionModal = ({
 
 // ------------------------------
 const ContratacionView = () => {
+  const { user } = useAuth();
+  // Vista móvil de Contratación: conserva intacto el diseño propio de Operaciones.
+  const esVistaMovilContratacion = String(user?.role ?? '').trim().toLowerCase() !== 'operaciones';
     // Estados para los filtros de fecha
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
@@ -2184,14 +2188,14 @@ const currentIdsKey = currentItems
   return (
     <>
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-        <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
+        <div className="min-w-0 bg-white rounded-2xl shadow-xl p-3 sm:p-5 md:p-8 border-t-4 border-emerald-600">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-center gap-3">
               <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
                 <Briefcase className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-800">Contratación</h1>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Contratación</h1>
                 <p className="text-sm text-gray-500">Gestión inicial y formalización de contratos.</p>
               </div>
             </div>
@@ -2287,7 +2291,63 @@ const currentIdsKey = currentItems
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+          {/* Tarjetas móviles exclusivamente para SUPERADMIN. La tabla original se conserva. */}
+          {esVistaMovilContratacion && (
+            <div className="grid grid-cols-1 gap-3 md:hidden">
+              {currentItems.length === 0 ? (
+                <div className="rounded-xl border border-gray-200 bg-white p-5 text-center text-sm text-gray-500">
+                  No se encontraron resultados
+                </div>
+              ) : currentItems.map((aspirante) => {
+                const idReg = getIdRegistroPersonal(aspirante);
+                const asignacion = idReg ? asignacionMap[String(idReg)] : null;
+                const cargo = asignacion?.CargoNombre || (asignacion?.IdCargo ? cargoMap[String(asignacion.IdCargo)] : '') || aspirante?.cargo_nombre || aspirante?.cargo || '—';
+                const salario = asignacion?.Salario ?? aspirante?.salario ?? aspirante?.Salario;
+                const cliente = asignacion?.ClienteNombre || (asignacion?.IdCliente ? clienteMap[String(asignacion.IdCliente)] : '') || aspirante?.cliente_nombre || aspirante?.cliente || '—';
+                const empresa = getEmpresaContratante(aspirante);
+                const estado = String(aspirante?.estado ?? '').trim();
+                const puedeActualizar = estado === 'Avanza a Contratación';
+                const estadoVisual = idReg ? estadoVisualMap[String(idReg)] || '' : '';
+                return (
+                  <article key={String(idReg ?? aspirante.cedula ?? `${aspirante.nombres}-${aspirante.apellidos}`)} className="min-w-0 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+                    <div className="flex min-w-0 items-start justify-between gap-2 border-b border-gray-100 pb-3">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="break-words text-sm font-bold uppercase leading-snug text-gray-900">{aspirante.nombres} {aspirante.apellidos}</h3>
+                        <p className="mt-1 break-words text-xs text-gray-500">{empresa.nombre || 'Empresa sin asignar'}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold ${empresa.codigo === 'MI' ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+                        {empresa.codigo || '—'}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid min-w-0 grid-cols-1 gap-2 text-xs">
+                      <div className="rounded-lg bg-gray-50 p-2"><span className="block text-[11px] text-gray-500">Estado</span><span className="break-words font-semibold text-gray-800">{estado || '—'}</span></div>
+                      <div className="rounded-lg bg-gray-50 p-2"><span className="block text-[11px] text-gray-500">Cargo</span><span className="break-words font-medium text-gray-800">{cargo}</span></div>
+                      <div className="rounded-lg bg-gray-50 p-2"><span className="block text-[11px] text-gray-500">Salario</span><span className="font-medium text-gray-800">{salario !== '' && salario !== null && salario !== undefined ? formatMoney(salario) : '—'}</span></div>
+                      <div className="rounded-lg bg-gray-50 p-2"><span className="block text-[11px] text-gray-500">Cliente</span><span className="break-words font-medium text-gray-800">{cliente}</span></div>
+                    </div>
+                    <div className="mt-3 border-t border-gray-100 pt-3">
+                      <p className="mb-2 text-xs font-semibold text-gray-700">Actualizar estado</p>
+                      {puedeActualizar ? (
+                        <div className="flex gap-2">
+                          <button type="button" title="Contratado" onClick={() => marcarContratadoBD(aspirante)} className={`rounded-lg border px-4 py-2 text-xs font-bold ${estadoVisual === 'C' ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-gray-200 bg-white text-gray-700'}`}>C</button>
+                          <button type="button" title="No contratado" onClick={() => openNCModal(aspirante)} className={`rounded-lg border px-4 py-2 text-xs font-bold ${estadoVisual === 'NC' ? 'border-rose-600 bg-rose-600 text-white' : 'border-gray-200 bg-white text-gray-700'}`}>NC</button>
+                        </div>
+                      ) : <span className="text-xs text-gray-500">Solo consulta</span>}
+                    </div>
+                    <div className="mt-3 border-t border-gray-100 pt-3">
+                      <p className="mb-2 text-xs font-semibold text-gray-700">Acciones</p>
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => openRegistroModal(aspirante)} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2 py-2 text-[11px] text-gray-700"><ClipboardList className="h-4 w-4" /> Registro</button>
+                        <button type="button" onClick={() => openModal(aspirante, 'activos')} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2 py-2 text-[11px] text-gray-700"><Sheet className="h-4 w-4" /> Documentos</button>
+                        <button type="button" onClick={() => descargarContrato(aspirante)} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2 py-2 text-[11px] text-gray-700"><Download className="h-4 w-4" /> Contrato</button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+          <div className={`bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden ${esVistaMovilContratacion ? "hidden md:block" : ""}`}>
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
@@ -2469,8 +2529,9 @@ const currentIdsKey = currentItems
               </table>
             </div>
 
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-4 border-t border-gray-200 bg-gray-50/50">
+          </div>
+          {totalPages > 1 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-4 border border-gray-200 rounded-xl bg-gray-50/50">
                 <div className="text-sm text-gray-500">
                   Mostrando {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, sortedData.length)} de {sortedData.length}
                 </div>
@@ -2497,7 +2558,6 @@ const currentIdsKey = currentItems
                 </div>
               </div>
             )}
-          </div>
         </div>
       </motion.div>
 

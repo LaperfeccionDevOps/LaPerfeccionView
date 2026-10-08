@@ -1392,16 +1392,16 @@ const PanelGerencialRRLLView = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-6 xl:p-8">
-      <div className="mx-auto max-w-[1600px] space-y-6">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+    <div className="min-h-screen min-w-0 w-full max-w-full overflow-x-hidden bg-slate-50 px-2 pb-4 pt-14 sm:p-4 md:p-6 xl:p-8">
+      <div className="mx-auto w-full min-w-0 max-w-[1600px] space-y-4 sm:space-y-6">
+        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5 md:p-6">
           <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
                 Relaciones Laborales
               </p>
 
-              <h1 className="mt-1 text-3xl font-bold text-slate-900 md:text-4xl">
+              <h1 className="mt-1 text-2xl font-bold leading-tight text-slate-900 sm:text-3xl md:text-4xl">
                 Panel Gerencial
               </h1>
 
@@ -1429,8 +1429,8 @@ const PanelGerencialRRLLView = () => {
           </div>
         </section>
 
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 px-5 py-4 md:px-6">
+        <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-3 py-4 sm:px-5 md:px-6">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <div className="flex items-center gap-2">
@@ -1459,7 +1459,7 @@ const PanelGerencialRRLLView = () => {
             </div>
           </div>
 
-          <div className="p-5 md:p-6">
+          <div className="p-3 sm:p-5 md:p-6">
             <div className="flex flex-wrap gap-2">
               {periodos.map((periodo) => {
                 const seleccionado =
@@ -1714,7 +1714,7 @@ const PanelGerencialRRLLView = () => {
           </section>
         )}
 
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="bg-gradient-to-r from-emerald-800 to-emerald-700 px-5 py-5 text-white md:px-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex items-start gap-4">
@@ -1781,7 +1781,7 @@ const PanelGerencialRRLLView = () => {
             </div>
           ) : (
             <div className="grid gap-0 lg:grid-cols-2 lg:divide-x lg:divide-slate-200">
-              <div className="p-5 md:p-6">
+              <div className="p-3 sm:p-5 md:p-6">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
@@ -1907,7 +1907,7 @@ const PanelGerencialRRLLView = () => {
             </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {indicadoresPrincipales.map((indicador) => {
               const Icono = indicador.icono;
               const clases = claseTarjetaIndicador(indicador.tipo);
@@ -1953,7 +1953,7 @@ const PanelGerencialRRLLView = () => {
         </section>
 
         <section className="grid gap-6 xl:grid-cols-2">
-          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+          <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5 md:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">
@@ -2015,7 +2015,7 @@ const PanelGerencialRRLLView = () => {
             </div>
           </article>
 
-          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+          <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5 md:p-6">
             <div>
               <h2 className="text-xl font-bold text-slate-900">
                 Principales motivos de retiro
@@ -2066,7 +2066,7 @@ const PanelGerencialRRLLView = () => {
         </section>
 
         <section className="grid gap-6 xl:grid-cols-2">
-          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+          <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5 md:p-6">
             <div>
               <h2 className="text-xl font-bold text-slate-900">
                 Sedes con más retiros
@@ -2143,7 +2143,7 @@ const PanelGerencialRRLLView = () => {
             </div>
           </article>
 
-          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+          <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5 md:p-6">
             <div>
               <h2 className="text-xl font-bold text-slate-900">
                 Calidad de fechas laborales
@@ -2228,7 +2228,7 @@ const PanelGerencialRRLLView = () => {
           </article>
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5 md:p-6">
           <div>
             <h2 className="text-xl font-bold text-slate-900">
                Tiempo total de desvinculación
@@ -2318,8 +2318,8 @@ const PanelGerencialRRLLView = () => {
             </p>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
+          <div className="w-full max-w-full overflow-x-auto overscroll-x-contain">
+            <table className="min-w-[680px] divide-y divide-slate-200 md:min-w-full">
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
@@ -2580,7 +2580,7 @@ const GestionMensualRRLL = ({
         </div>
       </div>
 
-      <div className="bg-emerald-50/30 p-5 md:p-7">
+      <div className="min-w-0 bg-emerald-50/30 p-3 sm:p-5 md:p-7">
         {error && (
           <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
             {error}
@@ -2593,7 +2593,7 @@ const GestionMensualRRLL = ({
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)]">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:gap-5 xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)]">
           <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-base font-bold text-gray-900">
@@ -2703,7 +2703,7 @@ const GestionMensualRRLL = ({
                   return (
                     <div
                       key={item.idActividad || `actividad-nueva-${index}`}
-                      className="grid grid-cols-1 gap-3 bg-white p-4 md:grid-cols-[minmax(260px,1.55fr)_180px_160px]"
+                      className="grid min-w-0 grid-cols-1 gap-3 bg-white p-3 sm:p-4 md:grid-cols-[minmax(260px,1.55fr)_180px_160px]"
                     >
                       <div>
                         <label className="mb-1 block text-xs font-semibold text-gray-500 md:hidden">
@@ -2720,7 +2720,7 @@ const GestionMensualRRLL = ({
                               maxLength={1000}
                               rows={2}
                               placeholder={`Actividad ${index + 1}`}
-                              className="min-h-[70px] flex-1 resize-y rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-gray-50"
+                              className="min-h-[70px] min-w-0 flex-1 resize-y rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:bg-gray-50"
                             />
 
                             {actividadesPlanAccion.length > 1 && (
