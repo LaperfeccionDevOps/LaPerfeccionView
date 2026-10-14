@@ -20,6 +20,9 @@ import OperacionesProcesosDisciplinariosView from "@/pages/OperacionesProcesosDi
 import AgendaDisciplinariaOperacionesView from "@/pages/AgendaDisciplinariaOperacionesView";
 import OperacionesRetirosView from "@/pages/OperacionesRetirosView";
 import PermisosTrabajoAlturasView from "@/pages/PermisosTrabajoAlturasView";
+import CrearPermisoTrabajoAlturasView from "@/pages/CrearPermisoTrabajoAlturasView";
+import ConsultarPermisosTrabajoAlturasView from "@/pages/ConsultarPermisosTrabajoAlturasView";
+import DetallePermisoTrabajoAlturasView from "@/pages/DetallePermisoTrabajoAlturasView";
 import IniciarProcesoOperacionesView from "@/pages/IniciarProcesoOperacionesView";
 import RevisionProcesoOperacionesView from "@/pages/RevisionProcesoOperacionesView";
 
@@ -375,6 +378,33 @@ function App() {
             element={
               <OperationsPermissionRoute>
                 <PermisosTrabajoAlturasView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
+            path="operaciones/alturas/permisos-trabajo/crear"
+            element={
+              <OperationsPermissionRoute>
+                <CrearPermisoTrabajoAlturasView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
+            path="operaciones/alturas/permisos-trabajo/consultar"
+            element={
+              <OperationsPermissionRoute>
+                <ConsultarPermisosTrabajoAlturasView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
+            path="operaciones/alturas/permisos-trabajo/:idPermiso"
+            element={
+              <OperationsPermissionRoute>
+                <DetallePermisoTrabajoAlturasView />
               </OperationsPermissionRoute>
             }
           />
