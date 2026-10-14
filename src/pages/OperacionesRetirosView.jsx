@@ -156,6 +156,64 @@ const normalizarCodigoElemento = (valor) =>
     .toUpperCase()
     .replace(/\s+/g, "_");
 
+// Guía funcional por perfil según los requisitos de Operaciones.
+// Los elementos reales y sus identificadores siguen viniendo del backend de QA.
+const GUIA_PAZ_SALVO_PERFIL = {
+  OPERATIVO_BASICO: {
+    titulo: "Personal operativo básico",
+    descripcion: "Operarios de aseo, stewards y personal de movimientos.",
+    controles: ["Dotación y EPP reutilizables", "Carné ALP y carné ARL cuando aplique", "Accesos del cliente", "Llaves, controles y casillero", "Novedades, faltantes y descuentos validados"],
+    detalle: "Registra los guantes, monogafas y demás artículos configurados; especifica las novedades reales y utiliza NO APLICA solamente cuando corresponda."
+  },
+  OPERATIVO_TECNICO: {
+    titulo: "Personal operativo técnico",
+    descripcion: "Toderos y personal de mantenimiento.",
+    controles: ["Herramientas individualizadas", "Equipos y maquinaria asignada", "Cantidad, código, estado y propietario (ALP/cliente)", "Llaves y accesos", "Persona que recibe y novedades"],
+    detalle: "Detalla por cada herramienta, equipo o máquina: descripción, código, cantidad, estado, propietario y quién recibe."
+  },
+  ADMINISTRATIVO_CAMPO: {
+    titulo: "Personal administrativo de campo",
+    descripcion: "Personal con funciones administrativas en instalaciones del cliente.",
+    controles: ["Equipos tecnológicos y comunicaciones", "Usuarios, correos y accesos", "Documentos físicos y digitales", "Llaves y carné del cliente", "Acta de entrega de funciones, pendientes y responsable"],
+    detalle: "Relaciona equipos, accesos por cerrar, ubicación de archivos y actividades terminadas, en curso y pendientes; adjunta el acta cuando corresponda."
+  },
+  SUPERVISION_LIDERAZGO: {
+    titulo: "Supervisión y liderazgo",
+    descripcion: "Supervisores y líderes de operación.",
+    controles: ["Herramientas, equipos y dispositivos", "Credenciales, llaves y accesos", "Registros operativos", "Acta de entrega de gestión", "Actividades, compromisos pendientes y receptor"],
+    detalle: "Especifica la entrega de gestión, registros, pendientes y quién recibe cada responsabilidad."
+  },
+  SERVICIOS_ESPECIALES: {
+    titulo: "Servicios especiales",
+    descripcion: "Personal con elementos y equipos especializados.",
+    controles: ["Equipos especializados", "Instrumentos de medición y control", "EPP especializado", "Materiales bajo custodia", "Tareas pendientes y bienes del cliente"],
+    detalle: "Relaciona equipos e instrumentos con cantidad, estado, código y propietario; registra materiales bajo custodia y novedades."
+  },
+  TRABAJO_ALTURAS: {
+    titulo: "Trabajo en alturas",
+    descripcion: "Personal con equipos de protección contra caídas.",
+    controles: ["Arnés", "Eslingas", "Conectores y anclajes", "Otros equipos de alturas", "Estado, faltantes, concepto del coordinador y receptor"],
+    detalle: "Detalla por cada equipo descripción, código, cantidad, estado de devolución, incidentes, concepto del coordinador y confirmación de recepción."
+  },
+  ADMINISTRATIVO_INTERNO: {
+    titulo: "Personal administrativo interno",
+    descripcion: "Personal administrativo de oficinas ALP.",
+    controles: ["Equipos tecnológicos", "Dispositivos de comunicación", "Cuentas y accesos", "Documentos y archivos", "Entrega de funciones y pendientes, cuando aplique"],
+    detalle: "Relaciona los bienes y accesos realmente asignados, responsable de recepción y pendientes de entrega."
+  }
+};
+
+// Códigos ya cubiertos por el registro físico de elementos del perfil.
+// No se eliminan del backend: se conservan las respuestas históricas.
+const CODIGOS_VALIDACION_ENTREGA_DUPLICADA = new Set([
+  "DOTACION_EPP", "EPP_PERSONAL", "ELEMENTOS_ALP_CLIENTE",
+]);
+
+const CODIGOS_RESPONSABILIDAD_ENTREGA_DUPLICADA = new Set([
+  "DOTACION_EPP", "HERRAMIENTAS", "EQUIPOS_ALTURAS", "EQUIPOS_TECNOLOGICOS",
+  "INVENTARIOS",
+]);
+
 const ADJUNTOS_INICIALES = {
   novedadesNomina: [],
   formatoDescuentoVacunas: [],
@@ -981,6 +1039,27 @@ const OperacionesRetirosView = () => {
   const [clientes, setClientes] = useState([]);
   const [loadingClientes, setLoadingClientes] = useState(false);
   const [elementosPazSalvo, setElementosPazSalvo] = useState([]);
+  const [elementosNoReconocidos, setElementosNoReconocidos] = useState([]);
+  const [elementosPerfil, setElementosPerfil] = useState([]);
+  const [respuestasElementosPerfil, setRespuestasElementosPerfil] = useState({});
+  const [guardandoElementosPerfil, setGuardandoElementosPerfil] = useState(false);
+  const [cargandoElementosPerfil, setCargandoElementosPerfil] = useState(false);
+  const [mensajeElementosPerfil, setMensajeElementosPerfil] = useState("");
+  const [errorElementosPerfil, setErrorElementosPerfil] = useState(false);
+  const [elementosPerfilModificados, setElementosPerfilModificados] = useState(false);
+  const [validacionesPerfil, setValidacionesPerfil] = useState([]);
+  const [respuestasValidaciones, setRespuestasValidaciones] = useState({});
+  const [guardandoValidaciones, setGuardandoValidaciones] = useState(false);
+  const [cargandoValidaciones, setCargandoValidaciones] = useState(false);
+  const [mensajeValidaciones, setMensajeValidaciones] = useState("");
+  const [errorValidaciones, setErrorValidaciones] = useState(false);
+  const [validacionesModificadas, setValidacionesModificadas] = useState(false);
+  const [responsabilidadesPerfil, setResponsabilidadesPerfil] = useState([]);
+  const [nombrePerfilPazSalvo, setNombrePerfilPazSalvo] = useState("");
+  const [codigoPerfilPazSalvo, setCodigoPerfilPazSalvo] = useState("");
+  const [respuestasResponsabilidades, setRespuestasResponsabilidades] = useState({});
+  const [guardandoResponsabilidades, setGuardandoResponsabilidades] = useState(false);
+  const [mensajeResponsabilidades, setMensajeResponsabilidades] = useState("");
   const [loadingElementosPazSalvo, setLoadingElementosPazSalvo] =
     useState(false);
   const [origenConfiguracionElementos, setOrigenConfiguracionElementos] =
@@ -1468,6 +1547,227 @@ const OperacionesRetirosView = () => {
     return data?.data || null;
   };
 
+  // Catálogo separado de las columnas históricas de entrega.
+  const consultarElementosPerfilGuardados = async (idPazYSalvo) => {
+    if (!idPazYSalvo) return;
+    setCargandoElementosPerfil(true);
+    setMensajeElementosPerfil("");
+    setErrorElementosPerfil(false);
+    try {
+      const response = await fetch(
+        `${API_URL}/operaciones/retiros/paz-salvo/${idPazYSalvo}/elementos-perfil`,
+        { method: "GET", headers: construirHeaders() }
+      );
+      const data = await response.json().catch(() => null);
+      if (!response.ok || data?.success === false) {
+        throw new Error(typeof data?.detail === "string" ? data.detail : `Error HTTP ${response.status} consultando elementos del perfil.`);
+      }
+      const lista = data?.data?.ElementosPerfil;
+      if (!Array.isArray(lista)) throw new Error("El servicio no devolvió ElementosPerfil.");
+      setElementosPerfil(lista);
+      setRespuestasElementosPerfil(Object.fromEntries(lista.map((item) => [
+        Number(item.IdPerfilElementoPazSalvoOperaciones),
+        { Estado: item.Estado || "", Observacion: item.Observacion || "" }
+      ])));
+      setElementosPerfilModificados(false);
+    } catch (error) {
+      setMensajeElementosPerfil(error?.message || "No fue posible consultar los elementos del perfil.");
+      setErrorElementosPerfil(true);
+      throw error;
+    } finally {
+      setCargandoElementosPerfil(false);
+    }
+  };
+
+  const guardarElementosPerfilEnBackend = async (idPazYSalvo) => {
+    if (!idPazYSalvo) throw new Error("Primero guarda el Paz y Salvo ABIERTO.");
+    const seleccionados = elementosPerfil.map((item) => {
+      const id = Number(item.IdPerfilElementoPazSalvoOperaciones);
+      const respuesta = respuestasElementosPerfil[id] || {};
+      return id > 0 && respuesta.Estado ? {
+        IdPerfilElementoPazSalvoOperaciones: id,
+        Estado: respuesta.Estado,
+        Observacion: String(respuesta.Observacion || "").trim() || null,
+      } : null;
+    }).filter(Boolean);
+    if (!seleccionados.length) throw new Error("Selecciona al menos un estado antes de guardar.");
+    const response = await fetch(
+      `${API_URL}/operaciones/retiros/paz-salvo/${idPazYSalvo}/elementos-perfil`,
+      { method: "PUT", headers: { ...construirHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ ElementosPerfil: seleccionados }) }
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok || data?.success === false) {
+      throw new Error(typeof data?.detail === "string" ? data.detail :
+        typeof data?.message === "string" ? data.message : `Error HTTP ${response.status} guardando elementos del perfil.`);
+    }
+    await consultarElementosPerfilGuardados(idPazYSalvo);
+    return data;
+  };
+
+  const guardarRespuestasElementosPerfil = async () => {
+    const id = retiroGuardado?.IdPazYSalvo;
+    if (!id || String(retiroGuardado?.EstadoPazYSalvo || "").toUpperCase() !== "ABIERTO") {
+      setMensajeElementosPerfil("Primero guarda el Paz y Salvo ABIERTO; solo los casos abiertos permiten editar elementos.");
+      setErrorElementosPerfil(true);
+      return;
+    }
+    try {
+      setGuardandoElementosPerfil(true);
+      setMensajeElementosPerfil("");
+      setErrorElementosPerfil(false);
+      await guardarElementosPerfilEnBackend(id);
+      setMensajeElementosPerfil("Elementos guardados y recuperados correctamente.");
+    } catch (error) {
+      setMensajeElementosPerfil(error?.message || "No fue posible guardar los elementos.");
+      setErrorElementosPerfil(true);
+    } finally {
+      setGuardandoElementosPerfil(false);
+    }
+  };
+
+  // Contrato validado en Swagger QA: GET y PUT /paz-salvo/{id}/validaciones.
+  const consultarValidacionesGuardadas = async (idPazYSalvo) => {
+    if (!idPazYSalvo) return;
+    setCargandoValidaciones(true);
+    setMensajeValidaciones("");
+    setErrorValidaciones(false);
+    try {
+      const response = await fetch(
+        `${API_URL}/operaciones/retiros/paz-salvo/${idPazYSalvo}/validaciones`,
+        { method: "GET", headers: construirHeaders() }
+      );
+      const data = await response.json().catch(() => null);
+      if (!response.ok || data?.success === false) {
+        throw new Error(typeof data?.detail === "string" ? data.detail : `Error HTTP ${response.status} consultando validaciones.`);
+      }
+      const lista = data?.data?.Validaciones;
+      if (!Array.isArray(lista)) throw new Error("El servicio no devolvió la lista de validaciones.");
+      setValidacionesPerfil(lista);
+      setRespuestasValidaciones(Object.fromEntries(lista.map((item) => [
+        String(item.CodigoElemento),
+        { Estado: item.Estado || "", Observacion: item.Observacion || "" }
+      ])));
+      setValidacionesModificadas(false);
+    } catch (error) {
+      setMensajeValidaciones(error?.message || "No fue posible consultar las validaciones guardadas.");
+      setErrorValidaciones(true);
+      throw error;
+    } finally {
+      setCargandoValidaciones(false);
+    }
+  };
+
+  const guardarValidacionesEnBackend = async (idPazYSalvo) => {
+    if (!idPazYSalvo) throw new Error("Primero debes guardar el Paz y Salvo en estado ABIERTO.");
+    const seleccionadas = validacionesPerfil.map((item) => {
+      const codigo = String(item.CodigoElemento || "").trim();
+      const respuesta = respuestasValidaciones[codigo] || {};
+      return codigo && respuesta.Estado ? {
+        CodigoElemento: codigo,
+        Estado: respuesta.Estado,
+        Observacion: String(respuesta.Observacion || "").trim() || null,
+      } : null;
+    }).filter(Boolean);
+    if (!seleccionadas.length) throw new Error("Selecciona al menos un estado. Todas las validaciones son opcionales.");
+    const response = await fetch(
+      `${API_URL}/operaciones/retiros/paz-salvo/${idPazYSalvo}/validaciones`,
+      { method: "PUT", headers: { ...construirHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ Validaciones: seleccionadas }) }
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok || data?.success === false) {
+      throw new Error(typeof data?.detail === "string" ? data.detail :
+        typeof data?.message === "string" ? data.message : `Error HTTP ${response.status} guardando validaciones.`);
+    }
+    await consultarValidacionesGuardadas(idPazYSalvo);
+    return data;
+  };
+
+  const guardarRespuestasValidaciones = async () => {
+    const id = retiroGuardado?.IdPazYSalvo;
+    if (!id || String(retiroGuardado?.EstadoPazYSalvo || "").toUpperCase() !== "ABIERTO") {
+      setMensajeValidaciones("Primero guarda el Paz y Salvo ABIERTO. Solo los casos abiertos permiten modificar validaciones.");
+      setErrorValidaciones(true);
+      return;
+    }
+    try {
+      setGuardandoValidaciones(true);
+      setMensajeValidaciones("");
+      setErrorValidaciones(false);
+      await guardarValidacionesEnBackend(id);
+      setMensajeValidaciones("Validaciones guardadas y recuperadas correctamente desde QA.");
+    } catch (error) {
+      setMensajeValidaciones(error?.message || "No fue posible guardar las validaciones.");
+      setErrorValidaciones(true);
+    } finally {
+      setGuardandoValidaciones(false);
+    }
+  };
+
+  // Las respuestas se guardan exclusivamente sobre un Paz y Salvo ABIERTO.
+  const consultarRespuestasResponsabilidades = async (idPazYSalvo) => {
+    if (!idPazYSalvo) return;
+    const response = await fetch(
+      `${API_URL}/operaciones/retiros/paz-salvo/${idPazYSalvo}/responsabilidades`,
+      { headers: construirHeaders() }
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(data?.detail || `Error HTTP ${response.status} al consultar responsabilidades.`);
+    const valores = {};
+    (Array.isArray(data?.data) ? data.data : []).forEach((item) => {
+      const id = Number(item.IdResponsabilidadPazSalvoOperaciones);
+      if (id > 0) valores[id] = {
+        EstadoEntrega: item.EstadoEntrega || "",
+        Observacion: item.Observacion || "",
+      };
+    });
+    setRespuestasResponsabilidades(valores);
+  };
+
+  const guardarRespuestasResponsabilidades = async () => {
+    const idPazYSalvo = retiroGuardado?.IdPazYSalvo;
+    if (!idPazYSalvo) {
+      setMensajeResponsabilidades("Primero guarda el Paz y Salvo en estado ABIERTO para registrar las responsabilidades.");
+      return;
+    }
+    if (String(retiroGuardado?.EstadoPazYSalvo || formulario.estadoPazSalvo).toUpperCase() !== "ABIERTO") {
+      setMensajeResponsabilidades("Solo se pueden modificar responsabilidades de un Paz y Salvo ABIERTO.");
+      return;
+    }
+    const seleccionadas = responsabilidadesPerfil
+      .map((item) => {
+        const id = Number(item.IdResponsabilidadPazSalvoOperaciones);
+        const respuesta = respuestasResponsabilidades[id];
+        return id > 0 && respuesta?.EstadoEntrega ? {
+          IdResponsabilidadPazSalvoOperaciones: id,
+          EstadoEntrega: respuesta.EstadoEntrega,
+          Observacion: respuesta.Observacion || "",
+        } : null;
+      }).filter(Boolean);
+    if (!seleccionadas.length) {
+      setMensajeResponsabilidades("Selecciona al menos un estado antes de guardar. Las responsabilidades son opcionales.");
+      return;
+    }
+    try {
+      setGuardandoResponsabilidades(true);
+      setMensajeResponsabilidades("");
+      const response = await fetch(
+        `${API_URL}/operaciones/retiros/paz-salvo/${idPazYSalvo}/responsabilidades`,
+        { method: "PUT", headers: { ...construirHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify({ Responsabilidades: seleccionadas }) }
+      );
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(typeof data?.detail === "string" ? data.detail : `Error HTTP ${response.status} al guardar responsabilidades.`);
+      await consultarRespuestasResponsabilidades(idPazYSalvo);
+      setMensajeResponsabilidades("Responsabilidades guardadas correctamente.");
+    } catch (error) {
+      setMensajeResponsabilidades(error?.message || "No fue posible guardar las responsabilidades.");
+    } finally {
+      setGuardandoResponsabilidades(false);
+    }
+  };
+
   const buscarClientePorNombre = (lista, nombre) => {
     const nombreNormalizado = normalizarTexto(nombre);
 
@@ -1526,6 +1826,22 @@ const OperacionesRetirosView = () => {
     setFechaHoraApertura("");
     setClienteListaAbierta(false);
     setElementosPazSalvo([]);
+    setElementosNoReconocidos([]);
+    setElementosPerfil([]);
+    setRespuestasElementosPerfil({});
+    setMensajeElementosPerfil("");
+    setErrorElementosPerfil(false);
+    setElementosPerfilModificados(false);
+    setValidacionesPerfil([]);
+    setRespuestasValidaciones({});
+    setMensajeValidaciones("");
+    setErrorValidaciones(false);
+    setValidacionesModificadas(false);
+    setResponsabilidadesPerfil([]);
+    setNombrePerfilPazSalvo("");
+    setCodigoPerfilPazSalvo("");
+    setRespuestasResponsabilidades({});
+    setMensajeResponsabilidades("");
     setOrigenConfiguracionElementos("");
     setTipoClasificacionElementos("");
     setFormulario({
@@ -1754,6 +2070,37 @@ const OperacionesRetirosView = () => {
         })
         .filter(Boolean);
 
+      // No ocultar silenciosamente elementos nuevos de la parametrización.
+      // Para habilitar su captura y persistencia se debe ampliar el contrato
+      // del backend; los campos existentes se mantienen intactos.
+      setElementosNoReconocidos(
+        elementosConfigurados.filter((elemento) =>
+          !ELEMENTOS_PAZ_SALVO[normalizarCodigoElemento(elemento?.CodigoElemento)]
+        )
+      );
+
+      // Solo lectura: compatible con una futura ampliación del endpoint actual.
+      // No se simula una respuesta ni se envían datos que el backend aún no admite.
+      const responsabilidadesRecibidas = configuracionElementos?.Responsabilidades;
+      setResponsabilidadesPerfil(
+        Array.isArray(responsabilidadesRecibidas) ? responsabilidadesRecibidas : []
+      );
+      setNombrePerfilPazSalvo(String(
+        configuracionElementos?.NombrePerfilPazSalvo ||
+        configuracionElementos?.PerfilPazSalvo?.NombrePerfil ||
+        ""
+      ).trim());
+
+      // El endpoint de QA ya entrega validaciones transversales y por perfil.
+      // Se muestran todas; la persistencia individual requiere contrato backend.
+      setCodigoPerfilPazSalvo(String(configuracionElementos?.CodigoPerfilPazSalvo || "").trim().toUpperCase());
+      setValidacionesPerfil(Array.isArray(configuracionElementos?.ValidacionesPerfil)
+        ? configuracionElementos.ValidacionesPerfil : []);
+      setRespuestasValidaciones({});
+      setElementosPerfil(Array.isArray(configuracionElementos?.ElementosPerfil)
+        ? configuracionElementos.ElementosPerfil : []);
+      setRespuestasElementosPerfil({});
+      setElementosPerfilModificados(false);
       setElementosPazSalvo(elementosReconocidos);
       setOrigenConfiguracionElementos(
         String(configuracionElementos?.OrigenConfiguracion || "")
@@ -1991,6 +2338,41 @@ const OperacionesRetirosView = () => {
       return;
     }
 
+    // Todos los bloques se guardan junto al Paz y Salvo, en un solo envío.
+    const bloquesPerfil = {
+      ElementosPerfil: elementosPerfil.map((item) => {
+        const id = Number(item.IdPerfilElementoPazSalvoOperaciones || item.IdConfiguracionElemento);
+        const r = respuestasElementosPerfil[id] || {};
+        return id > 0 && r.Estado ? {
+          IdPerfilElementoPazSalvoOperaciones: id,
+          Estado: r.Estado,
+          Observacion: String(r.Observacion || "").trim() || null,
+        } : null;
+      }).filter(Boolean),
+      Validaciones: validacionesPerfil.map((item) => {
+        const codigo = String(item.CodigoElemento || "").trim();
+        const r = respuestasValidaciones[codigo] || {};
+        return codigo && r.Estado ? {
+          CodigoElemento: codigo,
+          Estado: r.Estado,
+          Observacion: String(r.Observacion || "").trim() || null,
+        } : null;
+      }).filter(Boolean),
+      Responsabilidades: responsabilidadesPerfil.map((item) => {
+        const id = Number(item.IdResponsabilidadPazSalvoOperaciones);
+        const r = respuestasResponsabilidades[id] || {};
+        return id > 0 ? {
+          IdResponsabilidadPazSalvoOperaciones: id,
+          EstadoEntrega: r.EstadoEntrega || null,
+          Observacion: String(r.Observacion || "").trim() || null,
+        } : null;
+      }).filter(Boolean),
+    };
+    // Responsabilidades son opcionales: no guardar el bloque si ninguna fue diligenciada.
+    if (!bloquesPerfil.Responsabilidades.some((r) => r.EstadoEntrega)) {
+      bloquesPerfil.Responsabilidades = [];
+    }
+
     const esContinuacion = Boolean(
       retiroGuardado?.ModoContinuacion &&
         retiroGuardado?.IdRetiroLaboral &&
@@ -2004,6 +2386,7 @@ const OperacionesRetirosView = () => {
       setTipoMensajeGestion("info");
 
       const formData = new FormData();
+      formData.append("BloquesPerfilJSON", JSON.stringify(bloquesPerfil));
 
       if (esContinuacion) {
         // ============================================================
@@ -2236,6 +2619,9 @@ const OperacionesRetirosView = () => {
           "El backend guardó el caso, pero no devolvió los identificadores necesarios."
         );
       }
+
+      setElementosPerfilModificados(false);
+      setValidacionesModificadas(false);
 
       if (esContinuacion) {
         // Conservamos explícitamente los identificadores originales.
@@ -2624,6 +3010,16 @@ const OperacionesRetirosView = () => {
         })
         .filter(Boolean);
 
+      // El endpoint de QA ya entrega validaciones transversales y por perfil.
+      // Se muestran todas; la persistencia individual requiere contrato backend.
+      setCodigoPerfilPazSalvo(String(configuracionElementos?.CodigoPerfilPazSalvo || "").trim().toUpperCase());
+      setValidacionesPerfil(Array.isArray(configuracionElementos?.ValidacionesPerfil)
+        ? configuracionElementos.ValidacionesPerfil : []);
+      setRespuestasValidaciones({});
+      setElementosPerfil(Array.isArray(configuracionElementos?.ElementosPerfil)
+        ? configuracionElementos.ElementosPerfil : []);
+      setRespuestasElementosPerfil({});
+      setElementosPerfilModificados(false);
       setElementosPazSalvo(elementosReconocidos);
       setOrigenConfiguracionElementos(
         String(configuracionElementos?.OrigenConfiguracion || "")
@@ -2706,6 +3102,25 @@ const OperacionesRetirosView = () => {
       setAdjuntos({
         ...ADJUNTOS_INICIALES,
       });
+
+      try {
+        await consultarValidacionesGuardadas(pazYSalvo.IdPazYSalvo);
+      } catch (error) {
+        // La advertencia queda visible junto a las validaciones; no ocultar el resto del proceso.
+        console.error("No se pudieron recuperar las validaciones:", error);
+      }
+
+      try {
+        await consultarElementosPerfilGuardados(pazYSalvo.IdPazYSalvo);
+      } catch (error) {
+        console.error("No se pudieron recuperar los elementos del perfil:", error);
+      }
+
+      try {
+        await consultarRespuestasResponsabilidades(pazYSalvo.IdPazYSalvo);
+      } catch (error) {
+        setMensajeResponsabilidades(error?.message || "No fue posible consultar las respuestas guardadas.");
+      }
 
       setRetiroGuardado({
         IdRetiroLaboral: retiro.IdRetiroLaboral,
@@ -2816,6 +3231,22 @@ const OperacionesRetirosView = () => {
   useEffect(() => {
     cargarProcesoPendienteExistente();
   }, []);
+
+  useEffect(() => {
+    if (retiroGuardado?.IdPazYSalvo && !retiroGuardado?.ModoContinuacion && !validacionesModificadas) {
+      consultarValidacionesGuardadas(retiroGuardado.IdPazYSalvo).catch((error) => {
+        console.error("Error consultando validaciones del Paz y Salvo:", error);
+      });
+    }
+  }, [retiroGuardado?.IdPazYSalvo]);
+
+  useEffect(() => {
+    if (retiroGuardado?.IdPazYSalvo && !retiroGuardado?.ModoContinuacion && !elementosPerfilModificados) {
+      consultarElementosPerfilGuardados(retiroGuardado.IdPazYSalvo).catch((error) => {
+        console.error("Error consultando elementos del perfil:", error);
+      });
+    }
+  }, [retiroGuardado?.IdPazYSalvo]);
 
   useEffect(() => {
     if (retiroGuardado?.IdRetiroLaboral) {
@@ -3597,9 +4028,24 @@ const OperacionesRetirosView = () => {
                 </div>
               </SeccionFormulario>
 
+              {codigoPerfilPazSalvo && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:p-5">
+                  <h3 className="text-base font-bold text-emerald-900">
+                    Requisitos de Operaciones: {GUIA_PAZ_SALVO_PERFIL[codigoPerfilPazSalvo]?.titulo || nombrePerfilPazSalvo || codigoPerfilPazSalvo}
+                  </h3>
+                  <p className="mt-1 text-sm text-emerald-800">{GUIA_PAZ_SALVO_PERFIL[codigoPerfilPazSalvo]?.descripcion || "Valida los elementos y responsabilidades asignados a este trabajador."}</p>
+                  {GUIA_PAZ_SALVO_PERFIL[codigoPerfilPazSalvo] && (
+                    <ul className="mt-3 grid list-disc gap-x-6 gap-y-1 pl-5 text-sm text-emerald-950 md:grid-cols-2">
+                      {GUIA_PAZ_SALVO_PERFIL[codigoPerfilPazSalvo].controles.map((control) => <li key={control}>{control}</li>)}
+                    </ul>
+                  )}
+                  <p className="mt-3 text-xs text-emerald-800">Los campos se habilitan según las asignaciones y la configuración de QA. Los conceptos que no correspondan deben marcarse NO APLICA cuando estén disponibles.</p>
+                </div>
+              )}
+
               <SeccionFormulario
-                titulo="Entrega de elementos"
-                descripcion="Registra el estado de los elementos que aplican al trabajador según su cargo o clasificación."
+                titulo="Dotación, EPP y elementos asignados"
+                descripcion="Diligencia guantes, monogafas, dotación individual y categorías aplicables en este mismo bloque. Todo se guarda con Guardar Paz y Salvo."
               >
                 {loadingElementosPazSalvo ? (
                   <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4 text-sm text-gray-600">
@@ -3607,7 +4053,7 @@ const OperacionesRetirosView = () => {
                   </div>
                 ) : elementosPazSalvo.length === 0 ? (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm leading-relaxed text-amber-900">
-                    No hay elementos configurados para este cargo o clasificación.
+                    No hay elementos del formulario anterior configurados para este cargo o clasificación.
                     Valida la parametrización antes de continuar.
                   </div>
                 ) : (
@@ -3650,6 +4096,13 @@ const OperacionesRetirosView = () => {
                       ))}
                     </div>
 
+                    {validacionesPerfil.length === 0 && elementosNoReconocidos.length > 0 && (
+                      <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                        El backend devuelve {elementosNoReconocidos.length} elementos sin correspondencia con los campos anteriores. Revisa la configuración de ValidacionesPerfil.
+                      </div>
+                    )}
+
+                    <p className="mt-4 text-xs text-gray-600">Para cantidades, estado físico, faltantes y persona que recibe, describe el detalle en Observaciones de la entrega. El modelo actual no tiene columnas individuales para esos datos.</p>
                     <div className="mt-5">
                       <CampoTextoDictado
                         id="observacionesEntrega"
@@ -3668,106 +4121,66 @@ const OperacionesRetirosView = () => {
                     </div>
                   </>
                 )}
-              </SeccionFormulario>
 
-              <SeccionFormulario
-                titulo="Descuentos y novedades de nómina"
-                descripcion="Registra si aplica descuento y adjunta los soportes relacionados cuando corresponda."
-              >
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                  <CampoSelect
-                    id="aplicaDescuento"
-                    label="¿Aplica descuento?"
-                    value={formulario.aplicaDescuento}
-                    onChange={(valor) =>
-                      actualizarCampo(
-                        "aplicaDescuento",
-                        valor
-                      )
-                    }
-                    options={OPCIONES_SI_NO}
-                    required
-                  />
 
-                  {formulario.aplicaDescuento === "SI" && (
-                    <div>
-                      <label
-                        htmlFor="valorDescuento"
-                        className="mb-2 block text-sm font-semibold text-gray-800"
-                      >
-                        Valor del descuento
-                        <span className="ml-2 text-xs font-normal text-gray-500">
-                          (opcional)
-                        </span>
-                      </label>
-                      <Input
-                        id="valorDescuento"
-                        inputMode="numeric"
-                        value={formulario.valorDescuento}
-                        onChange={(event) =>
-                          actualizarCampo(
-                            "valorDescuento",
-                            event.target.value.replace(
-                              /\D/g,
-                              ""
-                            )
-                          )
-                        }
-                        placeholder="Valor en pesos"
-                        className="min-h-12"
-                      />
+              <div className="mt-6 border-t border-gray-200 pt-5">
+                <h4 className="mb-3 text-sm font-bold text-gray-900">Estado general de dotación y EPP reutilizables</h4>
+                {cargandoElementosPerfil ? (
+                  <p className="text-sm text-gray-600">Recuperando elementos guardados...</p>
+                ) : elementosPerfil.length === 0 ? (
+                  <p className="text-sm text-gray-600">No hay elementos de perfil configurados para este trabajador.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {elementosPerfil.map((item) => {
+                      const id = Number(item.IdPerfilElementoPazSalvoOperaciones || item.IdConfiguracionElemento);
+                      const respuesta = respuestasElementosPerfil[id] || {};
+                      const bloqueado = guardandoElementosPerfil || cargandoElementosPerfil ||
+                        (Boolean(retiroGuardado?.IdPazYSalvo) && String(retiroGuardado?.EstadoPazYSalvo || "").toUpperCase() !== "ABIERTO");
+                      return (
+                        <div key={id} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                          <p className="mb-1 text-sm font-semibold text-gray-800">{item.NombreElemento || item.CodigoElemento}</p>
+                          <p className="mb-3 text-xs text-gray-500">{item.TipoGestion === "DEVOLUCION_FISICA" ? "Devolución física" : item.TipoGestion || "Elemento del perfil"}</p>
+                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <CampoSelect id={`elemento-perfil-${id}`} label="Estado"
+                              value={respuesta.Estado || ""}
+                              options={["ENTREGADO", "PENDIENTE", "NO APLICA", "CON NOVEDAD"]}
+                              disabled={bloqueado}
+                              onChange={(valor) => {
+                                setElementosPerfilModificados(true);
+                                setMensajeElementosPerfil("");
+                                setRespuestasElementosPerfil((actual) => ({ ...actual, [id]: { ...actual[id], Estado: valor } }));
+                              }} />
+                            <div>
+                              <label htmlFor={`observacion-elemento-perfil-${id}`} className="mb-2 block text-sm font-semibold text-gray-800">Observación (opcional)</label>
+                              <textarea id={`observacion-elemento-perfil-${id}`} rows={2}
+                                value={respuesta.Observacion || ""} disabled={bloqueado}
+                                onChange={(event) => {
+                                  const valor = event.target.value;
+                                  setElementosPerfilModificados(true);
+                                  setMensajeElementosPerfil("");
+                                  setRespuestasElementosPerfil((actual) => ({ ...actual, [id]: { ...actual[id], Observacion: valor } }));
+                                }}
+                                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm"
+                                placeholder="Ej.: uniforme (2), botas (1 par), guantes (2 pares). Estado físico, faltantes, novedades y quién recibe. Si no aplica, indícalo." />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div className="space-y-2">
+                      {!retiroGuardado?.IdPazYSalvo && <p className="text-xs text-amber-800">Los elementos se guardan con el botón principal Guardar Paz y Salvo.</p>}
+                      {elementosPerfilModificados && <p className="text-xs text-amber-800">Hay cambios pendientes de guardar.</p>}
+                      {mensajeElementosPerfil && <p role="status" className={`text-sm ${errorElementosPerfil ? "text-red-700" : "text-emerald-800"}`}>{mensajeElementosPerfil}</p>}
                     </div>
-                  )}
-
-                  <div className="md:col-span-2">
-                    <CampoTextoDictado
-                      id="novedadesNomina"
-                      label="Observaciones para nómina"
-                      value={formulario.novedadesNomina}
-                      onChange={(valor) =>
-                        actualizarCampo(
-                          "novedadesNomina",
-                          valor
-                        )
-                      }
-                      rows={4}
-                      placeholder="Registra las novedades de nómina..."
-                      required={formulario.aplicaDescuento === "SI"}
-                    />
                   </div>
+                )}
+              </div>
 
-                  <div className="md:col-span-2">
-                    <CampoArchivo
-                      id="adjuntosNovedadesNomina"
-                      label="Documentos de novedades de nómina"
-                      files={adjuntos.novedadesNomina}
-                      onAdd={(archivos) =>
-                        agregarAdjuntos(
-                          "novedadesNomina",
-                          archivos,
-                          true
-                        )
-                      }
-                      onRemove={(index) =>
-                        eliminarAdjunto(
-                          "novedadesNomina",
-                          index
-                        )
-                      }
-                      multiple
-                      existingFiles={evidenciasPorTipo("NOVEDADES_NOMINA")}
-                      onViewExisting={verEvidenciaExistente}
-                      onDownloadExisting={descargarEvidenciaExistente}
-                      helper="Puedes adjuntar uno o varios soportes en cualquier formato. Máximo 10 MB por archivo."
-                    />
-                  </div>
-                </div>
-              </SeccionFormulario>
-
-              <SeccionFormulario
-                titulo="Uniformes, elementos ALP y vacunas"
-                descripcion="Indica Sí o No en cada uno de los campos según corresponda."
-              >
+              {/* Los campos legados siguen siendo requeridos por el guardado y el PDF.
+                  Se agrupan junto a dotación para evitar duplicarlos después de Nómina. */}
+              <div className="mt-6 border-t border-gray-200 pt-5">
+                <h4 className="mb-3 text-sm font-bold text-gray-900">Dotación individual y controles históricos</h4>
+                <p className="mb-4 text-xs text-gray-600">Estos campos se conservan para el registro y el PDF histórico. Indica Sí o No según corresponda.</p>
                 <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                   <CampoSelect
                     id="pendienteEntregaUniforme"
@@ -3860,7 +4273,7 @@ const OperacionesRetirosView = () => {
                     required
                   />
 
-                  <div className="md:col-span-2">
+                  {codigoPerfilPazSalvo !== "OPERATIVO_BASICO" && <div className="md:col-span-2">
                     <label
                       htmlFor="usuariosClavesDispositivos"
                       className="mb-2 block text-sm font-semibold text-gray-800"
@@ -3880,8 +4293,232 @@ const OperacionesRetirosView = () => {
                         )
                       }
                       rows={4}
-                      placeholder="Registra usuarios, claves y dispositivos usados por el colaborador..."
+                      placeholder="Registra usuarios y dispositivos asignados; no escribas contraseñas."
                       className="w-full resize-y rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 shadow-sm outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                    />
+                  </div>}
+                </div>
+              </div>
+
+              {responsabilidadesPerfil.some((responsabilidad) => {
+                const codigo = String(responsabilidad.CodigoResponsabilidad || "").trim().toUpperCase();
+                const id = Number(responsabilidad.IdResponsabilidadPazSalvoOperaciones);
+                const respuesta = respuestasResponsabilidades[id] || {};
+                return !CODIGOS_RESPONSABILIDAD_ENTREGA_DUPLICADA.has(codigo) ||
+                  Boolean(respuesta.EstadoEntrega || respuesta.Observacion);
+              }) && (
+                <SeccionFormulario
+                  titulo="Otros elementos y responsabilidades asignadas"
+                  descripcion="Usa esta sección únicamente para responsabilidades adicionales. No repitas entregas físicas registradas arriba."
+                >
+                  {nombrePerfilPazSalvo && <p className="mb-3 text-sm text-gray-700"><strong>Perfil:</strong> {nombrePerfilPazSalvo}</p>}
+                  <div className="space-y-3">
+                    {responsabilidadesPerfil.filter((responsabilidad) => {
+                      const codigo = String(responsabilidad.CodigoResponsabilidad || "").trim().toUpperCase();
+                      const id = Number(responsabilidad.IdResponsabilidadPazSalvoOperaciones);
+                      const respuesta = respuestasResponsabilidades[id] || {};
+                      return !CODIGOS_RESPONSABILIDAD_ENTREGA_DUPLICADA.has(codigo) ||
+                        Boolean(respuesta.EstadoEntrega || respuesta.Observacion);
+                    }).map((responsabilidad, indice) => {
+                      const id = Number(responsabilidad.IdResponsabilidadPazSalvoOperaciones);
+                      const respuesta = respuestasResponsabilidades[id] || {};
+                      return (
+                        <div key={id || indice} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                          <div className="mb-3 flex flex-wrap justify-between gap-2">
+                            <span className="text-sm font-semibold text-gray-800">{responsabilidad.NombreResponsabilidad || responsabilidad.Nombre || responsabilidad.CodigoResponsabilidad || `Responsabilidad ${indice + 1}`}</span>
+                            <span className="text-xs text-gray-600">{responsabilidad.Obligatorio === true ? "Obligatoria" : "Opcional"}</span>
+                          </div>
+                          <label className="mb-1 block text-xs font-semibold text-gray-700" htmlFor={`estado-responsabilidad-${id}`}>Estado de entrega</label>
+                          <select id={`estado-responsabilidad-${id}`} value={respuesta.EstadoEntrega || ""}
+                            disabled={Boolean(retiroGuardado?.IdPazYSalvo) && String(retiroGuardado?.EstadoPazYSalvo || "").toUpperCase() !== "ABIERTO"}
+                            onChange={(event) => setRespuestasResponsabilidades((actual) => ({...actual, [id]: {...(actual[id] || {}), EstadoEntrega: event.target.value}}))}
+                            className="mb-3 min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm">
+                            <option value="">Sin diligenciar</option>
+                            <option value="ENTREGADO">Entregado</option>
+                            <option value="PENDIENTE">Pendiente</option>
+                            <option value="NO APLICA">No aplica</option>
+                          </select>
+                          <label className="mb-1 block text-xs font-semibold text-gray-700" htmlFor={`observacion-responsabilidad-${id}`}>Observación (opcional)</label>
+                          <textarea id={`observacion-responsabilidad-${id}`} rows={2} value={respuesta.Observacion || ""}
+                            disabled={Boolean(retiroGuardado?.IdPazYSalvo) && String(retiroGuardado?.EstadoPazYSalvo || "").toUpperCase() !== "ABIERTO"}
+                            onChange={(event) => setRespuestasResponsabilidades((actual) => ({...actual, [id]: {...(actual[id] || {}), Observacion: event.target.value}}))}
+                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm" placeholder="Detalle de entrega o pendiente..." />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    {!retiroGuardado?.IdPazYSalvo && <p className="text-xs text-amber-700">Las responsabilidades se guardan con el botón principal Guardar Paz y Salvo.</p>}
+                    {mensajeResponsabilidades && <p role="status" className="text-sm text-gray-700">{mensajeResponsabilidades}</p>}
+                  </div>
+                </SeccionFormulario>
+              )}
+
+
+              </SeccionFormulario>
+
+              <SeccionFormulario
+                titulo="Identificaciones, accesos y verificaciones de cierre"
+                descripcion="Verifica carné ALP, ARL cuando aplique, carné del cliente, llaves, accesos, locker, faltantes, descuentos validados y responsable de recepción. La dotación y los EPP se registran una sola vez en la sección anterior."
+              >
+                {loadingElementosPazSalvo ? (
+                  <p className="text-sm text-gray-600">Consultando validaciones aplicables...</p>
+                ) : validacionesPerfil.length === 0 ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    El servicio no devolvió validaciones específicas para este trabajador. Verifica que el endpoint de QA incluya ValidacionesPerfil y que estén parametrizadas para su perfil. Las responsabilidades generales que aparecen abajo no reemplazan estas validaciones.
+                  </div>
+                ) : (
+                      <div className="mt-6 space-y-4">
+                        {["TRANSVERSAL", "PERFIL"].map((tipo) => {
+                          const items = validacionesPerfil.filter((item) =>
+                            String(item.TipoValidacion).toUpperCase() === tipo &&
+                            !CODIGOS_VALIDACION_ENTREGA_DUPLICADA.has(String(item.CodigoElemento || "").trim().toUpperCase())
+                          );
+                          if (!items.length) return null;
+                          return <div key={tipo} className="space-y-3">
+                            <h4 className="text-sm font-bold text-gray-900">{tipo === "TRANSVERSAL" ? "Validaciones transversales" : "Validaciones específicas del perfil"}</h4>
+                            {items.map((item, indice) => {
+                              const codigo = String(item.CodigoElemento || `${tipo}-${indice}`);
+                              const respuesta = respuestasValidaciones[codigo] || {};
+                              const duplicado = ["DOTACION_EPP", "EPP_PERSONAL", "ELEMENTOS_ALP_CLIENTE"].includes(codigo);
+                              return <div key={`${tipo}-${codigo}`} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                <p className="mb-3 text-sm font-semibold text-gray-800">{item.NombreElemento || codigo}{duplicado ? " · Verificación complementaria" : ""}</p>
+                                {duplicado && <p className="mb-2 text-xs text-gray-600">La entrega física se registra arriba. Completa esta verificación únicamente si corresponde.</p>}
+                                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                  <CampoSelect id={`validacion-${codigo}`} label="Estado" value={respuesta.Estado || ""}
+                                    options={Array.isArray(item.EstadosPermitidos) && item.EstadosPermitidos.length ? item.EstadosPermitidos : ["ENTREGADO", "PENDIENTE", "NO APLICA", "CON NOVEDAD"]}
+                                    onChange={(valor) => { setValidacionesModificadas(true); setMensajeValidaciones(""); setRespuestasValidaciones((actual) => ({...actual, [codigo]: {...actual[codigo], Estado: valor}})); }}
+                                    disabled={cargandoValidaciones || guardandoValidaciones || (Boolean(retiroGuardado?.IdPazYSalvo) && String(retiroGuardado?.EstadoPazYSalvo || "").toUpperCase() !== "ABIERTO")} />
+                                  <div><label htmlFor={`observacion-${codigo}`} className="mb-2 block text-sm font-semibold text-gray-800">Observación (opcional)</label>
+                                    <textarea id={`observacion-${codigo}`} rows={2} value={respuesta.Observacion || ""}
+                                      onChange={(event) => { const valor = event.target.value; setValidacionesModificadas(true); setMensajeValidaciones(""); setRespuestasValidaciones((actual) => ({...actual, [codigo]: {...actual[codigo], Observacion: valor}})); }}
+                                      disabled={cargandoValidaciones || guardandoValidaciones || (Boolean(retiroGuardado?.IdPazYSalvo) && String(retiroGuardado?.EstadoPazYSalvo || "").toUpperCase() !== "ABIERTO")}
+                                      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm" placeholder="Novedad o detalle..." /></div>
+                                </div>
+                              </div>;
+                            })}
+                          </div>;
+                        })}
+                        {validacionesPerfil.some((item) =>
+                          CODIGOS_VALIDACION_ENTREGA_DUPLICADA.has(String(item.CodigoElemento || "").trim().toUpperCase()) &&
+                          Boolean(respuestasValidaciones[String(item.CodigoElemento)]?.Estado || respuestasValidaciones[String(item.CodigoElemento)]?.Observacion)
+                        ) && (
+                          <details className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                            <summary className="cursor-pointer text-sm font-semibold text-gray-700">Consultar verificaciones históricas de elementos (solo lectura)</summary>
+                            <div className="mt-3 space-y-2">
+                              {validacionesPerfil.filter((item) =>
+                                CODIGOS_VALIDACION_ENTREGA_DUPLICADA.has(String(item.CodigoElemento || "").trim().toUpperCase()) &&
+                                Boolean(respuestasValidaciones[String(item.CodigoElemento)]?.Estado || respuestasValidaciones[String(item.CodigoElemento)]?.Observacion)
+                              ).map((item) => (
+                                <div key={item.CodigoElemento} className="rounded-lg border border-gray-200 bg-white p-3 text-sm">
+                                  <p className="font-semibold">{item.NombreElemento || item.CodigoElemento}</p>
+                                  <p>Estado: {respuestasValidaciones[String(item.CodigoElemento)]?.Estado || "Sin estado"}</p>
+                                  {respuestasValidaciones[String(item.CodigoElemento)]?.Observacion && <p className="mt-1 text-gray-600">{respuestasValidaciones[String(item.CodigoElemento)].Observacion}</p>}
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        )}
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-2">
+                          {!retiroGuardado?.IdPazYSalvo && <p className="text-xs text-amber-800">Las validaciones se guardan con el botón principal Guardar Paz y Salvo.</p>}
+                          {validacionesModificadas && <p className="text-xs text-amber-800">Hay cambios en validaciones pendientes de guardar.</p>}
+                          {cargandoValidaciones && <p className="text-xs text-blue-700">Recuperando validaciones guardadas...</p>}
+                          {mensajeValidaciones && <p role="status" className={`text-sm ${errorValidaciones ? "text-red-700" : "text-emerald-800"}`}>{mensajeValidaciones}</p>}
+                        </div>
+                      </div>
+                )}
+              </SeccionFormulario>
+
+
+              <SeccionFormulario
+                titulo="Descuentos y novedades de nómina"
+                descripcion="Registra si aplica descuento y adjunta los soportes relacionados cuando corresponda."
+              >
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                  <CampoSelect
+                    id="aplicaDescuento"
+                    label="¿Aplica descuento?"
+                    value={formulario.aplicaDescuento}
+                    onChange={(valor) =>
+                      actualizarCampo(
+                        "aplicaDescuento",
+                        valor
+                      )
+                    }
+                    options={OPCIONES_SI_NO}
+                    required
+                  />
+
+                  {formulario.aplicaDescuento === "SI" && (
+                    <div>
+                      <label
+                        htmlFor="valorDescuento"
+                        className="mb-2 block text-sm font-semibold text-gray-800"
+                      >
+                        Valor del descuento
+                        <span className="ml-2 text-xs font-normal text-gray-500">
+                          (opcional)
+                        </span>
+                      </label>
+                      <Input
+                        id="valorDescuento"
+                        inputMode="numeric"
+                        value={formulario.valorDescuento}
+                        onChange={(event) =>
+                          actualizarCampo(
+                            "valorDescuento",
+                            event.target.value.replace(
+                              /\D/g,
+                              ""
+                            )
+                          )
+                        }
+                        placeholder="Valor en pesos"
+                        className="min-h-12"
+                      />
+                    </div>
+                  )}
+
+                  <div className="md:col-span-2">
+                    <CampoTextoDictado
+                      id="novedadesNomina"
+                      label="Observaciones para nómina"
+                      value={formulario.novedadesNomina}
+                      onChange={(valor) =>
+                        actualizarCampo(
+                          "novedadesNomina",
+                          valor
+                        )
+                      }
+                      rows={4}
+                      placeholder="Registra las novedades de nómina..."
+                      required={formulario.aplicaDescuento === "SI"}
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <CampoArchivo
+                      id="adjuntosNovedadesNomina"
+                      label="Documentos de novedades de nómina"
+                      files={adjuntos.novedadesNomina}
+                      onAdd={(archivos) =>
+                        agregarAdjuntos(
+                          "novedadesNomina",
+                          archivos,
+                          true
+                        )
+                      }
+                      onRemove={(index) =>
+                        eliminarAdjunto(
+                          "novedadesNomina",
+                          index
+                        )
+                      }
+                      multiple
+                      existingFiles={evidenciasPorTipo("NOVEDADES_NOMINA")}
+                      onViewExisting={verEvidenciaExistente}
+                      onDownloadExisting={descargarEvidenciaExistente}
+                      helper="Puedes adjuntar uno o varios soportes en cualquier formato. Máximo 10 MB por archivo."
                     />
                   </div>
                 </div>
