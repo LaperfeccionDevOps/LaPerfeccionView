@@ -38,15 +38,46 @@ export const PASOS_PERMISO_ALTURAS = [
 ];
 
 // El paso 3 está completo cuando tiene todos sus campos obligatorios.
+// Listas de selección múltiple del paso 3 (catálogo "OpcionPermisoAlturas").
+// `campo` es el nombre en la API y `tipo` el de la base de datos.
+export const LISTAS_TAREA = [
+  {
+    campo: "mecanismos",
+    tipo: "MECANISMO",
+    etiqueta: "Mecanismo de trabajo en alturas",
+    obligatoria: true,
+  },
+  {
+    campo: "herramientas",
+    tipo: "HERRAMIENTA",
+    etiqueta: "Herramientas a utilizar",
+    obligatoria: true,
+  },
+  {
+    campo: "sistemas_acceso",
+    tipo: "SISTEMA_ACCESO",
+    etiqueta: "Sistemas de acceso a utilizar",
+    obligatoria: true,
+  },
+  {
+    campo: "sistemas_ingenieria",
+    tipo: "SISTEMA_INGENIERIA",
+    etiqueta: "Sistemas de ingeniería",
+    obligatoria: false,
+  },
+];
+
 export const tareaCompleta = (permiso) =>
   Boolean(
-    permiso?.tipo_trabajo_alturas &&
-      permiso?.descripcion_procedimiento &&
-      permiso?.herramientas_utensilios &&
+    permiso?.descripcion_procedimiento &&
       permiso?.altura_aproximada_metros &&
       permiso?.re_entrenamiento != null &&
-      permiso?.sistemas_acceso &&
-      permiso?.trabajo_suspension != null
+      permiso?.aplica_medidas_colectivas != null &&
+      permiso?.trabajo_suspension != null &&
+      LISTAS_TAREA.every(
+        ({ campo, obligatoria }) =>
+          !obligatoria || permiso?.selecciones?.[campo]?.length > 0
+      )
   );
 
 // Pasos 2 a 6 sin completar (deben estar completos para autorizar).

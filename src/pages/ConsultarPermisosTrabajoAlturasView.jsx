@@ -72,6 +72,7 @@ const ConsultarPermisosTrabajoAlturasView = () => {
         titulo="Consultar permisos de trabajo en alturas"
         descripcion="Revisa los permisos creados y los trabajadores registrados en cada uno."
         mostrarPestanas
+        mostrarVolver
       />
 
       <section className="w-full min-w-0 rounded-2xl bg-white p-4 shadow-xl sm:p-6 lg:p-8">

@@ -219,6 +219,17 @@ export const obtenerPermisoAlturas = async (idPermiso) => {
 };
 
 // Paso 3: datos básicos de la tarea y medidas de prevención.
+// Opciones activas de las listas del paso 3 (mecanismos, herramientas,
+// sistemas de acceso y de ingeniería).
+export const obtenerOpcionesTareaAlturas = async () => {
+  const response = await fetch(
+    getApiUrl("/operaciones/alturas/opciones-tarea"),
+    { headers: construirHeaders() }
+  );
+
+  return procesarRespuesta(response);
+};
+
 export const guardarTareaPermisoAlturas = async (idPermiso, tarea) => {
   const response = await fetch(
     getApiUrl(`/operaciones/alturas/permisos/${idPermiso}/tarea`),
@@ -226,15 +237,17 @@ export const guardarTareaPermisoAlturas = async (idPermiso, tarea) => {
       method: "PUT",
       headers: construirHeaders(),
       body: JSON.stringify({
-        tipo_trabajo_alturas: tarea.tipoTrabajoAlturas,
         descripcion_procedimiento: tarea.descripcionProcedimiento,
-        herramientas_utensilios: tarea.herramientasUtensilios,
         altura_aproximada_metros: Number(tarea.alturaAproximadaMetros),
         re_entrenamiento: tarea.reEntrenamiento === "SI",
-        sistemas_acceso: tarea.sistemasAcceso,
-        sistemas_ingenieria: tarea.sistemasIngenieria || null,
+        aplica_medidas_colectivas: tarea.aplicaMedidasColectivas === "SI",
         medidas_colectivas: tarea.medidasColectivas || null,
         trabajo_suspension: tarea.trabajoSuspension === "SI",
+        // Ids elegidos en cada lista.
+        mecanismos: tarea.mecanismos,
+        herramientas: tarea.herramientas,
+        sistemas_acceso: tarea.sistemas_acceso,
+        sistemas_ingenieria: tarea.sistemas_ingenieria,
       }),
     }
   );

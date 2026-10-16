@@ -204,6 +204,7 @@ const DetallePermisoTrabajoAlturasView = () => {
       className="w-full min-w-0 max-w-full space-y-4 overflow-x-hidden"
     >
       <EncabezadoPermisosAlturas
+        mostrarVolver
         titulo={`Permiso de trabajo en alturas N.° ${permiso.id_permiso_trabajo_alturas}`}
         descripcion={`${permiso.cliente} · ${formatearFechaDia(
           permiso.fecha_hora_inicio_tarea

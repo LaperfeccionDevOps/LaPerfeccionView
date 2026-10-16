@@ -299,26 +299,6 @@ const Sidebar = ({
                 "Super Administrador",
                 "Operaciones",
               ],
-              children: [
-                {
-                  to: "/operaciones/alturas/permisos-trabajo/crear",
-                  label: "Crear permiso",
-                  roles: [
-                    "Administrador",
-                    "Super Administrador",
-                    "Operaciones",
-                  ],
-                },
-                {
-                  to: "/operaciones/alturas/permisos-trabajo/consultar",
-                  label: "Consultar permisos",
-                  roles: [
-                    "Administrador",
-                    "Super Administrador",
-                    "Operaciones",
-                  ],
-                },
-              ],
             },
           ],
         },
@@ -555,16 +535,6 @@ const Sidebar = ({
             {
               to: "/operaciones/alturas/permisos-trabajo",
               label: "Permisos de Trabajo",
-              children: [
-                {
-                  to: "/operaciones/alturas/permisos-trabajo/crear",
-                  label: "Crear permiso",
-                },
-                {
-                  to: "/operaciones/alturas/permisos-trabajo/consultar",
-                  label: "Consultar permisos",
-                },
-              ],
             },
           ],
         },

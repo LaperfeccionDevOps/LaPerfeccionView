@@ -187,6 +187,7 @@ const CrearPermisoTrabajoAlturasView = () => {
         titulo="Crear permiso de trabajo en alturas"
         descripcion="Registra los datos del permiso y luego los trabajadores que ejecutarán la tarea."
         mostrarPestanas
+        mostrarVolver
       />
 
       <section className="w-full min-w-0 rounded-2xl bg-white p-4 shadow-xl sm:p-6 lg:p-8">
