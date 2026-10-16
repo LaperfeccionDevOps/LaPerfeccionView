@@ -1,0 +1,785 @@
+import React, { useEffect, useRef, useState } from "react";
+import { ClipboardList, PlusCircle, Send, Inbox, FileText, CheckCircle2, AlertCircle, X, RefreshCw, Eye, ChevronLeft, ChevronRight } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+
+// Mantiene el mismo convenio de URL del módulo: VITE_API_BASE_URL incluye /api.
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+const SNC_BASE_URL = `${API_BASE_URL}/salidas-no-conformes`;
+
+const fechaLocal = () => {
+  const ahora = new Date();
+  const anio = ahora.getFullYear();
+  const mes = String(ahora.getMonth() + 1).padStart(2, "0");
+  const dia = String(ahora.getDate()).padStart(2, "0");
+  return `${anio}-${mes}-${dia}`;
+};
+
+const formularioInicial = () => ({
+  fecha: fechaLocal(),
+  proceso: "",
+  descripcion: "",
+  impacto: "",
+  areaResponsable: "",
+  responsableGestion: "",
+  correoRemitente: "",
+  correoDestinatario: "",
+  estado: "ABIERTO",
+});
+
+const Campo = ({ titulo, children }) => (
+  <div className="space-y-2">
+    <label className="block text-sm font-semibold text-gray-700">
+      {titulo} <span className="text-red-500">*</span>
+    </label>
+    {children}
+  </div>
+);
+
+const Selector = ({ opciones, value, onChange, placeholder, disabled = false }) => (
+  <select
+    value={value}
+    onChange={(e) => onChange(e.target.value)}
+    disabled={disabled}
+    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-emerald-600 focus:outline-none disabled:bg-gray-100"
+  >
+    <option value="">{placeholder || "Seleccione una opción"}</option>
+    {opciones.map((opcion) => (
+      <option key={opcion.id} value={String(opcion.id)}>
+        {opcion.nombre}
+      </option>
+    ))}
+  </select>
+);
+
+const SalidasNoConformesView = () => {
+  const { user } = useAuth();
+  const [pestana, setPestana] = useState("nueva");
+  const [catalogos, setCatalogos] = useState({
+    procesos: [], areas: [], correos: [], responsables: [],
+  });
+  const [cargandoCatalogos, setCargandoCatalogos] = useState(true);
+  const [errorCatalogos, setErrorCatalogos] = useState("");
+  const [formulario, setFormulario] = useState(formularioInicial);
+  const [guardando, setGuardando] = useState(false);
+  const [errorRegistro, setErrorRegistro] = useState("");
+  const [exitoRegistro, setExitoRegistro] = useState("");
+  const envioEnCurso = useRef(false);
+  const [bandejas, setBandejas] = useState({ registradas: [], asignadas: [] });
+  const [cargandoBandeja, setCargandoBandeja] = useState(false);
+  const [errorBandeja, setErrorBandeja] = useState("");
+  const [pagina, setPagina] = useState({ registradas: 0, asignadas: 0 });
+  const [recargarBandeja, setRecargarBandeja] = useState(0);
+  const [detalleSNC, setDetalleSNC] = useState(null);
+  const [origenDetalle, setOrigenDetalle] = useState(null);
+  const [analisisCausa, setAnalisisCausa] = useState("");
+  const [planAccion, setPlanAccion] = useState("");
+  const [enviandoRespuesta, setEnviandoRespuesta] = useState(false);
+  const respuestaEnCurso = useRef(false);
+  const [errorRespuesta, setErrorRespuesta] = useState("");
+  const [exitoRespuesta, setExitoRespuesta] = useState("");
+  const [respuestaRegistrada, setRespuestaRegistrada] = useState(null);
+  const [cerrandoSNC, setCerrandoSNC] = useState(false);
+  const cierreEnCurso = useRef(false);
+  const [errorCierre, setErrorCierre] = useState("");
+  const [exitoCierre, setExitoCierre] = useState("");
+  const [consultandoRespuesta, setConsultandoRespuesta] = useState(false);
+  const [errorConsultaRespuesta, setErrorConsultaRespuesta] = useState("");
+  const LIMITE_BANDEJA = 20;
+
+
+  useEffect(() => {
+    const controlador = new AbortController();
+    const cargarCatalogos = async () => {
+      setCargandoCatalogos(true);
+      setErrorCatalogos("");
+      const token = localStorage.getItem("token") || user?.token;
+      if (!token) {
+        setErrorCatalogos("No se encontró una sesión válida. Inicie sesión nuevamente.");
+        setCargandoCatalogos(false);
+        return;
+      }
+      try {
+        const nombres = ["procesos", "areas", "correos", "responsables"];
+        const respuestas = await Promise.all(nombres.map((nombre) =>
+          fetch(`${SNC_BASE_URL}/catalogos/${nombre}`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controlador.signal,
+          })
+        ));
+        for (const respuesta of respuestas) {
+          if (!respuesta.ok) {
+            throw new Error(
+              respuesta.status === 401 ? "La sesión venció. Inicie sesión nuevamente." :
+              respuesta.status === 403 ? "Su usuario no tiene permisos para consultar los catálogos SNC." :
+              `No fue posible consultar los catálogos SNC (HTTP ${respuesta.status}).`
+            );
+          }
+        }
+        const datos = await Promise.all(respuestas.map((r) => r.json()));
+        if (datos.some((dato) => !Array.isArray(dato))) {
+          throw new Error("El servidor devolvió un formato inesperado de catálogos SNC.");
+        }
+        if (!controlador.signal.aborted) {
+          setCatalogos({
+            procesos: datos[0].map(({ id, nombre }) => ({ id, nombre })),
+            areas: datos[1].map(({ id, nombre }) => ({ id, nombre })),
+            correos: datos[2].map(({ id, correo }) => ({ id, nombre: correo })),
+            responsables: datos[3].map(({ id, nombre }) => ({ id, nombre })),
+          });
+        }
+      } catch (error) {
+        if (!controlador.signal.aborted) {
+          setErrorCatalogos(error.message || "No se pudieron cargar los catálogos SNC.");
+        }
+      } finally {
+        if (!controlador.signal.aborted) setCargandoCatalogos(false);
+      }
+    };
+    cargarCatalogos();
+    return () => controlador.abort();
+  }, [user?.token]);
+
+  // Las consultas personales se filtran por el usuario autenticado en el backend.
+  // No enviamos UUID ni nombres como filtros desde React.
+  useEffect(() => {
+    if (pestana !== "registradas" && pestana !== "asignadas") return;
+    const controlador = new AbortController();
+    const cargar = async () => {
+      setCargandoBandeja(true);
+      setErrorBandeja("");
+      const token = localStorage.getItem("token") || user?.token;
+      if (!token) {
+        setErrorBandeja("No se encontró una sesión válida. Inicie sesión nuevamente.");
+        setCargandoBandeja(false);
+        return;
+      }
+      const ruta = pestana === "registradas" ? "mis-registradas" : "mis-asignadas";
+      const desplazamiento = pagina[pestana] * LIMITE_BANDEJA;
+      try {
+        const respuesta = await fetch(
+          `${SNC_BASE_URL}/${ruta}?limite=${LIMITE_BANDEJA}&desplazamiento=${desplazamiento}`,
+          { headers: { Authorization: `Bearer ${token}` }, signal: controlador.signal }
+        );
+        if (!respuesta.ok) {
+          let mensaje = `No se pudo consultar la bandeja (HTTP ${respuesta.status}).`;
+          if (respuesta.status === 401) mensaje = "La sesión venció. Inicie sesión nuevamente.";
+          if (respuesta.status === 403) mensaje = "No tiene permisos para consultar esta bandeja.";
+          throw new Error(mensaje);
+        }
+        const datos = await respuesta.json();
+        if (!Array.isArray(datos)) throw new Error("El servidor devolvió un formato inesperado.");
+        if (!controlador.signal.aborted) {
+          setBandejas((anterior) => ({ ...anterior, [pestana]: datos }));
+        }
+      } catch (error) {
+        if (!controlador.signal.aborted) {
+          setErrorBandeja(error.message || "No fue posible cargar la información.");
+          setBandejas((anterior) => ({ ...anterior, [pestana]: [] }));
+        }
+      } finally {
+        if (!controlador.signal.aborted) setCargandoBandeja(false);
+      }
+    };
+    cargar();
+    return () => controlador.abort();
+  }, [pestana, pagina.registradas, pagina.asignadas, recargarBandeja, user?.token]);
+
+  // El backend valida la identidad y la asignación real del usuario autenticado.
+  // Nunca enviamos UUID de usuario desde el navegador.
+  const abrirDetalle = (snc, tipo) => {
+    setOrigenDetalle(tipo);
+    setDetalleSNC(snc);
+    setAnalisisCausa("");
+    setPlanAccion("");
+    setErrorRespuesta("");
+    setExitoRespuesta("");
+    setRespuestaRegistrada(null);
+    setErrorConsultaRespuesta("");
+    setErrorCierre("");
+    setExitoCierre("");
+  };
+
+  const cerrarDetalle = () => {
+    if (respuestaEnCurso.current || cierreEnCurso.current) return;
+    setDetalleSNC(null);
+    setOrigenDetalle(null);
+  };
+
+  // Una SNC respondida se consulta en el backend, sin depender de datos de la bandeja.
+  useEffect(() => {
+    if (!detalleSNC?.id || !["RESPONDIDO", "CERRADO"].includes(String(detalleSNC.estado).toUpperCase())) return;
+    const controlador = new AbortController();
+    const consultar = async () => {
+      setConsultandoRespuesta(true);
+      setErrorConsultaRespuesta("");
+      const token = localStorage.getItem("token") || user?.token;
+      if (!token) {
+        setErrorConsultaRespuesta("No se encontró una sesión válida.");
+        setConsultandoRespuesta(false);
+        return;
+      }
+      try {
+        const res = await fetch(`${SNC_BASE_URL}/${detalleSNC.id}/respuesta`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controlador.signal,
+        });
+        const datos = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(typeof datos?.detail === "string" ? datos.detail : `No se pudo consultar la respuesta (HTTP ${res.status}).`);
+        }
+        if (!controlador.signal.aborted) setRespuestaRegistrada(datos?.respuesta || datos);
+      } catch (error) {
+        if (!controlador.signal.aborted) setErrorConsultaRespuesta(error.message || "No se pudo consultar la respuesta.");
+      } finally {
+        if (!controlador.signal.aborted) setConsultandoRespuesta(false);
+      }
+    };
+    consultar();
+    return () => controlador.abort();
+  }, [detalleSNC?.id, detalleSNC?.estado, user?.token]);
+
+  const responderSNC = async () => {
+    if (!detalleSNC?.id || origenDetalle !== "asignadas" ||
+        String(detalleSNC.estado).toUpperCase() !== "ABIERTO" ||
+        detalleSNC.asignacion_pendiente || respuestaEnCurso.current) return;
+    setErrorRespuesta("");
+    setExitoRespuesta("");
+    const analisis = analisisCausa.trim();
+    const plan = planAccion.trim();
+    if (!analisis || !plan) {
+      setErrorRespuesta("Complete el análisis de causa y el plan de acción antes de responder.");
+      return;
+    }
+    const token = localStorage.getItem("token") || user?.token;
+    if (!token) {
+      setErrorRespuesta("No se encontró una sesión válida. Inicie sesión nuevamente.");
+      return;
+    }
+    respuestaEnCurso.current = true;
+    setEnviandoRespuesta(true);
+    try {
+      const res = await fetch(`${SNC_BASE_URL}/${detalleSNC.id}/responder`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ analisis_causa: analisis, plan_accion: plan }),
+      });
+      const datos = await res.json().catch(() => null);
+      if (!res.ok) {
+        let mensaje = datos?.detail;
+        if (Array.isArray(mensaje)) mensaje = mensaje.map((x) => x.msg || "Dato inválido").join("; ");
+        if (typeof mensaje !== "string") mensaje = `No fue posible responder la SNC (HTTP ${res.status}).`;
+        if (res.status === 403) mensaje = "Solo el responsable asignado puede responder esta SNC.";
+        if (res.status === 401) mensaje = "La sesión venció. Inicie sesión nuevamente.";
+        throw new Error(mensaje);
+      }
+      if (datos?.estado !== "RESPONDIDO" || Number(datos?.id) !== Number(detalleSNC.id)) {
+        throw new Error("El servidor no confirmó la respuesta. Verifique el estado antes de reintentar.");
+      }
+      setRespuestaRegistrada({ analisis_causa: analisis, plan_accion: plan });
+      setDetalleSNC((anterior) => anterior?.id === detalleSNC.id ? { ...anterior, estado: "RESPONDIDO" } : anterior);
+      setBandejas((anterior) => ({
+        registradas: anterior.registradas.map((snc) => snc.id === detalleSNC.id ? { ...snc, estado: "RESPONDIDO" } : snc),
+        asignadas: anterior.asignadas.map((snc) => snc.id === detalleSNC.id ? { ...snc, estado: "RESPONDIDO" } : snc),
+      }));
+      setExitoRespuesta(`SNC N.º ${detalleSNC.id} respondida correctamente. El estado cambió a RESPONDIDO.`);
+      setRecargarBandeja((v) => v + 1);
+    } catch (error) {
+      setErrorRespuesta(error instanceof TypeError
+        ? "No se pudo confirmar la respuesta del servidor. Consulte el estado antes de intentar nuevamente para evitar duplicados."
+        : (error.message || "No se pudo enviar la respuesta."));
+    } finally {
+      respuestaEnCurso.current = false;
+      setEnviandoRespuesta(false);
+    }
+  };
+
+  // El cierre definitivo corresponde exclusivamente al creador autenticado.
+  // El servidor vuelve a verificar la identidad y el estado de la SNC.
+  const cerrarSNC = async () => {
+    if (!detalleSNC?.id || origenDetalle !== "registradas" ||
+        String(detalleSNC.estado).toUpperCase() !== "RESPONDIDO" ||
+        cierreEnCurso.current || respuestaEnCurso.current) return;
+
+    setErrorCierre("");
+    setExitoCierre("");
+    const token = localStorage.getItem("token") || user?.token;
+    if (!token) {
+      setErrorCierre("No se encontró una sesión válida. Inicie sesión nuevamente.");
+      return;
+    }
+
+    cierreEnCurso.current = true;
+    setCerrandoSNC(true);
+    try {
+      const res = await fetch(`${SNC_BASE_URL}/${detalleSNC.id}/cerrar`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const datos = await res.json().catch(() => null);
+      if (!res.ok) {
+        let mensaje = datos?.detail;
+        if (Array.isArray(mensaje)) mensaje = mensaje.map((x) => x.msg || "Dato inválido").join("; ");
+        if (typeof mensaje !== "string") mensaje = `No fue posible cerrar la SNC (HTTP ${res.status}).`;
+        if (res.status === 403) mensaje = "Solo el usuario que creó la SNC puede realizar el cierre final.";
+        if (res.status === 401) mensaje = "La sesión venció. Inicie sesión nuevamente.";
+        throw new Error(mensaje);
+      }
+      if (String(datos?.estado).toUpperCase() !== "CERRADO" || Number(datos?.id) !== Number(detalleSNC.id)) {
+        throw new Error("El servidor no confirmó el cierre. Consulte el estado antes de volver a intentarlo.");
+      }
+      setDetalleSNC((anterior) => anterior?.id === detalleSNC.id ? { ...anterior, estado: "CERRADO" } : anterior);
+      setBandejas((anterior) => ({
+        registradas: anterior.registradas.map((snc) => snc.id === detalleSNC.id ? { ...snc, estado: "CERRADO" } : snc),
+        asignadas: anterior.asignadas.map((snc) => snc.id === detalleSNC.id ? { ...snc, estado: "CERRADO" } : snc),
+      }));
+      setExitoCierre(`SNC N.º ${detalleSNC.id} cerrada correctamente.`);
+      setRecargarBandeja((v) => v + 1);
+    } catch (error) {
+      setErrorCierre(error instanceof TypeError
+        ? "No se pudo confirmar el cierre. Consulte el estado antes de reintentar para evitar operaciones duplicadas."
+        : (error.message || "No fue posible cerrar la SNC."));
+    } finally {
+      cierreEnCurso.current = false;
+      setCerrandoSNC(false);
+    }
+  };
+
+  const cambiarPagina = (direccion) => {
+    setPagina((anterior) => ({
+      ...anterior, [pestana]: Math.max(0, anterior[pestana] + direccion),
+    }));
+  };
+
+  const formatoFecha = (valor) => {
+    if (!valor) return "—";
+    const fecha = String(valor).slice(0, 10);
+    const partes = fecha.split("-");
+    return partes.length === 3 ? `${partes[2]}/${partes[1]}/${partes[0]}` : fecha;
+  };
+
+  const BandejaSNC = ({ tipo }) => {
+    const esRegistradas = tipo === "registradas";
+    const registros = bandejas[tipo];
+    return (
+      <div className="rounded-xl border bg-white p-5 shadow-sm md:p-7">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold text-gray-800">
+              {esRegistradas ? "Mis SNC registradas" : "SNC asignadas"}
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              {esRegistradas
+                ? "Consulte las salidas no conformes que usted registró, desde cualquier módulo."
+                : "Consulte las salidas no conformes vinculadas a su cuenta como responsable."}
+            </p>
+          </div>
+          <button type="button" onClick={() => setRecargarBandeja((v) => v + 1)}
+            disabled={cargandoBandeja}
+            className="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            <RefreshCw size={16} className={cargandoBandeja ? "animate-spin" : ""} /> Actualizar
+          </button>
+        </div>
+        {errorBandeja && (
+          <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {errorBandeja}
+          </p>
+        )}
+        {cargandoBandeja ? (
+          <p role="status" className="py-10 text-center text-sm text-gray-500">Consultando SNC...</p>
+        ) : !errorBandeja && registros.length === 0 ? (
+          <div className="py-10 text-center">
+            {esRegistradas ? <FileText className="mx-auto mb-3 text-gray-400" size={38} />
+              : <Inbox className="mx-auto mb-3 text-gray-400" size={38} />}
+            <p className="font-semibold text-gray-700">No hay SNC para mostrar en esta página.</p>
+            <p className="mt-2 text-sm text-gray-500">
+              {esRegistradas ? "Las SNC que registre aparecerán aquí."
+                : "Solo aparecerán las SNC cuando el responsable esté vinculado a su usuario."}
+            </p>
+          </div>
+        ) : !errorBandeja ? (
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
+              <thead className="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                <tr>
+                  <th className="px-4 py-3">N.º</th>
+                  <th className="px-4 py-3">Fecha SNC</th>
+                  <th className="px-4 py-3">Proceso</th>
+                  <th className="px-4 py-3">Responsable</th>
+                  <th className="px-4 py-3">Estado</th>
+                  <th className="px-4 py-3">Detalle</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {registros.map((snc) => (
+                  <tr key={snc.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-semibold text-gray-800">{snc.id}</td>
+                    <td className="whitespace-nowrap px-4 py-3">{formatoFecha(snc.fecha_snc)}</td>
+                    <td className="px-4 py-3">{snc.proceso || "—"}</td>
+                    <td className="px-4 py-3">
+                      {snc.responsable || "—"}
+                      {snc.asignacion_pendiente && (
+                        <span className="mt-1 block text-xs text-amber-700">Vinculación pendiente</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-block rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
+                        {String(snc.estado || "—").replaceAll("_", " ")}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button type="button" onClick={() => abrirDetalle(snc, tipo)}
+                        className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-3 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-50">
+                        <Eye size={15} /> Ver
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+          <span className="text-xs text-gray-500">Página {pagina[tipo] + 1} · {registros.length} registro(s) mostrado(s)</span>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => cambiarPagina(-1)}
+              disabled={cargandoBandeja || pagina[tipo] === 0}
+              className="flex items-center gap-1 rounded-lg border px-3 py-2 text-sm disabled:opacity-40">
+              <ChevronLeft size={16} /> Anterior
+            </button>
+            <button type="button" onClick={() => cambiarPagina(1)}
+              disabled={cargandoBandeja || Boolean(errorBandeja) || registros.length < LIMITE_BANDEJA}
+              className="flex items-center gap-1 rounded-lg border px-3 py-2 text-sm disabled:opacity-40">
+              Siguiente <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const actualizar = (campo, valor) => {
+    setFormulario((anterior) => ({ ...anterior, [campo]: valor }));
+    setErrorRegistro("");
+    setExitoRegistro("");
+  };
+
+  const registrarSNC = async () => {
+    if (envioEnCurso.current || guardando || cargandoCatalogos || errorCatalogos) return;
+    setErrorRegistro("");
+    setExitoRegistro("");
+
+    const camposRequeridos = [
+      formulario.fecha, formulario.proceso, formulario.descripcion.trim(),
+      formulario.impacto.trim(), formulario.areaResponsable,
+      formulario.responsableGestion, formulario.correoRemitente,
+      formulario.correoDestinatario,
+    ];
+    if (camposRequeridos.some((valor) => !valor)) {
+      setErrorRegistro("Complete todos los campos obligatorios antes de registrar la SNC.");
+      return;
+    }
+
+    const token = localStorage.getItem("token") || user?.token;
+    if (!token) {
+      setErrorRegistro("No se encontró una sesión válida. Inicie sesión nuevamente.");
+      return;
+    }
+
+    const cuerpo = {
+      fecha_snc: formulario.fecha,
+      id_proceso_snc: Number(formulario.proceso),
+      descripcion: formulario.descripcion.trim(),
+      impacto: formulario.impacto.trim(),
+      id_area_responsable_snc: Number(formulario.areaResponsable),
+      id_responsable_snc: Number(formulario.responsableGestion),
+      id_correo_remitente: Number(formulario.correoRemitente),
+      id_correo_destinatario: Number(formulario.correoDestinatario),
+    };
+
+    envioEnCurso.current = true;
+    setGuardando(true);
+    try {
+      const respuesta = await fetch(SNC_BASE_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(cuerpo),
+      });
+      const datos = await respuesta.json().catch(() => null);
+      if (!respuesta.ok) {
+        let detalle = datos?.detail;
+        if (Array.isArray(detalle)) {
+          detalle = detalle.map((item) => item.msg || "Dato inválido").join("; ");
+        }
+        if (typeof detalle !== "string") detalle = "No fue posible registrar la SNC.";
+        if (respuesta.status === 401) detalle = "La sesión venció. Inicie sesión nuevamente.";
+        if (respuesta.status === 403) detalle = "Su usuario no tiene permisos para registrar SNC.";
+        throw new Error(`${detalle} (HTTP ${respuesta.status})`);
+      }
+      if (respuesta.status !== 201 || !datos || datos.id == null) {
+        throw new Error("El servidor respondió, pero no confirmó el identificador de la SNC. Verifique antes de intentar nuevamente.");
+      }
+      setExitoRegistro(
+        `SNC N.º ${datos.id} registrada correctamente en QA, estado ${datos.estado || "ABIERTO"}.` +
+        (datos.asignacion_pendiente ? " La vinculación del responsable con su usuario está pendiente." : "")
+      );
+      setFormulario(formularioInicial());
+    } catch (error) {
+      setErrorRegistro(
+        error instanceof TypeError
+          ? "No se pudo confirmar la respuesta del servidor. Antes de reintentar, compruebe en QA si la SNC fue creada para evitar duplicados."
+          : (error.message || "Ocurrió un error al registrar la SNC.")
+      );
+    } finally {
+      envioEnCurso.current = false;
+      setGuardando(false);
+    }
+  };
+
+  const clasesInput =
+    "w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-emerald-600 focus:outline-none";
+  const controlesDeshabilitados = cargandoCatalogos || Boolean(errorCatalogos) || guardando;
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <div className="rounded-xl border bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-3">
+            <ClipboardList className="h-9 w-9 text-emerald-700" />
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">Salidas No Conformes</h1>
+              <p className="text-sm text-gray-500">Registro y gestión de SNC - La Perfección</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {[
+            { id: "nueva", nombre: "Nueva SNC", icono: PlusCircle },
+            { id: "registradas", nombre: "Mis SNC registradas", icono: FileText },
+            { id: "asignadas", nombre: "SNC asignadas", icono: Inbox },
+          ].map(({ id, nombre, icono: Icono }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setPestana(id)}
+              className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold transition ${
+                pestana === id
+                  ? "bg-emerald-700 text-white"
+                  : "border bg-white text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              <Icono size={17} />
+              {nombre}
+            </button>
+          ))}
+        </div>
+
+        {pestana === "nueva" && (
+          <div className="rounded-xl border bg-white p-5 shadow-sm md:p-7">
+            <h2 className="mb-6 text-lg font-bold text-gray-800">Registro de Salida No Conforme</h2>
+            {cargandoCatalogos && (
+              <p role="status" className="mb-4 text-sm text-gray-600">Cargando opciones del formulario SNC...</p>
+            )}
+            {errorCatalogos && (
+              <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{errorCatalogos}</p>
+            )}
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <Campo titulo="Fecha del SNC interno">
+                <input type="date" value={formulario.fecha} disabled={guardando}
+                  onChange={(e) => actualizar("fecha", e.target.value)} className={clasesInput} />
+              </Campo>
+              <Campo titulo="Responsable de diligenciar la SNC">
+                <input value={user?.name || "Usuario autenticado"} readOnly
+                  className={`${clasesInput} bg-gray-100`} />
+              </Campo>
+              <div className="md:col-span-2">
+                <Campo titulo="Proceso que diligencia la SNC">
+                  <Selector disabled={controlesDeshabilitados} opciones={catalogos.procesos}
+                    value={formulario.proceso} onChange={(valor) => actualizar("proceso", valor)} />
+                </Campo>
+              </div>
+              <div className="md:col-span-2">
+                <Campo titulo="Descripción salida no conforme">
+                  <textarea rows={4} value={formulario.descripcion} disabled={guardando}
+                    onChange={(e) => actualizar("descripcion", e.target.value)}
+                    placeholder="Describa la salida no conforme..." className={clasesInput} />
+                </Campo>
+              </div>
+              <div className="md:col-span-2">
+                <Campo titulo="Impacto">
+                  <textarea rows={3} value={formulario.impacto} disabled={guardando}
+                    onChange={(e) => actualizar("impacto", e.target.value)}
+                    placeholder="Describa el impacto identificado..." className={clasesInput} />
+                </Campo>
+              </div>
+              <Campo titulo="Área responsable de gestionar la SNC">
+                <Selector disabled={controlesDeshabilitados} opciones={catalogos.areas}
+                  value={formulario.areaResponsable} onChange={(valor) => actualizar("areaResponsable", valor)} />
+              </Campo>
+              <Campo titulo="Responsable de gestionar la SNC">
+                <Selector disabled={controlesDeshabilitados} opciones={catalogos.responsables}
+                  value={formulario.responsableGestion} onChange={(valor) => actualizar("responsableGestion", valor)} />
+              </Campo>
+              <Campo titulo="Correo remitente">
+                <Selector disabled={controlesDeshabilitados} opciones={catalogos.correos}
+                  value={formulario.correoRemitente} onChange={(valor) => actualizar("correoRemitente", valor)} />
+              </Campo>
+              <Campo titulo="Correo destinatario">
+                <Selector disabled={controlesDeshabilitados} opciones={catalogos.correos}
+                  value={formulario.correoDestinatario} onChange={(valor) => actualizar("correoDestinatario", valor)} />
+              </Campo>
+              <Campo titulo="Estado">
+                <input value={formulario.estado} readOnly
+                  className={`${clasesInput} bg-gray-100 font-semibold`} />
+              </Campo>
+            </div>
+            <div className="mt-8 flex justify-end border-t pt-5">
+              <button type="button" onClick={registrarSNC} disabled={controlesDeshabilitados}
+                className="flex items-center gap-2 rounded-lg bg-emerald-700 px-6 py-3 font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Send size={18} />
+                {guardando ? "Registrando..." : "Registrar SNC"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {pestana === "registradas" && <BandejaSNC tipo="registradas" />}
+        {pestana === "asignadas" && <BandejaSNC tipo="asignadas" />}
+      </div>
+
+      {detalleSNC && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 px-4 py-6"
+          role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) cerrarDetalle(); }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="snc-detalle-titulo"
+            className="relative max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl md:p-8">
+            <button type="button" aria-label="Cerrar detalle" onClick={cerrarDetalle}
+              className="absolute right-4 top-4 rounded-full p-1.5 text-gray-500 hover:bg-gray-100">
+              <X size={20} />
+            </button>
+            <h3 id="snc-detalle-titulo" className="pr-8 text-xl font-bold text-gray-800">
+              Detalle de SNC N.º {detalleSNC.id}
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">Consulta de la información registrada y su gestión</p>
+            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {[
+                ["Fecha SNC", formatoFecha(detalleSNC.fecha_snc)],
+                ["Estado", detalleSNC.estado],
+                ["Proceso", detalleSNC.proceso],
+                ["Área responsable", detalleSNC.area_responsable],
+                ["Responsable de gestionar", detalleSNC.responsable],
+                ["Asignación", detalleSNC.asignacion_pendiente ? "Vinculación de usuario pendiente" : "Usuario vinculado"],
+                ["Correo remitente", detalleSNC.correo_remitente],
+                ["Correo destinatario", detalleSNC.correo_destinatario],
+              ].map(([etiqueta, valor]) => (
+                <div key={etiqueta} className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs font-semibold text-gray-500">{etiqueta}</p>
+                  <p className="mt-1 break-words text-sm font-medium text-gray-800">{valor || "—"}</p>
+                </div>
+              ))}
+              <div className="sm:col-span-2">
+                <p className="text-sm font-semibold text-gray-700">Descripción</p>
+                <p className="mt-1 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-sm text-gray-800">{detalleSNC.descripcion}</p>
+              </div>
+              <div className="sm:col-span-2">
+                <p className="text-sm font-semibold text-gray-700">Impacto</p>
+                <p className="mt-1 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-sm text-gray-800">{detalleSNC.impacto}</p>
+              </div>
+            </div>
+            {["RESPONDIDO", "CERRADO"].includes(String(detalleSNC.estado).toUpperCase()) && (
+              <section className="mt-6 space-y-4 border-t pt-5" aria-label="Respuesta de la salida no conforme">
+                <h4 className="text-base font-bold text-emerald-800">Respuesta de la salida no conforme</h4>
+                {consultandoRespuesta && !respuestaRegistrada && <p role="status" className="text-sm text-gray-500">Consultando respuesta...</p>}
+                {errorConsultaRespuesta && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{errorConsultaRespuesta}</p>}
+                {respuestaRegistrada && (
+                  <>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700">Análisis de causa</p>
+                      <p className="mt-1 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-sm text-gray-800">{respuestaRegistrada.analisis_causa || respuestaRegistrada.AnalisisCausa || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700">Plan de acción</p>
+                      <p className="mt-1 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-sm text-gray-800">{respuestaRegistrada.plan_accion || respuestaRegistrada.PlanAccion || "—"}</p>
+                    </div>
+                  </>
+                )}
+              </section>
+            )}
+            {origenDetalle === "asignadas" && String(detalleSNC.estado).toUpperCase() === "ABIERTO" && !detalleSNC.asignacion_pendiente && (
+              <section className="mt-6 space-y-4 border-t pt-5" aria-label="Responder salida no conforme">
+                <h4 className="text-base font-bold text-gray-800">Responder salida no conforme</h4>
+                <div>
+                  <label htmlFor="snc-analisis-causa" className="mb-2 block text-sm font-semibold text-gray-700">Análisis de causa <span className="text-red-600">*</span></label>
+                  <textarea id="snc-analisis-causa" rows={4} maxLength={10000} required disabled={enviandoRespuesta}
+                    value={analisisCausa} onChange={(e) => { setAnalisisCausa(e.target.value); setErrorRespuesta(""); }}
+                    placeholder="Explique por qué no se realizó la actividad o tarea..." className={clasesInput} />
+                </div>
+                <div>
+                  <label htmlFor="snc-plan-accion" className="mb-2 block text-sm font-semibold text-gray-700">Plan de acción <span className="text-red-600">*</span></label>
+                  <textarea id="snc-plan-accion" rows={4} maxLength={10000} required disabled={enviandoRespuesta}
+                    value={planAccion} onChange={(e) => { setPlanAccion(e.target.value); setErrorRespuesta(""); }}
+                    placeholder="Indique a qué se compromete y cómo dará cumplimiento..." className={clasesInput} />
+                </div>
+                <button type="button" onClick={responderSNC} disabled={enviandoRespuesta || !analisisCausa.trim() || !planAccion.trim()}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">
+                  <Send size={17} /> {enviandoRespuesta ? "Enviando respuesta..." : "Responder Salida No Conforme"}
+                </button>
+              </section>
+            )}
+            {origenDetalle === "registradas" && String(detalleSNC.estado).toUpperCase() === "RESPONDIDO" && (
+              <section className="mt-6 space-y-3 border-t pt-5" aria-label="Cierre definitivo de la SNC">
+                <p className="text-sm text-gray-600">Después de revisar el análisis de causa y el plan de acción, puede realizar el cierre definitivo de esta salida no conforme.</p>
+                <button type="button" onClick={cerrarSNC} disabled={cerrandoSNC || consultandoRespuesta || !respuestaRegistrada || Boolean(errorConsultaRespuesta)}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">
+                  <CheckCircle2 size={17} /> {cerrandoSNC ? "Cerrando SNC..." : "Cerrar salida no conforme"}
+                </button>
+              </section>
+            )}
+            {errorCierre && <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{errorCierre}</p>}
+            {exitoCierre && <p role="status" className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{exitoCierre}</p>}
+            {errorRespuesta && <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{errorRespuesta}</p>}
+            {exitoRespuesta && <p role="status" className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{exitoRespuesta}</p>}
+            <button type="button" onClick={cerrarDetalle} disabled={enviandoRespuesta || cerrandoSNC}
+              className="mt-6 w-full rounded-lg border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {(exitoRegistro || errorRegistro) && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4 py-6"
+          role="presentation">
+          <div role="alertdialog" aria-modal="true" aria-labelledby="snc-aviso-titulo"
+            aria-describedby="snc-aviso-descripcion"
+            className="relative w-full max-w-md rounded-2xl bg-white p-7 text-center shadow-2xl">
+            <button type="button" aria-label="Cerrar mensaje"
+              onClick={() => { setExitoRegistro(""); setErrorRegistro(""); }}
+              className="absolute right-4 top-4 rounded-full p-1.5 text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-600">
+              <X size={20} />
+            </button>
+            <div className={`mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full ${exitoRegistro ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+              {exitoRegistro ? <CheckCircle2 size={36} /> : <AlertCircle size={36} />}
+            </div>
+            <h3 id="snc-aviso-titulo" className="mb-3 text-xl font-bold text-gray-800">
+              {exitoRegistro ? "¡SNC registrada exitosamente!" : "No se pudo registrar la SNC"}
+            </h3>
+            <p id="snc-aviso-descripcion" className="text-sm leading-relaxed text-gray-600">
+              {exitoRegistro || errorRegistro}
+            </p>
+            <button type="button" autoFocus
+              onClick={() => { setExitoRegistro(""); setErrorRegistro(""); }}
+              className={`mt-6 w-full rounded-lg px-5 py-3 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-offset-2 ${exitoRegistro ? "bg-emerald-700 hover:bg-emerald-800 focus:ring-emerald-600" : "bg-red-600 hover:bg-red-700 focus:ring-red-500"}`}>
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default SalidasNoConformesView;

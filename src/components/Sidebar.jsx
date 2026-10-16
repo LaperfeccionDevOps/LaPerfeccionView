@@ -3,6 +3,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   ChevronDown,
   ChevronRight,
+  ClipboardCheck,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -544,7 +545,7 @@ const Sidebar = ({
     return item;
   };
 
-  const navItems = esSuperAdministrador
+  const baseNavItems = esSuperAdministrador
     ? superAdminNavItems
     : esTalentoHumano
       ? talentoHumanoNavItems
@@ -564,6 +565,28 @@ const Sidebar = ({
           return filtrarItemPorRol(item);
         })
         .filter(Boolean);
+
+  // SNC es un módulo transversal: mostrarlo a cualquier usuario autenticado.
+  // Los permisos efectivos de lectura y gestión se validan en el backend.
+  const puedeAccederSNC = Boolean(user && rolUsuario);
+
+  const navItems = [
+    ...baseNavItems,
+    ...(puedeAccederSNC
+      ? [
+          {
+            label: "Salidas No Conformes",
+            icon: ClipboardCheck,
+            children: [
+              {
+                to: "/salidas-no-conformes",
+                label: "Gestión de SNC",
+              },
+            ],
+          },
+        ]
+      : []),
+  ];
 
   const toggleSubmenu = (label) => {
     if (!isOpen) {

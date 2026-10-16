@@ -43,6 +43,7 @@ import NominaRetirosView from "@/components/NominaRetirosView";
 import NominaActualizacionDatosView from "@/components/NominaActualizacionDatosView";
 import IndicadoresNominaView from "@/components/IndicadoresNominaView";
 import PanelGerencialRRLLView from "@/components/PanelGerencialRRLLView";
+import SalidasNoConformesView from "@/components/SalidasNoConformesView";
 
 
 const RoleBasedRedirect = () => {
@@ -441,6 +442,12 @@ function App() {
           <Route
             path="nomina-carpeta-digital"
             element={<ArchivosView />}
+          />
+
+          {/* SALIDAS NO CONFORMES */}
+          <Route
+            path="salidas-no-conformes"
+            element={<SalidasNoConformesView />}
           />
 
           <Route
