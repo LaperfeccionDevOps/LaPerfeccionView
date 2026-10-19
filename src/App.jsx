@@ -5,6 +5,7 @@ import {
   Route,
   Navigate,
   useNavigate,
+  useLocation,
 } from "react-router-dom";
 
 import { Helmet } from "react-helmet";
@@ -46,6 +47,24 @@ import PanelGerencialRRLLView from "@/components/PanelGerencialRRLLView";
 import SalidasNoConformesView from "@/components/SalidasNoConformesView";
 import SalidasNoConformesGeneralView from "@/components/SalidasNoConformesGeneralView";
 
+
+// Los administrativos sin permisos operativos usan exclusivamente Gestión SNC.
+// Esta protección de navegación no sustituye las autorizaciones del backend.
+const AccesoAdministrativoSNC = ({ children }) => {
+  const { user } = useAuth();
+  const location = useLocation();
+  const permisos = Array.isArray(user?.permisos) ? user.permisos : [];
+  const soloSNC = user?.role === "Administrativo" &&
+    !permisos.includes("OPERACIONES_PROCESOS_DISCIPLINARIOS") &&
+    !permisos.includes("OPERACIONES_RETIROS") &&
+    !permisos.includes("RECEPCION_AGENDA_DISCIPLINARIA");
+
+  if (soloSNC && location.pathname !== "/" &&
+      location.pathname !== "/salidas-no-conformes") {
+    return <Navigate to="/salidas-no-conformes" replace />;
+  }
+  return children;
+};
 
 const RoleBasedRedirect = () => {
   const { user } = useAuth();
@@ -129,7 +148,7 @@ const RoleBasedRedirect = () => {
         );
       }
 
-      return <Navigate to="/login" replace />;
+      return <Navigate to="/salidas-no-conformes" replace />;
 
     default:
       return <Navigate to="/seleccion" replace />;
@@ -292,7 +311,9 @@ function App() {
           path="/"
           element={
             <ProtectedRoute>
-              <HomePage />
+              <AccesoAdministrativoSNC>
+                <HomePage />
+              </AccesoAdministrativoSNC>
             </ProtectedRoute>
           }
         >
