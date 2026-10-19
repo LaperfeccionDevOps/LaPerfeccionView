@@ -22,6 +22,8 @@ const API_BASE_URL =
 const ENDPOINT_BASE = `${API_BASE_URL}/nomina-actualizacion-datos`;
 
 const VALORES_INICIALES = {
+  Nombres: '',
+  Apellidos: '',
   Email: '',
   Direccion: '',
   Barrio: '',
@@ -110,6 +112,8 @@ const normalizarDetalle = (respuesta) => {
         `${obtenerValor(trabajador, ['Nombres', 'nombres'], '')} ${obtenerValor(trabajador, ['Apellidos', 'apellidos'], '')}`,
       ),
     ).trim(),
+    Nombres: String(obtenerValor(trabajador, ['Nombres', 'nombres'], '') ?? ''),
+    Apellidos: String(obtenerValor(trabajador, ['Apellidos', 'apellidos'], '') ?? ''),
     identificacion: String(
       obtenerValor(
         trabajador,
@@ -392,6 +396,8 @@ const NominaActualizacionDatosView = () => {
       const detalle = normalizarDetalle(data);
 
       const valores = {
+        Nombres: detalle.Nombres,
+        Apellidos: detalle.Apellidos,
         Email: detalle.Email,
         Direccion: detalle.Direccion,
         Barrio: detalle.Barrio,
@@ -449,6 +455,8 @@ const NominaActualizacionDatosView = () => {
       }
     };
 
+    comparar('Nombres');
+    comparar('Apellidos');
     comparar('Email');
     comparar('Direccion');
     comparar('Barrio');
@@ -485,6 +493,11 @@ const NominaActualizacionDatosView = () => {
       return;
     }
 
+    if (['Nombres', 'Apellidos'].some((campo) => !String(formulario[campo] ?? '').trim())) {
+      setError('Los nombres y apellidos no pueden quedar vacíos.');
+      return;
+    }
+
     setGuardando(true);
     setMensaje('');
     setError('');
@@ -493,6 +506,10 @@ const NominaActualizacionDatosView = () => {
     try {
       const body = {
         ...cambiosPendientes,
+        ...(Object.prototype.hasOwnProperty.call(cambiosPendientes, 'Nombres')
+          ? { Nombres: formulario.Nombres.trim() } : {}),
+        ...(Object.prototype.hasOwnProperty.call(cambiosPendientes, 'Apellidos')
+          ? { Apellidos: formulario.Apellidos.trim() } : {}),
         UsuarioActualizacion: usuarioActualizacion,
       };
 
@@ -563,20 +580,35 @@ const NominaActualizacionDatosView = () => {
 
     const soloLectura =
       Boolean(campoConfig?.SoloLectura ?? campoConfig?.soloLectura) ||
-      codigo === 'NOMBRE' ||
       codigo === 'IDENTIFICACION';
 
     if (codigo === 'NOMBRE') {
       return (
-        <label key={codigo} className="block">
-          <span className="text-sm font-semibold text-gray-700">{nombre}</span>
-          <Input
-            value={trabajador?.nombre || ''}
-            readOnly
-            disabled
-            className="mt-2 bg-gray-100 text-gray-600"
-          />
-        </label>
+        <div key={codigo} className="block">
+          <span className="text-sm font-semibold text-gray-700">Nombre completo</span>
+          <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-xs font-medium text-gray-600">Nombres</span>
+              <Input
+                value={formulario.Nombres ?? ''}
+                onChange={(e) => actualizarCampo('Nombres', e.target.value)}
+                disabled={guardando}
+                placeholder="Primer y segundo nombre"
+                className="mt-1"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-medium text-gray-600">Apellidos</span>
+              <Input
+                value={formulario.Apellidos ?? ''}
+                onChange={(e) => actualizarCampo('Apellidos', e.target.value)}
+                disabled={guardando}
+                placeholder="Primer y segundo apellido"
+                className="mt-1"
+              />
+            </label>
+          </div>
+        </div>
       );
     }
 
@@ -922,8 +954,8 @@ const NominaActualizacionDatosView = () => {
                   Información del trabajador
                 </h3>
                 <p className="mt-1 text-sm text-gray-500">
-                  Nombre e identificación son únicamente de consulta. Los demás
-                  campos habilitados pueden actualizarse.
+                  Nombres y apellidos pueden actualizarse. La identificación es únicamente
+                  de consulta; los demás campos habilitados conservan su funcionamiento.
                 </p>
               </div>
 
