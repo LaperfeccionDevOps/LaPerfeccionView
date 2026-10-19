@@ -582,6 +582,10 @@ const Sidebar = ({
                 to: "/salidas-no-conformes",
                 label: "Gestión de SNC",
               },
+              {
+                to: "/pqrf",
+                label: "Gestión de PQRF",
+              },
               ...(esSuperAdministrador
                 ? [{
                     to: "/salidas-no-conformes/general",

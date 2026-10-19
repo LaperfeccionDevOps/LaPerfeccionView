@@ -45,6 +45,7 @@ import IndicadoresNominaView from "@/components/IndicadoresNominaView";
 import PanelGerencialRRLLView from "@/components/PanelGerencialRRLLView";
 import SalidasNoConformesView from "@/components/SalidasNoConformesView";
 import SalidasNoConformesGeneralView from "@/components/SalidasNoConformesGeneralView";
+import PQRFView from "@/components/PQRFView";
 
 
 const RoleBasedRedirect = () => {
@@ -453,6 +454,12 @@ function App() {
           <Route
             path="nomina-carpeta-digital"
             element={<ArchivosView />}
+          />
+
+          {/* PQRF */}
+          <Route
+            path="pqrf"
+            element={<PQRFView />}
           />
 
           {/* SALIDAS NO CONFORMES */}
