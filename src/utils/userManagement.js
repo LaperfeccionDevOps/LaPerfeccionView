@@ -10,6 +10,8 @@ const USERS_URL =
 const PERMISSIONS_URL =
   `${API_BASE_URL}/auth/permisos`;
 
+const AREAS_SNC_URL = `${API_BASE_URL}/auth/areas-trabajo-snc`;
+
 
 const ROLE_IDS = {
   Administrador: 1,
@@ -134,6 +136,8 @@ export const createUser = async (userData) => {
 
     id_rol:
       idRol,
+
+    id_area_responsable_snc: userData.areaId ? Number(userData.areaId) : null,
   };
 
   const response = await fetch(
@@ -238,6 +242,8 @@ export const getUsers = async () => {
 
     roleId:
       user.id_rol ?? null,
+
+    areaId: user.id_area_responsable_snc == null ? '' : String(user.id_area_responsable_snc),
 
     status:
       (user.estado || '')
@@ -402,6 +408,8 @@ export const updateUser = async (
       idRol,
 
     permisos,
+
+    id_area_responsable_snc: updates.areaId ? Number(updates.areaId) : null,
   };
 
   const response = await fetch(
@@ -511,4 +519,21 @@ export const getRoleId = (roleName) => {
 
 export const getAvailableRoles = () => {
   return Object.keys(ROLE_IDS);
+};
+
+
+// Catálogo centralizado para Crear / Actualizar Usuario.
+export const getAreasTrabajoSNC = async () => {
+  const token = getToken();
+  const response = await fetch(AREAS_SNC_URL, {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+  });
+  const data = await parseResponse(response);
+  if (!response.ok) {
+    handleApiError(response, data, 'No fue posible consultar las áreas de trabajo.');
+  }
+  return Array.isArray(data) ? data.map((a) => ({
+    id: String(a.id_area_responsable_snc),
+    name: a.nombre_area,
+  })) : [];
 };

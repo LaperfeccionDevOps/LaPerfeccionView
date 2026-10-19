@@ -28,6 +28,7 @@ import { toast } from '@/components/ui/use-toast';
 
 import {
   getAvailableRoles,
+  getAreasTrabajoSNC,
   getPermissions,
   getUsers,
   resetUserPassword,
@@ -49,6 +50,8 @@ import {
 
 const UpdateUserView = () => {
   const [users, setUsers] = useState([]);
+  const [areas, setAreas] = useState([]);
+  const [areasError, setAreasError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
   const [selectedUser, setSelectedUser] =
@@ -144,6 +147,10 @@ const UpdateUserView = () => {
   useEffect(() => {
     loadUsers();
     loadPermissions();
+    let active = true;
+    getAreasTrabajoSNC().then((items) => { if (active) setAreas(items); })
+      .catch((error) => { if (active) setAreasError(error.message || 'No fue posible cargar las áreas.'); });
+    return () => { active = false; };
   }, []);
 
 
@@ -212,6 +219,7 @@ const UpdateUserView = () => {
         user?.email || '',
       role:
         user?.role || '',
+      areaId: user?.areaId || '',
       status:
         String(
           user?.status || 'ACTIVO'
@@ -310,6 +318,11 @@ const UpdateUserView = () => {
       return;
     }
 
+
+    if (!selectedUser.areaId) {
+      toast({ title: 'Área obligatoria', description: 'Selecciona el área de trabajo antes de guardar.', variant: 'destructive' });
+      return;
+    }
 
     if (!role) {
       toast({
@@ -870,6 +883,23 @@ const UpdateUserView = () => {
               </div>
 
 
+               <div className="grid gap-2">
+                 <Label>Área de trabajo *</Label>
+                 <Select value={selectedUser.areaId || ''} disabled={isSaving || !!areasError} onValueChange={(value) => setSelectedUser({ ...selectedUser, areaId: value })}>
+                   <SelectTrigger><SelectValue placeholder="Seleccionar área de trabajo" /></SelectTrigger>
+                   <SelectContent
+                     position="popper"
+                     side="bottom"
+                     sideOffset={4}
+                     className="max-h-[280px] overflow-y-auto overscroll-contain"
+                   >
+                     {areas.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                   </SelectContent>
+                 </Select>
+                 {areasError && <p className="text-sm text-red-600">{areasError}</p>}
+                 {!selectedUser.areaId && <p className="text-xs text-amber-700">Este usuario aún no tiene área asignada.</p>}
+               </div>
+
               <div className="grid gap-2">
 
                 <Label>
@@ -1027,7 +1057,7 @@ const UpdateUserView = () => {
 
             <Button
               type="button"
-              disabled={isSaving}
+              disabled={isSaving || !!areasError || areas.length === 0}
               onClick={handleEditSave}
               className="bg-purple-600 hover:bg-purple-700"
             >

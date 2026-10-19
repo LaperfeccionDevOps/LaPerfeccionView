@@ -582,6 +582,12 @@ const Sidebar = ({
                 to: "/salidas-no-conformes",
                 label: "Gestión de SNC",
               },
+              ...(esSuperAdministrador
+                ? [{
+                    to: "/salidas-no-conformes/general",
+                    label: "Salidas No Conformes General",
+                  }]
+                : []),
             ],
           },
         ]

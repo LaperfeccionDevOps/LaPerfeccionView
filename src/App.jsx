@@ -44,6 +44,7 @@ import NominaActualizacionDatosView from "@/components/NominaActualizacionDatosV
 import IndicadoresNominaView from "@/components/IndicadoresNominaView";
 import PanelGerencialRRLLView from "@/components/PanelGerencialRRLLView";
 import SalidasNoConformesView from "@/components/SalidasNoConformesView";
+import SalidasNoConformesGeneralView from "@/components/SalidasNoConformesGeneralView";
 
 
 const RoleBasedRedirect = () => {
@@ -218,6 +219,16 @@ const BienestarPermissionRoute = ({
   return children;
 };
 
+
+// Protección visual de la ruta. La API debe validar también el rol en el servidor.
+const SuperAdminOnlyRoute = ({ children }) => {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (String(user.role || "").trim() !== "Super Administrador") {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+};
 
 const ProcesosDisciplinariosRRLLRoute = () => {
   const navigate = useNavigate();
@@ -448,6 +459,15 @@ function App() {
           <Route
             path="salidas-no-conformes"
             element={<SalidasNoConformesView />}
+          />
+
+          <Route
+            path="salidas-no-conformes/general"
+            element={
+              <SuperAdminOnlyRoute>
+                <SalidasNoConformesGeneralView />
+              </SuperAdminOnlyRoute>
+            }
           />
 
           <Route

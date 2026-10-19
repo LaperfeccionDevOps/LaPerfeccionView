@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 
@@ -16,7 +16,7 @@ import {
 
 import { toast } from '@/components/ui/use-toast';
 
-import { createUser } from '@/utils/userManagement';
+import { createUser, getAreasTrabajoSNC } from '@/utils/userManagement';
 
 import {
   UserPlus,
@@ -35,12 +35,21 @@ const INITIAL_FORM = {
   pass: '',
   confirmPass: '',
   role: '',
+  areaId: '',
   status: 'ACTIVO',
 };
 
 const CreateUserForm = () => {
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [saving, setSaving] = useState(false);
+  const [areas, setAreas] = useState([]);
+  const [areasError, setAreasError] = useState('');
+  useEffect(() => {
+    let active = true;
+    getAreasTrabajoSNC().then((items) => { if (active) setAreas(items); })
+      .catch((error) => { if (active) setAreasError(error.message || 'No se pudieron cargar las áreas.'); });
+    return () => { active = false; };
+  }, []);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -60,7 +69,8 @@ const CreateUserForm = () => {
       !formData.username.trim() ||
       !formData.pass ||
       !formData.confirmPass ||
-      !formData.role
+      !formData.role ||
+      !formData.areaId
     ) {
       toast({
         title: 'Campos requeridos',
@@ -110,6 +120,7 @@ const CreateUserForm = () => {
         email: '',
         pass: formData.pass,
         role: formData.role,
+        areaId: formData.areaId,
         status: formData.status,
       };
 
@@ -341,6 +352,23 @@ const CreateUserForm = () => {
           </div>
 
           <div className="space-y-2 md:col-span-2">
+            <Label>Área de trabajo <span className="text-red-500">*</span></Label>
+            <Select value={formData.areaId} onValueChange={(value) => handleChange('areaId', value)} disabled={saving || !!areasError}>
+              <SelectTrigger><SelectValue placeholder="Seleccione el área de trabajo" /></SelectTrigger>
+              <SelectContent
+                position="popper"
+                side="bottom"
+                sideOffset={4}
+                className="max-h-[280px] overflow-y-auto overscroll-contain"
+              >
+                {areas.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {areasError && <p className="text-sm text-red-600">{areasError}</p>}
+            <p className="text-xs text-gray-500">El área se utiliza para los indicadores de SNC; no modifica el rol ni los permisos.</p>
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
             <Label>
               Rol del Sistema <span className="text-red-500">*</span>
             </Label>
@@ -421,7 +449,7 @@ const CreateUserForm = () => {
         <div className="pt-6">
           <Button
             type="submit"
-            disabled={saving || passwordsDoNotMatch}
+            disabled={saving || passwordsDoNotMatch || !!areasError || areas.length === 0}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 text-base disabled:opacity-60"
           >
             <Save className="w-5 h-5 mr-2" />

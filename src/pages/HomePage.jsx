@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 
 import Sidebar from '@/components/Sidebar';
@@ -9,10 +9,14 @@ import { cn } from '@/lib/utils';
 
 const HomePage = () => {
   const { user } = useAuth();
+  const location = useLocation();
+  const esSNCGeneral = location.pathname === '/salidas-no-conformes/general';
 
   const isOperaciones = user?.role === 'Operaciones';
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() =>
+    typeof window === 'undefined' ? true : window.innerWidth >= 768
+  );
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === 'undefined') {
       return false;
@@ -28,11 +32,10 @@ const HomePage = () => {
       setIsMobile(mobile);
 
       /*
-       * Solo Operaciones:
-       * en celular el menú inicia cerrado;
-       * en computador conserva el comportamiento normal.
+       * En celular, el menú es un panel superpuesto para todos los roles.
+       * En escritorio se conserva la apertura/cierre manual.
        */
-      if (isOperaciones && mobile) {
+      if (mobile) {
         setIsSidebarOpen(false);
       }
     };
@@ -44,24 +47,28 @@ const HomePage = () => {
     return () => {
       window.removeEventListener('resize', actualizarPantalla);
     };
-  }, [isOperaciones]);
+  }, []);
+
+  useEffect(() => {
+    if (isMobile) setIsSidebarOpen(false);
+  }, [location.pathname, isMobile]);
 
   const toggleSidebar = () => {
     setIsSidebarOpen((estadoActual) => !estadoActual);
   };
 
   const closeMobileSidebar = () => {
-    if (isOperaciones && isMobile) {
+    if (isMobile) {
       setIsSidebarOpen(false);
     }
   };
 
   return (
     <div className="flex min-h-screen w-full max-w-full overflow-x-hidden bg-gray-50">
-      {isOperaciones && isMobile && isSidebarOpen && (
+      {isMobile && isSidebarOpen && (
         <button
           type="button"
-          aria-label="Cerrar menú de Operaciones"
+          aria-label="Cerrar menú lateral"
           onClick={closeMobileSidebar}
           className="fixed inset-0 z-20 bg-black/45"
         />
@@ -73,12 +80,12 @@ const HomePage = () => {
         closeMobileSidebar={closeMobileSidebar}
       />
 
-      {isOperaciones && isMobile && !isSidebarOpen && (
+      {isMobile && !isSidebarOpen && (
         <Button
           type="button"
           size="icon"
           onClick={toggleSidebar}
-          aria-label="Abrir menú de Operaciones"
+          aria-label="Abrir menú lateral"
           title="Abrir menú"
           className="fixed left-3 top-3 z-20 h-11 w-11 rounded-xl bg-emerald-900 text-white shadow-lg hover:bg-emerald-800"
         >
@@ -90,21 +97,17 @@ const HomePage = () => {
         className={cn(
           'min-w-0 flex-1 transition-all duration-300 ease-in-out',
 
-          isOperaciones
-            ? isMobile
-              ? 'ml-0 w-full max-w-full overflow-x-hidden px-3 pb-4 pt-16 sm:px-4'
-              : isSidebarOpen
-                ? 'ml-72 p-8'
-                : 'ml-20 p-8'
+          isMobile
+            ? 'ml-0 w-full max-w-full overflow-x-hidden px-3 pb-4 pt-16 sm:px-4'
             : isSidebarOpen
               ? 'ml-72 p-8'
-              : 'ml-20 p-8'
+              : 'ml-20 p-8' 
         )}
       >
         <div
           className={cn(
-            'mx-auto w-full min-w-0 max-w-7xl',
-            isOperaciones && 'max-w-full overflow-x-hidden'
+            'mx-auto w-full min-w-0',
+            (isOperaciones || esSNCGeneral) ? 'max-w-full overflow-x-hidden' : 'max-w-7xl'
           )}
         >
           <Outlet />
