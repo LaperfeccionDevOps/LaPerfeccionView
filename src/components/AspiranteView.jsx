@@ -607,7 +607,7 @@ const AspiranteView = () => {
           PesoKilogramos: response.data[0].PesoKilogramos || 0,
           AlturaMetros: response.data[0].AlturaMetros || 0,
           IdTipoEps: response.data[0].IdTipoEps || 1,
-          IdFondoPensiones: response.data[0].IdFondoPensiones || 6,
+          IdFondoPensiones: response.data[0].IdFondoPensiones || null,
           IdFondoCesantias: response.data[0].IdFondoCesantias || 1,
           DescripcionFormacionAcademica: response.data[0].DescripcionFormacionAcademica || '',
           IdNivelEducativo: response.data[0].IdNivelEducativo || 1,
@@ -775,7 +775,7 @@ const buildDireccionEstructurada = (p) => {
     PesoKilogramos: 0,
     AlturaMetros: 0,
     IdTipoEps: 1,
-    IdFondoPensiones: 6,
+    IdFondoPensiones: null,
     IdFondoCesantias: 1,
     DescripcionFormacionAcademica: '',
     IdNivelEducativo: 1,
@@ -1198,6 +1198,7 @@ const handleTelEmergenciaChange = (e) => {
       { campo: formData.ContactoEmergencia, nombre: 'Nombre contacto de emergencia' },
       { campo: formData.TelefonoContactoEmergencia, nombre: 'Teléfono de emergencia' },
       { campo: formData.IdTipoEps, nombre: 'EPS' },
+      { campo: !formData.IdFondoPensiones || Number(formData.IdFondoPensiones) === 6 ? null : formData.IdFondoPensiones, nombre: 'Fondo de Pensiones' },
       { campo: formData.PesoKilogramos, nombre: 'Peso' },
       { campo: formData.AlturaMetros, nombre: 'Altura' },
       { campo: formData.IdNivelEducativo, nombre: 'Nivel educativo' },
@@ -2666,8 +2667,8 @@ const tieneFirmaCargada = () => {
                   <Select
                     value={
                       formData.IdFondoPensiones !== undefined && formData.IdFondoPensiones !== null
-                        ? String(formData.IdFondoPensiones)
-                        : '6'
+                        ? (Number(formData.IdFondoPensiones) === 6 ? '' : String(formData.IdFondoPensiones))
+                        : ''
                     }
                     onValueChange={(v) =>
                       handleSelectChange('IdFondoPensiones', parseInt(v, 10))
@@ -2677,7 +2678,6 @@ const tieneFirmaCargada = () => {
                       <SelectValue placeholder="Seleccionar Fondo de Pensiones" />
                     </SelectTrigger>
                     <SelectContent className="max-h-60 overflow-y-auto">
-                      <SelectItem value="6">SIN DEFINIR</SelectItem>
                       <SelectItem value="1">Colfondos</SelectItem>
                       <SelectItem value="2">Colpensiones</SelectItem>
                       <SelectItem value="3">Horizontes</SelectItem>
