@@ -590,6 +590,9 @@ const Sidebar = ({
                 ? [{
                     to: "/salidas-no-conformes/general",
                     label: "Salidas No Conformes General",
+                  }, {
+                     to: "/pqrf/general",
+                     label: "PQRF General",
                   }]
                 : []),
             ],

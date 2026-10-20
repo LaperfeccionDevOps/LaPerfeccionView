@@ -46,6 +46,7 @@ import PanelGerencialRRLLView from "@/components/PanelGerencialRRLLView";
 import SalidasNoConformesView from "@/components/SalidasNoConformesView";
 import SalidasNoConformesGeneralView from "@/components/SalidasNoConformesGeneralView";
 import PQRFView from "@/components/PQRFView";
+import PQRFGeneralView from "@/components/PQRFGeneralView";
 
 
 const RoleBasedRedirect = () => {
@@ -460,6 +461,16 @@ function App() {
           <Route
             path="pqrf"
             element={<PQRFView />}
+          />
+
+          {/* PQRF GENERAL: solo SUPERADMIN */}
+          <Route
+            path="pqrf/general"
+            element={
+              <SuperAdminOnlyRoute>
+                <PQRFGeneralView />
+              </SuperAdminOnlyRoute>
+            }
           />
 
           {/* SALIDAS NO CONFORMES */}
