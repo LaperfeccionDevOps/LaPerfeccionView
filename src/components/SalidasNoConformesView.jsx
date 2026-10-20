@@ -18,7 +18,6 @@ const formularioInicial = () => ({
   fecha: fechaLocal(),
   proceso: "",
   descripcion: "",
-  impacto: "",
   areaResponsable: "",
   responsableGestion: "",
   correoRemitente: "",
@@ -124,7 +123,11 @@ const SalidasNoConformesView = () => {
             procesos: datos[0].map(({ id, nombre }) => ({ id, nombre })),
             areas: datos[1].map(({ id, nombre }) => ({ id, nombre })),
             correos: datos[2].map(({ id, correo }) => ({ id, nombre: correo })),
-            responsables: datos[3].map(({ id, nombre }) => ({ id, nombre })),
+            responsables: datos[3]
+              .map(({ id, nombre, id_correo_snc }) => ({ id, nombre, id_correo_snc }))
+              .sort((a, b) => String(a.nombre || "").localeCompare(
+                String(b.nombre || ""), "es", { sensitivity: "base" }
+              )),
           });
         }
       } catch (error) {
@@ -463,6 +466,25 @@ const SalidasNoConformesView = () => {
     setExitoRegistro("");
   };
 
+  // El correo remitente corresponde al responsable elegido en el catálogo de QA.
+  // No se infiere por el nombre ni por el usuario que inició sesión.
+  const seleccionarResponsable = (idResponsable) => {
+    const responsable = catalogos.responsables.find(
+      (item) => String(item.id) === String(idResponsable)
+    );
+    const idCorreo = responsable?.id_correo_snc;
+    const correoDisponible = catalogos.correos.some(
+      (item) => String(item.id) === String(idCorreo)
+    );
+    setFormulario((anterior) => ({
+      ...anterior,
+      responsableGestion: idResponsable,
+      correoRemitente: idCorreo != null && correoDisponible ? String(idCorreo) : "",
+    }));
+    setErrorRegistro("");
+    setExitoRegistro("");
+  };
+
   const registrarSNC = async () => {
     if (envioEnCurso.current || guardando || cargandoCatalogos || errorCatalogos) return;
     setErrorRegistro("");
@@ -470,12 +492,23 @@ const SalidasNoConformesView = () => {
 
     const camposRequeridos = [
       formulario.fecha, formulario.proceso, formulario.descripcion.trim(),
-      formulario.impacto.trim(), formulario.areaResponsable,
+      formulario.areaResponsable,
       formulario.responsableGestion, formulario.correoRemitente,
       formulario.correoDestinatario,
     ];
     if (camposRequeridos.some((valor) => !valor)) {
       setErrorRegistro("Complete todos los campos obligatorios antes de registrar la SNC.");
+      return;
+    }
+
+    // Evita registrar un remitente distinto al asociado al responsable.
+    const responsableSeleccionado = catalogos.responsables.find(
+      (item) => String(item.id) === String(formulario.responsableGestion)
+    );
+    if (!responsableSeleccionado?.id_correo_snc ||
+        String(responsableSeleccionado.id_correo_snc) !== String(formulario.correoRemitente) ||
+        !catalogos.correos.some((item) => String(item.id) === String(formulario.correoRemitente))) {
+      setErrorRegistro("El responsable no tiene un correo remitente activo asociado. Verifique el catálogo SNC en QA.");
       return;
     }
 
@@ -489,7 +522,9 @@ const SalidasNoConformesView = () => {
       fecha_snc: formulario.fecha,
       id_proceso_snc: Number(formulario.proceso),
       descripcion: formulario.descripcion.trim(),
-      impacto: formulario.impacto.trim(),
+      // Compatibilidad temporal: el backend existente puede requerir esta propiedad.
+      // No se solicita ni se inventa un impacto al usuario.
+      impacto: "",
       id_area_responsable_snc: Number(formulario.areaResponsable),
       id_responsable_snc: Number(formulario.responsableGestion),
       id_correo_remitente: Number(formulario.correoRemitente),
@@ -608,24 +643,18 @@ const SalidasNoConformesView = () => {
                     placeholder="Describa la salida no conforme..." className={clasesInput} />
                 </Campo>
               </div>
-              <div className="md:col-span-2">
-                <Campo titulo="Impacto">
-                  <textarea rows={3} value={formulario.impacto} disabled={guardando}
-                    onChange={(e) => actualizar("impacto", e.target.value)}
-                    placeholder="Describa el impacto identificado..." className={clasesInput} />
-                </Campo>
-              </div>
               <Campo titulo="Área responsable de gestionar la SNC">
                 <Selector disabled={controlesDeshabilitados} opciones={catalogos.areas}
                   value={formulario.areaResponsable} onChange={(valor) => actualizar("areaResponsable", valor)} />
               </Campo>
               <Campo titulo="Responsable de gestionar la SNC">
                 <Selector disabled={controlesDeshabilitados} opciones={catalogos.responsables}
-                  value={formulario.responsableGestion} onChange={(valor) => actualizar("responsableGestion", valor)} />
+                  value={formulario.responsableGestion} onChange={seleccionarResponsable} />
               </Campo>
               <Campo titulo="Correo remitente">
-                <Selector disabled={controlesDeshabilitados} opciones={catalogos.correos}
-                  value={formulario.correoRemitente} onChange={(valor) => actualizar("correoRemitente", valor)} />
+                <Selector disabled opciones={catalogos.correos}
+                  value={formulario.correoRemitente} onChange={() => {}}
+                   placeholder="Seleccione primero un responsable" />
               </Campo>
               <Campo titulo="Correo destinatario">
                 <Selector disabled={controlesDeshabilitados} opciones={catalogos.correos}
@@ -683,10 +712,6 @@ const SalidasNoConformesView = () => {
               <div className="sm:col-span-2">
                 <p className="text-sm font-semibold text-gray-700">Descripción</p>
                 <p className="mt-1 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-sm text-gray-800">{detalleSNC.descripcion}</p>
-              </div>
-              <div className="sm:col-span-2">
-                <p className="text-sm font-semibold text-gray-700">Impacto</p>
-                <p className="mt-1 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-sm text-gray-800">{detalleSNC.impacto}</p>
               </div>
             </div>
             {["RESPONDIDO", "CERRADO"].includes(String(detalleSNC.estado).toUpperCase()) && (
