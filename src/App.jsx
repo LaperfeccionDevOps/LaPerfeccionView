@@ -46,6 +46,8 @@ import IndicadoresNominaView from "@/components/IndicadoresNominaView";
 import PanelGerencialRRLLView from "@/components/PanelGerencialRRLLView";
 import SalidasNoConformesView from "@/components/SalidasNoConformesView";
 import SalidasNoConformesGeneralView from "@/components/SalidasNoConformesGeneralView";
+import PQRFView from "@/components/PQRFView";
+import PQRFGeneralView from "@/components/PQRFGeneralView";
 
 
 // Los administrativos sin permisos operativos usan exclusivamente Gestión SNC.
@@ -474,6 +476,22 @@ function App() {
           <Route
             path="nomina-carpeta-digital"
             element={<ArchivosView />}
+          />
+
+          {/* PQRF */}
+          <Route
+            path="pqrf"
+            element={<PQRFView />}
+          />
+
+          {/* PQRF GENERAL: solo SUPERADMIN */}
+          <Route
+            path="pqrf/general"
+            element={
+              <SuperAdminOnlyRoute>
+                <PQRFGeneralView />
+              </SuperAdminOnlyRoute>
+            }
           />
 
           {/* SALIDAS NO CONFORMES */}
