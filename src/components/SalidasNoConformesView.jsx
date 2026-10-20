@@ -1,21 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ClipboardList, PlusCircle, Send, Inbox, FileText, CheckCircle2, AlertCircle, X, RefreshCw, Eye, ChevronLeft, ChevronRight } from "lucide-react";
+import { ClipboardList, PlusCircle, Send, Inbox, FileText, CheckCircle2, AlertCircle, X, RefreshCw, Eye, ChevronLeft, ChevronRight, Paperclip, Download, Trash2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 // Mantiene el mismo convenio de URL del módulo: VITE_API_BASE_URL incluye /api.
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
 const SNC_BASE_URL = `${API_BASE_URL}/salidas-no-conformes`;
 
-const fechaLocal = () => {
-  const ahora = new Date();
-  const anio = ahora.getFullYear();
-  const mes = String(ahora.getMonth() + 1).padStart(2, "0");
-  const dia = String(ahora.getDate()).padStart(2, "0");
-  return `${anio}-${mes}-${dia}`;
-};
-
 const formularioInicial = () => ({
-  fecha: fechaLocal(),
+  fecha: "",
   proceso: "",
   descripcion: "",
   areaResponsable: "",
@@ -74,6 +66,12 @@ const SalidasNoConformesView = () => {
   const [planAccion, setPlanAccion] = useState("");
   const [enviandoRespuesta, setEnviandoRespuesta] = useState(false);
   const respuestaEnCurso = useRef(false);
+  const [archivosRespuesta, setArchivosRespuesta] = useState([]);
+  const [evidencias, setEvidencias] = useState([]);
+  const [cargandoEvidencias, setCargandoEvidencias] = useState(false);
+  const [errorEvidencias, setErrorEvidencias] = useState("");
+  const [descargandoAdjunto, setDescargandoAdjunto] = useState(null);
+  const inputArchivosRef = useRef(null);
   const [errorRespuesta, setErrorRespuesta] = useState("");
   const [exitoRespuesta, setExitoRespuesta] = useState("");
   const [respuestaRegistrada, setRespuestaRegistrada] = useState(null);
@@ -123,8 +121,16 @@ const SalidasNoConformesView = () => {
             procesos: datos[0].map(({ id, nombre }) => ({ id, nombre })),
             areas: datos[1].map(({ id, nombre }) => ({ id, nombre })),
             correos: datos[2].map(({ id, correo }) => ({ id, nombre: correo })),
+            // Conservamos los datos del responsable; algunos endpoints devuelven
+            // el vínculo con el correo en PascalCase o camelCase.
             responsables: datos[3]
-              .map(({ id, nombre, id_correo_snc }) => ({ id, nombre, id_correo_snc }))
+              .map((item) => ({
+                ...item,
+                id: item.id ?? item.IdResponsableSNC,
+                nombre: item.nombre ?? item.NombreResponsable,
+                id_correo_snc: item.id_correo_snc ?? item.idCorreoSNC ?? item.IdCorreoSNC ?? null,
+                correo_asociado: item.correo_asociado ?? item.correo ?? item.Correo ?? null,
+              }))
               .sort((a, b) => String(a.nombre || "").localeCompare(
                 String(b.nombre || ""), "es", { sensitivity: "base" }
               )),
@@ -194,6 +200,10 @@ const SalidasNoConformesView = () => {
     setDetalleSNC(snc);
     setAnalisisCausa("");
     setPlanAccion("");
+    setArchivosRespuesta([]);
+    setEvidencias([]);
+    setErrorEvidencias("");
+    if (inputArchivosRef.current) inputArchivosRef.current.value = "";
     setErrorRespuesta("");
     setExitoRespuesta("");
     setRespuestaRegistrada(null);
@@ -206,6 +216,87 @@ const SalidasNoConformesView = () => {
     if (respuestaEnCurso.current || cierreEnCurso.current) return;
     setDetalleSNC(null);
     setOrigenDetalle(null);
+  };
+
+  // Consulta de evidencias: el backend verifica los permisos del usuario autenticado.
+  useEffect(() => {
+    if (!detalleSNC?.id || !["RESPONDIDO", "CERRADO"].includes(String(detalleSNC.estado).toUpperCase())) return;
+    const controlador = new AbortController();
+    const consultarEvidencias = async () => {
+      setCargandoEvidencias(true);
+      setErrorEvidencias("");
+      const token = localStorage.getItem("token") || user?.token;
+      if (!token) {
+        setErrorEvidencias("No se encontró una sesión válida.");
+        setCargandoEvidencias(false);
+        return;
+      }
+      try {
+        const respuesta = await fetch(`${SNC_BASE_URL}/${detalleSNC.id}/evidencias`, {
+          headers: { Authorization: `Bearer ${token}` }, signal: controlador.signal,
+        });
+        const datos = await respuesta.json().catch(() => null);
+        if (!respuesta.ok) throw new Error(typeof datos?.detail === "string" ? datos.detail : `No se pudieron consultar las evidencias (HTTP ${respuesta.status}).`);
+        if (!Array.isArray(datos)) throw new Error("Formato inesperado de evidencias.");
+        if (!controlador.signal.aborted) setEvidencias(datos);
+      } catch (error) {
+        if (!controlador.signal.aborted) setErrorEvidencias(error.message || "Error al consultar evidencias.");
+      } finally {
+        if (!controlador.signal.aborted) setCargandoEvidencias(false);
+      }
+    };
+    consultarEvidencias();
+    return () => controlador.abort();
+  }, [detalleSNC?.id, detalleSNC?.estado, user?.token]);
+
+  const descargarEvidencia = async (adjunto) => {
+    if (descargandoAdjunto != null) return;
+    const token = localStorage.getItem("token") || user?.token;
+    if (!token) { setErrorEvidencias("No se encontró una sesión válida."); return; }
+    setDescargandoAdjunto(adjunto.id);
+    setErrorEvidencias("");
+    try {
+      const respuesta = await fetch(`${SNC_BASE_URL}/evidencias/${adjunto.id}/descargar`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!respuesta.ok) {
+        const datos = await respuesta.json().catch(() => null);
+        throw new Error(typeof datos?.detail === "string" ? datos.detail : `No se pudo descargar el archivo (HTTP ${respuesta.status}).`);
+      }
+      const archivo = await respuesta.blob();
+      const url = URL.createObjectURL(archivo);
+      const enlace = document.createElement("a");
+      enlace.href = url;
+      enlace.download = String(adjunto.nombre || "evidencia").replace(/[\\/]/g, "_");
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (error) {
+      setErrorEvidencias(error.message || "No fue posible descargar la evidencia.");
+    } finally {
+      setDescargandoAdjunto(null);
+    }
+  };
+
+  const seleccionarArchivosRespuesta = (evento) => {
+    const nuevos = Array.from(evento.target.files || []);
+    evento.target.value = "";
+    if (!nuevos.length) return;
+    const permitidos = new Set(["pdf", "png", "jpg", "jpeg", "webp", "doc", "docx", "xls", "xlsx", "csv", "mp3", "wav", "m4a", "ogg", "mp4", "mov", "webm"]);
+    const seleccion = [...archivosRespuesta, ...nuevos];
+    if (seleccion.length > 5) { setErrorRespuesta("Puede adjuntar máximo 5 evidencias por respuesta."); return; }
+    let total = 0;
+    for (const archivo of seleccion) {
+      const extension = archivo.name.split(".").pop()?.toLowerCase();
+      if (!permitidos.has(extension)) { setErrorRespuesta(`Formato no permitido: ${archivo.name}`); return; }
+      const maximo = ["mp4", "mov", "webm"].includes(extension) ? 100 * 1024 * 1024 : 20 * 1024 * 1024;
+      if (archivo.size <= 0 || archivo.size > maximo) { setErrorRespuesta(`Tamaño no permitido: ${archivo.name}`); return; }
+      total += archivo.size;
+    }
+    if (total > 150 * 1024 * 1024) { setErrorRespuesta("Las evidencias no pueden superar 150 MB en total."); return; }
+    setArchivosRespuesta(seleccion);
+    setErrorRespuesta("");
   };
 
   // Una SNC respondida se consulta en el backend, sin depender de datos de la bandeja.
@@ -261,10 +352,14 @@ const SalidasNoConformesView = () => {
     respuestaEnCurso.current = true;
     setEnviandoRespuesta(true);
     try {
-      const res = await fetch(`${SNC_BASE_URL}/${detalleSNC.id}/responder`, {
+      const cuerpo = new FormData();
+      cuerpo.append("analisis_causa", analisis);
+      cuerpo.append("plan_accion", plan);
+      archivosRespuesta.forEach((archivo) => cuerpo.append("archivos", archivo));
+      const res = await fetch(`${SNC_BASE_URL}/${detalleSNC.id}/responder-con-evidencias`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ analisis_causa: analisis, plan_accion: plan }),
+        headers: { Authorization: `Bearer ${token}` },
+        body: cuerpo,
       });
       const datos = await res.json().catch(() => null);
       if (!res.ok) {
@@ -279,12 +374,13 @@ const SalidasNoConformesView = () => {
         throw new Error("El servidor no confirmó la respuesta. Verifique el estado antes de reintentar.");
       }
       setRespuestaRegistrada({ analisis_causa: analisis, plan_accion: plan });
+      setArchivosRespuesta([]);
       setDetalleSNC((anterior) => anterior?.id === detalleSNC.id ? { ...anterior, estado: "RESPONDIDO" } : anterior);
       setBandejas((anterior) => ({
         registradas: anterior.registradas.map((snc) => snc.id === detalleSNC.id ? { ...snc, estado: "RESPONDIDO" } : snc),
         asignadas: anterior.asignadas.map((snc) => snc.id === detalleSNC.id ? { ...snc, estado: "RESPONDIDO" } : snc),
       }));
-      setExitoRespuesta(`SNC N.º ${detalleSNC.id} respondida correctamente. El estado cambió a RESPONDIDO.`);
+      setExitoRespuesta(`SNC N.º ${detalleSNC.id} respondida correctamente. El estado cambió a RESPONDIDO. Evidencias registradas: ${Number(datos.evidencias ?? 0)}.`);
       setRecargarBandeja((v) => v + 1);
     } catch (error) {
       setErrorRespuesta(error instanceof TypeError
@@ -472,14 +568,23 @@ const SalidasNoConformesView = () => {
     const responsable = catalogos.responsables.find(
       (item) => String(item.id) === String(idResponsable)
     );
-    const idCorreo = responsable?.id_correo_snc;
-    const correoDisponible = catalogos.correos.some(
-      (item) => String(item.id) === String(idCorreo)
+    // Primero se usa el ID real de la relación en la BD. Si el endpoint
+    // devuelve el correo textual, se localiza su ID en el catálogo activo.
+    const correoPorId = catalogos.correos.find(
+      (item) => responsable?.id_correo_snc != null &&
+        String(item.id) === String(responsable.id_correo_snc)
     );
+    const correoPorDireccion = !correoPorId && responsable?.correo_asociado
+      ? catalogos.correos.find((item) =>
+          String(item.nombre || "").trim().toLowerCase() ===
+          String(responsable.correo_asociado).trim().toLowerCase()
+        )
+      : null;
+    const idCorreo = correoPorId?.id ?? correoPorDireccion?.id ?? null;
     setFormulario((anterior) => ({
       ...anterior,
       responsableGestion: idResponsable,
-      correoRemitente: idCorreo != null && correoDisponible ? String(idCorreo) : "",
+      correoRemitente: idCorreo != null ? String(idCorreo) : "",
     }));
     setErrorRegistro("");
     setExitoRegistro("");
@@ -505,9 +610,17 @@ const SalidasNoConformesView = () => {
     const responsableSeleccionado = catalogos.responsables.find(
       (item) => String(item.id) === String(formulario.responsableGestion)
     );
-    if (!responsableSeleccionado?.id_correo_snc ||
-        String(responsableSeleccionado.id_correo_snc) !== String(formulario.correoRemitente) ||
-        !catalogos.correos.some((item) => String(item.id) === String(formulario.correoRemitente))) {
+    const correoRemitenteSeleccionado = catalogos.correos.find(
+      (item) => String(item.id) === String(formulario.correoRemitente)
+    );
+    const correoVinculado = correoRemitenteSeleccionado && (
+      (responsableSeleccionado?.id_correo_snc != null &&
+        String(responsableSeleccionado.id_correo_snc) === String(correoRemitenteSeleccionado.id)) ||
+      (responsableSeleccionado?.correo_asociado &&
+        String(responsableSeleccionado.correo_asociado).trim().toLowerCase() ===
+        String(correoRemitenteSeleccionado.nombre).trim().toLowerCase())
+    );
+    if (!correoVinculado) {
       setErrorRegistro("El responsable no tiene un correo remitente activo asociado. Verifique el catálogo SNC en QA.");
       return;
     }
@@ -622,10 +735,24 @@ const SalidasNoConformesView = () => {
               <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{errorCatalogos}</p>
             )}
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <Campo titulo="Fecha del SNC interno">
-                <input type="date" value={formulario.fecha} disabled={guardando}
-                  onChange={(e) => actualizar("fecha", e.target.value)} className={clasesInput} />
-              </Campo>
+              <div className="space-y-2">
+                <Campo titulo="Fecha de la Salida No Conforme">
+                  <input type="date" value={formulario.fecha} disabled={guardando} required
+                    aria-describedby="snc-aviso-fecha"
+                    onChange={(e) => actualizar("fecha", e.target.value)}
+                    className={`${clasesInput} ${!formulario.fecha ? "border-amber-300" : ""}`} />
+                </Campo>
+                <div id="snc-aviso-fecha" className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-red-800">
+                  <AlertCircle size={19} className="mt-0.5 shrink-0 text-red-600" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold">¡Atención! Verifique la fecha de la novedad</p>
+                    <p className="mt-1 text-xs leading-relaxed sm:text-sm">
+                      Seleccione la <strong>fecha exacta en que ocurrió la Salida No Conforme</strong>,
+                      no la fecha en que está diligenciando el formulario.
+                    </p>
+                  </div>
+                </div>
+              </div>
               <Campo titulo="Responsable de diligenciar la SNC">
                 <input value={user?.name || "Usuario autenticado"} readOnly
                   className={`${clasesInput} bg-gray-100`} />
@@ -654,7 +781,9 @@ const SalidasNoConformesView = () => {
               <Campo titulo="Correo remitente">
                 <Selector disabled opciones={catalogos.correos}
                   value={formulario.correoRemitente} onChange={() => {}}
-                   placeholder="Seleccione primero un responsable" />
+                  placeholder={formulario.responsableGestion
+                    ? "Responsable sin correo vinculado en el catálogo API"
+                    : "Seleccione primero un responsable"} />
               </Campo>
               <Campo titulo="Correo destinatario">
                 <Selector disabled={controlesDeshabilitados} opciones={catalogos.correos}
@@ -733,6 +862,23 @@ const SalidasNoConformesView = () => {
                 )}
               </section>
             )}
+            {["RESPONDIDO", "CERRADO"].includes(String(detalleSNC.estado).toUpperCase()) && (
+              <section className="mt-6 space-y-3 border-t pt-5" aria-label="Evidencias de la SNC">
+                <h4 className="text-base font-bold text-emerald-800">Evidencias adjuntas</h4>
+                {cargandoEvidencias && <p className="text-sm text-gray-500">Consultando evidencias...</p>}
+                {errorEvidencias && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{errorEvidencias}</p>}
+                {!cargandoEvidencias && !errorEvidencias && evidencias.length === 0 && <p className="text-sm text-gray-500">Esta SNC no tiene evidencias adjuntas.</p>}
+                {evidencias.map((adjunto) => (
+                  <div key={adjunto.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+                    <span className="min-w-0 break-all text-sm"><Paperclip size={15} className="mr-1 inline" />{adjunto.nombre}</span>
+                    <button type="button" disabled={descargandoAdjunto != null} onClick={() => descargarEvidencia(adjunto)}
+                      className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50">
+                      <Download size={15} />{descargandoAdjunto === adjunto.id ? "Descargando..." : "Descargar"}
+                    </button>
+                  </div>
+                ))}
+              </section>
+            )}
             {origenDetalle === "asignadas" && String(detalleSNC.estado).toUpperCase() === "ABIERTO" && !detalleSNC.asignacion_pendiente && (
               <section className="mt-6 space-y-4 border-t pt-5" aria-label="Responder salida no conforme">
                 <h4 className="text-base font-bold text-gray-800">Responder salida no conforme</h4>
@@ -747,6 +893,23 @@ const SalidasNoConformesView = () => {
                   <textarea id="snc-plan-accion" rows={4} maxLength={10000} required disabled={enviandoRespuesta}
                     value={planAccion} onChange={(e) => { setPlanAccion(e.target.value); setErrorRespuesta(""); }}
                     placeholder="Indique a qué se compromete y cómo dará cumplimiento..." className={clasesInput} />
+                </div>
+                <div>
+                  <label htmlFor="snc-archivos" className="mb-2 block text-sm font-semibold text-gray-700">Evidencias (opcional, máximo 5 archivos)</label>
+                  <input id="snc-archivos" ref={inputArchivosRef} type="file" multiple
+                    accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx,.csv,.mp3,.wav,.m4a,.ogg,.mp4,.mov,.webm"
+                    disabled={enviandoRespuesta || archivosRespuesta.length >= 5}
+                    onChange={seleccionarArchivosRespuesta}
+                    className="block w-full rounded-lg border border-gray-300 p-2 text-sm" />
+                  <p className="mt-1 text-xs text-gray-500">Documentos, imágenes, audios y videos. Hasta 20 MB por archivo, o 100 MB por video; máximo 150 MB en total.</p>
+                  {archivosRespuesta.map((archivo, indice) => (
+                    <div key={`${archivo.name}-${indice}`} className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-gray-50 p-2 text-sm">
+                      <span className="min-w-0 break-all"><Paperclip size={14} className="mr-1 inline" />{archivo.name} ({(archivo.size / 1024 / 1024).toFixed(2)} MB)</span>
+                      <button type="button" aria-label={`Quitar ${archivo.name}`} disabled={enviandoRespuesta}
+                        onClick={() => setArchivosRespuesta((anterior) => anterior.filter((_, i) => i !== indice))}
+                        className="shrink-0 rounded p-1 text-red-600 hover:bg-red-50 disabled:opacity-50"><Trash2 size={16} /></button>
+                    </div>
+                  ))}
                 </div>
                 <button type="button" onClick={responderSNC} disabled={enviandoRespuesta || !analisisCausa.trim() || !planAccion.trim()}
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">
