@@ -27,6 +27,10 @@ import OperacionesRequisicionPersonalView from "@/components/OperacionesRequisic
 import ProcesosAbiertosOperacionesView from "@/pages/ProcesosAbiertosOperacionesView";
 import IniciarProcesoOperacionesView from "@/pages/IniciarProcesoOperacionesView";
 import RevisionProcesoOperacionesView from "@/pages/RevisionProcesoOperacionesView";
+import PermisosTrabajoAlturasView from "@/pages/PermisosTrabajoAlturasView";
+import CrearPermisoTrabajoAlturasView from "@/pages/CrearPermisoTrabajoAlturasView";
+import ConsultarPermisosTrabajoAlturasView from "@/pages/ConsultarPermisosTrabajoAlturasView";
+import DetallePermisoTrabajoAlturasView from "@/pages/DetallePermisoTrabajoAlturasView";
 
 import ProcesosDisciplinariosView from "@/pages/ProcesosDisciplinariosView";
 import IndicadoresProcesosDisciplinariosView from "@/pages/IndicadoresProcesosDisciplinariosView";
@@ -447,6 +451,42 @@ function App() {
                 permission="OPERACIONES_PROCESOS_DISCIPLINARIOS"
               >
                 <RevisionProcesoOperacionesView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
+            path="operaciones/alturas/permisos-trabajo"
+            element={
+              <OperationsPermissionRoute>
+                <PermisosTrabajoAlturasView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
+            path="operaciones/alturas/permisos-trabajo/crear"
+            element={
+              <OperationsPermissionRoute>
+                <CrearPermisoTrabajoAlturasView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
+            path="operaciones/alturas/permisos-trabajo/consultar"
+            element={
+              <OperationsPermissionRoute>
+                <ConsultarPermisosTrabajoAlturasView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
+            path="operaciones/alturas/permisos-trabajo/:idPermiso"
+            element={
+              <OperationsPermissionRoute>
+                <DetallePermisoTrabajoAlturasView />
               </OperationsPermissionRoute>
             }
           />

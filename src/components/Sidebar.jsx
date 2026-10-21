@@ -3,6 +3,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   ChevronDown,
   ChevronRight,
+  HardHat,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -254,6 +255,24 @@ const Sidebar = ({
                 "Relaciones Laborales",
                 "Talento Humano",
               ],
+            },
+          ],
+        },
+      ],
+    },
+    {
+      label: "Operaciones",
+      icon: HardHat,
+      roles: ["Operaciones", "Administrador", "Super Administrador"],
+      children: [
+        {
+          label: "Alturas",
+          roles: ["Operaciones", "Administrador", "Super Administrador"],
+          children: [
+            {
+              to: "/operaciones/alturas/permisos-trabajo",
+              label: "Permisos de Trabajo",
+              roles: ["Operaciones", "Administrador", "Super Administrador"],
             },
           ],
         },
@@ -567,6 +586,15 @@ const Sidebar = ({
         {
           to: "/archivos",
           label: "Consulta de Colaboradores",
+        },
+        {
+          label: "Alturas",
+          children: [
+            {
+              to: "/operaciones/alturas/permisos-trabajo",
+              label: "Permisos de Trabajo",
+            },
+          ],
         },
       ],
     },
