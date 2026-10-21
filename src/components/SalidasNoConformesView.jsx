@@ -562,7 +562,7 @@ const SalidasNoConformesView = () => {
     setExitoRegistro("");
   };
 
-  // El correo remitente corresponde al responsable elegido en el catálogo de QA.
+  // El correo remitente corresponde al responsable elegido en el catálogo del sistema.
   // No se infiere por el nombre ni por el usuario que inició sesión.
   const seleccionarResponsable = (idResponsable) => {
     const responsable = catalogos.responsables.find(
@@ -621,7 +621,7 @@ const SalidasNoConformesView = () => {
         String(correoRemitenteSeleccionado.nombre).trim().toLowerCase())
     );
     if (!correoVinculado) {
-      setErrorRegistro("El responsable no tiene un correo remitente activo asociado. Verifique el catálogo SNC en QA.");
+      setErrorRegistro("El responsable no tiene un correo remitente activo asociado. Verifique el catálogo SNC.");
       return;
     }
 
@@ -670,14 +670,14 @@ const SalidasNoConformesView = () => {
         throw new Error("El servidor respondió, pero no confirmó el identificador de la SNC. Verifique antes de intentar nuevamente.");
       }
       setExitoRegistro(
-        `SNC N.º ${datos.id} registrada correctamente en QA, estado ${datos.estado || "ABIERTO"}.` +
+        `SNC N.º ${datos.id} registrada correctamente. Estado: ${datos.estado || "ABIERTO"}.` +
         (datos.asignacion_pendiente ? " La vinculación del responsable con su usuario está pendiente." : "")
       );
       setFormulario(formularioInicial());
     } catch (error) {
       setErrorRegistro(
         error instanceof TypeError
-          ? "No se pudo confirmar la respuesta del servidor. Antes de reintentar, compruebe en QA si la SNC fue creada para evitar duplicados."
+          ? "No se pudo confirmar la respuesta del servidor. Antes de reintentar, compruebe si la SNC fue creada para evitar duplicados."
           : (error.message || "Ocurrió un error al registrar la SNC.")
       );
     } finally {
