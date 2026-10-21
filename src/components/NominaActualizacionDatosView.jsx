@@ -33,6 +33,7 @@ const VALORES_INICIALES = {
   NumeroWhatsapp: '',
   IdTipoEps: '',
   IdFondoPensiones: '',
+  IdCargo: '',
 };
 
 const MAPEO_CAMPO = {
@@ -45,6 +46,7 @@ const MAPEO_CAMPO = {
   NUMERO_WHATSAPP: 'NumeroWhatsapp',
   EPS: 'IdTipoEps',
   FONDO_PENSION: 'IdFondoPensiones',
+  CARGO: 'IdCargo',
 };
 
 const obtenerData = (respuesta) => {
@@ -134,6 +136,9 @@ const normalizarDetalle = (respuesta) => {
     IdTipoEps: obtenerValor(trabajador, ['IdTipoEps', 'idTipoEps'], '') ?? '',
     IdFondoPensiones:
       obtenerValor(trabajador, ['IdFondoPensiones', 'idFondoPensiones'], '') ?? '',
+    IdCargo: obtenerValor(trabajador, ['IdCargo', 'idCargo'], '') ?? '',
+    NombreCargo: obtenerValor(trabajador, ['NombreCargo', 'nombreCargo'], '') ?? '',
+    CantidadAsignacionesCargo: Number(obtenerValor(trabajador, ['CantidadAsignacionesCargo'], 0)),
   };
 };
 
@@ -156,6 +161,7 @@ const normalizarCatalogos = (respuesta) => {
       respuesta?.EPS ||
       respuesta?.eps ||
       [],
+    cargos: data.Cargos || data.cargos || respuesta?.Cargos || respuesta?.cargos || [],
     fondos:
       data.FondosPension ||
       data.FondosPensiones ||
@@ -211,6 +217,7 @@ const NominaActualizacionDatosView = () => {
     localidades: [],
     eps: [],
     fondos: [],
+    cargos: [],
   });
 
   const [busqueda, setBusqueda] = useState('');
@@ -407,11 +414,13 @@ const NominaActualizacionDatosView = () => {
         NumeroWhatsapp: detalle.NumeroWhatsapp,
         IdTipoEps: detalle.IdTipoEps,
         IdFondoPensiones: detalle.IdFondoPensiones,
+        // La selección de nuevo cargo siempre inicia vacía.
+        IdCargo: '',
       };
 
       setTrabajador(detalle);
       setFormulario(valores);
-      setOriginal(valores);
+      setOriginal({ ...valores, IdCargo: detalle.IdCargo });
       setResultados([]);
     } catch (err) {
       console.error('Error cargando trabajador:', err);
@@ -476,6 +485,14 @@ const NominaActualizacionDatosView = () => {
 
     comparar('IdTipoEps', 'number');
     comparar('IdFondoPensiones', 'number');
+    // El cargo es opcional: solo se envía si Nómina elige otro cargo.
+    if (formulario.IdCargo !== '' && formulario.IdCargo !== null && formulario.IdCargo !== undefined) {
+      const nuevoCargo = Number(formulario.IdCargo);
+      const cargoActual = valorComparable(original.IdCargo, 'number');
+      if (Number.isInteger(nuevoCargo) && nuevoCargo > 0 && nuevoCargo !== cargoActual) {
+        cambios.IdCargo = nuevoCargo;
+      }
+    }
 
     return cambios;
   }, [formulario, original]);
@@ -493,8 +510,13 @@ const NominaActualizacionDatosView = () => {
       return;
     }
 
-    if (['Nombres', 'Apellidos'].some((campo) => !String(formulario[campo] ?? '').trim())) {
-      setError('Los nombres y apellidos no pueden quedar vacíos.');
+    // Ningún campo se exige para guardar otros cambios.
+    // Solo se valida el contenido de nombres/apellidos si se modificaron.
+    if (['Nombres', 'Apellidos'].some((campo) =>
+      Object.prototype.hasOwnProperty.call(cambiosPendientes, campo) &&
+      !String(formulario[campo] ?? '').trim()
+    )) {
+      setError('Si modifica nombres o apellidos, no pueden quedar vacíos.');
       return;
     }
 
@@ -629,6 +651,36 @@ const NominaActualizacionDatosView = () => {
     const campoFormulario = MAPEO_CAMPO[codigo];
 
     if (!campoFormulario) return null;
+
+    if (codigo === 'CARGO') {
+      return (
+        <div key={codigo} className="space-y-3 md:col-span-2">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            <label className="block">
+              <span className="text-sm font-semibold text-gray-700">Cargo actual</span>
+              <Input value={trabajador?.NombreCargo || 'Sin asignación de cargo'} readOnly disabled className="mt-2 bg-gray-100 text-gray-600" />
+            </label>
+            <label className="block">
+              <span className="text-sm font-semibold text-gray-700">Nuevo cargo</span>
+              <select
+                value={formulario.IdCargo ?? ''}
+                onChange={(e) => actualizarCampo('IdCargo', e.target.value)}
+                disabled={soloLectura || guardando || trabajador?.CantidadAsignacionesCargo !== 1}
+                className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-emerald-500 disabled:bg-gray-100"
+              >
+                <option value="">Seleccione el nuevo cargo (opcional)</option>
+                {catalogos.cargos.map((item) => (
+                  <option key={item.IdCargo} value={item.IdCargo}>{item.NombreCargo}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {trabajador?.CantidadAsignacionesCargo !== 1 && (
+            <p className="text-xs text-amber-700">No se puede cambiar el cargo: el trabajador no tiene una asignación única. Solicita validación de su asignación vigente.</p>
+          )}
+        </div>
+      );
+    }
 
     if (codigo === 'LOCALIDAD') {
       return (
