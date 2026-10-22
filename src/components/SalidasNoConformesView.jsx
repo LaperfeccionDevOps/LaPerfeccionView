@@ -60,6 +60,7 @@ const SalidasNoConformesView = () => {
   const [errorBandeja, setErrorBandeja] = useState("");
   const [pagina, setPagina] = useState({ registradas: 0, asignadas: 0 });
   const [recargarBandeja, setRecargarBandeja] = useState(0);
+  const [contadores, setContadores] = useState({ registradas: null, asignadas: null });
   const [detalleSNC, setDetalleSNC] = useState(null);
   const [origenDetalle, setOrigenDetalle] = useState(null);
   const [analisisCausa, setAnalisisCausa] = useState("");
@@ -192,6 +193,71 @@ const SalidasNoConformesView = () => {
     cargar();
     return () => controlador.abort();
   }, [pestana, pagina.registradas, pagina.asignadas, recargarBandeja, user?.token]);
+
+  // Contadores personales: se consultan todas las páginas, no solo la página visible.
+  // El backend determina qué SNC pertenecen al usuario autenticado.
+  useEffect(() => {
+    const controlador = new AbortController();
+    const consultarContadores = async () => {
+      const token = localStorage.getItem("token") || user?.token;
+      if (!token) {
+        setContadores({ registradas: null, asignadas: null });
+        return;
+      }
+      const consultarTipo = async (tipo) => {
+        const ruta = tipo === "registradas" ? "mis-registradas" : "mis-asignadas";
+        let desplazamiento = 0;
+        let pendientes = 0;
+        const idsVistos = new Set();
+        while (!controlador.signal.aborted) {
+          const respuesta = await fetch(
+            `${SNC_BASE_URL}/${ruta}?limite=${LIMITE_BANDEJA}&desplazamiento=${desplazamiento}`,
+            { headers: { Authorization: `Bearer ${token}` }, signal: controlador.signal }
+          );
+          if (!respuesta.ok) throw new Error(`Error al consultar contador ${tipo}: HTTP ${respuesta.status}`);
+          const datos = await respuesta.json();
+          if (!Array.isArray(datos)) throw new Error(`Formato inesperado de contador ${tipo}`);
+          const cantidadAnterior = idsVistos.size;
+          for (const snc of datos) {
+            if (snc.id == null || idsVistos.has(String(snc.id))) continue;
+            idsVistos.add(String(snc.id));
+            const estado = String(snc.estado || "").trim().toUpperCase();
+            if (tipo === "registradas" ? ["ABIERTO", "RESPONDIDO"].includes(estado) : estado === "ABIERTO") {
+              pendientes += 1;
+            }
+          }
+          if (datos.length === LIMITE_BANDEJA && idsVistos.size === cantidadAnterior) {
+            throw new Error(`El servidor no avanzó la paginación de ${tipo}`);
+          }
+          if (datos.length < LIMITE_BANDEJA) break;
+          desplazamiento += LIMITE_BANDEJA;
+        }
+        return pendientes;
+      };
+      const resultados = await Promise.allSettled([consultarTipo("registradas"), consultarTipo("asignadas")]);
+      if (!controlador.signal.aborted) {
+        setContadores({
+          registradas: resultados[0].status === "fulfilled" ? resultados[0].value : null,
+          asignadas: resultados[1].status === "fulfilled" ? resultados[1].value : null,
+        });
+      }
+    };
+    consultarContadores();
+    return () => controlador.abort();
+  }, [recargarBandeja, user?.token]);
+
+  // El nombre del creador debe provenir del backend, nunca del usuario conectado.
+  const nombreCreadorSNC = (snc) => {
+    const posibles = [
+      snc.creado_por_nombre, snc.nombre_creador, snc.creador_nombre,
+      snc.usuario_creador_nombre, snc.nombre_usuario_creador,
+      snc.creado_por, snc.creador, snc.usuario_creador,
+      snc.nombre_registrador, snc.registrado_por, snc.responsable_diligenciar,
+      snc.nombre_responsable_diligenciar,
+    ];
+    const valor = posibles.find((v) => typeof v === "string" && v.trim() && !/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(v.trim()));
+    return valor?.trim() || "—";
+  };
 
   // El backend valida la identidad y la asignación real del usuario autenticado.
   // Nunca enviamos UUID de usuario desde el navegador.
@@ -502,7 +568,7 @@ const SalidasNoConformesView = () => {
                 <tr>
                   <th className="px-4 py-3">N.º</th>
                   <th className="px-4 py-3">Fecha SNC</th>
-                  <th className="px-4 py-3">Proceso</th>
+                  <th className="px-4 py-3">{esRegistradas ? "Proceso" : "Enviada por"}</th>
                   <th className="px-4 py-3">Responsable</th>
                   <th className="px-4 py-3">Estado</th>
                   <th className="px-4 py-3">Detalle</th>
@@ -513,7 +579,7 @@ const SalidasNoConformesView = () => {
                   <tr key={snc.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-semibold text-gray-800">{snc.id}</td>
                     <td className="whitespace-nowrap px-4 py-3">{formatoFecha(snc.fecha_snc)}</td>
-                    <td className="px-4 py-3">{snc.proceso || "—"}</td>
+                    <td className="px-4 py-3">{esRegistradas ? (snc.proceso || "—") : nombreCreadorSNC(snc)}</td>
                     <td className="px-4 py-3">
                       {snc.responsable || "—"}
                       {snc.asignacion_pendiente && (
@@ -674,6 +740,7 @@ const SalidasNoConformesView = () => {
         (datos.asignacion_pendiente ? " La vinculación del responsable con su usuario está pendiente." : "")
       );
       setFormulario(formularioInicial());
+      setRecargarBandeja((v) => v + 1);
     } catch (error) {
       setErrorRegistro(
         error instanceof TypeError
@@ -721,6 +788,13 @@ const SalidasNoConformesView = () => {
             >
               <Icono size={17} />
               {nombre}
+              {id !== "nueva" && contadores[id] !== null && (
+                <span className={`ml-1 inline-flex min-w-6 items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold ${
+                  pestana === id ? "bg-white text-emerald-800" : "bg-emerald-100 text-emerald-800"
+                }`} aria-label={`${contadores[id]} SNC pendientes`}>
+                  {contadores[id]}
+                </span>
+              )}
             </button>
           ))}
         </div>
