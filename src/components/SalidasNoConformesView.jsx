@@ -82,6 +82,48 @@ const SalidasNoConformesView = () => {
   const [consultandoRespuesta, setConsultandoRespuesta] = useState(false);
   const [errorConsultaRespuesta, setErrorConsultaRespuesta] = useState("");
   const LIMITE_BANDEJA = 20;
+  // Mismo contador oficial que utiliza Sidebar: solo SNC asignadas pendientes.
+  // No se calcula a partir de la página visible (la bandeja está paginada).
+  const [sncPendientes, setSncPendientes] = useState(null);
+
+  useEffect(() => {
+    const controlador = new AbortController();
+    let vigente = true;
+    const consultarPendientes = async () => {
+      const token = localStorage.getItem("token") || user?.token;
+      if (!token) { if (vigente) setSncPendientes(null); return; }
+      try {
+        const respuesta = await fetch(`${SNC_BASE_URL}/pendientes/contador`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controlador.signal,
+        });
+        if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
+        const datos = await respuesta.json();
+        const cantidad = Number(datos?.pendientes);
+        if (!Number.isFinite(cantidad) || cantidad < 0) throw new Error("Contador inválido");
+        if (vigente) setSncPendientes(Math.floor(cantidad));
+      } catch (error) {
+        if (vigente && !controlador.signal.aborted) setSncPendientes(null);
+      }
+    };
+    const actualizarAlVolver = () => {
+      if (document.visibilityState !== "hidden") consultarPendientes();
+    };
+    consultarPendientes();
+    const intervalo = window.setInterval(actualizarAlVolver, 45000);
+    window.addEventListener("focus", actualizarAlVolver);
+    window.addEventListener("snc-pqrf-actualizadas", actualizarAlVolver);
+    return () => {
+      vigente = false;
+      controlador.abort();
+      window.clearInterval(intervalo);
+      window.removeEventListener("focus", actualizarAlVolver);
+      window.removeEventListener("snc-pqrf-actualizadas", actualizarAlVolver);
+    };
+  }, [user?.token]);
+
+  const notificarCambioSNC = () => window.dispatchEvent(new Event("snc-pqrf-actualizadas"));
+
 
 
   useEffect(() => {
@@ -382,6 +424,7 @@ const SalidasNoConformesView = () => {
       }));
       setExitoRespuesta(`SNC N.º ${detalleSNC.id} respondida correctamente. El estado cambió a RESPONDIDO. Evidencias registradas: ${Number(datos.evidencias ?? 0)}.`);
       setRecargarBandeja((v) => v + 1);
+      notificarCambioSNC();
     } catch (error) {
       setErrorRespuesta(error instanceof TypeError
         ? "No se pudo confirmar la respuesta del servidor. Consulte el estado antes de intentar nuevamente para evitar duplicados."
@@ -433,6 +476,7 @@ const SalidasNoConformesView = () => {
       }));
       setExitoCierre(`SNC N.º ${detalleSNC.id} cerrada correctamente.`);
       setRecargarBandeja((v) => v + 1);
+      notificarCambioSNC();
     } catch (error) {
       setErrorCierre(error instanceof TypeError
         ? "No se pudo confirmar el cierre. Consulte el estado antes de reintentar para evitar operaciones duplicadas."
@@ -674,6 +718,7 @@ const SalidasNoConformesView = () => {
         (datos.asignacion_pendiente ? " La vinculación del responsable con su usuario está pendiente." : "")
       );
       setFormulario(formularioInicial());
+      notificarCambioSNC();
     } catch (error) {
       setErrorRegistro(
         error instanceof TypeError
@@ -721,6 +766,16 @@ const SalidasNoConformesView = () => {
             >
               <Icono size={17} />
               {nombre}
+              {id === "asignadas" && sncPendientes > 0 && (
+                <span
+                  aria-label={`${sncPendientes} SNC pendientes de gestionar`}
+                  className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
+                    pestana === id ? "bg-emerald-100 text-emerald-900" : "bg-emerald-100 text-emerald-800"
+                  }`}
+                >
+                  {sncPendientes}
+                </span>
+              )}
             </button>
           ))}
         </div>

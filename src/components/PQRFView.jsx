@@ -42,6 +42,7 @@ export default function PQRFView() {
   const [bandejas, setBandejas] = useState({ registradas: [], asignadas: [], delegadas: [] });
   const [pagina, setPagina] = useState({ registradas: 0, asignadas: 0, delegadas: 0 });
   const [recarga, setRecarga] = useState(0);
+  const [pendientesPQRF, setPendientesPQRF] = useState(0);
   const [cargandoBandeja, setCargandoBandeja] = useState(false);
   const [errorBandeja, setErrorBandeja] = useState("");
   const [detalle, setDetalle] = useState(null);
@@ -119,6 +120,35 @@ export default function PQRFView() {
     return () => ctrl.abort();
   }, [tab, pagina, recarga, solicitar]);
 
+  // El mismo endpoint alimenta la pestaña y el menú lateral.
+  useEffect(() => {
+    const ctrl = new AbortController();
+    const actualizarContador = async () => {
+      try {
+        const { data } = await solicitar("/pendientes/contador", { signal: ctrl.signal });
+        if (!ctrl.signal.aborted) setPendientesPQRF(Math.max(0, Number(data?.pendientes) || 0));
+      } catch (error) {
+        // Conserva el último dato conocido ante un fallo temporal de red.
+      }
+    };
+    actualizarContador();
+    const alVolver = () => { if (document.visibilityState === "visible") actualizarContador(); };
+    window.addEventListener("focus", alVolver);
+    window.addEventListener("snc-pqrf-actualizadas", actualizarContador);
+    const intervalo = window.setInterval(alVolver, 45000);
+    return () => {
+      ctrl.abort();
+      window.removeEventListener("focus", alVolver);
+      window.removeEventListener("snc-pqrf-actualizadas", actualizarContador);
+      window.clearInterval(intervalo);
+    };
+  }, [solicitar, recarga]);
+
+  const notificarCambioPQRF = () => {
+    setRecarga(v => v + 1);
+    window.dispatchEvent(new Event("snc-pqrf-actualizadas"));
+  };
+
   const cambiar = (campo, valor) => setForm(v => ({ ...v, [campo]: valor }));
   const registrar = async (e) => {
     e.preventDefault();
@@ -131,7 +161,7 @@ export default function PQRFView() {
       const body = { id_tipo_pqrf: Number(form.tipo), correo_remitente: form.correo.trim(), nombre_remitente: form.nombre.trim(), id_cliente: Number(form.cliente), descripcion_pqrf: form.descripcion.trim(), id_proceso_pqrf: Number(form.proceso), id_correo_pqrf: Number(form.destinatario) };
       const { data, status } = await solicitar("", { method: "POST", body: JSON.stringify(body) });
       if (status !== 201 || !data?.id || data.estado !== "ABIERTA") throw new Error("El servidor no confirmó el registro. Verifique la bandeja antes de reintentar.");
-      setForm(initial()); setBusquedaCliente(""); setClienteElegido(""); setListaClientesAbierta(false); setRecarga(v => v+1);
+      setForm(initial()); setBusquedaCliente(""); setClienteElegido(""); setListaClientesAbierta(false); notificarCambioPQRF();
       setAviso({ ok: true, texto: `PQRF N.º ${data.id} registrada correctamente. Estado: ABIERTA.` });
     } catch (e) { setAviso({ ok: false, texto: e instanceof TypeError ? "No se confirmó la operación. Consulte la bandeja antes de reintentar para evitar duplicados." : e.message }); }
     finally { envioRef.current = false; setGuardando(false); }
@@ -198,7 +228,7 @@ export default function PQRFView() {
         x.id === detalle.id ? { ...x, id_usuario_responsable: data.id_usuario_responsable, usuario_responsable: nuevo } : x)])));
       setUsuarioDestino(""); setMotivoReasignacion(""); setAnalisis(""); setRespuesta(""); setAcciones("");
       setMensajeDetalle(`PQRF N.º ${detalle.id} reasignada correctamente a ${nuevo}.`);
-      setRecarga(v => v + 1);
+      notificarCambioPQRF();
       await consultarDetalle(detalle.id);
     } catch (e) {
       setErrorAccion(e instanceof TypeError ? "No se confirmó la operación. Revise el historial antes de reintentar." : e.message);
@@ -223,7 +253,7 @@ export default function PQRFView() {
       setDetalle(v => ({ ...v, estado: esperado }));
       setBandejas(v => Object.fromEntries(Object.entries(v).map(([k, lista]) => [k, lista.map(x => x.id === detalle.id ? { ...x, estado: esperado } : x)])));
       setMensajeDetalle(`PQRF N.º ${detalle.id}: ${esperado}.`);
-      setRecarga(v => v+1);
+      notificarCambioPQRF();
       await consultarDetalle(detalle.id);
     } catch (e) { setErrorAccion(e instanceof TypeError ? "No se confirmó la operación. Revise el historial antes de reintentar." : e.message); }
     finally { ref.current = false; setProcesando(false); }
@@ -233,7 +263,7 @@ export default function PQRFView() {
 
   return <div className="min-h-screen bg-gray-50 p-4 md:p-6"><div className="mx-auto max-w-6xl space-y-6">
     <header className="rounded-xl border bg-white p-6 shadow-sm"><div className="flex items-center gap-3"><ClipboardList className="text-emerald-700" size={36}/><div><h1 className="text-2xl font-bold text-gray-800">PQRF</h1><p className="text-sm text-gray-500">Peticiones, Quejas, Reclamos y Felicitaciones</p></div></div></header>
-    <nav className="flex flex-wrap gap-2">{[["nueva", "Nueva PQRF", PlusCircle], ["registradas", "Mis PQRF registradas", FileText], ["asignadas", "PQRF asignadas", Inbox], ["delegadas", "PQRF delegadas", FileText]].map(([id, nombre, Icon]) => <button key={id} type="button" onClick={() => setTab(id)} className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold ${tab === id ? "bg-emerald-700 text-white" : "border bg-white text-gray-700 hover:bg-gray-100"}`}><Icon size={17}/>{nombre}</button>)}</nav>
+    <nav className="flex flex-wrap gap-2">{[["nueva", "Nueva PQRF", PlusCircle], ["registradas", "Mis PQRF registradas", FileText], ["asignadas", "PQRF asignadas", Inbox], ["delegadas", "PQRF delegadas", FileText]].map(([id, nombre, Icon]) => <button key={id} type="button" onClick={() => setTab(id)} className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold ${tab === id ? "bg-emerald-700 text-white" : "border bg-white text-gray-700 hover:bg-gray-100"}`}><Icon size={17}/>{nombre}{id === "asignadas" && pendientesPQRF > 0 && <span className={`ml-1 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-bold ${tab === id ? "bg-emerald-100 text-emerald-900" : "bg-emerald-100 text-emerald-700"}`}>{pendientesPQRF}</span>}</button>)}</nav>
     {tab === "nueva" && <form onSubmit={registrar} className="rounded-xl border bg-white p-5 shadow-sm md:p-7"><h2 className="mb-5 text-lg font-bold">Registro de PQRF</h2>{cargandoCatalogos && <p className="mb-4 text-sm">Cargando catálogos...</p>}{errorCatalogos && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-red-700">{errorCatalogos}</p>}
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <Campo label="Fecha de PQRF"><input className={`${inputClass} bg-gray-100`} type="date" value={fechaLocal()} readOnly /></Campo>
@@ -294,7 +324,7 @@ export default function PQRFView() {
         <Campo label="Estado inicial"><input className={`${inputClass} bg-gray-100`} value="ABIERTA" readOnly /></Campo>
       </div><div className="mt-7 flex justify-end border-t pt-5"><button disabled={guardando || cargandoCatalogos || !!errorCatalogos} className="flex items-center gap-2 rounded-lg bg-emerald-700 px-6 py-3 font-semibold text-white disabled:opacity-50"><Send size={17}/>{guardando ? "Registrando..." : "Registrar PQRF"}</button></div>
     </form>}
-    {["registradas", "asignadas", "delegadas"].includes(tab) && <section className="rounded-xl border bg-white p-5 shadow-sm md:p-7"><div className="mb-5 flex items-center justify-between gap-3"><h2 className="text-lg font-bold">{tab === "registradas" ? "Mis PQRF registradas" : tab === "delegadas" ? "Mis PQRF delegadas" : "Mis PQRF asignadas"}</h2><button type="button" onClick={() => setRecarga(v => v+1)} disabled={cargandoBandeja} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"><RefreshCw size={16}/>Actualizar</button></div>{errorBandeja && <p role="alert" className="mb-4 text-red-700">{errorBandeja}</p>}{cargandoBandeja ? <p>Consultando...</p> : <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-gray-50"><tr>{["N.º", "Fecha", "Cliente", "Tipo", "Proceso", "Responsable", "Estado", "Detalle"].map(t => <th key={t} className="px-3 py-3">{t}</th>)}</tr></thead><tbody className="divide-y">{bandejas[tab].map(item => <tr key={item.id}><td className="px-3 py-3">{item.id}</td><td className="px-3 py-3">{formatoFecha(item.fecha_pqrf)}</td><td className="px-3 py-3">{item.cliente}</td><td className="px-3 py-3">{item.tipo_pqrf}</td><td className="px-3 py-3">{item.proceso}</td><td className="px-3 py-3">{item.usuario_responsable}</td><td className="px-3 py-3 font-semibold">{item.estado}</td><td className="px-3 py-3"><button type="button" onClick={() => abrir(item,tab)} className="flex items-center gap-1 rounded-lg border px-3 py-2 text-emerald-700"><Eye size={16}/>Ver</button></td></tr>)}</tbody></table>{!errorBandeja && bandejas[tab].length === 0 && <p className="py-8 text-center text-gray-500">No hay PQRF para mostrar.</p>}</div>}<div className="mt-5 flex items-center justify-between border-t pt-4"><span className="text-xs text-gray-500">Página {pagina[tab]+1} · {bandejas[tab].length} registro(s)</span><div className="flex gap-2"><button type="button" disabled={cargandoBandeja || pagina[tab]===0} onClick={() => setPagina(v => ({...v,[tab]:v[tab]-1}))} className="flex items-center rounded-lg border px-3 py-2 disabled:opacity-40"><ChevronLeft size={16}/>Anterior</button><button type="button" disabled={cargandoBandeja || !!errorBandeja || bandejas[tab].length < LIMITE} onClick={() => setPagina(v => ({...v,[tab]:v[tab]+1}))} className="flex items-center rounded-lg border px-3 py-2 disabled:opacity-40">Siguiente<ChevronRight size={16}/></button></div></div></section>}
+    {["registradas", "asignadas", "delegadas"].includes(tab) && <section className="rounded-xl border bg-white p-5 shadow-sm md:p-7"><div className="mb-5 flex items-center justify-between gap-3"><h2 className="text-lg font-bold">{tab === "registradas" ? "Mis PQRF registradas" : tab === "delegadas" ? "Mis PQRF delegadas" : "Mis PQRF asignadas"}</h2><button type="button" onClick={notificarCambioPQRF} disabled={cargandoBandeja} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"><RefreshCw size={16}/>Actualizar</button></div>{errorBandeja && <p role="alert" className="mb-4 text-red-700">{errorBandeja}</p>}{cargandoBandeja ? <p>Consultando...</p> : <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-gray-50"><tr>{["N.º", "Fecha", "Cliente", "Tipo", "Proceso", "Responsable", "Estado", "Detalle"].map(t => <th key={t} className="px-3 py-3">{t}</th>)}</tr></thead><tbody className="divide-y">{bandejas[tab].map(item => <tr key={item.id}><td className="px-3 py-3">{item.id}</td><td className="px-3 py-3">{formatoFecha(item.fecha_pqrf)}</td><td className="px-3 py-3">{item.cliente}</td><td className="px-3 py-3">{item.tipo_pqrf}</td><td className="px-3 py-3">{item.proceso}</td><td className="px-3 py-3">{item.usuario_responsable}</td><td className="px-3 py-3 font-semibold">{item.estado}</td><td className="px-3 py-3"><button type="button" onClick={() => abrir(item,tab)} className="flex items-center gap-1 rounded-lg border px-3 py-2 text-emerald-700"><Eye size={16}/>Ver</button></td></tr>)}</tbody></table>{!errorBandeja && bandejas[tab].length === 0 && <p className="py-8 text-center text-gray-500">No hay PQRF para mostrar.</p>}</div>}<div className="mt-5 flex items-center justify-between border-t pt-4"><span className="text-xs text-gray-500">Página {pagina[tab]+1} · {bandejas[tab].length} registro(s)</span><div className="flex gap-2"><button type="button" disabled={cargandoBandeja || pagina[tab]===0} onClick={() => setPagina(v => ({...v,[tab]:v[tab]-1}))} className="flex items-center rounded-lg border px-3 py-2 disabled:opacity-40"><ChevronLeft size={16}/>Anterior</button><button type="button" disabled={cargandoBandeja || !!errorBandeja || bandejas[tab].length < LIMITE} onClick={() => setPagina(v => ({...v,[tab]:v[tab]+1}))} className="flex items-center rounded-lg border px-3 py-2 disabled:opacity-40">Siguiente<ChevronRight size={16}/></button></div></div></section>}
   </div>
   {detalle && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4" onMouseDown={e => { if(e.target===e.currentTarget) cerrarModal(); }}><section role="dialog" aria-modal="true" aria-labelledby="pqrf-titulo" className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><h2 id="pqrf-titulo" className="text-xl font-bold">Detalle de PQRF N.º {detalle.id}</h2><button type="button" onClick={cerrarModal} disabled={procesando} aria-label="Cerrar"><X/></button></div><div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">{tarjeta("Fecha", formatoFecha(detalle.fecha_pqrf))}{tarjeta("Estado", detalle.estado)}{tarjeta("Cliente", detalle.cliente)}{tarjeta("Tipo", detalle.tipo_pqrf)}{tarjeta("Remitente", detalle.nombre_remitente)}{tarjeta("Correo remitente", detalle.correo_remitente)}{tarjeta("Proceso", detalle.proceso)}{tarjeta("Correo destinatario", detalle.correo_destinatario)}{tarjeta("Registrado por", detalle.usuario_registro)}{tarjeta("Responsable", detalle.usuario_responsable)}<div className="sm:col-span-2">{tarjeta("Descripción", detalle.descripcion_pqrf)}</div></div>
     <section className="mt-6 border-t pt-5"><h3 className="mb-3 font-bold text-emerald-800">Respuesta y gestión</h3>{cargandoDetalle && <p className="text-sm">Consultando gestión e historial...</p>}{errorDetalle && <p role="alert" className="text-sm text-red-700">{errorDetalle}</p>}{gestiones.map(g => <div key={g.id_gestion} className="mb-3 space-y-2 rounded-lg bg-gray-50 p-4 text-sm"><p><strong>Gestionó:</strong> {g.usuario_gestion} · {formatoMomento(g.fecha_gestion)}</p><p className="whitespace-pre-wrap"><strong>Análisis:</strong> {g.analisis_gestion}</p><p className="whitespace-pre-wrap"><strong>Respuesta:</strong> {g.respuesta_pqrf}</p><p className="whitespace-pre-wrap"><strong>Acciones realizadas:</strong> {g.acciones_realizadas || "—"}</p></div>)}{!cargandoDetalle && !errorDetalle && gestiones.length===0 && <p className="text-sm text-gray-500">Sin respuestas registradas.</p>}</section>
