@@ -72,6 +72,9 @@ const SalidasNoConformesView = () => {
   const [cargandoEvidencias, setCargandoEvidencias] = useState(false);
   const [errorEvidencias, setErrorEvidencias] = useState("");
   const [descargandoAdjunto, setDescargandoAdjunto] = useState(null);
+  const [visualizandoAdjunto, setVisualizandoAdjunto] = useState(null);
+  const [vistaEvidencia, setVistaEvidencia] = useState(null);
+  const vistaUrlRef = useRef(null);
   const inputArchivosRef = useRef(null);
   const [errorRespuesta, setErrorRespuesta] = useState("");
   const [exitoRespuesta, setExitoRespuesta] = useState("");
@@ -280,6 +283,7 @@ const SalidasNoConformesView = () => {
 
   const cerrarDetalle = () => {
     if (respuestaEnCurso.current || cierreEnCurso.current) return;
+    cerrarVistaEvidencia();
     setDetalleSNC(null);
     setOrigenDetalle(null);
   };
@@ -343,6 +347,72 @@ const SalidasNoConformesView = () => {
     } finally {
       setDescargandoAdjunto(null);
     }
+  };
+
+  // La vista previa usa el mismo endpoint autenticado que la descarga.
+  // Nunca se publica una URL directa del servidor ni se envía el token en la URL.
+  const extensionEvidencia = (nombre) => String(nombre || "").split(".").pop()?.toLowerCase() || "";
+  const tipoVistaEvidencia = (nombre) => {
+    const extension = extensionEvidencia(nombre);
+    if (extension === "pdf") return "pdf";
+    if (["png", "jpg", "jpeg", "webp"].includes(extension)) return "imagen";
+    if (["txt", "csv"].includes(extension)) return "texto";
+    return null;
+  };
+
+  const cerrarVistaEvidencia = () => {
+    setVistaEvidencia(null);
+    if (vistaUrlRef.current) {
+      URL.revokeObjectURL(vistaUrlRef.current);
+      vistaUrlRef.current = null;
+    }
+  };
+
+  useEffect(() => () => {
+    if (vistaUrlRef.current) URL.revokeObjectURL(vistaUrlRef.current);
+  }, []);
+
+  const verEvidencia = async (adjunto) => {
+    const tipo = tipoVistaEvidencia(adjunto.nombre);
+    if (!tipo || visualizandoAdjunto != null) return;
+    const token = localStorage.getItem("token") || user?.token;
+    if (!token) { setErrorEvidencias("No se encontró una sesión válida."); return; }
+    setVisualizandoAdjunto(adjunto.id);
+    setErrorEvidencias("");
+    try {
+      const respuesta = await fetch(`${SNC_BASE_URL}/evidencias/${adjunto.id}/descargar`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!respuesta.ok) {
+        const datos = await respuesta.json().catch(() => null);
+        throw new Error(typeof datos?.detail === "string" ? datos.detail : `No se pudo abrir la evidencia (HTTP ${respuesta.status}).`);
+      }
+      const contenido = await respuesta.blob();
+      // Usamos el tipo esperado, no el Content-Type de descarga (que puede ser octet-stream).
+      const mime = tipo === "pdf" ? "application/pdf" : tipo === "texto" ? "text/plain;charset=utf-8" :
+        ({ png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" })[extensionEvidencia(adjunto.nombre)];
+      if (vistaUrlRef.current) URL.revokeObjectURL(vistaUrlRef.current);
+      const url = URL.createObjectURL(new Blob([contenido], { type: mime }));
+      vistaUrlRef.current = url;
+      setVistaEvidencia({ nombre: adjunto.nombre, tipo, url });
+    } catch (error) {
+      setErrorEvidencias(error.message || "No fue posible visualizar la evidencia.");
+    } finally {
+      setVisualizandoAdjunto(null);
+    }
+  };
+
+  // Vista previa local: no sube el archivo ni consulta al backend.
+  const verArchivoAntesDeEnviar = (archivo) => {
+    const tipo = tipoVistaEvidencia(archivo.name);
+    if (!tipo) return;
+    cerrarVistaEvidencia();
+    const extension = extensionEvidencia(archivo.name);
+    const mime = tipo === "pdf" ? "application/pdf" : tipo === "texto" ? "text/plain;charset=utf-8" :
+      ({ png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" })[extension];
+    const url = URL.createObjectURL(new Blob([archivo], { type: mime }));
+    vistaUrlRef.current = url;
+    setVistaEvidencia({ nombre: archivo.name, tipo, url });
   };
 
   const seleccionarArchivosRespuesta = (evento) => {
@@ -945,10 +1015,19 @@ const SalidasNoConformesView = () => {
                 {evidencias.map((adjunto) => (
                   <div key={adjunto.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
                     <span className="min-w-0 break-all text-sm"><Paperclip size={15} className="mr-1 inline" />{adjunto.nombre}</span>
-                    <button type="button" disabled={descargandoAdjunto != null} onClick={() => descargarEvidencia(adjunto)}
-                      className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50">
-                      <Download size={15} />{descargandoAdjunto === adjunto.id ? "Descargando..." : "Descargar"}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {tipoVistaEvidencia(adjunto.nombre) && (
+                        <button type="button" disabled={visualizandoAdjunto != null}
+                          onClick={() => verEvidencia(adjunto)}
+                          className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50">
+                          <Eye size={15} />{visualizandoAdjunto === adjunto.id ? "Abriendo..." : "Ver"}
+                        </button>
+                      )}
+                      <button type="button" disabled={descargandoAdjunto != null} onClick={() => descargarEvidencia(adjunto)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50">
+                        <Download size={15} />{descargandoAdjunto === adjunto.id ? "Descargando..." : "Descargar"}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </section>
@@ -979,9 +1058,19 @@ const SalidasNoConformesView = () => {
                   {archivosRespuesta.map((archivo, indice) => (
                     <div key={`${archivo.name}-${indice}`} className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-gray-50 p-2 text-sm">
                       <span className="min-w-0 break-all"><Paperclip size={14} className="mr-1 inline" />{archivo.name} ({(archivo.size / 1024 / 1024).toFixed(2)} MB)</span>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {tipoVistaEvidencia(archivo.name) && (
+                          <button type="button" onClick={() => verArchivoAntesDeEnviar(archivo)}
+                            disabled={enviandoRespuesta}
+                            aria-label={`Ver ${archivo.name} antes de enviar`}
+                            className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-3 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50">
+                            <Eye size={15} /> Ver
+                          </button>
+                        )}
                       <button type="button" aria-label={`Quitar ${archivo.name}`} disabled={enviandoRespuesta}
                         onClick={() => setArchivosRespuesta((anterior) => anterior.filter((_, i) => i !== indice))}
                         className="shrink-0 rounded p-1 text-red-600 hover:bg-red-50 disabled:opacity-50"><Trash2 size={16} /></button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1008,6 +1097,30 @@ const SalidasNoConformesView = () => {
               className="mt-6 w-full rounded-lg border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
               Cerrar
             </button>
+          </div>
+        </div>
+      )}
+
+      {vistaEvidencia && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/70 p-3 md:p-6"
+          role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) cerrarVistaEvidencia(); }}>
+          <div role="dialog" aria-modal="true" aria-label={`Vista previa de ${vistaEvidencia.nombre}`}
+            className="flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+              <p className="min-w-0 truncate text-sm font-semibold text-gray-800" title={vistaEvidencia.nombre}>{vistaEvidencia.nombre}</p>
+              <button type="button" onClick={cerrarVistaEvidencia} aria-label="Cerrar vista previa"
+                className="rounded-lg p-2 text-gray-600 hover:bg-gray-100"><X size={20} /></button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto bg-gray-100 p-2">
+              {vistaEvidencia.tipo === "imagen" ? (
+                <div className="flex min-h-full items-center justify-center">
+                  <img src={vistaEvidencia.url} alt={vistaEvidencia.nombre} className="max-h-full max-w-full object-contain" />
+                </div>
+              ) : (
+                <iframe src={vistaEvidencia.url} title={`Vista previa: ${vistaEvidencia.nombre}`}
+                  className="h-full min-h-[50vh] w-full rounded bg-white" />
+              )}
+            </div>
           </div>
         </div>
       )}

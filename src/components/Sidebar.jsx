@@ -566,9 +566,9 @@ const Sidebar = ({
         })
         .filter(Boolean);
 
-  // SNC es un módulo transversal: mostrarlo a cualquier usuario autenticado.
+  // SNC es transversal para usuarios internos, no para el rol Aspirante.
   // Los permisos efectivos de lectura y gestión se validan en el backend.
-  const puedeAccederSNC = Boolean(user && rolUsuario);
+  const puedeAccederSNC = Boolean(user && rolUsuario && rolUsuario !== "Aspirante");
 
   const navItems = [
     ...baseNavItems,
