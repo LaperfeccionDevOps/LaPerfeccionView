@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ClipboardList, PlusCircle, Inbox, FileText, Eye, X, Send, RefreshCw, CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react";
+import { ClipboardList, PlusCircle, Inbox, FileText, Eye, X, Send, RefreshCw, CheckCircle2, ChevronLeft, ChevronRight, AlertCircle, Info } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 // En este proyecto VITE_API_BASE_URL ya incluye /api.
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
 const BASE = `${API_BASE_URL}/pqrf`;
 const LIMITE = 20;
-const initial = () => ({ tipo: "", correo: "", nombre: "", cliente: "", descripcion: "", proceso: "", destinatario: "", responsable: "" });
+const CORREO_SISTEMA_PQRF = "no.reply.sig.alp@gmail.com";
+const initial = () => ({ fecha: "", tipo: "", nombre: "", cliente: "", correoCorporativo: "", descripcion: "", proceso: "", destinatario: "", responsable: "" });
 const inputClass = "w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-emerald-600 focus:outline-none disabled:bg-gray-100";
 const fechaLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
 const formatoFecha = (v) => v ? String(v).slice(0, 10).split("-").reverse().join("/") : "—";
@@ -53,7 +54,6 @@ export default function PQRFView() {
   const [errorDetalle, setErrorDetalle] = useState("");
   const [analisis, setAnalisis] = useState("");
   const [respuesta, setRespuesta] = useState("");
-  const [acciones, setAcciones] = useState("");
   const [procesando, setProcesando] = useState(false);
   const [mensajeDetalle, setMensajeDetalle] = useState("");
   const [errorAccion, setErrorAccion] = useState("");
@@ -153,12 +153,12 @@ export default function PQRFView() {
   const registrar = async (e) => {
     e.preventDefault();
     if (envioRef.current || cargandoCatalogos || errorCatalogos) return;
-    if (!form.tipo || !form.correo.trim() || !form.nombre.trim() || !form.cliente || !form.descripcion.trim() || !form.proceso || !form.destinatario) {
+    if (!form.fecha || !form.tipo || !form.nombre.trim() || !form.cliente || !form.correoCorporativo.trim() || !form.descripcion.trim() || !form.proceso || !form.destinatario) {
       setAviso({ ok: false, texto: "Complete todos los campos obligatorios." }); return;
     }
     envioRef.current = true; setGuardando(true);
     try {
-      const body = { id_tipo_pqrf: Number(form.tipo), correo_remitente: form.correo.trim(), nombre_remitente: form.nombre.trim(), id_cliente: Number(form.cliente), descripcion_pqrf: form.descripcion.trim(), id_proceso_pqrf: Number(form.proceso), id_correo_pqrf: Number(form.destinatario) };
+      const body = { fecha_pqrf: form.fecha, id_tipo_pqrf: Number(form.tipo), correo_remitente: CORREO_SISTEMA_PQRF, correo_respuesta_cliente: form.correoCorporativo.trim(), nombre_remitente: form.nombre.trim(), id_cliente: Number(form.cliente), descripcion_pqrf: form.descripcion.trim(), id_proceso_pqrf: Number(form.proceso), id_correo_pqrf: Number(form.destinatario) };
       const { data, status } = await solicitar("", { method: "POST", body: JSON.stringify(body) });
       if (status !== 201 || !data?.id || data.estado !== "ABIERTA") throw new Error("El servidor no confirmó el registro. Verifique la bandeja antes de reintentar.");
       setForm(initial()); setBusquedaCliente(""); setClienteElegido(""); setListaClientesAbierta(false); notificarCambioPQRF();
@@ -226,7 +226,7 @@ export default function PQRFView() {
       setDetalle(v => ({ ...v, id_usuario_responsable: data.id_usuario_responsable, usuario_responsable: nuevo }));
       setBandejas(v => Object.fromEntries(Object.entries(v).map(([k, lista]) => [k, lista.map(x =>
         x.id === detalle.id ? { ...x, id_usuario_responsable: data.id_usuario_responsable, usuario_responsable: nuevo } : x)])));
-      setUsuarioDestino(""); setMotivoReasignacion(""); setAnalisis(""); setRespuesta(""); setAcciones("");
+      setUsuarioDestino(""); setMotivoReasignacion(""); setAnalisis(""); setRespuesta("");
       setMensajeDetalle(`PQRF N.º ${detalle.id} reasignada correctamente a ${nuevo}.`);
       notificarCambioPQRF();
       await consultarDetalle(detalle.id);
@@ -236,7 +236,7 @@ export default function PQRFView() {
   };
 
   const abrir = (item, tipo) => {
-    setDetalle(item); setOrigen(tipo); setGestiones([]); setHistorial([]); setAnalisis(""); setRespuesta(""); setAcciones(""); setErrorAccion(""); setMensajeDetalle(""); setUsuarioDestino(""); setMotivoReasignacion(""); setErrorResponsables("");
+    setDetalle(item); setOrigen(tipo); setGestiones([]); setHistorial([]); setAnalisis(""); setRespuesta(""); setErrorAccion(""); setMensajeDetalle(""); setUsuarioDestino(""); setMotivoReasignacion(""); setErrorResponsables("");
   };
   const cerrarModal = () => { if (!procesando) setDetalle(null); };
   const ejecutarAccion = async (accion) => {
@@ -246,7 +246,7 @@ export default function PQRFView() {
     const ref = accion === "responder" ? respuestaRef : cierreRef;
     ref.current = true; setProcesando(true); setErrorAccion(""); setMensajeDetalle("");
     try {
-      const body = accion === "responder" ? JSON.stringify({ analisis_gestion: analisis.trim(), respuesta_pqrf: respuesta.trim(), acciones_realizadas: acciones.trim() || null }) : undefined;
+      const body = accion === "responder" ? JSON.stringify({ analisis_gestion: analisis.trim(), respuesta_pqrf: respuesta.trim(), acciones_realizadas: null }) : undefined;
       const { data } = await solicitar(`/${detalle.id}/${accion}`, { method: "POST", ...(body ? { body } : {}) });
       const esperado = accion === "responder" ? "RESPONDIDA" : "CERRADA";
       if (Number(data?.id) !== Number(detalle.id) || data?.estado !== esperado) throw new Error("No se confirmó el cambio de estado. Consulte el historial antes de reintentar.");
@@ -266,10 +266,15 @@ export default function PQRFView() {
     <nav className="flex flex-wrap gap-2">{[["nueva", "Nueva PQRF", PlusCircle], ["registradas", "Mis PQRF registradas", FileText], ["asignadas", "PQRF asignadas", Inbox], ["delegadas", "PQRF delegadas", FileText]].map(([id, nombre, Icon]) => <button key={id} type="button" onClick={() => setTab(id)} className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold ${tab === id ? "bg-emerald-700 text-white" : "border bg-white text-gray-700 hover:bg-gray-100"}`}><Icon size={17}/>{nombre}{id === "asignadas" && pendientesPQRF > 0 && <span className={`ml-1 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-bold ${tab === id ? "bg-emerald-100 text-emerald-900" : "bg-emerald-100 text-emerald-700"}`}>{pendientesPQRF}</span>}</button>)}</nav>
     {tab === "nueva" && <form onSubmit={registrar} className="rounded-xl border bg-white p-5 shadow-sm md:p-7"><h2 className="mb-5 text-lg font-bold">Registro de PQRF</h2>{cargandoCatalogos && <p className="mb-4 text-sm">Cargando catálogos...</p>}{errorCatalogos && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-red-700">{errorCatalogos}</p>}
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-        <Campo label="Fecha de PQRF"><input className={`${inputClass} bg-gray-100`} type="date" value={fechaLocal()} readOnly /></Campo>
-        <Campo label="Usuario que registra"><input className={`${inputClass} bg-gray-100`} value={user?.name || user?.nombre || user?.usuario || "Usuario autenticado"} readOnly /></Campo>
+        <div className="space-y-2 md:col-span-2">
+          <label htmlFor="pqrf-fecha" className="block text-sm font-semibold text-gray-700">Fecha de PQRF *</label>
+          <input id="pqrf-fecha" className={inputClass} type="date" lang="es-CO" value={form.fecha} onChange={e => cambiar("fecha", e.target.value)} max={fechaLocal()} required disabled={guardando} aria-describedby="pqrf-fecha-aviso" />
+          <div id="pqrf-fecha-aviso" role="note" className="flex items-start gap-2 border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+            <AlertCircle size={17} className="mt-0.5 shrink-0" />
+            <div><strong>¡Atención! Verifique la fecha de la novedad.</strong><p className="mt-1 text-xs">Seleccione la fecha exacta en que ocurrió la PQRF, no la fecha en que está diligenciando el formulario.</p></div>
+          </div>
+        </div>
         <Campo label="Tipo de PQRF *"><Selector nombre="un tipo" campo="tipo" opciones={catalogos.tipos} value={form.tipo} onChange={cambiar} disabled={guardando || cargandoCatalogos || !!errorCatalogos}/></Campo>
-        <Campo label="Correo del remitente *"><input type="email" maxLength={180} className={inputClass} required disabled={guardando} value={form.correo} onChange={e => cambiar("correo", e.target.value)} placeholder="cliente@ejemplo.com"/></Campo>
         <Campo label="Nombre de la persona que emite la PQR (Cliente) *"><input className={inputClass} maxLength={200} required disabled={guardando} value={form.nombre} onChange={e => cambiar("nombre", e.target.value)} placeholder="Nombre del remitente"/></Campo>
         <div ref={clienteContenedorRef} className="relative space-y-2">
           <label htmlFor="pqrf-buscar-cliente" className="block text-sm font-semibold text-gray-700">Cliente relacionado *</label>
@@ -318,7 +323,22 @@ export default function PQRFView() {
           )}
           <p className="text-xs text-gray-500">{form.cliente ? `Cliente seleccionado: ${clienteElegido}` : "Escriba y seleccione una coincidencia. Se consultan hasta 100 resultados por búsqueda."}</p>
         </div>
-        <div className="md:col-span-2"><Campo label="Descripción de la PQRF *"><textarea className={inputClass} rows={5} maxLength={20000} required disabled={guardando} value={form.descripcion} onChange={e => cambiar("descripcion", e.target.value)} placeholder="Describa la petición, queja, reclamo o felicitación..."/></Campo></div>
+        <div className="space-y-2">
+          <label htmlFor="pqrf-correo-cliente" className="block text-sm font-semibold text-gray-700">Correo corporativo *</label>
+          <input id="pqrf-correo-cliente" className={inputClass} type="email" inputMode="email" autoComplete="email" maxLength={180} required disabled={guardando} value={form.correoCorporativo} onChange={e => cambiar("correoCorporativo", e.target.value)} placeholder="correo@empresa.com" aria-describedby="pqrf-correo-cliente-aviso" />
+          <div id="pqrf-correo-cliente-aviso" role="note" className="flex items-start gap-2 border border-sky-200 bg-sky-50 px-3 py-2.5 text-sm text-sky-950">
+            <Info size={17} className="mt-0.5 shrink-0 text-sky-600" />
+            <span>Por favor, ingrese el correo donde le enviaremos la respuesta a su PQRF.</span>
+          </div>
+        </div>
+        <div className="md:col-span-2 space-y-2">
+          <label htmlFor="pqrf-descripcion" className="block text-sm font-semibold text-gray-700">Descripción de la PQRF *</label>
+          <div id="pqrf-descripcion-nota" role="note" className="flex items-start gap-3 border border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-950">
+            <Info size={18} className="mt-0.5 shrink-0 text-sky-600" />
+            <div><strong>Nota importante</strong><p className="mt-1 leading-6">Detalle claramente la petición, queja, reclamo o felicitación recibida, indicando qué ocurrió, quién está involucrado y los datos relevantes para su gestión. Use información concreta, clara y objetiva que facilite su análisis y respuesta.</p></div>
+          </div>
+          <textarea id="pqrf-descripcion" aria-describedby="pqrf-descripcion-nota" className={inputClass} rows={5} maxLength={20000} required disabled={guardando} value={form.descripcion} onChange={e => cambiar("descripcion", e.target.value)} placeholder="Describa la petición, queja, reclamo o felicitación..." />
+        </div>
         <Campo label="Proceso que responde PQRF *"><Selector nombre="un proceso" campo="proceso" opciones={catalogos.procesos} value={form.proceso} onChange={cambiar} disabled={guardando || cargandoCatalogos || !!errorCatalogos}/></Campo>
         <Campo label="Correo donde va dirigida la PQRF *"><Selector nombre="un correo" campo="destinatario" opciones={catalogos.correos} etiqueta="correo" value={form.destinatario} onChange={cambiar} disabled={guardando || cargandoCatalogos || !!errorCatalogos}/></Campo>
         <Campo label="Estado inicial"><input className={`${inputClass} bg-gray-100`} value="ABIERTA" readOnly /></Campo>
@@ -326,9 +346,9 @@ export default function PQRFView() {
     </form>}
     {["registradas", "asignadas", "delegadas"].includes(tab) && <section className="rounded-xl border bg-white p-5 shadow-sm md:p-7"><div className="mb-5 flex items-center justify-between gap-3"><h2 className="text-lg font-bold">{tab === "registradas" ? "Mis PQRF registradas" : tab === "delegadas" ? "Mis PQRF delegadas" : "Mis PQRF asignadas"}</h2><button type="button" onClick={notificarCambioPQRF} disabled={cargandoBandeja} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"><RefreshCw size={16}/>Actualizar</button></div>{errorBandeja && <p role="alert" className="mb-4 text-red-700">{errorBandeja}</p>}{cargandoBandeja ? <p>Consultando...</p> : <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-gray-50"><tr>{["N.º", "Fecha", "Cliente", "Tipo", "Proceso", "Responsable", "Estado", "Detalle"].map(t => <th key={t} className="px-3 py-3">{t}</th>)}</tr></thead><tbody className="divide-y">{bandejas[tab].map(item => <tr key={item.id}><td className="px-3 py-3">{item.id}</td><td className="px-3 py-3">{formatoFecha(item.fecha_pqrf)}</td><td className="px-3 py-3">{item.cliente}</td><td className="px-3 py-3">{item.tipo_pqrf}</td><td className="px-3 py-3">{item.proceso}</td><td className="px-3 py-3">{item.usuario_responsable}</td><td className="px-3 py-3 font-semibold">{item.estado}</td><td className="px-3 py-3"><button type="button" onClick={() => abrir(item,tab)} className="flex items-center gap-1 rounded-lg border px-3 py-2 text-emerald-700"><Eye size={16}/>Ver</button></td></tr>)}</tbody></table>{!errorBandeja && bandejas[tab].length === 0 && <p className="py-8 text-center text-gray-500">No hay PQRF para mostrar.</p>}</div>}<div className="mt-5 flex items-center justify-between border-t pt-4"><span className="text-xs text-gray-500">Página {pagina[tab]+1} · {bandejas[tab].length} registro(s)</span><div className="flex gap-2"><button type="button" disabled={cargandoBandeja || pagina[tab]===0} onClick={() => setPagina(v => ({...v,[tab]:v[tab]-1}))} className="flex items-center rounded-lg border px-3 py-2 disabled:opacity-40"><ChevronLeft size={16}/>Anterior</button><button type="button" disabled={cargandoBandeja || !!errorBandeja || bandejas[tab].length < LIMITE} onClick={() => setPagina(v => ({...v,[tab]:v[tab]+1}))} className="flex items-center rounded-lg border px-3 py-2 disabled:opacity-40">Siguiente<ChevronRight size={16}/></button></div></div></section>}
   </div>
-  {detalle && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4" onMouseDown={e => { if(e.target===e.currentTarget) cerrarModal(); }}><section role="dialog" aria-modal="true" aria-labelledby="pqrf-titulo" className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><h2 id="pqrf-titulo" className="text-xl font-bold">Detalle de PQRF N.º {detalle.id}</h2><button type="button" onClick={cerrarModal} disabled={procesando} aria-label="Cerrar"><X/></button></div><div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">{tarjeta("Fecha", formatoFecha(detalle.fecha_pqrf))}{tarjeta("Estado", detalle.estado)}{tarjeta("Cliente", detalle.cliente)}{tarjeta("Tipo", detalle.tipo_pqrf)}{tarjeta("Remitente", detalle.nombre_remitente)}{tarjeta("Correo remitente", detalle.correo_remitente)}{tarjeta("Proceso", detalle.proceso)}{tarjeta("Correo destinatario", detalle.correo_destinatario)}{tarjeta("Registrado por", detalle.usuario_registro)}{tarjeta("Responsable", detalle.usuario_responsable)}<div className="sm:col-span-2">{tarjeta("Descripción", detalle.descripcion_pqrf)}</div></div>
+  {detalle && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4" onMouseDown={e => { if(e.target===e.currentTarget) cerrarModal(); }}><section role="dialog" aria-modal="true" aria-labelledby="pqrf-titulo" className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><h2 id="pqrf-titulo" className="text-xl font-bold">Detalle de PQRF N.º {detalle.id}</h2><button type="button" onClick={cerrarModal} disabled={procesando} aria-label="Cerrar"><X/></button></div><div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">{tarjeta("Fecha", formatoFecha(detalle.fecha_pqrf))}{tarjeta("Estado", detalle.estado)}{tarjeta("Cliente", detalle.cliente)}{tarjeta("Tipo", detalle.tipo_pqrf)}<div className="sm:col-span-2">{tarjeta("Descripción", detalle.descripcion_pqrf)}</div></div>
     <section className="mt-6 border-t pt-5"><h3 className="mb-3 font-bold text-emerald-800">Respuesta y gestión</h3>{cargandoDetalle && <p className="text-sm">Consultando gestión e historial...</p>}{errorDetalle && <p role="alert" className="text-sm text-red-700">{errorDetalle}</p>}{gestiones.map(g => <div key={g.id_gestion} className="mb-3 space-y-2 rounded-lg bg-gray-50 p-4 text-sm"><p><strong>Gestionó:</strong> {g.usuario_gestion} · {formatoMomento(g.fecha_gestion)}</p><p className="whitespace-pre-wrap"><strong>Análisis:</strong> {g.analisis_gestion}</p><p className="whitespace-pre-wrap"><strong>Respuesta:</strong> {g.respuesta_pqrf}</p><p className="whitespace-pre-wrap"><strong>Acciones realizadas:</strong> {g.acciones_realizadas || "—"}</p></div>)}{!cargandoDetalle && !errorDetalle && gestiones.length===0 && <p className="text-sm text-gray-500">Sin respuestas registradas.</p>}</section>
-    {origen === "asignadas" && detalle.estado === "ABIERTA" && !mensajeDetalle.includes("reasignada correctamente") && <section className="mt-6 space-y-3 border-t pt-5"><h3 className="font-bold">Responder PQRF</h3><label className="block text-sm font-semibold">Análisis de gestión *<textarea className={`${inputClass} mt-2`} rows={3} maxLength={20000} value={analisis} onChange={e=>setAnalisis(e.target.value)} disabled={procesando}/></label><label className="block text-sm font-semibold">Respuesta PQRF *<textarea className={`${inputClass} mt-2`} rows={3} maxLength={20000} value={respuesta} onChange={e=>setRespuesta(e.target.value)} disabled={procesando}/></label><label className="block text-sm font-semibold">Acciones realizadas (opcional)<textarea className={`${inputClass} mt-2`} rows={3} maxLength={20000} value={acciones} onChange={e=>setAcciones(e.target.value)} disabled={procesando}/></label><button type="button" onClick={() => ejecutarAccion("responder")} disabled={procesando || !analisis.trim() || !respuesta.trim()} className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white disabled:opacity-50"><Send size={17}/>{procesando ? "Procesando..." : "Responder PQRF"}</button></section>}
+    {origen === "asignadas" && detalle.estado === "ABIERTA" && !mensajeDetalle.includes("reasignada correctamente") && <section className="mt-6 space-y-3 border-t pt-5"><h3 className="font-bold">Responder PQRF</h3><label className="block text-sm font-semibold">Análisis de gestión *<textarea className={`${inputClass} mt-2`} rows={3} maxLength={20000} value={analisis} onChange={e=>setAnalisis(e.target.value)} disabled={procesando}/></label><label className="block text-sm font-semibold">Respuesta PQRF *<textarea className={`${inputClass} mt-2`} rows={3} maxLength={20000} value={respuesta} onChange={e=>setRespuesta(e.target.value)} disabled={procesando}/></label><button type="button" onClick={() => ejecutarAccion("responder")} disabled={procesando || !analisis.trim() || !respuesta.trim()} className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white disabled:opacity-50"><Send size={17}/>{procesando ? "Procesando..." : "Responder PQRF"}</button></section>}
     {detalle.es_gerente_proceso === true && detalle.estado === "ABIERTA" && !mensajeDetalle.includes("reasignada correctamente") && <section className="mt-6 space-y-3 border-t pt-5">
       <h3 className="flex items-center gap-2 font-bold text-emerald-800"><RefreshCw size={18}/>Reasignar PQRF</h3>
       <p className="text-sm text-gray-600">Solo el gerente configurado para este proceso puede delegar la PQRF a otro usuario activo. El historial conservará el motivo.</p>

@@ -939,6 +939,15 @@ const SalidasNoConformesView = () => {
                 <h4 className="text-base font-bold text-gray-800">Responder salida no conforme</h4>
                 <div>
                   <label htmlFor="snc-analisis-causa" className="mb-2 block text-sm font-semibold text-gray-700">Análisis de causa <span className="text-red-600">*</span></label>
+                  <div role="note" aria-label="Orientación para el análisis de causa" className="mb-3 mt-1 flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-3 text-slate-700">
+                    <AlertCircle size={18} className="mt-0.5 shrink-0 text-sky-700" aria-hidden="true" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-sky-900">Nota importante</p>
+                      <p className="mt-1 text-sm leading-relaxed">
+                        Identifique las diferentes causas que dieron lugar al incumplimiento y determine la <strong>causa raíz</strong>, evitando justificaciones. Describa hechos concretos, claros y verificables que permitan establecer <strong>acciones correctivas efectivas</strong>.
+                      </p>
+                    </div>
+                  </div>
                   <textarea id="snc-analisis-causa" rows={4} maxLength={10000} required disabled={enviandoRespuesta}
                     value={analisisCausa} onChange={(e) => { setAnalisisCausa(e.target.value); setErrorRespuesta(""); }}
                     placeholder="Explique por qué no se realizó la actividad o tarea..." className={clasesInput} />
