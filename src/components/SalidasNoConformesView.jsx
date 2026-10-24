@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ClipboardList, PlusCircle, Send, Inbox, FileText, CheckCircle2, AlertCircle, X, RefreshCw, Eye, ChevronLeft, ChevronRight, Paperclip, Download, Trash2 } from "lucide-react";
+import { ClipboardList, PlusCircle, Send, Inbox, FileText, CheckCircle2, AlertCircle, RotateCcw, X, RefreshCw, Eye, ChevronLeft, ChevronRight, Paperclip, Download, Trash2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 // Mantiene el mismo convenio de URL del módulo: VITE_API_BASE_URL incluye /api.
@@ -13,7 +13,6 @@ const formularioInicial = () => ({
   areaResponsable: "",
   responsableGestion: "",
   correoRemitente: "",
-  correoDestinatario: "",
   estado: "ABIERTO",
 });
 
@@ -81,6 +80,15 @@ const SalidasNoConformesView = () => {
   const [respuestaRegistrada, setRespuestaRegistrada] = useState(null);
   const [cerrandoSNC, setCerrandoSNC] = useState(false);
   const cierreEnCurso = useRef(false);
+  const [mostrarDevolucion, setMostrarDevolucion] = useState(false);
+  const [motivoDevolucion, setMotivoDevolucion] = useState("");
+  const [devolviendoSNC, setDevolviendoSNC] = useState(false);
+  const devolucionEnCurso = useRef(false);
+  const [errorDevolucion, setErrorDevolucion] = useState("");
+  const [exitoDevolucion, setExitoDevolucion] = useState("");
+  const [historialDevoluciones, setHistorialDevoluciones] = useState([]);
+  const [motivoActual, setMotivoActual] = useState(null);
+  const [errorHistorialDevoluciones, setErrorHistorialDevoluciones] = useState("");
   const [errorCierre, setErrorCierre] = useState("");
   const [exitoCierre, setExitoCierre] = useState("");
   const [consultandoRespuesta, setConsultandoRespuesta] = useState(false);
@@ -225,7 +233,7 @@ const SalidasNoConformesView = () => {
             if (snc.id == null || idsVistos.has(String(snc.id))) continue;
             idsVistos.add(String(snc.id));
             const estado = String(snc.estado || "").trim().toUpperCase();
-            if (tipo === "registradas" ? ["ABIERTO", "RESPONDIDO"].includes(estado) : estado === "ABIERTO") {
+            if (tipo === "registradas" ? ["ABIERTO", "RESPONDIDO"].includes(estado) : ["ABIERTO", "EN_GESTION", "DEVUELTO"].includes(estado)) {
               pendientes += 1;
             }
           }
@@ -279,10 +287,17 @@ const SalidasNoConformesView = () => {
     setErrorConsultaRespuesta("");
     setErrorCierre("");
     setExitoCierre("");
+    setMostrarDevolucion(false);
+    setMotivoDevolucion("");
+    setErrorDevolucion("");
+    setExitoDevolucion("");
+    setHistorialDevoluciones([]);
+    setMotivoActual(null);
+    setErrorHistorialDevoluciones("");
   };
 
   const cerrarDetalle = () => {
-    if (respuestaEnCurso.current || cierreEnCurso.current) return;
+    if (respuestaEnCurso.current || cierreEnCurso.current || devolucionEnCurso.current) return;
     cerrarVistaEvidencia();
     setDetalleSNC(null);
     setOrigenDetalle(null);
@@ -290,7 +305,7 @@ const SalidasNoConformesView = () => {
 
   // Consulta de evidencias: el backend verifica los permisos del usuario autenticado.
   useEffect(() => {
-    if (!detalleSNC?.id || !["RESPONDIDO", "CERRADO"].includes(String(detalleSNC.estado).toUpperCase())) return;
+    if (!detalleSNC?.id || !["RESPONDIDO", "CERRADO", "DEVUELTO"].includes(String(detalleSNC.estado).toUpperCase())) return;
     const controlador = new AbortController();
     const consultarEvidencias = async () => {
       setCargandoEvidencias(true);
@@ -437,7 +452,7 @@ const SalidasNoConformesView = () => {
 
   // Una SNC respondida se consulta en el backend, sin depender de datos de la bandeja.
   useEffect(() => {
-    if (!detalleSNC?.id || !["RESPONDIDO", "CERRADO"].includes(String(detalleSNC.estado).toUpperCase())) return;
+    if (!detalleSNC?.id || !["RESPONDIDO", "CERRADO", "DEVUELTO"].includes(String(detalleSNC.estado).toUpperCase())) return;
     const controlador = new AbortController();
     const consultar = async () => {
       setConsultandoRespuesta(true);
@@ -468,9 +483,79 @@ const SalidasNoConformesView = () => {
     return () => controlador.abort();
   }, [detalleSNC?.id, detalleSNC?.estado, user?.token]);
 
+  // Motivos históricos y devolución pendiente, siempre consultados con autorización del backend.
+  useEffect(() => {
+    if (!detalleSNC?.id) return;
+    const controlador = new AbortController();
+    const consultar = async () => {
+      const token = localStorage.getItem("token") || user?.token;
+      if (!token) return;
+      try {
+        const res = await fetch(`${SNC_BASE_URL}/${detalleSNC.id}/devoluciones`, {
+          headers: { Authorization: `Bearer ${token}` }, signal: controlador.signal,
+        });
+        const datos = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(typeof datos?.detail === "string" ? datos.detail : `No se pudo consultar el historial (HTTP ${res.status}).`);
+        if (!controlador.signal.aborted) {
+          setHistorialDevoluciones(Array.isArray(datos?.devoluciones) ? datos.devoluciones : []);
+          setMotivoActual(datos?.motivo_actual || null);
+          setErrorHistorialDevoluciones("");
+        }
+      } catch (error) {
+        if (!controlador.signal.aborted) setErrorHistorialDevoluciones(error.message || "No se pudo consultar las devoluciones.");
+      }
+    };
+    consultar();
+    return () => controlador.abort();
+  }, [detalleSNC?.id, detalleSNC?.estado, user?.token]);
+
+  const devolverSNC = async () => {
+    if (!detalleSNC?.id || origenDetalle !== "registradas" ||
+        String(detalleSNC.estado).toUpperCase() !== "RESPONDIDO" ||
+        devolucionEnCurso.current || cierreEnCurso.current) return;
+    const motivo = motivoDevolucion.trim();
+    if (!motivo) { setErrorDevolucion("Es obligatorio explicar el motivo de la devolución."); return; }
+    if (motivo.length > 5000) { setErrorDevolucion("El motivo no puede superar 5.000 caracteres."); return; }
+    const token = localStorage.getItem("token") || user?.token;
+    if (!token) { setErrorDevolucion("No se encontró una sesión válida."); return; }
+    devolucionEnCurso.current = true;
+    setDevolviendoSNC(true);
+    setErrorDevolucion("");
+    setExitoDevolucion("");
+    try {
+      const res = await fetch(`${SNC_BASE_URL}/${detalleSNC.id}/devolver`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ motivo }),
+      });
+      const datos = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(typeof datos?.detail === "string" ? datos.detail : `No se pudo devolver la SNC (HTTP ${res.status}).`);
+      if (String(datos?.estado).toUpperCase() !== "DEVUELTO" || Number(datos?.id) !== Number(detalleSNC.id)) {
+        throw new Error("El servidor no confirmó la devolución. Consulte el estado antes de reintentar.");
+      }
+      setDetalleSNC((anterior) => anterior?.id === detalleSNC.id ? { ...anterior, estado: "DEVUELTO" } : anterior);
+      setBandejas((anterior) => ({
+        registradas: anterior.registradas.map((snc) => snc.id === detalleSNC.id ? { ...snc, estado: "DEVUELTO" } : snc),
+        asignadas: anterior.asignadas.map((snc) => snc.id === detalleSNC.id ? { ...snc, estado: "DEVUELTO" } : snc),
+      }));
+      setMotivoActual(motivo);
+      setMostrarDevolucion(false);
+      setMotivoDevolucion("");
+      setExitoDevolucion(`SNC N.º ${detalleSNC.id} devuelta correctamente al responsable.`);
+      setRecargarBandeja((v) => v + 1);
+    } catch (error) {
+      setErrorDevolucion(error instanceof TypeError
+        ? "No se pudo confirmar la devolución. Consulte el estado antes de reintentar."
+        : (error.message || "No fue posible devolver la SNC."));
+    } finally {
+      devolucionEnCurso.current = false;
+      setDevolviendoSNC(false);
+    }
+  };
+
   const responderSNC = async () => {
     if (!detalleSNC?.id || origenDetalle !== "asignadas" ||
-        String(detalleSNC.estado).toUpperCase() !== "ABIERTO" ||
+        !["ABIERTO", "EN_GESTION", "DEVUELTO"].includes(String(detalleSNC.estado).toUpperCase()) ||
         detalleSNC.asignacion_pendiente || respuestaEnCurso.current) return;
     setErrorRespuesta("");
     setExitoRespuesta("");
@@ -638,8 +723,8 @@ const SalidasNoConformesView = () => {
                 <tr>
                   <th className="px-4 py-3">N.º</th>
                   <th className="px-4 py-3">Fecha SNC</th>
-                  <th className="px-4 py-3">{esRegistradas ? "Proceso" : "Enviada por"}</th>
-                  <th className="px-4 py-3">Responsable</th>
+                  {!esRegistradas && <th className="px-4 py-3">Enviada por</th>}
+                  {esRegistradas && <th className="px-4 py-3">Responsable</th>}
                   <th className="px-4 py-3">Estado</th>
                   <th className="px-4 py-3">Detalle</th>
                 </tr>
@@ -649,15 +734,17 @@ const SalidasNoConformesView = () => {
                   <tr key={snc.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-semibold text-gray-800">{snc.id}</td>
                     <td className="whitespace-nowrap px-4 py-3">{formatoFecha(snc.fecha_snc)}</td>
-                    <td className="px-4 py-3">{esRegistradas ? (snc.proceso || "—") : nombreCreadorSNC(snc)}</td>
+                    {!esRegistradas && <td className="px-4 py-3">{nombreCreadorSNC(snc)}</td>}
+                    {esRegistradas && (
+                      <td className="px-4 py-3">
+                        {snc.responsable || "—"}
+                        {snc.asignacion_pendiente && (
+                          <span className="mt-1 block text-xs text-amber-700">Vinculación pendiente</span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-4 py-3">
-                      {snc.responsable || "—"}
-                      {snc.asignacion_pendiente && (
-                        <span className="mt-1 block text-xs text-amber-700">Vinculación pendiente</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="inline-block rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
+                      <span className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${String(snc.estado).toUpperCase() === "DEVUELTO" ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}>
                         {String(snc.estado || "—").replaceAll("_", " ")}
                       </span>
                     </td>
@@ -698,7 +785,7 @@ const SalidasNoConformesView = () => {
     setExitoRegistro("");
   };
 
-  // El correo remitente corresponde al responsable elegido en el catálogo del sistema.
+  // El correo mostrado corresponde al responsable que recibirá la notificación.
   // No se infiere por el nombre ni por el usuario que inició sesión.
   const seleccionarResponsable = (idResponsable) => {
     const responsable = catalogos.responsables.find(
@@ -735,14 +822,13 @@ const SalidasNoConformesView = () => {
       formulario.fecha, formulario.proceso, formulario.descripcion.trim(),
       formulario.areaResponsable,
       formulario.responsableGestion, formulario.correoRemitente,
-      formulario.correoDestinatario,
     ];
     if (camposRequeridos.some((valor) => !valor)) {
       setErrorRegistro("Complete todos los campos obligatorios antes de registrar la SNC.");
       return;
     }
 
-    // Evita registrar un remitente distinto al asociado al responsable.
+    // Evita registrar un correo distinto al asociado al responsable.
     const responsableSeleccionado = catalogos.responsables.find(
       (item) => String(item.id) === String(formulario.responsableGestion)
     );
@@ -757,7 +843,7 @@ const SalidasNoConformesView = () => {
         String(correoRemitenteSeleccionado.nombre).trim().toLowerCase())
     );
     if (!correoVinculado) {
-      setErrorRegistro("El responsable no tiene un correo remitente activo asociado. Verifique el catálogo SNC.");
+      setErrorRegistro("El responsable no tiene un correo activo asociado. Verifique el catálogo SNC.");
       return;
     }
 
@@ -776,8 +862,7 @@ const SalidasNoConformesView = () => {
       impacto: "",
       id_area_responsable_snc: Number(formulario.areaResponsable),
       id_responsable_snc: Number(formulario.responsableGestion),
-      id_correo_remitente: Number(formulario.correoRemitente),
-      id_correo_destinatario: Number(formulario.correoDestinatario),
+      // El backend obtiene ambos IDs históricos desde el responsable seleccionado.
     };
 
     envioEnCurso.current = true;
@@ -879,7 +964,7 @@ const SalidasNoConformesView = () => {
               <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{errorCatalogos}</p>
             )}
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div className="space-y-2">
+              <div className="space-y-2 md:col-span-2">
                 <Campo titulo="Fecha de la Salida No Conforme">
                   <input type="date" value={formulario.fecha} disabled={guardando} required
                     aria-describedby="snc-aviso-fecha"
@@ -897,10 +982,6 @@ const SalidasNoConformesView = () => {
                   </div>
                 </div>
               </div>
-              <Campo titulo="Responsable de diligenciar la SNC">
-                <input value={user?.name || "Usuario autenticado"} readOnly
-                  className={`${clasesInput} bg-gray-100`} />
-              </Campo>
               <div className="md:col-span-2">
                 <Campo titulo="Proceso que diligencia la SNC">
                   <Selector disabled={controlesDeshabilitados} opciones={catalogos.procesos}
@@ -912,6 +993,9 @@ const SalidasNoConformesView = () => {
                   <textarea rows={4} value={formulario.descripcion} disabled={guardando}
                     onChange={(e) => actualizar("descripcion", e.target.value)}
                     placeholder="Describa la salida no conforme..." className={clasesInput} />
+                  <p className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="note">
+                    <strong>Nota:</strong> Describa claramente qué ocurrió, dónde y cuál fue el incumplimiento del proceso interno.
+                  </p>
                 </Campo>
               </div>
               <Campo titulo="Área responsable de gestionar la SNC">
@@ -922,16 +1006,12 @@ const SalidasNoConformesView = () => {
                 <Selector disabled={controlesDeshabilitados} opciones={catalogos.responsables}
                   value={formulario.responsableGestion} onChange={seleccionarResponsable} />
               </Campo>
-              <Campo titulo="Correo remitente">
+              <Campo titulo="Correo del responsable que recibirá la notificación">
                 <Selector disabled opciones={catalogos.correos}
                   value={formulario.correoRemitente} onChange={() => {}}
                   placeholder={formulario.responsableGestion
                     ? "Responsable sin correo vinculado en el catálogo API"
                     : "Seleccione primero un responsable"} />
-              </Campo>
-              <Campo titulo="Correo destinatario">
-                <Selector disabled={controlesDeshabilitados} opciones={catalogos.correos}
-                  value={formulario.correoDestinatario} onChange={(valor) => actualizar("correoDestinatario", valor)} />
               </Campo>
               <Campo titulo="Estado">
                 <input value={formulario.estado} readOnly
@@ -970,12 +1050,6 @@ const SalidasNoConformesView = () => {
               {[
                 ["Fecha SNC", formatoFecha(detalleSNC.fecha_snc)],
                 ["Estado", detalleSNC.estado],
-                ["Proceso", detalleSNC.proceso],
-                ["Área responsable", detalleSNC.area_responsable],
-                ["Responsable de gestionar", detalleSNC.responsable],
-                ["Asignación", detalleSNC.asignacion_pendiente ? "Vinculación de usuario pendiente" : "Usuario vinculado"],
-                ["Correo remitente", detalleSNC.correo_remitente],
-                ["Correo destinatario", detalleSNC.correo_destinatario],
               ].map(([etiqueta, valor]) => (
                 <div key={etiqueta} className="rounded-lg bg-gray-50 p-3">
                   <p className="text-xs font-semibold text-gray-500">{etiqueta}</p>
@@ -987,7 +1061,28 @@ const SalidasNoConformesView = () => {
                 <p className="mt-1 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-sm text-gray-800">{detalleSNC.descripcion}</p>
               </div>
             </div>
-            {["RESPONDIDO", "CERRADO"].includes(String(detalleSNC.estado).toUpperCase()) && (
+            {String(detalleSNC.estado).toUpperCase() === "DEVUELTO" && motivoActual && (
+              <section className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4" aria-label="Motivo de devolución">
+                <h4 className="flex items-center gap-2 font-bold text-red-800"><RotateCcw size={17} /> SNC devuelta para corrección</h4>
+                <p className="mt-2 text-sm font-semibold text-red-800">Motivo de la devolución</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-red-900">{motivoActual}</p>
+              </section>
+            )}
+            {errorHistorialDevoluciones && <p role="alert" className="mt-3 text-sm text-red-700">{errorHistorialDevoluciones}</p>}
+            {historialDevoluciones.length > 0 && (
+              <details className="mt-4 rounded-lg border p-3">
+                <summary className="cursor-pointer text-sm font-semibold text-gray-700">Historial de devoluciones ({historialDevoluciones.length})</summary>
+                <div className="mt-3 space-y-3">
+                  {historialDevoluciones.map((item) => (
+                    <div key={item.id} className="rounded-lg bg-gray-50 p-3 text-sm">
+                      <p className="font-semibold text-gray-700">{item.usuario || "Usuario"} · {item.fecha ? new Date(item.fecha).toLocaleString("es-CO") : "—"}</p>
+                      <p className="mt-1 whitespace-pre-wrap text-gray-700">{item.motivo}</p>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+            {["RESPONDIDO", "CERRADO", "DEVUELTO"].includes(String(detalleSNC.estado).toUpperCase()) && (
               <section className="mt-6 space-y-4 border-t pt-5" aria-label="Respuesta de la salida no conforme">
                 <h4 className="text-base font-bold text-emerald-800">Respuesta de la salida no conforme</h4>
                 {consultandoRespuesta && !respuestaRegistrada && <p role="status" className="text-sm text-gray-500">Consultando respuesta...</p>}
@@ -1006,7 +1101,7 @@ const SalidasNoConformesView = () => {
                 )}
               </section>
             )}
-            {["RESPONDIDO", "CERRADO"].includes(String(detalleSNC.estado).toUpperCase()) && (
+            {["RESPONDIDO", "CERRADO", "DEVUELTO"].includes(String(detalleSNC.estado).toUpperCase()) && (
               <section className="mt-6 space-y-3 border-t pt-5" aria-label="Evidencias de la SNC">
                 <h4 className="text-base font-bold text-emerald-800">Evidencias adjuntas</h4>
                 {cargandoEvidencias && <p className="text-sm text-gray-500">Consultando evidencias...</p>}
@@ -1032,7 +1127,7 @@ const SalidasNoConformesView = () => {
                 ))}
               </section>
             )}
-            {origenDetalle === "asignadas" && String(detalleSNC.estado).toUpperCase() === "ABIERTO" && !detalleSNC.asignacion_pendiente && (
+            {origenDetalle === "asignadas" && ["ABIERTO", "EN_GESTION", "DEVUELTO"].includes(String(detalleSNC.estado).toUpperCase()) && !detalleSNC.asignacion_pendiente && (
               <section className="mt-6 space-y-4 border-t pt-5" aria-label="Responder salida no conforme">
                 <h4 className="text-base font-bold text-gray-800">Responder salida no conforme</h4>
                 <div>
@@ -1087,13 +1182,34 @@ const SalidasNoConformesView = () => {
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">
                   <CheckCircle2 size={17} /> {cerrandoSNC ? "Cerrando SNC..." : "Cerrar salida no conforme"}
                 </button>
+                <button type="button" onClick={() => { setMostrarDevolucion((v) => !v); setErrorDevolucion(""); }}
+                  disabled={cerrandoSNC || devolviendoSNC || consultandoRespuesta || !respuestaRegistrada || Boolean(errorConsultaRespuesta)}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-5 py-3 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">
+                  <RotateCcw size={17} /> Devolver salida no conforme
+                </button>
+                {mostrarDevolucion && (
+                  <div className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-4">
+                    <label htmlFor="snc-motivo-devolucion" className="block text-sm font-semibold text-red-800">Motivo de la devolución <span className="text-red-600">*</span></label>
+                    <textarea id="snc-motivo-devolucion" rows={4} maxLength={5000} required
+                      value={motivoDevolucion} disabled={devolviendoSNC}
+                      onChange={(e) => { setMotivoDevolucion(e.target.value); setErrorDevolucion(""); }}
+                      placeholder="Explique qué debe corregir el responsable..."
+                      className={clasesInput} />
+                    <button type="button" onClick={devolverSNC} disabled={devolviendoSNC || !motivoDevolucion.trim()}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-700 px-5 py-3 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50">
+                      <RotateCcw size={17} /> {devolviendoSNC ? "Enviando devolución..." : "Enviar devolución al responsable"}
+                    </button>
+                  </div>
+                )}
               </section>
             )}
+            {errorDevolucion && <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{errorDevolucion}</p>}
+            {exitoDevolucion && <p role="status" className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{exitoDevolucion}</p>}
             {errorCierre && <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{errorCierre}</p>}
             {exitoCierre && <p role="status" className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{exitoCierre}</p>}
             {errorRespuesta && <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{errorRespuesta}</p>}
             {exitoRespuesta && <p role="status" className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{exitoRespuesta}</p>}
-            <button type="button" onClick={cerrarDetalle} disabled={enviandoRespuesta || cerrandoSNC}
+            <button type="button" onClick={cerrarDetalle} disabled={enviandoRespuesta || cerrandoSNC || devolviendoSNC}
               className="mt-6 w-full rounded-lg border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
               Cerrar
             </button>
