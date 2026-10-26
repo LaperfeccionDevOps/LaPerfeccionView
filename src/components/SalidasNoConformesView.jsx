@@ -169,13 +169,11 @@ const SalidasNoConformesView = () => {
               .map((item) => ({
                 ...item,
                 id: item.id ?? item.IdResponsableSNC,
+                id_area_responsable_snc: item.id_area_responsable_snc ?? item.IdAreaResponsableSNC,
                 nombre: item.nombre ?? item.NombreResponsable,
                 id_correo_snc: item.id_correo_snc ?? item.idCorreoSNC ?? item.IdCorreoSNC ?? null,
                 correo_asociado: item.correo_asociado ?? item.correo ?? item.Correo ?? null,
-              }))
-              .sort((a, b) => String(a.nombre || "").localeCompare(
-                String(b.nombre || ""), "es", { sensitivity: "base" }
-              )),
+              })),
           });
         }
       } catch (error) {
@@ -600,35 +598,54 @@ const SalidasNoConformesView = () => {
     );
   };
 
-  const actualizar = (campo, valor) => {
-    setFormulario((anterior) => ({ ...anterior, [campo]: valor }));
-    setErrorRegistro("");
-    setExitoRegistro("");
-  };
-
-  // El correo remitente corresponde al responsable elegido en el catálogo de QA.
-  // No se infiere por el nombre ni por el usuario que inició sesión.
-  const seleccionarResponsable = (idResponsable) => {
-    const responsable = catalogos.responsables.find(
-      (item) => String(item.id) === String(idResponsable)
-    );
-    // Primero se usa el ID real de la relación en la BD. Si el endpoint
-    // devuelve el correo textual, se localiza su ID en el catálogo activo.
+  // Resuelve el correo del responsable utilizando el catálogo existente.
+  const obtenerIdCorreoResponsable = (responsable) => {
+    if (!responsable) return "";
     const correoPorId = catalogos.correos.find(
-      (item) => responsable?.id_correo_snc != null &&
+      (item) => responsable.id_correo_snc != null &&
         String(item.id) === String(responsable.id_correo_snc)
     );
-    const correoPorDireccion = !correoPorId && responsable?.correo_asociado
+    const correoPorDireccion = !correoPorId && responsable.correo_asociado
       ? catalogos.correos.find((item) =>
           String(item.nombre || "").trim().toLowerCase() ===
           String(responsable.correo_asociado).trim().toLowerCase()
         )
       : null;
-    const idCorreo = correoPorId?.id ?? correoPorDireccion?.id ?? null;
+    const idCorreo = correoPorId?.id ?? correoPorDireccion?.id;
+    return idCorreo != null ? String(idCorreo) : "";
+  };
+
+  const actualizar = (campo, valor) => {
+    if (campo === "areaResponsable") {
+      const disponibles = catalogos.responsables.filter(
+        (item) => String(item.id_area_responsable_snc) === String(valor)
+      );
+      const unico = disponibles.length === 1 ? disponibles[0] : null;
+      setFormulario((anterior) => ({
+        ...anterior,
+        areaResponsable: valor,
+        responsableGestion: unico ? String(unico.id) : "",
+        correoRemitente: obtenerIdCorreoResponsable(unico),
+      }));
+    } else {
+      setFormulario((anterior) => ({ ...anterior, [campo]: valor }));
+    }
+    setErrorRegistro("");
+    setExitoRegistro("");
+  };
+
+  const responsablesDelArea = catalogos.responsables.filter(
+    (item) => String(item.id_area_responsable_snc) === String(formulario.areaResponsable)
+  );
+
+  const seleccionarResponsable = (idResponsable) => {
+    const responsable = responsablesDelArea.find(
+      (item) => String(item.id) === String(idResponsable)
+    );
     setFormulario((anterior) => ({
       ...anterior,
       responsableGestion: idResponsable,
-      correoRemitente: idCorreo != null ? String(idCorreo) : "",
+      correoRemitente: obtenerIdCorreoResponsable(responsable),
     }));
     setErrorRegistro("");
     setExitoRegistro("");
@@ -654,6 +671,11 @@ const SalidasNoConformesView = () => {
     const responsableSeleccionado = catalogos.responsables.find(
       (item) => String(item.id) === String(formulario.responsableGestion)
     );
+    if (!responsableSeleccionado ||
+        String(responsableSeleccionado.id_area_responsable_snc) !== String(formulario.areaResponsable)) {
+      setErrorRegistro("Seleccione un responsable asociado al área indicada.");
+      return;
+    }
     const correoRemitenteSeleccionado = catalogos.correos.find(
       (item) => String(item.id) === String(formulario.correoRemitente)
     );
@@ -830,7 +852,7 @@ const SalidasNoConformesView = () => {
                   value={formulario.areaResponsable} onChange={(valor) => actualizar("areaResponsable", valor)} />
               </Campo>
               <Campo titulo="Responsable de gestionar la SNC">
-                <Selector disabled={controlesDeshabilitados} opciones={catalogos.responsables}
+                <Selector disabled={controlesDeshabilitados || !formulario.areaResponsable} opciones={responsablesDelArea}
                   value={formulario.responsableGestion} onChange={seleccionarResponsable} />
               </Campo>
               <Campo titulo="Correo remitente">
