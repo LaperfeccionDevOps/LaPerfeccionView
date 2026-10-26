@@ -75,7 +75,6 @@ const Sidebar = ({
     };
   }, [actualizarPendientes]);
 
-  const totalPendientes = pendientes.snc + pendientes.pqrf;
   const contadorMenu = (cantidad) =>
     cantidad > 0 ? (
       <span className="ml-auto inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-400 px-1.5 py-0.5 text-[10px] font-bold leading-none text-emerald-950">
@@ -623,8 +622,8 @@ const Sidebar = ({
         })
         .filter(Boolean);
 
-  // SNC es un módulo transversal: mostrarlo a cualquier usuario autenticado.
-  // Los permisos efectivos de lectura y gestión se validan en el backend.
+  // SNC y PQRF son módulos transversales con menús independientes.
+  // Los permisos efectivos de gestión se validan en el backend.
   const puedeAccederSNC = Boolean(user && rolUsuario);
 
   const navItems = [
@@ -633,7 +632,7 @@ const Sidebar = ({
       ? [
           {
             label: "Salidas No Conformes",
-            contador: totalPendientes,
+            contador: pendientes.snc,
             icon: ClipboardCheck,
             children: [
               {
@@ -641,19 +640,33 @@ const Sidebar = ({
                 label: "Gestión de SNC",
                 contador: pendientes.snc,
               },
+              ...(esSuperAdministrador
+                ? [
+                    {
+                      to: "/salidas-no-conformes/general",
+                      label: "Salidas No Conformes General",
+                    },
+                  ]
+                : []),
+            ],
+          },
+          {
+            label: "PQRF",
+            contador: pendientes.pqrf,
+            icon: Users,
+            children: [
               {
                 to: "/pqrf",
                 label: "Gestión de PQRF",
                 contador: pendientes.pqrf,
               },
               ...(esSuperAdministrador
-                ? [{
-                    to: "/salidas-no-conformes/general",
-                    label: "Salidas No Conformes General",
-                  }, {
-                     to: "/pqrf/general",
-                     label: "PQRF General",
-                  }]
+                ? [
+                    {
+                      to: "/pqrf/general",
+                      label: "PQRF General",
+                    },
+                  ]
                 : []),
             ],
           },
