@@ -158,7 +158,15 @@ export default function PQRFView() {
     window.dispatchEvent(new Event("snc-pqrf-actualizadas"));
   };
 
-  const cambiar = (campo, valor) => setForm(v => ({ ...v, [campo]: valor }));
+  const cambiar = (campo, valor) => setForm(v => {
+    if (campo === "proceso") {
+      const proceso = catalogos.procesos.find(p => String(p.id) === String(valor));
+      const correoId = proceso?.id_correo_pqrf;
+      const disponible = catalogos.correos.some(c => String(c.id) === String(correoId));
+      return { ...v, proceso: valor, destinatario: correoId != null && disponible ? String(correoId) : "" };
+    }
+    return { ...v, [campo]: valor };
+  });
   const registrar = async (e) => {
     e.preventDefault();
     if (envioRef.current || cargandoCatalogos || errorCatalogos) return;
@@ -391,7 +399,8 @@ export default function PQRFView() {
           <textarea id="pqrf-descripcion" aria-describedby="pqrf-descripcion-nota" className={inputClass} rows={5} maxLength={20000} required disabled={guardando} value={form.descripcion} onChange={e => cambiar("descripcion", e.target.value)} placeholder="Describa la petición, queja, reclamo o felicitación..." />
         </div>
         <Campo label="Proceso que responde PQRF *"><Selector nombre="un proceso" campo="proceso" opciones={catalogos.procesos} value={form.proceso} onChange={cambiar} disabled={guardando || cargandoCatalogos || !!errorCatalogos}/></Campo>
-        <Campo label="Correo donde va dirigida la PQRF *"><Selector nombre="un correo" campo="destinatario" opciones={catalogos.correos} etiqueta="correo" value={form.destinatario} onChange={cambiar} disabled={guardando || cargandoCatalogos || !!errorCatalogos}/></Campo>
+        <Campo label="Correo donde va dirigida la PQRF *"><Selector nombre="un correo" campo="destinatario" opciones={catalogos.correos} etiqueta="correo" value={form.destinatario} onChange={cambiar} disabled={true}/></Campo>
+        {form.proceso && !form.destinatario && !cargandoCatalogos && <p role="alert" className="text-sm text-red-700">El proceso seleccionado no tiene un correo activo configurado. Contacte al administrador.</p>}
         <Campo label="Estado inicial"><input className={`${inputClass} bg-gray-100`} value="ABIERTA" readOnly /></Campo>
       </div><div className="mt-7 flex justify-end border-t pt-5"><button disabled={guardando || cargandoCatalogos || !!errorCatalogos} className="flex items-center gap-2 rounded-lg bg-emerald-700 px-6 py-3 font-semibold text-white disabled:opacity-50"><Send size={17}/>{guardando ? "Registrando..." : "Registrar PQRF"}</button></div>
     </form>}

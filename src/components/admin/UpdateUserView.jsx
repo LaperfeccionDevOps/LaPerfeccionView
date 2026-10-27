@@ -53,6 +53,14 @@ const UpdateUserView = () => {
   const [areas, setAreas] = useState([]);
   const [areasError, setAreasError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  // Ocultamiento de presentación local; no modifica el estado ni los permisos en PostgreSQL.
+  const [hiddenIds, setHiddenIds] = useState(() => {
+    try {
+      const ids = JSON.parse(localStorage.getItem('alp_superadmin_usuarios_ocultos_v1') || '[]');
+      return Array.isArray(ids) ? ids.map(String) : [];
+    } catch (_) { return []; }
+  });
+  const [visibilityFilter, setVisibilityFilter] = useState('visible');
 
   const [selectedUser, setSelectedUser] =
     useState(null);
@@ -154,6 +162,25 @@ const UpdateUserView = () => {
   }, []);
 
 
+  const toggleUserVisibility = (user) => {
+    const id = String(user.id);
+    const currentlyHidden = hiddenIds.includes(id);
+    if (!currentlyHidden && !window.confirm(`¿Ocultar a ${user.username} de esta lista en este navegador?\n\nEl usuario conservará su acceso y sus datos.`)) return;
+    const next = currentlyHidden ? hiddenIds.filter(x => x !== id) : [...hiddenIds, id];
+    try {
+      localStorage.setItem('alp_superadmin_usuarios_ocultos_v1', JSON.stringify(next));
+      setHiddenIds(next);
+      toast({ title: currentlyHidden ? 'Usuario visible' : 'Usuario oculto', description: 'Preferencia guardada únicamente en este navegador. No se modificó PostgreSQL.' });
+    } catch (_) {
+      toast({ title: 'No se pudo guardar la preferencia', variant: 'destructive' });
+    }
+  };
+
+  const areaNameFor = (user) => {
+    const area = areas.find(a => String(a.id) === String(user?.areaId ?? ''));
+    return area?.name || 'Sin asignar';
+  };
+
   const handleSearch = (e) => {
     setSearchTerm(
       e.target.value
@@ -169,11 +196,11 @@ const UpdateUserView = () => {
         .trim()
         .toLowerCase();
 
-    if (!term) {
-      return users;
-    }
-
     return users.filter((user) => {
+      const isHidden = hiddenIds.includes(String(user.id));
+      if (visibilityFilter === 'visible' && isHidden) return false;
+      if (visibilityFilter === 'hidden' && !isHidden) return false;
+      if (!term) return true;
       const name =
         String(user?.name || '')
           .toLowerCase();
@@ -190,6 +217,8 @@ const UpdateUserView = () => {
         String(user?.role || '')
           .toLowerCase();
 
+      const area = areaNameFor(user).toLowerCase();
+
       const status =
         String(user?.status || '')
           .toLowerCase();
@@ -199,12 +228,16 @@ const UpdateUserView = () => {
         username.includes(term) ||
         email.includes(term) ||
         role.includes(term) ||
+        area.includes(term) ||
         status.includes(term)
       );
     });
   }, [
     users,
     searchTerm,
+    hiddenIds,
+    visibilityFilter,
+    areas,
   ]);
 
 
@@ -526,8 +559,7 @@ const UpdateUserView = () => {
 
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 animate-in fade-in duration-500">
-
+    <div className="mx-auto w-full max-w-6xl xl:max-w-[1600px] 2xl:max-w-[1800px] space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between">
 
         <div className="flex items-center gap-4">
@@ -549,6 +581,17 @@ const UpdateUserView = () => {
         </div>
 
 
+        <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto">
+          <select
+            aria-label="Filtrar usuarios por visibilidad"
+            value={visibilityFilter}
+            onChange={(e) => setVisibilityFilter(e.target.value)}
+            className="h-10 rounded-md border border-gray-200 bg-white px-3 text-sm"
+          >
+            <option value="visible">Usuarios visibles</option>
+            <option value="hidden">Usuarios ocultos ({hiddenIds.length})</option>
+            <option value="all">Todos los usuarios</option>
+          </select>
         <div className="relative w-full md:w-80">
 
           <Input
@@ -561,6 +604,7 @@ const UpdateUserView = () => {
           <Search className="absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
 
         </div>
+        </div>
 
       </div>
 
@@ -569,7 +613,7 @@ const UpdateUserView = () => {
 
         <div className="overflow-x-auto">
 
-          <table className="w-full min-w-[1050px] text-left text-sm">
+          <table className="w-full min-w-[1250px] text-left text-sm">
 
             <thead className="border-b bg-gray-50 text-xs uppercase text-gray-700">
 
@@ -579,7 +623,7 @@ const UpdateUserView = () => {
                 </th>
 
                 <th className="px-6 py-3">
-                  Nombre
+                  Nombre completo
                 </th>
 
                 <th className="px-6 py-3">
@@ -591,10 +635,14 @@ const UpdateUserView = () => {
                 </th>
 
                 <th className="px-6 py-3">
+                  Área de trabajo
+                </th>
+
+                <th className="px-6 py-3">
                   Estado
                 </th>
 
-                <th className="px-6 py-3 text-right">
+                <th className="w-[170px] min-w-[170px] px-5 py-3 text-center">
                   Acciones
                 </th>
               </tr>
@@ -608,7 +656,7 @@ const UpdateUserView = () => {
 
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-6 py-12 text-center"
                   >
                     <div className="flex items-center justify-center gap-3 text-gray-500">
@@ -662,6 +710,10 @@ const UpdateUserView = () => {
                       </td>
 
 
+                      <td className="px-6 py-4 text-gray-600">
+                        {areaNameFor(user)}
+                      </td>
+
                       <td className="px-6 py-4">
 
                         <div
@@ -689,9 +741,9 @@ const UpdateUserView = () => {
                       </td>
 
 
-                      <td className="px-6 py-4">
+                      <td className="w-[170px] min-w-[170px] px-4 py-4">
 
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex items-center justify-center gap-2">
 
                           <Button
                             type="button"
@@ -720,6 +772,18 @@ const UpdateUserView = () => {
                             <KeyRound className="h-4 w-4" />
                           </Button>
 
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            title={hiddenIds.includes(String(user.id)) ? 'Mostrar usuario' : 'Ocultar usuario (solo este navegador)'}
+                            aria-label={hiddenIds.includes(String(user.id)) ? `Mostrar ${user.username}` : `Ocultar ${user.username}`}
+                            className="text-gray-500 hover:text-amber-600"
+                            onClick={() => toggleUserVisibility(user)}
+                          >
+                            {hiddenIds.includes(String(user.id)) ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                          </Button>
+
                         </div>
 
                       </td>
@@ -732,10 +796,10 @@ const UpdateUserView = () => {
 
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-6 py-10 text-center text-gray-500"
                   >
-                    No se encontraron usuarios registrados
+                    No se encontraron usuarios en esta vista
                   </td>
                 </tr>
 
