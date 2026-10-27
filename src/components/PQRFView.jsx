@@ -19,7 +19,10 @@ const Selector = ({ nombre, campo, opciones, etiqueta = "nombre", value, onChang
 
 export default function PQRFView() {
   const { user } = useAuth();
-  const [tab, setTab] = useState("nueva");
+  const [tab, setTab] = useState("registradas");
+  const [puedeCrear, setPuedeCrear] = useState(false);
+  const [tieneRegistradas, setTieneRegistradas] = useState(true);
+  const [cargandoPermisos, setCargandoPermisos] = useState(true);
   const [form, setForm] = useState(initial);
   const [catalogos, setCatalogos] = useState({ tipos: [], procesos: [], correos: [], responsables: [] });
   const [cargandoCatalogos, setCargandoCatalogos] = useState(true);
@@ -80,6 +83,43 @@ export default function PQRFView() {
     if (!r.ok) throw new Error(detalleError(d, r.status));
     return { data: d, status: r.status };
   }, [tokenActual]);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    setCargandoPermisos(true);
+    (async () => {
+      try {
+        const { data } = await solicitar("/permisos", { signal: ctrl.signal });
+        if (ctrl.signal.aborted) return;
+        const autorizado = data?.puede_crear === true;
+        setPuedeCrear(autorizado);
+        if (autorizado) {
+          setTieneRegistradas(true);
+          return;
+        }
+        // Conserva acceso a PQRF históricas para consultar y cerrar las respondidas.
+        try {
+          const historicas = await solicitar("/mis-registradas?limite=1&desplazamiento=0", { signal: ctrl.signal });
+          if (ctrl.signal.aborted) return;
+          const tiene = Array.isArray(historicas.data) ? historicas.data.length > 0 : true;
+          setTieneRegistradas(tiene);
+          setTab(actual => (actual === "nueva" || (!tiene && actual === "registradas")) ? "asignadas" : actual);
+        } catch (error) {
+          // Ante errores de consulta, conservar la bandeja para no bloquear cierres.
+          if (!ctrl.signal.aborted) setTieneRegistradas(true);
+        }
+      } catch (error) {
+        if (!ctrl.signal.aborted) {
+          setPuedeCrear(false);
+          setTieneRegistradas(true);
+          setTab(actual => actual === "nueva" ? "registradas" : actual);
+        }
+      } finally {
+        if (!ctrl.signal.aborted) setCargandoPermisos(false);
+      }
+    })();
+    return () => ctrl.abort();
+  }, [solicitar]);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -173,7 +213,7 @@ export default function PQRFView() {
   });
   const registrar = async (e) => {
     e.preventDefault();
-    if (envioRef.current || cargandoCatalogos || errorCatalogos) return;
+    if (envioRef.current || cargandoCatalogos || errorCatalogos || cargandoPermisos || !puedeCrear) return;
     if (!form.fecha || !form.tipo || !form.nombre.trim() || !form.cliente || !form.correoCorporativo.trim() || !form.descripcion.trim() || !form.proceso || !form.destinatario) {
       setAviso({ ok: false, texto: "Complete todos los campos obligatorios." }); return;
     }
@@ -368,8 +408,8 @@ export default function PQRFView() {
 
   return <div className="min-h-screen bg-gray-50 p-4 md:p-6"><div className="mx-auto max-w-6xl space-y-6">
     <header className="rounded-xl border bg-white p-6 shadow-sm"><div className="flex items-center gap-3"><ClipboardList className="text-emerald-700" size={36}/><div><h1 className="text-2xl font-bold text-gray-800">PQRF</h1><p className="text-sm text-gray-500">Peticiones, Quejas, Reclamos y Felicitaciones</p></div></div></header>
-    <nav className="flex flex-wrap gap-2">{[["nueva", "Nueva PQRF", PlusCircle], ["registradas", "Mis PQRF registradas", FileText], ["asignadas", "PQRF asignadas", Inbox], ["delegadas", "PQRF delegadas", FileText]].map(([id, nombre, Icon]) => <button key={id} type="button" onClick={() => setTab(id)} className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold ${tab === id ? "bg-emerald-700 text-white" : "border bg-white text-gray-700 hover:bg-gray-100"}`}><Icon size={17}/>{nombre}{id === "asignadas" && pendientesPQRF > 0 && <span className={`ml-1 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-bold ${tab === id ? "bg-emerald-100 text-emerald-900" : "bg-emerald-100 text-emerald-700"}`}>{pendientesPQRF}</span>}</button>)}</nav>
-    {tab === "nueva" && <form onSubmit={registrar} className="rounded-xl border bg-white p-5 shadow-sm md:p-7"><h2 className="mb-5 text-lg font-bold">Registro de PQRF</h2>{cargandoCatalogos && <p className="mb-4 text-sm">Cargando catálogos...</p>}{errorCatalogos && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-red-700">{errorCatalogos}</p>}
+    <nav className="flex flex-wrap gap-2">{[...(puedeCrear && !cargandoPermisos ? [["nueva", "Nueva PQRF", PlusCircle]] : []), ...(tieneRegistradas ? [["registradas", "Mis PQRF registradas", FileText]] : []), ["asignadas", "PQRF asignadas", Inbox], ["delegadas", "PQRF delegadas", FileText]].map(([id, nombre, Icon]) => <button key={id} type="button" onClick={() => setTab(id)} className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold ${tab === id ? "bg-emerald-700 text-white" : "border bg-white text-gray-700 hover:bg-gray-100"}`}><Icon size={17}/>{nombre}{id === "asignadas" && pendientesPQRF > 0 && <span className={`ml-1 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-bold ${tab === id ? "bg-emerald-100 text-emerald-900" : "bg-emerald-100 text-emerald-700"}`}>{pendientesPQRF}</span>}</button>)}</nav>
+    {tab === "nueva" && puedeCrear && !cargandoPermisos && <form onSubmit={registrar} className="rounded-xl border bg-white p-5 shadow-sm md:p-7"><h2 className="mb-5 text-lg font-bold">Registro de PQRF</h2>{cargandoCatalogos && <p className="mb-4 text-sm">Cargando catálogos...</p>}{errorCatalogos && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-red-700">{errorCatalogos}</p>}
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <div className="space-y-2 md:col-span-2">
           <label htmlFor="pqrf-fecha" className="block text-sm font-semibold text-gray-700">Fecha de PQRF *</label>
