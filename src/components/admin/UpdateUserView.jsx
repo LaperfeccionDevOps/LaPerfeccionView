@@ -53,6 +53,8 @@ const UpdateUserView = () => {
   const [areas, setAreas] = useState([]);
   const [areasError, setAreasError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const USERS_PER_PAGE = 20;
   // Ocultamiento de presentación local; no modifica el estado ni los permisos en PostgreSQL.
   const [hiddenIds, setHiddenIds] = useState(() => {
     try {
@@ -240,6 +242,24 @@ const UpdateUserView = () => {
     areas,
   ]);
 
+
+  // Paginar después de aplicar búsqueda y filtro de visibilidad.
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / USERS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedUsers = useMemo(
+    () => filteredUsers.slice((safePage - 1) * USERS_PER_PAGE, safePage * USERS_PER_PAGE),
+    [filteredUsers, safePage]
+  );
+
+  // Una nueva búsqueda o cambio de visibilidad siempre comienza en la primera página.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, visibilityFilter, hiddenIds]);
+
+  // Si se reduce el total (p. ej. tras editar), conservar una página válida.
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   const handleEditClick = (user) => {
     setSelectedUser({
@@ -613,8 +633,17 @@ const UpdateUserView = () => {
 
         <div className="overflow-x-auto">
 
-          <table className="w-full min-w-[1250px] text-left text-sm">
+          <table className="w-full min-w-[980px] table-fixed text-left text-sm">
 
+            <colgroup>
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '17%' }} />
+              <col style={{ width: '22%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '15%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '12%' }} />
+            </colgroup>
             <thead className="border-b bg-gray-50 text-xs uppercase text-gray-700">
 
               <tr>
@@ -642,7 +671,7 @@ const UpdateUserView = () => {
                   Estado
                 </th>
 
-                <th className="w-[170px] min-w-[170px] px-5 py-3 text-center">
+                <th className="px-2 py-3 text-center">
                   Acciones
                 </th>
               </tr>
@@ -673,7 +702,7 @@ const UpdateUserView = () => {
 
               ) : filteredUsers.length > 0 ? (
 
-                filteredUsers.map((user) => {
+                paginatedUsers.map((user) => {
 
                   const isActive =
                     String(user.status || '')
@@ -686,22 +715,22 @@ const UpdateUserView = () => {
                       className="border-b bg-white transition-colors last:border-b-0 hover:bg-gray-50"
                     >
 
-                      <td className="px-6 py-4 font-medium text-gray-900">
+                      <td className="break-words px-3 py-4 font-medium text-gray-900">
                         {user.username || '—'}
                       </td>
 
 
-                      <td className="px-6 py-4 text-gray-600">
+                      <td className="break-words px-3 py-4 text-gray-600">
                         {user.name || '—'}
                       </td>
 
 
-                      <td className="px-6 py-4 text-gray-600">
+                      <td className="break-words px-3 py-4 text-gray-600">
                         {user.email || '—'}
                       </td>
 
 
-                      <td className="px-6 py-4">
+                      <td className="px-3 py-4">
 
                         <span className="rounded-md border border-blue-100 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
                           {user.role || 'Sin rol'}
@@ -710,11 +739,11 @@ const UpdateUserView = () => {
                       </td>
 
 
-                      <td className="px-6 py-4 text-gray-600">
+                      <td className="break-words px-3 py-4 text-gray-600">
                         {areaNameFor(user)}
                       </td>
 
-                      <td className="px-6 py-4">
+                      <td className="px-3 py-4">
 
                         <div
                           className={`flex items-center gap-2 ${
@@ -741,16 +770,16 @@ const UpdateUserView = () => {
                       </td>
 
 
-                      <td className="w-[170px] min-w-[170px] px-4 py-4">
+                      <td className="px-1 py-4">
 
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-center gap-1 whitespace-nowrap">
 
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
                             title="Editar usuario"
-                            className="text-gray-500 hover:text-blue-600"
+                            className="h-8 w-8 shrink-0 p-0 text-gray-500 hover:text-blue-600"
                             onClick={() =>
                               handleEditClick(user)
                             }
@@ -764,7 +793,7 @@ const UpdateUserView = () => {
                             variant="ghost"
                             size="sm"
                             title="Restablecer contraseña"
-                            className="text-gray-500 hover:text-purple-600"
+                            className="h-8 w-8 shrink-0 p-0 text-gray-500 hover:text-purple-600"
                             onClick={() =>
                               handlePasswordClick(user)
                             }
@@ -778,7 +807,7 @@ const UpdateUserView = () => {
                             size="sm"
                             title={hiddenIds.includes(String(user.id)) ? 'Mostrar usuario' : 'Ocultar usuario (solo este navegador)'}
                             aria-label={hiddenIds.includes(String(user.id)) ? `Mostrar ${user.username}` : `Ocultar ${user.username}`}
-                            className="text-gray-500 hover:text-amber-600"
+                            className="h-8 w-8 shrink-0 p-0 text-gray-500 hover:text-amber-600"
                             onClick={() => toggleUserVisibility(user)}
                           >
                             {hiddenIds.includes(String(user.id)) ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
@@ -810,6 +839,25 @@ const UpdateUserView = () => {
           </table>
 
         </div>
+
+        {!isLoading && filteredUsers.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 px-4 py-3 text-sm">
+            <span className="text-gray-600">
+              Mostrando {(safePage - 1) * USERS_PER_PAGE + 1}–{Math.min(safePage * USERS_PER_PAGE, filteredUsers.length)} de {filteredUsers.length} usuarios
+            </span>
+            <nav className="flex flex-wrap items-center gap-2" aria-label="Paginación de usuarios">
+              <Button type="button" variant="outline" size="sm" disabled={safePage === 1}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>
+                Anterior
+              </Button>
+              <span className="px-2 text-gray-700">Página {safePage} de {totalPages}</span>
+              <Button type="button" variant="outline" size="sm" disabled={safePage === totalPages}
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>
+                Siguiente
+              </Button>
+            </nav>
+          </div>
+        )}
 
       </div>
 
