@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   ChevronDown,
@@ -26,6 +26,62 @@ const Sidebar = ({
   const location = useLocation();
 
   const [openSubmenus, setOpenSubmenus] = useState({});
+
+  const [pendientes, setPendientes] = useState({ snc: 0, pqrf: 0 });
+
+  const actualizarPendientes = useCallback(async () => {
+    const token = localStorage.getItem("token") || user?.token;
+    if (!token || !user) {
+      setPendientes({ snc: 0, pqrf: 0 });
+      return;
+    }
+    const base = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+    const rutas = [
+      `${base}/salidas-no-conformes/pendientes/contador`,
+      `${base}/pqrf/pendientes/contador`,
+    ];
+    const resultados = await Promise.allSettled(
+      rutas.map(async (ruta) => {
+        const respuesta = await fetch(ruta, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
+        const datos = await respuesta.json();
+        return Math.max(0, Number(datos?.pendientes) || 0);
+      })
+    );
+    setPendientes((anterior) => ({
+      snc: resultados[0].status === "fulfilled" ? resultados[0].value : anterior.snc,
+      pqrf: resultados[1].status === "fulfilled" ? resultados[1].value : anterior.pqrf,
+    }));
+  }, [user]);
+
+  useEffect(() => {
+    let activo = true;
+    const actualizar = () => {
+      if (activo && document.visibilityState !== "hidden") {
+        actualizarPendientes().catch(() => {});
+      }
+    };
+    actualizar();
+    const intervalo = window.setInterval(actualizar, 45000);
+    window.addEventListener("focus", actualizar);
+    window.addEventListener("snc-pqrf-actualizadas", actualizar);
+    return () => {
+      activo = false;
+      window.clearInterval(intervalo);
+      window.removeEventListener("focus", actualizar);
+      window.removeEventListener("snc-pqrf-actualizadas", actualizar);
+    };
+  }, [actualizarPendientes]);
+
+  const contadorMenu = (cantidad) =>
+    cantidad > 0 ? (
+      <span className="ml-auto inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-400 px-1.5 py-0.5 text-[10px] font-bold leading-none text-emerald-950">
+        {cantidad}
+      </span>
+    ) : null;
+
 
   const rolUsuario = user?.role || "";
 
@@ -566,7 +622,7 @@ const Sidebar = ({
         })
         .filter(Boolean);
 
-  // SNC es transversal para usuarios internos, no para el rol Aspirante.
+  // SNC y PQRF son módulos transversales para usuarios internos, excepto Aspirante.
   // Los permisos efectivos de lectura y gestión se validan en el backend.
   const puedeAccederSNC = Boolean(user && rolUsuario && rolUsuario !== "Aspirante");
 
@@ -576,24 +632,41 @@ const Sidebar = ({
       ? [
           {
             label: "Salidas No Conformes",
+            contador: pendientes.snc,
             icon: ClipboardCheck,
             children: [
               {
                 to: "/salidas-no-conformes",
                 label: "Gestión de SNC",
+                contador: pendientes.snc,
               },
+              ...(esSuperAdministrador
+                ? [
+                    {
+                      to: "/salidas-no-conformes/general",
+                      label: "Salidas No Conformes General",
+                    },
+                  ]
+                : []),
+            ],
+          },
+          {
+            label: "PQRF",
+            contador: pendientes.pqrf,
+            icon: Users,
+            children: [
               {
                 to: "/pqrf",
                 label: "Gestión de PQRF",
+                contador: pendientes.pqrf,
               },
               ...(esSuperAdministrador
-                ? [{
-                    to: "/salidas-no-conformes/general",
-                    label: "Salidas No Conformes General",
-                  }, {
-                     to: "/pqrf/general",
-                     label: "PQRF General",
-                  }]
+                ? [
+                    {
+                      to: "/pqrf/general",
+                      label: "PQRF General",
+                    },
+                  ]
                 : []),
             ],
           },
@@ -774,6 +847,7 @@ const Sidebar = ({
                       >
                         {menuItem.label}
                       </span>
+                      {isOpen && contadorMenu(menuItem.contador)}
                     </div>
 
                     {isOpen &&
@@ -821,7 +895,8 @@ const Sidebar = ({
                 }
               >
                 <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400/50" />
-                <span>{menuItem.label}</span>
+                <span className="min-w-0 flex-1">{menuItem.label}</span>
+                {contadorMenu(menuItem.contador)}
               </NavLink>
             );
           };

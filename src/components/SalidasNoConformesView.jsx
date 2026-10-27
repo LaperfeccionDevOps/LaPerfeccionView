@@ -94,6 +94,48 @@ const SalidasNoConformesView = () => {
   const [consultandoRespuesta, setConsultandoRespuesta] = useState(false);
   const [errorConsultaRespuesta, setErrorConsultaRespuesta] = useState("");
   const LIMITE_BANDEJA = 20;
+  // Mismo contador oficial que utiliza Sidebar: solo SNC asignadas pendientes.
+  // No se calcula a partir de la página visible (la bandeja está paginada).
+  const [sncPendientes, setSncPendientes] = useState(null);
+
+  useEffect(() => {
+    const controlador = new AbortController();
+    let vigente = true;
+    const consultarPendientes = async () => {
+      const token = localStorage.getItem("token") || user?.token;
+      if (!token) { if (vigente) setSncPendientes(null); return; }
+      try {
+        const respuesta = await fetch(`${SNC_BASE_URL}/pendientes/contador`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controlador.signal,
+        });
+        if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
+        const datos = await respuesta.json();
+        const cantidad = Number(datos?.pendientes);
+        if (!Number.isFinite(cantidad) || cantidad < 0) throw new Error("Contador inválido");
+        if (vigente) setSncPendientes(Math.floor(cantidad));
+      } catch (error) {
+        if (vigente && !controlador.signal.aborted) setSncPendientes(null);
+      }
+    };
+    const actualizarAlVolver = () => {
+      if (document.visibilityState !== "hidden") consultarPendientes();
+    };
+    consultarPendientes();
+    const intervalo = window.setInterval(actualizarAlVolver, 45000);
+    window.addEventListener("focus", actualizarAlVolver);
+    window.addEventListener("snc-pqrf-actualizadas", actualizarAlVolver);
+    return () => {
+      vigente = false;
+      controlador.abort();
+      window.clearInterval(intervalo);
+      window.removeEventListener("focus", actualizarAlVolver);
+      window.removeEventListener("snc-pqrf-actualizadas", actualizarAlVolver);
+    };
+  }, [user?.token]);
+
+  const notificarCambioSNC = () => window.dispatchEvent(new Event("snc-pqrf-actualizadas"));
+
 
 
   useEffect(() => {
@@ -139,13 +181,11 @@ const SalidasNoConformesView = () => {
               .map((item) => ({
                 ...item,
                 id: item.id ?? item.IdResponsableSNC,
+                id_area_responsable_snc: item.id_area_responsable_snc ?? item.IdAreaResponsableSNC,
                 nombre: item.nombre ?? item.NombreResponsable,
                 id_correo_snc: item.id_correo_snc ?? item.idCorreoSNC ?? item.IdCorreoSNC ?? null,
                 correo_asociado: item.correo_asociado ?? item.correo ?? item.Correo ?? null,
-              }))
-              .sort((a, b) => String(a.nombre || "").localeCompare(
-                String(b.nombre || ""), "es", { sensitivity: "base" }
-              )),
+              })),
           });
         }
       } catch (error) {
@@ -603,6 +643,7 @@ const SalidasNoConformesView = () => {
       }));
       setExitoRespuesta(`SNC N.º ${detalleSNC.id} respondida correctamente. El estado cambió a RESPONDIDO. Evidencias registradas: ${Number(datos.evidencias ?? 0)}.`);
       setRecargarBandeja((v) => v + 1);
+      notificarCambioSNC();
     } catch (error) {
       setErrorRespuesta(error instanceof TypeError
         ? "No se pudo confirmar la respuesta del servidor. Consulte el estado antes de intentar nuevamente para evitar duplicados."
@@ -654,6 +695,7 @@ const SalidasNoConformesView = () => {
       }));
       setExitoCierre(`SNC N.º ${detalleSNC.id} cerrada correctamente.`);
       setRecargarBandeja((v) => v + 1);
+      notificarCambioSNC();
     } catch (error) {
       setErrorCierre(error instanceof TypeError
         ? "No se pudo confirmar el cierre. Consulte el estado antes de reintentar para evitar operaciones duplicadas."
@@ -779,35 +821,54 @@ const SalidasNoConformesView = () => {
     );
   };
 
-  const actualizar = (campo, valor) => {
-    setFormulario((anterior) => ({ ...anterior, [campo]: valor }));
-    setErrorRegistro("");
-    setExitoRegistro("");
-  };
-
-  // El correo mostrado corresponde al responsable que recibirá la notificación.
-  // No se infiere por el nombre ni por el usuario que inició sesión.
-  const seleccionarResponsable = (idResponsable) => {
-    const responsable = catalogos.responsables.find(
-      (item) => String(item.id) === String(idResponsable)
-    );
-    // Primero se usa el ID real de la relación en la BD. Si el endpoint
-    // devuelve el correo textual, se localiza su ID en el catálogo activo.
+  // Resuelve el correo del responsable utilizando el catálogo existente.
+  const obtenerIdCorreoResponsable = (responsable) => {
+    if (!responsable) return "";
     const correoPorId = catalogos.correos.find(
-      (item) => responsable?.id_correo_snc != null &&
+      (item) => responsable.id_correo_snc != null &&
         String(item.id) === String(responsable.id_correo_snc)
     );
-    const correoPorDireccion = !correoPorId && responsable?.correo_asociado
+    const correoPorDireccion = !correoPorId && responsable.correo_asociado
       ? catalogos.correos.find((item) =>
           String(item.nombre || "").trim().toLowerCase() ===
           String(responsable.correo_asociado).trim().toLowerCase()
         )
       : null;
-    const idCorreo = correoPorId?.id ?? correoPorDireccion?.id ?? null;
+    const idCorreo = correoPorId?.id ?? correoPorDireccion?.id;
+    return idCorreo != null ? String(idCorreo) : "";
+  };
+
+  const actualizar = (campo, valor) => {
+    if (campo === "areaResponsable") {
+      const disponibles = catalogos.responsables.filter(
+        (item) => String(item.id_area_responsable_snc) === String(valor)
+      );
+      const unico = disponibles.length === 1 ? disponibles[0] : null;
+      setFormulario((anterior) => ({
+        ...anterior,
+        areaResponsable: valor,
+        responsableGestion: unico ? String(unico.id) : "",
+        correoRemitente: obtenerIdCorreoResponsable(unico),
+      }));
+    } else {
+      setFormulario((anterior) => ({ ...anterior, [campo]: valor }));
+    }
+    setErrorRegistro("");
+    setExitoRegistro("");
+  };
+
+  const responsablesDelArea = catalogos.responsables.filter(
+    (item) => String(item.id_area_responsable_snc) === String(formulario.areaResponsable)
+  );
+
+  const seleccionarResponsable = (idResponsable) => {
+    const responsable = responsablesDelArea.find(
+      (item) => String(item.id) === String(idResponsable)
+    );
     setFormulario((anterior) => ({
       ...anterior,
       responsableGestion: idResponsable,
-      correoRemitente: idCorreo != null ? String(idCorreo) : "",
+      correoRemitente: obtenerIdCorreoResponsable(responsable),
     }));
     setErrorRegistro("");
     setExitoRegistro("");
@@ -832,6 +893,11 @@ const SalidasNoConformesView = () => {
     const responsableSeleccionado = catalogos.responsables.find(
       (item) => String(item.id) === String(formulario.responsableGestion)
     );
+    if (!responsableSeleccionado ||
+        String(responsableSeleccionado.id_area_responsable_snc) !== String(formulario.areaResponsable)) {
+      setErrorRegistro("Seleccione un responsable asociado al área indicada.");
+      return;
+    }
     const correoRemitenteSeleccionado = catalogos.correos.find(
       (item) => String(item.id) === String(formulario.correoRemitente)
     );
@@ -896,6 +962,7 @@ const SalidasNoConformesView = () => {
       );
       setFormulario(formularioInicial());
       setRecargarBandeja((v) => v + 1);
+      notificarCambioSNC();
     } catch (error) {
       setErrorRegistro(
         error instanceof TypeError
@@ -943,11 +1010,21 @@ const SalidasNoConformesView = () => {
             >
               <Icono size={17} />
               {nombre}
-              {id !== "nueva" && contadores[id] !== null && (
+              {id === "registradas" && contadores.registradas !== null && (
                 <span className={`ml-1 inline-flex min-w-6 items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold ${
                   pestana === id ? "bg-white text-emerald-800" : "bg-emerald-100 text-emerald-800"
-                }`} aria-label={`${contadores[id]} SNC pendientes`}>
-                  {contadores[id]}
+                }`} aria-label={`${contadores.registradas} SNC pendientes registradas`}>
+                  {contadores.registradas}
+                </span>
+              )}
+              {id === "asignadas" && sncPendientes > 0 && (
+                <span
+                  aria-label={`${sncPendientes} SNC pendientes de gestionar`}
+                  className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
+                    pestana === id ? "bg-emerald-100 text-emerald-900" : "bg-emerald-100 text-emerald-800"
+                  }`}
+                >
+                  {sncPendientes}
                 </span>
               )}
             </button>
@@ -1003,7 +1080,7 @@ const SalidasNoConformesView = () => {
                   value={formulario.areaResponsable} onChange={(valor) => actualizar("areaResponsable", valor)} />
               </Campo>
               <Campo titulo="Responsable de gestionar la SNC">
-                <Selector disabled={controlesDeshabilitados} opciones={catalogos.responsables}
+                <Selector disabled={controlesDeshabilitados || !formulario.areaResponsable} opciones={responsablesDelArea}
                   value={formulario.responsableGestion} onChange={seleccionarResponsable} />
               </Campo>
               <Campo titulo="Correo del responsable que recibirá la notificación">
@@ -1132,6 +1209,15 @@ const SalidasNoConformesView = () => {
                 <h4 className="text-base font-bold text-gray-800">Responder salida no conforme</h4>
                 <div>
                   <label htmlFor="snc-analisis-causa" className="mb-2 block text-sm font-semibold text-gray-700">Análisis de causa <span className="text-red-600">*</span></label>
+                  <div role="note" aria-label="Orientación para el análisis de causa" className="mb-3 mt-1 flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-3 text-slate-700">
+                    <AlertCircle size={18} className="mt-0.5 shrink-0 text-sky-700" aria-hidden="true" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-sky-900">Nota importante</p>
+                      <p className="mt-1 text-sm leading-relaxed">
+                        Identifique las diferentes causas que dieron lugar al incumplimiento y determine la <strong>causa raíz</strong>, evitando justificaciones. Describa hechos concretos, claros y verificables que permitan establecer <strong>acciones correctivas efectivas</strong>.
+                      </p>
+                    </div>
+                  </div>
                   <textarea id="snc-analisis-causa" rows={4} maxLength={10000} required disabled={enviandoRespuesta}
                     value={analisisCausa} onChange={(e) => { setAnalisisCausa(e.target.value); setErrorRespuesta(""); }}
                     placeholder="Explique por qué no se realizó la actividad o tarea..." className={clasesInput} />
