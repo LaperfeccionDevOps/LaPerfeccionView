@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ClipboardList, PlusCircle, Inbox, FileText, Eye, X, Send, RefreshCw, CheckCircle2, ChevronLeft, ChevronRight, AlertCircle, Info, Paperclip } from "lucide-react";
+import { ClipboardList, PlusCircle, Inbox, FileText, Eye, X, Send, RefreshCw, CheckCircle2, ChevronLeft, ChevronRight, AlertCircle, Info, Paperclip, Undo2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 // En este proyecto VITE_API_BASE_URL ya incluye /api.
@@ -36,6 +36,8 @@ export default function PQRFView() {
   const respuestaRef = useRef(false);
   const cierreRef = useRef(false);
   const reasignacionRef = useRef(false);
+  const rechazoRef = useRef(false);
+  const [motivoRechazo, setMotivoRechazo] = useState("");
   const [usuarioDestino, setUsuarioDestino] = useState("");
   const [motivoReasignacion, setMotivoReasignacion] = useState("");
   const [cargandoResponsables, setCargandoResponsables] = useState(false);
@@ -242,8 +244,26 @@ export default function PQRFView() {
     } finally { reasignacionRef.current = false; setProcesando(false); }
   };
 
+  const ejecutarRechazo = async () => {
+    if (!detalle?.id || origen !== "asignadas" || detalle.estado !== "ABIERTA" || !detalle.puede_rechazar_asignacion || procesando || rechazoRef.current) return;
+    const motivo = motivoRechazo.trim();
+    if (motivo.length < 5) { setErrorAccion("Indique un motivo de al menos cinco caracteres."); return; }
+    if (!window.confirm(`¿Confirma que desea devolver la PQRF N.º ${detalle.id} al gerente?`)) return;
+    rechazoRef.current = true; setProcesando(true); setErrorAccion(""); setMensajeDetalle("");
+    try {
+      const { data } = await solicitar(`/${detalle.id}/rechazar-asignacion`, { method: "POST", body: JSON.stringify({ motivo }) });
+      if (Number(data?.id) !== Number(detalle.id) || data?.estado !== "ABIERTA" || !data?.id_usuario_responsable) throw new Error("No se confirmó la devolución. Revise el historial antes de reintentar.");
+      setDetalle(v => ({ ...v, id_usuario_responsable: data.id_usuario_responsable, usuario_responsable: data.usuario_responsable, puede_rechazar_asignacion: false }));
+      setMotivoRechazo(""); setAnalisis(""); setRespuesta(""); setCostoReclamo(""); setEvidencia(null);
+      setMensajeDetalle(`PQRF N.º ${detalle.id}: asignación rechazada y devuelta a ${data.usuario_responsable}.`);
+      notificarCambioPQRF();
+      await consultarDetalle(detalle.id);
+    } catch (e) { setErrorAccion(e instanceof TypeError ? "No se confirmó la operación. Revise el historial antes de reintentar." : e.message); }
+    finally { rechazoRef.current = false; setProcesando(false); }
+  };
+
   const abrir = (item, tipo) => {
-    setDetalle(item); setOrigen(tipo); setGestiones([]); setHistorial([]); setAnalisis(""); setRespuesta(""); setCostoReclamo(""); setEvidencia(null); setErrorAccion(""); setMensajeDetalle(""); setUsuarioDestino(""); setMotivoReasignacion(""); setErrorResponsables("");
+    setDetalle(item); setOrigen(tipo); setGestiones([]); setHistorial([]); setAnalisis(""); setRespuesta(""); setCostoReclamo(""); setEvidencia(null); setErrorAccion(""); setMensajeDetalle(""); setUsuarioDestino(""); setMotivoReasignacion(""); setMotivoRechazo(""); setErrorResponsables("");
   };
   const cerrarModal = () => { if (!procesando) setDetalle(null); };
   const ejecutarAccion = async (accion) => {
@@ -379,8 +399,8 @@ export default function PQRFView() {
   </div>
   {detalle && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4" onMouseDown={e => { if(e.target===e.currentTarget) cerrarModal(); }}><section role="dialog" aria-modal="true" aria-labelledby="pqrf-titulo" className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><h2 id="pqrf-titulo" className="text-xl font-bold">Detalle de PQRF N.º {detalle.id}</h2><button type="button" onClick={cerrarModal} disabled={procesando} aria-label="Cerrar"><X/></button></div><div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">{tarjeta("Fecha", formatoFecha(detalle.fecha_pqrf))}{tarjeta("Estado", detalle.estado)}{tarjeta("Cliente", detalle.cliente)}{tarjeta("Tipo", detalle.tipo_pqrf)}<div className="sm:col-span-2">{tarjeta("Descripción", detalle.descripcion_pqrf)}</div></div>
     <section className="mt-6 border-t pt-5"><h3 className="mb-3 font-bold text-emerald-800">Respuesta y gestión</h3>{cargandoDetalle && <p className="text-sm">Consultando gestión e historial...</p>}{errorDetalle && <p role="alert" className="text-sm text-red-700">{errorDetalle}</p>}{gestiones.map(g => <div key={g.id_gestion} className="mb-3 space-y-2 rounded-lg bg-gray-50 p-4 text-sm"><p><strong>Gestionó:</strong> {g.usuario_gestion} · {formatoMomento(g.fecha_gestion)}</p><p className="whitespace-pre-wrap"><strong>Análisis:</strong> {g.analisis_gestion}</p><p className="whitespace-pre-wrap"><strong>Respuesta:</strong> {g.respuesta_pqrf}</p>{g.costo_reclamo !== null && g.costo_reclamo !== undefined && <p><strong>Costo del reclamo:</strong> {Number(g.costo_reclamo).toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 })}</p>}{g.tiene_evidencia && <p><button type="button" className="font-semibold text-emerald-700 underline" onClick={() => descargarEvidencia(g)}>Descargar evidencia: {g.nombre_evidencia || "Archivo"}</button></p>}</div>)}{!cargandoDetalle && !errorDetalle && gestiones.length===0 && <p className="text-sm text-gray-500">Sin respuestas registradas.</p>}</section>
-    {origen === "asignadas" && detalle.estado === "ABIERTA" && !mensajeDetalle.includes("reasignada correctamente") && <section className="mt-6 space-y-3 border-t pt-5"><h3 className="font-bold">Responder PQRF</h3>{!esFelicitacion && <><label className="block text-sm font-semibold">Análisis de gestión *<textarea className={`${inputClass} mt-2`} rows={3} maxLength={20000} value={analisis} onChange={e=>setAnalisis(e.target.value)} disabled={procesando}/></label><label className="block text-sm font-semibold">Plan de acción *<textarea className={`${inputClass} mt-2`} rows={3} maxLength={20000} value={respuesta} onChange={e=>setRespuesta(e.target.value)} disabled={procesando}/></label></>}{esReclamo && <label className="block text-sm font-semibold">Costo del reclamo (COP) *<input type="number" min="0" step="1" className={`${inputClass} mt-2`} value={costoReclamo} onChange={e=>setCostoReclamo(e.target.value)} placeholder="Valor en pesos colombianos" disabled={procesando} required/></label>}{evidenciaObligatoria && <label className="block text-sm font-semibold"><span className="flex items-center gap-2"><Paperclip size={17}/>Adjuntar evidencia *</span><input type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" className={`${inputClass} mt-2`} onChange={e=>setEvidencia(e.target.files?.[0] || null)} disabled={procesando} required/><span className="block mt-1 text-xs text-gray-500">PDF, imagen o Word. Máximo 10 MB.</span></label>}<button type="button" onClick={() => ejecutarAccion("responder")} disabled={procesando || !respuestaValida} className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white disabled:opacity-50"><Send size={17}/>{procesando ? "Procesando..." : "Responder PQRF"}</button></section>}
-    {detalle.es_gerente_proceso === true && detalle.estado === "ABIERTA" && !mensajeDetalle.includes("reasignada correctamente") && <section className="mt-6 space-y-3 border-t pt-5">
+    {origen === "asignadas" && detalle.estado === "ABIERTA" && !mensajeDetalle.includes("reasignada correctamente") && !mensajeDetalle.includes("asignación rechazada") && <section className="mt-6 space-y-3 border-t pt-5"><h3 className="font-bold">Responder PQRF</h3>{!esFelicitacion && <><label className="block text-sm font-semibold">Análisis de gestión *<textarea className={`${inputClass} mt-2`} rows={3} maxLength={20000} value={analisis} onChange={e=>setAnalisis(e.target.value)} disabled={procesando}/></label><label className="block text-sm font-semibold">Plan de acción *<textarea className={`${inputClass} mt-2`} rows={3} maxLength={20000} value={respuesta} onChange={e=>setRespuesta(e.target.value)} disabled={procesando}/></label></>}{esReclamo && <label className="block text-sm font-semibold">Costo del reclamo (COP) *<input type="number" min="0" step="1" className={`${inputClass} mt-2`} value={costoReclamo} onChange={e=>setCostoReclamo(e.target.value)} placeholder="Valor en pesos colombianos" disabled={procesando} required/></label>}{evidenciaObligatoria && <label className="block text-sm font-semibold"><span className="flex items-center gap-2"><Paperclip size={17}/>Adjuntar evidencia *</span><input type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" className={`${inputClass} mt-2`} onChange={e=>setEvidencia(e.target.files?.[0] || null)} disabled={procesando} required/><span className="block mt-1 text-xs text-gray-500">PDF, imagen o Word. Máximo 10 MB.</span></label>}<button type="button" onClick={() => ejecutarAccion("responder")} disabled={procesando || !respuestaValida} className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white disabled:opacity-50"><Send size={17}/>{procesando ? "Procesando..." : "Responder PQRF"}</button></section>}
+    {detalle.es_gerente_proceso === true && detalle.estado === "ABIERTA" && !mensajeDetalle.includes("reasignada correctamente") && !mensajeDetalle.includes("asignación rechazada") && <section className="mt-6 space-y-3 border-t pt-5">
       <h3 className="flex items-center gap-2 font-bold text-emerald-800"><RefreshCw size={18}/>Reasignar PQRF</h3>
       <p className="text-sm text-gray-600">Solo el gerente configurado para este proceso puede delegar la PQRF a otro usuario activo. El historial conservará el motivo.</p>
       {errorResponsables && <p role="alert" className="text-sm text-red-700">{errorResponsables}</p>}
@@ -394,6 +414,14 @@ export default function PQRFView() {
         <textarea className={`${inputClass} mt-2`} rows={3} minLength={5} maxLength={1000} value={motivoReasignacion} onChange={e => setMotivoReasignacion(e.target.value)} disabled={procesando} placeholder="Explique por qué se reasigna esta PQRF"/>
       </label>
       <button type="button" onClick={ejecutarReasignacion} disabled={procesando || cargandoResponsables || !!errorResponsables || !usuarioDestino || motivoReasignacion.trim().length < 5} className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-700 bg-emerald-50 px-4 py-3 font-semibold text-emerald-800 disabled:opacity-50"><RefreshCw size={17}/>{procesando ? "Reasignando..." : "Confirmar reasignación"}</button>
+    </section>}
+    {origen === "asignadas" && detalle.estado === "ABIERTA" && detalle.puede_rechazar_asignacion === true && !mensajeDetalle.includes("asignación rechazada") && <section className="mt-6 space-y-3 border-t pt-5">
+      <h3 className="flex items-center gap-2 font-bold text-red-700"><Undo2 size={18}/>Rechazar asignación</h3>
+      <p className="text-sm text-gray-600">Si esta PQRF no corresponde a sus funciones, indique el motivo. Regresará automáticamente al gerente del proceso y continuará ABIERTA.</p>
+      <label className="block text-sm font-semibold">Motivo del rechazo *
+        <textarea className={`${inputClass} mt-2`} rows={3} minLength={5} maxLength={1000} value={motivoRechazo} onChange={e => setMotivoRechazo(e.target.value)} disabled={procesando} placeholder="Explique por qué no le corresponde esta PQRF"/>
+      </label>
+      <button type="button" onClick={ejecutarRechazo} disabled={procesando || motivoRechazo.trim().length < 5} className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-700 bg-red-50 px-4 py-3 font-semibold text-red-800 disabled:opacity-50"><Undo2 size={17}/>{procesando ? "Devolviendo..." : "Rechazar y devolver al gerente"}</button>
     </section>}
     {origen === "registradas" && detalle.estado === "RESPONDIDA" && <section className="mt-6 border-t pt-5"><p className="mb-3 text-sm">Revise la respuesta antes de realizar el cierre definitivo.</p><button type="button" onClick={() => ejecutarAccion("cerrar")} disabled={procesando || cargandoDetalle || !!errorDetalle || gestiones.length===0} className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white disabled:opacity-50"><CheckCircle2 size={17}/>{procesando ? "Cerrando..." : "Cerrar PQRF"}</button></section>}
     {mensajeDetalle && <p role="status" className="mt-4 rounded-lg bg-emerald-50 p-3 text-emerald-800">{mensajeDetalle}</p>}{errorAccion && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-red-700">{errorAccion}</p>}
