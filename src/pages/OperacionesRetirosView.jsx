@@ -389,6 +389,22 @@ const normalizarTexto = (valor) =>
     .trim()
     .toLowerCase();
 
+// Fecha civil: no convertir a Date/toISOString para evitar cambios de día por zona horaria.
+// Acepta YYYY-MM-DD (input date y PostgreSQL) o una fecha ISO recibida del API.
+const normalizarFechaLaboral = (valor) => {
+  const texto = String(valor ?? "").trim();
+  const coincidencia = /^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/.exec(texto);
+  if (!coincidencia) return "";
+  const [, anio, mes, dia] = coincidencia;
+  const fecha = new Date(Date.UTC(Number(anio), Number(mes) - 1, Number(dia)));
+  if (
+    fecha.getUTCFullYear() !== Number(anio) ||
+    fecha.getUTCMonth() + 1 !== Number(mes) ||
+    fecha.getUTCDate() !== Number(dia)
+  ) return "";
+  return `${anio}-${mes}-${dia}`;
+};
+
 const formatearFechaHoraColombia = (fechaIso) => {
   if (!fechaIso) {
     return "";
@@ -458,6 +474,7 @@ const CampoSelect = ({
   required = false,
   disabled = false,
   helper = "",
+  displayLabels = null,
 }) => (
   <div className="min-w-0">
     <label
@@ -479,7 +496,7 @@ const CampoSelect = ({
 
       {options.map((opcion) => (
         <option key={opcion} value={opcion}>
-          {opcion}
+          {displayLabels?.[opcion] || opcion}
         </option>
       ))}
     </select>
@@ -2188,7 +2205,7 @@ const OperacionesRetirosView = () => {
   const actualizarCampo = (campo, valor) => {
     setFormulario((actual) => ({
       ...actual,
-      [campo]: valor,
+      [campo]: valor, // Permitir edición parcial del input date; validar al guardar.
     }));
 
     if (campo === "idMotivoRetiro" && String(valor) !== "1") {
@@ -2247,41 +2264,39 @@ const OperacionesRetirosView = () => {
         "descripcionMotivoRetiro",
         "Descripción del motivo de retiro",
       ],
-      ...elementosPazSalvo.map((elemento) => [
-        elemento.campo,
-        elemento.label,
-      ]),
-      [
-        "observacionesEntrega",
-        "Observaciones de la entrega",
-      ],
-      ["aplicaDescuento", "Aplica descuento"],
       ["ultimoDiaLaborado", "Último día laborado"],
-      [
-        "pendienteEntregaUniforme",
-        "Pendiente entrega de uniforme",
-      ],
-      ["uniformePatogeno", "Uniforme patógeno"],
-      ["botas", "Botas"],
-      ["zapatos", "Zapatos"],
-      ["chaqueta", "Chaqueta"],
-      ["carnetAlpArl", "Carnet ALP-ARL"],
-      [
-        "pendientePagoVacunas",
-        "Pendiente pago de vacunas",
-      ],
     ];
 
     const faltantes = requeridos
       .filter(([campo]) => !String(formulario[campo] || "").trim())
       .map(([, etiqueta]) => etiqueta);
 
-    if (
-      String(formulario.aplicaDescuento || "").trim().toUpperCase() === "SI" &&
-      !String(formulario.novedadesNomina || "").trim()
-    ) {
-      faltantes.push("Observaciones para nómina");
+    // Validar la fecha civil real antes de enviar al backend.
+    if (formulario.ultimoDiaLaborado && !normalizarFechaLaboral(formulario.ultimoDiaLaborado)) {
+      faltantes.push("Último día laborado: fecha inválida");
     }
+
+    const novedad = respuestasValidaciones.DESCUENTOS || {};
+    if (novedad.Estado === "CON NOVEDAD" && !String(novedad.Observacion || "").trim()) {
+      faltantes.push("Descripción de novedades, faltantes o descuentos");
+    }
+    if (novedad.Estado === "CON NOVEDAD" && !String(formulario.aplicaDescuento || "").trim()) {
+      faltantes.push("Indicar si la novedad implica descuento");
+    }
+
+    elementosPerfil.forEach((item) => {
+      const id = Number(item.IdPerfilElementoPazSalvoOperaciones);
+      const r = respuestasElementosPerfil[id] || {};
+      if (r.Estado === "PENDIENTE" && !String(r.Observacion || "").trim()) {
+        faltantes.push(`Observación obligatoria: ${item.NombreElemento || item.CodigoElemento}`);
+      }
+    });
+    validacionesPerfil.forEach((item) => {
+      const r = respuestasValidaciones[String(item.CodigoElemento)] || {};
+      if (r.Estado === "PENDIENTE" && !String(r.Observacion || "").trim()) {
+        faltantes.push(`Observación obligatoria: ${item.NombreElemento || item.CodigoElemento}`);
+      }
+    });
 
     if (
       formulario.clienteNombre &&
@@ -2423,7 +2438,7 @@ const OperacionesRetirosView = () => {
       );
       formData.append(
         "FechaUltimoDiaLaborado",
-        formulario.ultimoDiaLaborado
+        normalizarFechaLaboral(formulario.ultimoDiaLaborado)
       );
       formData.append(
         "UsuarioActualizacion",
@@ -2449,34 +2464,11 @@ const OperacionesRetirosView = () => {
         formulario.descripcionMotivoRetiro.trim()
       );
 
-      formData.append("Locker", formulario.locker);
-      formData.append("Llaves", formulario.llaves);
-      formData.append(
-        "EntregaHerramientas",
-        formulario.entregaHerramientas
-      );
-      formData.append(
-        "TarjetaControlAcceso",
-        formulario.tarjetaControlAcceso
-      );
-
-      formData.append(
-        "EntregaGuantes",
-        formulario.entregaGuantes
-      );
-      formData.append(
-        "EntregaMonogafas",
-        formulario.entregaMonogafas
-      );
-      formData.append("EntregaPeto", formulario.entregaPeto);
-      formData.append(
-        "ObservacionesEntrega",
-        formulario.observacionesEntrega.trim()
-      );
-
       formData.append(
         "AplicaDescuento",
-        formulario.aplicaDescuento
+        respuestasValidaciones.DESCUENTOS?.Estado === "CON NOVEDAD"
+          ? formulario.aplicaDescuento
+          : "NO"
       );
 
       if (String(formulario.valorDescuento || "").trim()) {
@@ -2486,32 +2478,10 @@ const OperacionesRetirosView = () => {
         );
       }
 
-      if (String(formulario.novedadesNomina || "").trim()) {
-        formData.append(
-          "NovedadesNomina",
-          formulario.novedadesNomina.trim()
-        );
+      const observacionNovedad = String(respuestasValidaciones.DESCUENTOS?.Observacion || "").trim();
+      if (observacionNovedad) {
+        formData.append("NovedadesNomina", observacionNovedad);
       }
-
-      formData.append(
-        "PendienteEntregaUniforme",
-        formulario.pendienteEntregaUniforme
-      );
-      formData.append(
-        "UniformePatogeno",
-        formulario.uniformePatogeno
-      );
-      formData.append("Botas", formulario.botas);
-      formData.append("Zapatos", formulario.zapatos);
-      formData.append("Chaqueta", formulario.chaqueta);
-      formData.append(
-        "CarnetAlpArl",
-        formulario.carnetAlpArl
-      );
-      formData.append(
-        "PendientePagoVacunas",
-        formulario.pendientePagoVacunas
-      );
 
       if (
         String(
@@ -2569,6 +2539,19 @@ const OperacionesRetirosView = () => {
         formData.append(
           "fotoPlanillaNominaArchivo",
           adjuntos.fotoPlanillaNomina[0]
+        );
+      }
+
+      // Control preventivo QA: nunca enviar una fecha distinta a la visible.
+      // FechaUltimoDiaLaborado es DATE (fecha civil), no timestamp.
+      const fechaVisible = document.getElementById("ultimoDiaLaborado")?.value || "";
+      const fechaEstado = normalizarFechaLaboral(formulario.ultimoDiaLaborado);
+      const fechaEnviada = String(formData.get("FechaUltimoDiaLaborado") || "");
+      if (!fechaVisible || !fechaEstado ||
+          fechaVisible !== fechaEstado || fechaEnviada !== fechaEstado) {
+        throw new Error(
+          "La fecha del último día laborado no coincide con la fecha preparada para guardar. " +
+          "Vuelve a seleccionar la fecha en el calendario antes de continuar."
         );
       }
 
@@ -2832,45 +2815,6 @@ const OperacionesRetirosView = () => {
     }
   };
 
-  const consultarCiudadRQ = async (idRegistroPersonal) => {
-    if (!idRegistroPersonal) return "";
-
-    try {
-      const response = await fetch(
-        `${API_URL}/operaciones/retiros/rq/ciudad/trabajador/${idRegistroPersonal}`,
-        {
-          method: "GET",
-          headers: construirHeaders(),
-        }
-      );
-
-      const data = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        throw new Error(
-          data?.detail ||
-            `No fue posible consultar la ciudad del trabajador. Código HTTP: ${response.status}.`
-        );
-      }
-
-      const ciudad = String(data?.data?.NombreCiudad || "").trim();
-
-      setFormularioRQ((actual) => ({
-        ...actual,
-        ciudad,
-      }));
-
-      return ciudad;
-    } catch (error) {
-      setMensajeGestion(
-        error?.message ||
-          "No fue posible obtener automáticamente la ciudad del trabajador."
-      );
-      setTipoMensajeGestion("error");
-      return "";
-    }
-  };
-
   const cargarProcesoPendienteExistente = async () => {
     const estadoNavegacion = location?.state || {};
 
@@ -3071,7 +3015,7 @@ const OperacionesRetirosView = () => {
         novedadesNomina:
           pazYSalvo.NovedadesNomina || "",
         ultimoDiaLaborado:
-          pazYSalvo.FechaUltimoDiaLaborado || "",
+          normalizarFechaLaboral(pazYSalvo.FechaUltimoDiaLaborado),
         pendienteEntregaUniforme:
           pazYSalvo.PendienteEntregaUniforme || "",
         uniformePatogeno:
@@ -3254,22 +3198,6 @@ const OperacionesRetirosView = () => {
     }
   }, [retiroGuardado?.IdRetiroLaboral]);
 
-  useEffect(() => {
-    const idRegistroPersonal =
-      retiroGuardado?.IdRegistroPersonal ||
-      obtenerIdRegistroPersonal(trabajadorSeleccionado);
-
-    if (
-      idRegistroPersonal &&
-      formularioRQ.requiereReemplazo === "SI"
-    ) {
-      consultarCiudadRQ(idRegistroPersonal);
-    }
-  }, [
-    retiroGuardado?.IdRegistroPersonal,
-    formularioRQ.requiereReemplazo,
-  ]);
-
   const validarRQ = () => {
     const faltantes = [];
 
@@ -3279,6 +3207,7 @@ const OperacionesRetirosView = () => {
 
     if (formularioRQ.requiereReemplazo === "SI") {
       if (!formularioRQ.idPerfilRQ) faltantes.push("Perfil");
+      if (!formularioRQ.ciudad.trim()) faltantes.push("Ciudad");
       if (!formularioRQ.turno) faltantes.push("Turno");
       if (!formularioRQ.observacionCliente.trim()) {
         faltantes.push("Observaciones del cliente");
@@ -3339,10 +3268,10 @@ const OperacionesRetirosView = () => {
       formData.append("TipoNotificacion", tipoNotificacionDerivada);
 
       if (formulario.ultimoDiaLaborado) {
-        formData.append("FechaRetiro", formulario.ultimoDiaLaborado);
+        formData.append("FechaRetiro", normalizarFechaLaboral(formulario.ultimoDiaLaborado));
         formData.append(
           "FechaUltimoDiaLaborado",
-          formulario.ultimoDiaLaborado
+          normalizarFechaLaboral(formulario.ultimoDiaLaborado)
         );
       }
 
@@ -3363,17 +3292,7 @@ const OperacionesRetirosView = () => {
 
       if (requiereReemplazo) {
         formData.append("IdPerfilRQ", formularioRQ.idPerfilRQ);
-        // La ciudad es automática: no exigir que Operaciones la escriba.
-        // Si todavía no está en el estado, reconsultar su origen antes de guardar.
-        const idTrabajadorRQ =
-          retiroGuardado?.IdRegistroPersonal ||
-          obtenerIdRegistroPersonal(trabajadorSeleccionado);
-        const ciudadAutomatica =
-          formularioRQ.ciudad.trim() ||
-          (idTrabajadorRQ ? await consultarCiudadRQ(idTrabajadorRQ) : "");
-        if (ciudadAutomatica) {
-          formData.append("Ciudad", ciudadAutomatica);
-        }
+        formData.append("Ciudad", formularioRQ.ciudad.trim());
         formData.append("Turno", formularioRQ.turno);
         formData.append(
           "ObservacionCliente",
@@ -3973,9 +3892,18 @@ const OperacionesRetirosView = () => {
                             event.target.value
                           )
                         }
+                        onBlur={(event) => {
+                          const fechaCompleta = normalizarFechaLaboral(event.target.value);
+                          if (fechaCompleta) actualizarCampo("ultimoDiaLaborado", fechaCompleta);
+                        }}
                         className="min-h-12 pl-10"
                       />
                     </div>
+                    {normalizarFechaLaboral(formulario.ultimoDiaLaborado) && (
+                      <p className="mt-2 text-xs text-gray-600">
+                        Fecha que se enviará al guardar: <strong>{normalizarFechaLaboral(formulario.ultimoDiaLaborado).split("-").reverse().join("/")}</strong>
+                      </p>
+                    )}
                   </div>
 
                   {String(formulario.idMotivoRetiro) === "1" && (
@@ -4028,500 +3956,122 @@ const OperacionesRetirosView = () => {
                 </div>
               </SeccionFormulario>
 
-              {codigoPerfilPazSalvo && (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:p-5">
-                  <h3 className="text-base font-bold text-emerald-900">
-                    Requisitos de Operaciones: {GUIA_PAZ_SALVO_PERFIL[codigoPerfilPazSalvo]?.titulo || nombrePerfilPazSalvo || codigoPerfilPazSalvo}
-                  </h3>
-                  <p className="mt-1 text-sm text-emerald-800">{GUIA_PAZ_SALVO_PERFIL[codigoPerfilPazSalvo]?.descripcion || "Valida los elementos y responsabilidades asignados a este trabajador."}</p>
-                  {GUIA_PAZ_SALVO_PERFIL[codigoPerfilPazSalvo] && (
-                    <ul className="mt-3 grid list-disc gap-x-6 gap-y-1 pl-5 text-sm text-emerald-950 md:grid-cols-2">
-                      {GUIA_PAZ_SALVO_PERFIL[codigoPerfilPazSalvo].controles.map((control) => <li key={control}>{control}</li>)}
-                    </ul>
-                  )}
-                  <p className="mt-3 text-xs text-emerald-800">Los campos se habilitan según las asignaciones y la configuración de QA. Los conceptos que no correspondan deben marcarse NO APLICA cuando estén disponibles.</p>
-                </div>
-              )}
-
               <SeccionFormulario
-                titulo="Dotación, EPP y elementos asignados"
-                descripcion="Diligencia guantes, monogafas, dotación individual y categorías aplicables en este mismo bloque. Todo se guarda con Guardar Paz y Salvo."
+                titulo="Requisitos de entrega y paz y salvo"
+                descripcion="Diligencia únicamente los requisitos correspondientes al cargo."
               >
-                {loadingElementosPazSalvo ? (
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4 text-sm text-gray-600">
-                    Cargando elementos aplicables al trabajador...
-                  </div>
-                ) : elementosPazSalvo.length === 0 ? (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm leading-relaxed text-amber-900">
-                    No hay elementos del formulario anterior configurados para este cargo o clasificación.
-                    Valida la parametrización antes de continuar.
-                  </div>
-                ) : (
-                  <>
-                    <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-relaxed text-emerald-900">
-                      <span className="font-semibold">
-                        Elementos aplicables:
-                      </span>{" "}
-                      el sistema muestra únicamente los elementos configurados
-                      para este trabajador.
-                      {origenConfiguracionElementos === "CARGO" && (
-                        <> Configuración específica por cargo.</>
-                      )}
-                      {origenConfiguracionElementos === "CLASIFICACION" &&
-                        tipoClasificacionElementos && (
-                          <>
-                            {" "}
-                            Configuración general:{" "}
-                            <span className="font-semibold">
-                              {tipoClasificacionElementos}
-                            </span>
-                            .
-                          </>
-                        )}
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                      {elementosPazSalvo.map((elemento) => (
-                        <CampoSelect
-                          key={`${elemento.CodigoElemento}-${elemento.campo}`}
-                          id={`elemento-${elemento.CodigoElemento}`}
-                          label={elemento.label}
-                          value={formulario[elemento.campo]}
-                          onChange={(valor) =>
-                            actualizarCampo(elemento.campo, valor)
-                          }
-                          options={elemento.opciones}
-                          required
-                        />
-                      ))}
-                    </div>
-
-                    {validacionesPerfil.length === 0 && elementosNoReconocidos.length > 0 && (
-                      <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-                        El backend devuelve {elementosNoReconocidos.length} elementos sin correspondencia con los campos anteriores. Revisa la configuración de ValidacionesPerfil.
-                      </div>
-                    )}
-
-                    <p className="mt-4 text-xs text-gray-600">Para cantidades, estado físico, faltantes y persona que recibe, describe el detalle en Observaciones de la entrega. El modelo actual no tiene columnas individuales para esos datos.</p>
-                    <div className="mt-5">
-                      <CampoTextoDictado
-                        id="observacionesEntrega"
-                        label="Observaciones de la entrega"
-                        value={formulario.observacionesEntrega}
-                        onChange={(valor) =>
-                          actualizarCampo(
-                            "observacionesEntrega",
-                            valor
-                          )
-                        }
-                        rows={4}
-                        placeholder="Registra observaciones, pendientes o aclaraciones..."
-                        required
-                      />
-                    </div>
-                  </>
+                {(cargandoElementosPerfil || cargandoValidaciones) && (
+                  <p className="mb-3 text-sm text-gray-600">Cargando requisitos del perfil...</p>
                 )}
-
-
-              <div className="mt-6 border-t border-gray-200 pt-5">
-                <h4 className="mb-3 text-sm font-bold text-gray-900">Estado general de dotación y EPP reutilizables</h4>
-                {cargandoElementosPerfil ? (
-                  <p className="text-sm text-gray-600">Recuperando elementos guardados...</p>
-                ) : elementosPerfil.length === 0 ? (
-                  <p className="text-sm text-gray-600">No hay elementos de perfil configurados para este trabajador.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {elementosPerfil.map((item) => {
-                      const id = Number(item.IdPerfilElementoPazSalvoOperaciones || item.IdConfiguracionElemento);
-                      const respuesta = respuestasElementosPerfil[id] || {};
-                      const bloqueado = guardandoElementosPerfil || cargandoElementosPerfil ||
-                        (Boolean(retiroGuardado?.IdPazYSalvo) && String(retiroGuardado?.EstadoPazYSalvo || "").toUpperCase() !== "ABIERTO");
-                      return (
-                        <div key={id} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                          <p className="mb-1 text-sm font-semibold text-gray-800">{item.NombreElemento || item.CodigoElemento}</p>
-                          <p className="mb-3 text-xs text-gray-500">{item.TipoGestion === "DEVOLUCION_FISICA" ? "Devolución física" : item.TipoGestion || "Elemento del perfil"}</p>
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <CampoSelect id={`elemento-perfil-${id}`} label="Estado"
-                              value={respuesta.Estado || ""}
-                              options={["ENTREGADO", "PENDIENTE", "NO APLICA", "CON NOVEDAD"]}
-                              disabled={bloqueado}
-                              onChange={(valor) => {
+                <div className="space-y-3">
+                  {elementosPerfil.map((item) => {
+                    const id = Number(item.IdPerfilElementoPazSalvoOperaciones || item.IdConfiguracionElemento);
+                    const respuesta = respuestasElementosPerfil[id] || {};
+                    const bloqueado = cargandoElementosPerfil || guardandoElementosPerfil ||
+                      (Boolean(retiroGuardado?.IdPazYSalvo) && String(retiroGuardado?.EstadoPazYSalvo || "").toUpperCase() !== "ABIERTO");
+                    const codigo = String(item.CodigoElemento || "").toUpperCase();
+                    const nombre = codigo === "DOTACION_REUTILIZABLE" ? "Dotación" :
+                      codigo === "EPP_REUTILIZABLE" ? "Elementos de protección personal (EPP)" :
+                      (item.NombreElemento || item.CodigoElemento);
+                    return (
+                      <div key={`elemento-${id}`} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <p className="mb-3 text-sm font-semibold text-gray-900">{nombre}</p>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <CampoSelect id={`elemento-perfil-${id}`} label="Estado de entrega"
+                            value={respuesta.Estado || ""} options={["ENTREGADO", "PENDIENTE"]}
+                            displayLabels={{ ENTREGADO: "ENTREGÓ", PENDIENTE: "NO ENTREGÓ" }}
+                            disabled={bloqueado}
+                            onChange={(valor) => {
+                              setElementosPerfilModificados(true);
+                              setMensajeElementosPerfil("");
+                              setRespuestasElementosPerfil((actual) => ({...actual, [id]: {...actual[id], Estado: valor}}));
+                            }} />
+                          <div>
+                            <label htmlFor={`observacion-elemento-perfil-${id}`} className="mb-2 block text-sm font-semibold text-gray-800">
+                              Observación {respuesta.Estado === "PENDIENTE" ? "(obligatoria si no entregó)" : "(opcional)"}
+                            </label>
+                            <textarea id={`observacion-elemento-perfil-${id}`} rows={2}
+                              value={respuesta.Observacion || ""} disabled={bloqueado}
+                              onChange={(event) => {
                                 setElementosPerfilModificados(true);
                                 setMensajeElementosPerfil("");
-                                setRespuestasElementosPerfil((actual) => ({ ...actual, [id]: { ...actual[id], Estado: valor } }));
-                              }} />
-                            <div>
-                              <label htmlFor={`observacion-elemento-perfil-${id}`} className="mb-2 block text-sm font-semibold text-gray-800">Observación (opcional)</label>
-                              <textarea id={`observacion-elemento-perfil-${id}`} rows={2}
-                                value={respuesta.Observacion || ""} disabled={bloqueado}
-                                onChange={(event) => {
-                                  const valor = event.target.value;
-                                  setElementosPerfilModificados(true);
-                                  setMensajeElementosPerfil("");
-                                  setRespuestasElementosPerfil((actual) => ({ ...actual, [id]: { ...actual[id], Observacion: valor } }));
-                                }}
-                                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm"
-                                placeholder="Ej.: uniforme (2), botas (1 par), guantes (2 pares). Estado físico, faltantes, novedades y quién recibe. Si no aplica, indícalo." />
-                            </div>
+                                setRespuestasElementosPerfil((actual) => ({...actual, [id]: {...actual[id], Observacion: event.target.value}}));
+                              }}
+                              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm"
+                              placeholder="Detalle de la entrega, faltantes o persona que recibe, si corresponde." />
                           </div>
-                        </div>
-                      );
-                    })}
-                    <div className="space-y-2">
-                      {!retiroGuardado?.IdPazYSalvo && <p className="text-xs text-amber-800">Los elementos se guardan con el botón principal Guardar Paz y Salvo.</p>}
-                      {elementosPerfilModificados && <p className="text-xs text-amber-800">Hay cambios pendientes de guardar.</p>}
-                      {mensajeElementosPerfil && <p role="status" className={`text-sm ${errorElementosPerfil ? "text-red-700" : "text-emerald-800"}`}>{mensajeElementosPerfil}</p>}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Los campos legados siguen siendo requeridos por el guardado y el PDF.
-                  Se agrupan junto a dotación para evitar duplicarlos después de Nómina. */}
-              <div className="mt-6 border-t border-gray-200 pt-5">
-                <h4 className="mb-3 text-sm font-bold text-gray-900">Dotación individual y controles históricos</h4>
-                <p className="mb-4 text-xs text-gray-600">Estos campos se conservan para el registro y el PDF histórico. Indica Sí o No según corresponda.</p>
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                  <CampoSelect
-                    id="pendienteEntregaUniforme"
-                    label="Pendiente entrega de uniforme"
-                    value={
-                      formulario.pendienteEntregaUniforme
-                    }
-                    onChange={(valor) =>
-                      actualizarCampo(
-                        "pendienteEntregaUniforme",
-                        valor
-                      )
-                    }
-                    options={OPCIONES_SI_NO}
-                    required
-                  />
-
-                  <CampoSelect
-                    id="uniformePatogeno"
-                    label="Uniforme patógeno"
-                    value={formulario.uniformePatogeno}
-                    onChange={(valor) =>
-                      actualizarCampo(
-                        "uniformePatogeno",
-                        valor
-                      )
-                    }
-                    options={OPCIONES_SI_NO}
-                    required
-                  />
-
-                  <CampoSelect
-                    id="botas"
-                    label="Botas"
-                    value={formulario.botas}
-                    onChange={(valor) =>
-                      actualizarCampo("botas", valor)
-                    }
-                    options={OPCIONES_SI_NO}
-                    required
-                  />
-
-                  <CampoSelect
-                    id="zapatos"
-                    label="Zapatos"
-                    value={formulario.zapatos}
-                    onChange={(valor) =>
-                      actualizarCampo("zapatos", valor)
-                    }
-                    options={OPCIONES_SI_NO}
-                    required
-                  />
-
-                  <CampoSelect
-                    id="chaqueta"
-                    label="Chaqueta"
-                    value={formulario.chaqueta}
-                    onChange={(valor) =>
-                      actualizarCampo("chaqueta", valor)
-                    }
-                    options={OPCIONES_SI_NO}
-                    required
-                  />
-
-                  <CampoSelect
-                    id="carnetAlpArl"
-                    label="Carnet ALP-ARL"
-                    value={formulario.carnetAlpArl}
-                    onChange={(valor) =>
-                      actualizarCampo(
-                        "carnetAlpArl",
-                        valor
-                      )
-                    }
-                    options={OPCIONES_SI_NO}
-                    required
-                  />
-
-                  <CampoSelect
-                    id="pendientePagoVacunas"
-                    label="Pendiente pago de vacunas"
-                    value={formulario.pendientePagoVacunas}
-                    onChange={(valor) =>
-                      actualizarCampo(
-                        "pendientePagoVacunas",
-                        valor
-                      )
-                    }
-                    options={OPCIONES_SI_NO}
-                    required
-                  />
-
-                  {codigoPerfilPazSalvo !== "OPERATIVO_BASICO" && <div className="md:col-span-2">
-                    <label
-                      htmlFor="usuariosClavesDispositivos"
-                      className="mb-2 block text-sm font-semibold text-gray-800"
-                    >
-                      Registre todos los usuarios y claves que
-                      manejaba
-                    </label>
-                    <textarea
-                      id="usuariosClavesDispositivos"
-                      value={
-                        formulario.usuariosClavesDispositivos
-                      }
-                      onChange={(event) =>
-                        actualizarCampo(
-                          "usuariosClavesDispositivos",
-                          event.target.value
-                        )
-                      }
-                      rows={4}
-                      placeholder="Registra usuarios y dispositivos asignados; no escribas contraseñas."
-                      className="w-full resize-y rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 shadow-sm outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-                    />
-                  </div>}
-                </div>
-              </div>
-
-              {responsabilidadesPerfil.some((responsabilidad) => {
-                const codigo = String(responsabilidad.CodigoResponsabilidad || "").trim().toUpperCase();
-                const id = Number(responsabilidad.IdResponsabilidadPazSalvoOperaciones);
-                const respuesta = respuestasResponsabilidades[id] || {};
-                return !CODIGOS_RESPONSABILIDAD_ENTREGA_DUPLICADA.has(codigo) ||
-                  Boolean(respuesta.EstadoEntrega || respuesta.Observacion);
-              }) && (
-                <SeccionFormulario
-                  titulo="Otros elementos y responsabilidades asignadas"
-                  descripcion="Usa esta sección únicamente para responsabilidades adicionales. No repitas entregas físicas registradas arriba."
-                >
-                  {nombrePerfilPazSalvo && <p className="mb-3 text-sm text-gray-700"><strong>Perfil:</strong> {nombrePerfilPazSalvo}</p>}
-                  <div className="space-y-3">
-                    {responsabilidadesPerfil.filter((responsabilidad) => {
-                      const codigo = String(responsabilidad.CodigoResponsabilidad || "").trim().toUpperCase();
-                      const id = Number(responsabilidad.IdResponsabilidadPazSalvoOperaciones);
-                      const respuesta = respuestasResponsabilidades[id] || {};
-                      return !CODIGOS_RESPONSABILIDAD_ENTREGA_DUPLICADA.has(codigo) ||
-                        Boolean(respuesta.EstadoEntrega || respuesta.Observacion);
-                    }).map((responsabilidad, indice) => {
-                      const id = Number(responsabilidad.IdResponsabilidadPazSalvoOperaciones);
-                      const respuesta = respuestasResponsabilidades[id] || {};
-                      return (
-                        <div key={id || indice} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                          <div className="mb-3 flex flex-wrap justify-between gap-2">
-                            <span className="text-sm font-semibold text-gray-800">{responsabilidad.NombreResponsabilidad || responsabilidad.Nombre || responsabilidad.CodigoResponsabilidad || `Responsabilidad ${indice + 1}`}</span>
-                            <span className="text-xs text-gray-600">{responsabilidad.Obligatorio === true ? "Obligatoria" : "Opcional"}</span>
-                          </div>
-                          <label className="mb-1 block text-xs font-semibold text-gray-700" htmlFor={`estado-responsabilidad-${id}`}>Estado de entrega</label>
-                          <select id={`estado-responsabilidad-${id}`} value={respuesta.EstadoEntrega || ""}
-                            disabled={Boolean(retiroGuardado?.IdPazYSalvo) && String(retiroGuardado?.EstadoPazYSalvo || "").toUpperCase() !== "ABIERTO"}
-                            onChange={(event) => setRespuestasResponsabilidades((actual) => ({...actual, [id]: {...(actual[id] || {}), EstadoEntrega: event.target.value}}))}
-                            className="mb-3 min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm">
-                            <option value="">Sin diligenciar</option>
-                            <option value="ENTREGADO">Entregado</option>
-                            <option value="PENDIENTE">Pendiente</option>
-                            <option value="NO APLICA">No aplica</option>
-                          </select>
-                          <label className="mb-1 block text-xs font-semibold text-gray-700" htmlFor={`observacion-responsabilidad-${id}`}>Observación (opcional)</label>
-                          <textarea id={`observacion-responsabilidad-${id}`} rows={2} value={respuesta.Observacion || ""}
-                            disabled={Boolean(retiroGuardado?.IdPazYSalvo) && String(retiroGuardado?.EstadoPazYSalvo || "").toUpperCase() !== "ABIERTO"}
-                            onChange={(event) => setRespuestasResponsabilidades((actual) => ({...actual, [id]: {...(actual[id] || {}), Observacion: event.target.value}}))}
-                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm" placeholder="Detalle de entrega o pendiente..." />
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="mt-4 space-y-2">
-                    {!retiroGuardado?.IdPazYSalvo && <p className="text-xs text-amber-700">Las responsabilidades se guardan con el botón principal Guardar Paz y Salvo.</p>}
-                    {mensajeResponsabilidades && <p role="status" className="text-sm text-gray-700">{mensajeResponsabilidades}</p>}
-                  </div>
-                </SeccionFormulario>
-              )}
-
-
-              </SeccionFormulario>
-
-              <SeccionFormulario
-                titulo="Identificaciones, accesos y verificaciones de cierre"
-                descripcion="Verifica carné ALP, ARL cuando aplique, carné del cliente, llaves, accesos, locker, faltantes, descuentos validados y responsable de recepción. La dotación y los EPP se registran una sola vez en la sección anterior."
-              >
-                {loadingElementosPazSalvo ? (
-                  <p className="text-sm text-gray-600">Consultando validaciones aplicables...</p>
-                ) : validacionesPerfil.length === 0 ? (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                    El servicio no devolvió validaciones específicas para este trabajador. Verifica que el endpoint de QA incluya ValidacionesPerfil y que estén parametrizadas para su perfil. Las responsabilidades generales que aparecen abajo no reemplazan estas validaciones.
-                  </div>
-                ) : (
-                      <div className="mt-6 space-y-4">
-                        {["TRANSVERSAL", "PERFIL"].map((tipo) => {
-                          const items = validacionesPerfil.filter((item) =>
-                            String(item.TipoValidacion).toUpperCase() === tipo &&
-                            !CODIGOS_VALIDACION_ENTREGA_DUPLICADA.has(String(item.CodigoElemento || "").trim().toUpperCase())
-                          );
-                          if (!items.length) return null;
-                          return <div key={tipo} className="space-y-3">
-                            <h4 className="text-sm font-bold text-gray-900">{tipo === "TRANSVERSAL" ? "Validaciones transversales" : "Validaciones específicas del perfil"}</h4>
-                            {items.map((item, indice) => {
-                              const codigo = String(item.CodigoElemento || `${tipo}-${indice}`);
-                              const respuesta = respuestasValidaciones[codigo] || {};
-                              const duplicado = ["DOTACION_EPP", "EPP_PERSONAL", "ELEMENTOS_ALP_CLIENTE"].includes(codigo);
-                              return <div key={`${tipo}-${codigo}`} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                                <p className="mb-3 text-sm font-semibold text-gray-800">{item.NombreElemento || codigo}{duplicado ? " · Verificación complementaria" : ""}</p>
-                                {duplicado && <p className="mb-2 text-xs text-gray-600">La entrega física se registra arriba. Completa esta verificación únicamente si corresponde.</p>}
-                                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                  <CampoSelect id={`validacion-${codigo}`} label="Estado" value={respuesta.Estado || ""}
-                                    options={Array.isArray(item.EstadosPermitidos) && item.EstadosPermitidos.length ? item.EstadosPermitidos : ["ENTREGADO", "PENDIENTE", "NO APLICA", "CON NOVEDAD"]}
-                                    onChange={(valor) => { setValidacionesModificadas(true); setMensajeValidaciones(""); setRespuestasValidaciones((actual) => ({...actual, [codigo]: {...actual[codigo], Estado: valor}})); }}
-                                    disabled={cargandoValidaciones || guardandoValidaciones || (Boolean(retiroGuardado?.IdPazYSalvo) && String(retiroGuardado?.EstadoPazYSalvo || "").toUpperCase() !== "ABIERTO")} />
-                                  <div><label htmlFor={`observacion-${codigo}`} className="mb-2 block text-sm font-semibold text-gray-800">Observación (opcional)</label>
-                                    <textarea id={`observacion-${codigo}`} rows={2} value={respuesta.Observacion || ""}
-                                      onChange={(event) => { const valor = event.target.value; setValidacionesModificadas(true); setMensajeValidaciones(""); setRespuestasValidaciones((actual) => ({...actual, [codigo]: {...actual[codigo], Observacion: valor}})); }}
-                                      disabled={cargandoValidaciones || guardandoValidaciones || (Boolean(retiroGuardado?.IdPazYSalvo) && String(retiroGuardado?.EstadoPazYSalvo || "").toUpperCase() !== "ABIERTO")}
-                                      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm" placeholder="Novedad o detalle..." /></div>
-                                </div>
-                              </div>;
-                            })}
-                          </div>;
-                        })}
-                        {validacionesPerfil.some((item) =>
-                          CODIGOS_VALIDACION_ENTREGA_DUPLICADA.has(String(item.CodigoElemento || "").trim().toUpperCase()) &&
-                          Boolean(respuestasValidaciones[String(item.CodigoElemento)]?.Estado || respuestasValidaciones[String(item.CodigoElemento)]?.Observacion)
-                        ) && (
-                          <details className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-                            <summary className="cursor-pointer text-sm font-semibold text-gray-700">Consultar verificaciones históricas de elementos (solo lectura)</summary>
-                            <div className="mt-3 space-y-2">
-                              {validacionesPerfil.filter((item) =>
-                                CODIGOS_VALIDACION_ENTREGA_DUPLICADA.has(String(item.CodigoElemento || "").trim().toUpperCase()) &&
-                                Boolean(respuestasValidaciones[String(item.CodigoElemento)]?.Estado || respuestasValidaciones[String(item.CodigoElemento)]?.Observacion)
-                              ).map((item) => (
-                                <div key={item.CodigoElemento} className="rounded-lg border border-gray-200 bg-white p-3 text-sm">
-                                  <p className="font-semibold">{item.NombreElemento || item.CodigoElemento}</p>
-                                  <p>Estado: {respuestasValidaciones[String(item.CodigoElemento)]?.Estado || "Sin estado"}</p>
-                                  {respuestasValidaciones[String(item.CodigoElemento)]?.Observacion && <p className="mt-1 text-gray-600">{respuestasValidaciones[String(item.CodigoElemento)].Observacion}</p>}
-                                </div>
-                              ))}
-                            </div>
-                          </details>
-                        )}
-                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-2">
-                          {!retiroGuardado?.IdPazYSalvo && <p className="text-xs text-amber-800">Las validaciones se guardan con el botón principal Guardar Paz y Salvo.</p>}
-                          {validacionesModificadas && <p className="text-xs text-amber-800">Hay cambios en validaciones pendientes de guardar.</p>}
-                          {cargandoValidaciones && <p className="text-xs text-blue-700">Recuperando validaciones guardadas...</p>}
-                          {mensajeValidaciones && <p role="status" className={`text-sm ${errorValidaciones ? "text-red-700" : "text-emerald-800"}`}>{mensajeValidaciones}</p>}
                         </div>
                       </div>
-                )}
+                    );
+                  })}
+                  {validacionesPerfil.filter((item) => !CODIGOS_VALIDACION_ENTREGA_DUPLICADA.has(String(item.CodigoElemento || "").trim().toUpperCase())).map((item) => {
+                    const codigo = String(item.CodigoElemento || "").trim();
+                    const respuesta = respuestasValidaciones[codigo] || {};
+                    const esNovedad = codigo === "DESCUENTOS";
+                    const bloqueado = cargandoValidaciones || guardandoValidaciones ||
+                      (Boolean(retiroGuardado?.IdPazYSalvo) && String(retiroGuardado?.EstadoPazYSalvo || "").toUpperCase() !== "ABIERTO");
+                    return (
+                      <div key={`validacion-${codigo}`} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <p className="mb-3 text-sm font-semibold text-gray-900">{item.NombreElemento || codigo}</p>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <CampoSelect id={`validacion-${codigo}`} label={esNovedad ? "Estado de la novedad" : "Estado de entrega"}
+                            value={respuesta.Estado || ""}
+                            displayLabels={{ ENTREGADO: "ENTREGÓ", PENDIENTE: "NO ENTREGÓ" }}
+                            options={Array.isArray(item.EstadosPermitidos) && item.EstadosPermitidos.length ? item.EstadosPermitidos : ["ENTREGADO", "PENDIENTE"]}
+                            disabled={bloqueado}
+                            onChange={(valor) => {
+                              setValidacionesModificadas(true);
+                              setMensajeValidaciones("");
+                              setRespuestasValidaciones((actual) => ({...actual, [codigo]: {...actual[codigo], Estado: valor}}));
+                            }} />
+                          <div>
+                            <label htmlFor={`observacion-${codigo}`} className="mb-2 block text-sm font-semibold text-gray-800">
+                              Observación {respuesta.Estado === "PENDIENTE" || respuesta.Estado === "CON NOVEDAD" ? "(describe la novedad)" : "(opcional)"}
+                            </label>
+                            <textarea id={`observacion-${codigo}`} rows={2}
+                              value={respuesta.Observacion || ""} disabled={bloqueado}
+                              onChange={(event) => {
+                                setValidacionesModificadas(true);
+                                setMensajeValidaciones("");
+                                setRespuestasValidaciones((actual) => ({...actual, [codigo]: {...actual[codigo], Observacion: event.target.value}}));
+                              }}
+                              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm" placeholder="Novedad o detalle, si corresponde." />
+                          </div>
+                        </div>
+                        {esNovedad && respuesta.Estado === "CON NOVEDAD" && (
+                          <div className="mt-4 space-y-3 border-t border-gray-200 pt-4">
+                            <CampoSelect id="aplicaDescuento" label="¿La novedad implica descuento?"
+                              value={formulario.aplicaDescuento} options={OPCIONES_SI_NO}
+                              onChange={(valor) => actualizarCampo("aplicaDescuento", valor)} />
+                            {formulario.aplicaDescuento === "SI" && (
+                              <div>
+                                <label htmlFor="valorDescuento" className="mb-2 block text-sm font-semibold text-gray-800">Valor del descuento (opcional)</label>
+                                <Input id="valorDescuento" inputMode="numeric" value={formulario.valorDescuento}
+                                  onChange={(event) => actualizarCampo("valorDescuento", event.target.value.replace(/\D/g, ""))}
+                                  placeholder="Valor en pesos" className="min-h-12" />
+                              </div>
+                            )}
+                            <CampoArchivo id="adjuntosNovedadesNomina" label="Soportes de la novedad (opcional)"
+                              files={adjuntos.novedadesNomina}
+                              onAdd={(archivos) => agregarAdjuntos("novedadesNomina", archivos, true)}
+                              onRemove={(index) => eliminarAdjunto("novedadesNomina", index)} multiple
+                              existingFiles={evidenciasPorTipo("NOVEDADES_NOMINA")}
+                              onViewExisting={verEvidenciaExistente} onDownloadExisting={descargarEvidenciaExistente} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {mensajeElementosPerfil && <p role="status" className={`mt-3 text-sm ${errorElementosPerfil ? "text-red-700" : "text-emerald-800"}`}>{mensajeElementosPerfil}</p>}
+                {mensajeValidaciones && <p role="status" className={`mt-3 text-sm ${errorValidaciones ? "text-red-700" : "text-emerald-800"}`}>{mensajeValidaciones}</p>}
               </SeccionFormulario>
 
-
-              <SeccionFormulario
-                titulo="Descuentos y novedades de nómina"
-                descripcion="Registra si aplica descuento y adjunta los soportes relacionados cuando corresponda."
-              >
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                  <CampoSelect
-                    id="aplicaDescuento"
-                    label="¿Aplica descuento?"
-                    value={formulario.aplicaDescuento}
-                    onChange={(valor) =>
-                      actualizarCampo(
-                        "aplicaDescuento",
-                        valor
-                      )
-                    }
-                    options={OPCIONES_SI_NO}
-                    required
-                  />
-
-                  {formulario.aplicaDescuento === "SI" && (
-                    <div>
-                      <label
-                        htmlFor="valorDescuento"
-                        className="mb-2 block text-sm font-semibold text-gray-800"
-                      >
-                        Valor del descuento
-                        <span className="ml-2 text-xs font-normal text-gray-500">
-                          (opcional)
-                        </span>
-                      </label>
-                      <Input
-                        id="valorDescuento"
-                        inputMode="numeric"
-                        value={formulario.valorDescuento}
-                        onChange={(event) =>
-                          actualizarCampo(
-                            "valorDescuento",
-                            event.target.value.replace(
-                              /\D/g,
-                              ""
-                            )
-                          )
-                        }
-                        placeholder="Valor en pesos"
-                        className="min-h-12"
-                      />
-                    </div>
-                  )}
-
-                  <div className="md:col-span-2">
-                    <CampoTextoDictado
-                      id="novedadesNomina"
-                      label="Observaciones para nómina"
-                      value={formulario.novedadesNomina}
-                      onChange={(valor) =>
-                        actualizarCampo(
-                          "novedadesNomina",
-                          valor
-                        )
-                      }
-                      rows={4}
-                      placeholder="Registra las novedades de nómina..."
-                      required={formulario.aplicaDescuento === "SI"}
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <CampoArchivo
-                      id="adjuntosNovedadesNomina"
-                      label="Documentos de novedades de nómina"
-                      files={adjuntos.novedadesNomina}
-                      onAdd={(archivos) =>
-                        agregarAdjuntos(
-                          "novedadesNomina",
-                          archivos,
-                          true
-                        )
-                      }
-                      onRemove={(index) =>
-                        eliminarAdjunto(
-                          "novedadesNomina",
-                          index
-                        )
-                      }
-                      multiple
-                      existingFiles={evidenciasPorTipo("NOVEDADES_NOMINA")}
-                      onViewExisting={verEvidenciaExistente}
-                      onDownloadExisting={descargarEvidenciaExistente}
-                      helper="Puedes adjuntar uno o varios soportes en cualquier formato. Máximo 10 MB por archivo."
-                    />
-                  </div>
-                </div>
+              <SeccionFormulario titulo="Observaciones generales" descripcion="Campo opcional para aclaraciones del Paz y Salvo.">
+                <CampoTextoDictado id="observacionesEntrega" label="Observaciones generales (opcional)"
+                  value={formulario.observacionesEntrega}
+                  onChange={(valor) => actualizarCampo("observacionesEntrega", valor)}
+                  placeholder="Aclaraciones generales, si las hay..." rows={3} />
               </SeccionFormulario>
 
               <SeccionFormulario
@@ -4826,14 +4376,14 @@ const OperacionesRetirosView = () => {
                                 htmlFor="ciudadRQ"
                                 className="mb-2 block text-sm font-semibold text-gray-800"
                               >
-                                Ciudad (automática)
+                                Ciudad *
                               </label>
                               <Input
                                 id="ciudadRQ"
                                 value={formularioRQ.ciudad}
-                                readOnly
-                                placeholder="Se consulta automáticamente; no requiere digitación"
-                                className="min-h-12 bg-gray-50"
+                                onChange={(event) => actualizarCampoRQ("ciudad", event.target.value)}
+                                placeholder="Escribe la ciudad donde se requiere la vacante"
+                                className="min-h-12"
                               />
                             </div>
 
