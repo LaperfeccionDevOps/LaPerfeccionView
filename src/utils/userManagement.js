@@ -31,6 +31,7 @@ const ROLE_IDS = {
   Nómina: 17,
   Administrativo: 18,
   Recepción: 19,
+  Comercial: 21,
 };
 
 
