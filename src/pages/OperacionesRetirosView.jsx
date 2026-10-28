@@ -192,8 +192,8 @@ const GUIA_PAZ_SALVO_PERFIL = {
   TRABAJO_ALTURAS: {
     titulo: "Trabajo en alturas",
     descripcion: "Personal con equipos de protección contra caídas.",
-    controles: ["Arnés", "Eslingas", "Conectores y anclajes", "Otros equipos de alturas", "Estado, faltantes, concepto del coordinador y receptor"],
-    detalle: "Detalla por cada equipo descripción, código, cantidad, estado de devolución, incidentes, concepto del coordinador y confirmación de recepción."
+    controles: ["Equipos de protección contra caídas y sus accesorios", "Descripción, código y cantidad por elemento", "Estado de devolución", "Faltantes o novedades", "Concepto del coordinador de alturas", "Nombre y confirmación de quien recibe"],
+    detalle: "Diligencia los seis requisitos oficiales de la matriz ALP, identificando cada equipo, su estado, novedades, concepto del coordinador y receptor."
   },
   ADMINISTRATIVO_INTERNO: {
     titulo: "Personal administrativo interno",
@@ -1675,8 +1675,20 @@ const OperacionesRetirosView = () => {
     }
   };
 
+  const validarDetallesTecnicos = () => {
+    if (!["OPERATIVO_TECNICO", "ADMINISTRATIVO_CAMPO", "SUPERVISION_LIDERAZGO"].includes(codigoPerfilPazSalvo)) return;
+    for (const item of validacionesPerfil) {
+      const codigo = String(item.CodigoElemento || "").trim();
+      const respuesta = respuestasValidaciones[codigo] || {};
+      if (respuesta.Estado && !String(respuesta.Observacion || "").trim()) {
+        throw new Error(`Debes registrar el detalle obligatorio de: ${item.NombreElemento || codigo}.`);
+      }
+    }
+  };
+
   const guardarValidacionesEnBackend = async (idPazYSalvo) => {
     if (!idPazYSalvo) throw new Error("Primero debes guardar el Paz y Salvo en estado ABIERTO.");
+    validarDetallesTecnicos();
     const seleccionadas = validacionesPerfil.map((item) => {
       const codigo = String(item.CodigoElemento || "").trim();
       const respuesta = respuestasValidaciones[codigo] || {};
@@ -2280,8 +2292,10 @@ const OperacionesRetirosView = () => {
     if (novedad.Estado === "CON NOVEDAD" && !String(novedad.Observacion || "").trim()) {
       faltantes.push("Descripción de novedades, faltantes o descuentos");
     }
-    if (novedad.Estado === "CON NOVEDAD" && !String(formulario.aplicaDescuento || "").trim()) {
-      faltantes.push("Indicar si la novedad implica descuento");
+    // El descuento de nómina es común a todos los perfiles y no depende
+    // de la validación DESCUENTOS del perfil operativo básico.
+    if (!String(formulario.aplicaDescuento || "").trim()) {
+      faltantes.push("¿Aplica descuento de nómina?");
     }
 
     elementosPerfil.forEach((item) => {
@@ -2293,6 +2307,9 @@ const OperacionesRetirosView = () => {
     });
     validacionesPerfil.forEach((item) => {
       const r = respuestasValidaciones[String(item.CodigoElemento)] || {};
+      if (["OPERATIVO_TECNICO", "ADMINISTRATIVO_CAMPO", "SUPERVISION_LIDERAZGO", "SERVICIOS_ESPECIALES", "TRABAJO_ALTURAS"].includes(codigoPerfilPazSalvo) && r.Estado && !String(r.Observacion || "").trim()) {
+        faltantes.push(`Detalle obligatorio: ${item.NombreElemento || item.CodigoElemento}`);
+      }
       if (r.Estado === "PENDIENTE" && !String(r.Observacion || "").trim()) {
         faltantes.push(`Observación obligatoria: ${item.NombreElemento || item.CodigoElemento}`);
       }
@@ -2349,6 +2366,14 @@ const OperacionesRetirosView = () => {
       setMensajeGestion(
         "No fue posible determinar la fecha y hora de apertura del paz y salvo."
       );
+      setTipoMensajeGestion("error");
+      return;
+    }
+
+    try {
+      validarDetallesTecnicos();
+    } catch (error) {
+      setMensajeGestion(error.message);
       setTipoMensajeGestion("error");
       return;
     }
@@ -2466,19 +2491,17 @@ const OperacionesRetirosView = () => {
 
       formData.append(
         "AplicaDescuento",
-        respuestasValidaciones.DESCUENTOS?.Estado === "CON NOVEDAD"
-          ? formulario.aplicaDescuento
-          : "NO"
+        formulario.aplicaDescuento
       );
 
-      if (String(formulario.valorDescuento || "").trim()) {
+      if (formulario.aplicaDescuento === "SI" && String(formulario.valorDescuento || "").trim()) {
         formData.append(
           "ValorDescuento",
           String(formulario.valorDescuento).trim()
         );
       }
 
-      const observacionNovedad = String(respuestasValidaciones.DESCUENTOS?.Observacion || "").trim();
+      const observacionNovedad = String(formulario.novedadesNomina || "").trim();
       if (observacionNovedad) {
         formData.append("NovedadesNomina", observacionNovedad);
       }
@@ -3964,7 +3987,7 @@ const OperacionesRetirosView = () => {
                   <p className="mb-3 text-sm text-gray-600">Cargando requisitos del perfil...</p>
                 )}
                 <div className="space-y-3">
-                  {elementosPerfil.map((item) => {
+                  {(["OPERATIVO_TECNICO", "ADMINISTRATIVO_CAMPO", "SUPERVISION_LIDERAZGO", "SERVICIOS_ESPECIALES", "TRABAJO_ALTURAS"].includes(codigoPerfilPazSalvo) ? [] : elementosPerfil).map((item) => {
                     const id = Number(item.IdPerfilElementoPazSalvoOperaciones || item.IdConfiguracionElemento);
                     const respuesta = respuestasElementosPerfil[id] || {};
                     const bloqueado = cargandoElementosPerfil || guardandoElementosPerfil ||
@@ -4007,6 +4030,63 @@ const OperacionesRetirosView = () => {
                   {validacionesPerfil.filter((item) => !CODIGOS_VALIDACION_ENTREGA_DUPLICADA.has(String(item.CodigoElemento || "").trim().toUpperCase())).map((item) => {
                     const codigo = String(item.CodigoElemento || "").trim();
                     const respuesta = respuestasValidaciones[codigo] || {};
+                    const esTecnico = ["OPERATIVO_TECNICO", "ADMINISTRATIVO_CAMPO", "SUPERVISION_LIDERAZGO", "SERVICIOS_ESPECIALES", "TRABAJO_ALTURAS"].includes(codigoPerfilPazSalvo);
+                    const ayudasTecnicas = {
+                      RELACION_HERRAMIENTAS: ["Indica cada herramienta, código o identificación, cantidad y estado.", "Ej.: Taladro Bosch, H-015, 1 unidad, buen estado."],
+                      EQUIPOS_MAQUINARIA: ["Especifica nombre del equipo o máquina, referencia, código, cantidad y condición.", "Ej.: Hidrolavadora Karcher, EQ-008, 1 unidad, funcionando."],
+                      CANTIDAD_ESTADO: ["Detalla cantidades entregadas y pendientes, así como el estado físico de cada elemento.", "Ej.: 3 herramientas: 2 en buen estado y 1 con desgaste."],
+                      PROPIEDAD_ELEMENTOS: ["Identifica expresamente qué pertenece a ALP y qué pertenece al cliente.", "Ej.: Taladro: ALP; hidrolavadora: cliente."],
+                      INVENTARIOS_CUSTODIA: ["Registra llaves, controles, inventarios y demás bienes con cantidades y novedades.", "Ej.: 2 llaves, 1 control, inventario completo."],
+                      RESPONSABLE_TECNICO: ["Indica nombre completo, cargo y área de la persona que recibe y valida.", "Ej.: María Pérez, supervisora de mantenimiento."],
+                    };
+                    const ayudasAdministrativoCampo = {
+                      EQUIPOS_COMUNICACION: ["Relaciona computador, celular, radio y demás equipos, con código, cantidad, estado y responsable.", "Ej.: Portátil Dell, inventario PC-014, 1 unidad, entregado en buen estado."],
+                      USUARIOS_ACCESOS: ["Indica las cuentas, correos, aplicaciones y accesos que deben desactivarse o transferirse. Nunca escribas contraseñas.", "Ej.: Correo corporativo y acceso al aplicativo reportados a TI para desactivación."],
+                      ACCESO_CLIENTE: ["Detalla carnés, tarjetas y permisos del cliente, indicando cantidad y a quién se entregaron.", "Ej.: Carné Davivienda N.º 204, entregado a seguridad del cliente."],
+                      DOCUMENTOS_ARCHIVOS: ["Relaciona llaves, documentos físicos y digitales e información bajo custodia, indicando su destino.", "Ej.: 2 llaves de archivo y carpeta de contratos entregadas a coordinación."],
+                      ACTA_PUESTO: ["Indica fecha, responsable y estado del acta de entrega del puesto; registra si está pendiente.", "Ej.: Acta de entrega firmada el 28/10/2026 por coordinación administrativa."],
+                      ACTIVIDADES: ["Distingue actividades finalizadas, en curso y pendientes, con responsable de seguimiento.", "Ej.: Informes cerrados; inventario en curso; conciliación pendiente con supervisión."],
+                      UBICACION_ARCHIVOS: ["Especifica dónde quedan los archivos físicos y digitales, sin incluir credenciales ni información sensible.", "Ej.: Carpeta física en archivo central; documentos digitales en repositorio institucional."],
+                      RECEPTOR_PUESTO: ["Identifica nombre completo, cargo y área de quien recibe el puesto y sus pendientes.", "Ej.: Ana Pérez, coordinadora administrativa, sede del cliente."],
+                    };
+                    const ayudasSupervision = {
+                      HERRAMIENTAS_EQUIPOS: ["Relaciona herramientas, equipos y dispositivos con identificación, cantidad, estado y responsable de recepción.", "Ej.: Radio de comunicaciones R-021, 1 unidad, entregado a coordinación."],
+                      USUARIOS_CLAVES: ["Identifica usuarios y accesos que deben transferirse o desactivarse. Nunca registres contraseñas.", "Ej.: Cuenta del aplicativo reportada a TI para desactivación; acceso transferido a supervisión."],
+                      LLAVES_CONTROLES: ["Detalla llaves, carnés y permisos de ingreso entregados, incluyendo cantidades y receptor.", "Ej.: 3 llaves y carné de ingreso entregados al líder entrante."],
+                      REGISTROS_OPERACION: ["Relaciona inventarios, documentos y registros de la operación y dónde quedan disponibles.", "Ej.: Inventario de insumos y bitácora de novedades entregados a coordinación."],
+                      ACTA_GESTION: ["Indica fecha, estado y responsable del acta de entrega de gestión.", "Ej.: Acta de gestión firmada por supervisión el 28/10/2026."],
+                      ACTIVIDADES_PROGRAMADAS: ["Distingue actividades realizadas, en curso y pendientes con sus responsables.", "Ej.: Programación semanal entregada; dos visitas pendientes asignadas al líder entrante."],
+                      PENDIENTES_CLIENTE: ["Registra compromisos operativos y administrativos con el cliente, fecha y responsable de seguimiento.", "Ej.: Pendiente revisión de inventario con el cliente, responsable coordinación."],
+                      RECEPTOR_OPERACION: ["Identifica nombre completo, cargo y área de quien recibe la operación.", "Ej.: María Pérez, líder de operaciones, sede del cliente."],
+                    };
+                    // Perfil 5: ayudas de diligenciamiento según la matriz ALP.
+                    // Los códigos y la persistencia siguen definidos por el backend.
+                    const ayudasServiciosEspeciales = {
+                      HERRAMIENTAS_TECNICAS: ["Relaciona herramientas y equipos técnicos asignados, con código, cantidad, estado y responsable de recepción.", "Ej.: Equipo dosificador DS-014, 1 unidad, entregado en buen estado a coordinación."],
+                      INSTRUMENTOS_MEDICION: ["Detalla instrumentos de medición y control, identificaciones, cantidades y condiciones de devolución.", "Ej.: Medidor de pH PH-008, 1 unidad, entregado funcionando."],
+                      EPP_ESPECIALIZADO: ["Especifica los elementos de protección personal especializados entregados y sus novedades.", "Ej.: Protección respiratoria especializada, 1 unidad, entregada sin novedades."],
+                      INSUMOS_CUSTODIA: ["Registra los insumos o elementos bajo custodia, sus cantidades y la persona que los recibe.", "Ej.: 3 recipientes de insumo identificados, entregados a almacén."],
+                      ESTADO_SERVICIO: ["Describe actividades finalizadas, en curso y pendientes del servicio, con responsable de seguimiento.", "Ej.: Mantenimiento terminado; revisión de equipos pendiente a cargo de supervisión."],
+                      SUMINISTROS_CLIENTE: ["Relaciona los elementos suministrados por el cliente, estado y responsable de devolución.", "Ej.: Radio del cliente RC-005, 1 unidad, devuelto a administración de la sede."],
+                    };
+                    // Perfil 6: seis campos del Excel, sin elementos históricos duplicados.
+                    const ayudasAlturas = {
+                      EQUIPO_DESCRIPCION: ["Identifica individualmente cada equipo de protección contra caídas y sus accesorios.", "Ej.: Arnés de cuerpo completo y eslinga de posicionamiento, entregados a almacén."],
+                      EQUIPO_CODIGO: ["Indica descripción, código o identificación y cantidad de cada elemento.", "Ej.: Arnés ALT-018, 1 unidad; eslinga ESL-009, 2 unidades."],
+                      EQUIPO_ESTADO: ["Registra el estado físico y funcional de los elementos al devolverlos.", "Ej.: Arnés sin daños visibles; eslinga con desgaste en etiqueta."],
+                      EQUIPO_NOVEDADES: ["Describe faltantes, daños u otras novedades; indica expresamente si no existen.", "Ej.: Falta un conector; se reporta a coordinación de alturas."],
+                      CONCEPTO_COORDINADOR: ["Registra el concepto del coordinador de trabajo en alturas sobre la devolución.", "Ej.: Coordinador revisa el equipo y solicita inspección de la eslinga."],
+                      RECEPTOR_ALTURAS: ["Especifica nombre, cargo y confirmación de la persona que recibe.", "Ej.: Carlos Pérez, encargado de almacén, confirma recepción de 3 elementos."],
+                    };
+                    const ayudaTecnica = codigoPerfilPazSalvo === "TRABAJO_ALTURAS"
+                      ? ayudasAlturas[codigo]
+                      : codigoPerfilPazSalvo === "ADMINISTRATIVO_CAMPO"
+                      ? ayudasAdministrativoCampo[codigo]
+                      : codigoPerfilPazSalvo === "SUPERVISION_LIDERAZGO"
+                        ? ayudasSupervision[codigo]
+                        : codigoPerfilPazSalvo === "SERVICIOS_ESPECIALES"
+                          ? ayudasServiciosEspeciales[codigo]
+                          : esTecnico ? ayudasTecnicas[codigo] : null;
                     const esNovedad = codigo === "DESCUENTOS";
                     const bloqueado = cargandoValidaciones || guardandoValidaciones ||
                       (Boolean(retiroGuardado?.IdPazYSalvo) && String(retiroGuardado?.EstadoPazYSalvo || "").toUpperCase() !== "ABIERTO");
@@ -4026,7 +4106,7 @@ const OperacionesRetirosView = () => {
                             }} />
                           <div>
                             <label htmlFor={`observacion-${codigo}`} className="mb-2 block text-sm font-semibold text-gray-800">
-                              Observación {respuesta.Estado === "PENDIENTE" || respuesta.Estado === "CON NOVEDAD" ? "(describe la novedad)" : "(opcional)"}
+                              Detalle de entrega / observación {esTecnico ? "* (obligatorio al seleccionar un estado)" : respuesta.Estado === "PENDIENTE" || respuesta.Estado === "CON NOVEDAD" ? "(describe la novedad)" : "(opcional)"}
                             </label>
                             <textarea id={`observacion-${codigo}`} rows={2}
                               value={respuesta.Observacion || ""} disabled={bloqueado}
@@ -4035,36 +4115,54 @@ const OperacionesRetirosView = () => {
                                 setMensajeValidaciones("");
                                 setRespuestasValidaciones((actual) => ({...actual, [codigo]: {...actual[codigo], Observacion: event.target.value}}));
                               }}
-                              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm" placeholder="Novedad o detalle, si corresponde." />
+                              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm" placeholder={ayudaTecnica?.[1] || "Novedad o detalle, si corresponde."} />
+                            {ayudaTecnica && <p className="mt-2 text-xs leading-relaxed text-blue-700" role="note">ℹ️ {ayudaTecnica[0]}</p>}
+                            {esTecnico && respuesta.Estado && !String(respuesta.Observacion || "").trim() &&
+                              <p className="mt-1 text-xs font-semibold text-red-700">Debes registrar el detalle para guardar esta respuesta.</p>}
                           </div>
                         </div>
-                        {esNovedad && respuesta.Estado === "CON NOVEDAD" && (
-                          <div className="mt-4 space-y-3 border-t border-gray-200 pt-4">
-                            <CampoSelect id="aplicaDescuento" label="¿La novedad implica descuento?"
-                              value={formulario.aplicaDescuento} options={OPCIONES_SI_NO}
-                              onChange={(valor) => actualizarCampo("aplicaDescuento", valor)} />
-                            {formulario.aplicaDescuento === "SI" && (
-                              <div>
-                                <label htmlFor="valorDescuento" className="mb-2 block text-sm font-semibold text-gray-800">Valor del descuento (opcional)</label>
-                                <Input id="valorDescuento" inputMode="numeric" value={formulario.valorDescuento}
-                                  onChange={(event) => actualizarCampo("valorDescuento", event.target.value.replace(/\D/g, ""))}
-                                  placeholder="Valor en pesos" className="min-h-12" />
-                              </div>
-                            )}
-                            <CampoArchivo id="adjuntosNovedadesNomina" label="Soportes de la novedad (opcional)"
-                              files={adjuntos.novedadesNomina}
-                              onAdd={(archivos) => agregarAdjuntos("novedadesNomina", archivos, true)}
-                              onRemove={(index) => eliminarAdjunto("novedadesNomina", index)} multiple
-                              existingFiles={evidenciasPorTipo("NOVEDADES_NOMINA")}
-                              onViewExisting={verEvidenciaExistente} onDownloadExisting={descargarEvidenciaExistente} />
-                          </div>
-                        )}
                       </div>
                     );
                   })}
                 </div>
                 {mensajeElementosPerfil && <p role="status" className={`mt-3 text-sm ${errorElementosPerfil ? "text-red-700" : "text-emerald-800"}`}>{mensajeElementosPerfil}</p>}
                 {mensajeValidaciones && <p role="status" className={`mt-3 text-sm ${errorValidaciones ? "text-red-700" : "text-emerald-800"}`}>{mensajeValidaciones}</p>}
+              </SeccionFormulario>
+
+              {/* Sección común a todos los perfiles, independiente de sus requisitos. */}
+              <SeccionFormulario titulo="Novedades y descuentos de nómina"
+                descripcion="Información de nómina para cualquier perfil. El valor y los soportes son opcionales.">
+                <div className="space-y-4">
+                  <CampoSelect id="aplicaDescuento" label="¿Aplica descuento de nómina?"
+                    value={formulario.aplicaDescuento} options={OPCIONES_SI_NO} required
+                    disabled={Boolean(retiroGuardado?.IdPazYSalvo) && String(retiroGuardado?.EstadoPazYSalvo || "").toUpperCase() !== "ABIERTO"}
+                    onChange={(valor) => {
+                      actualizarCampo("aplicaDescuento", valor);
+                      if (valor === "NO") actualizarCampo("valorDescuento", "");
+                    }} />
+                  {formulario.aplicaDescuento === "SI" && (
+                    <div>
+                      <label htmlFor="valorDescuento" className="mb-2 block text-sm font-semibold text-gray-800">
+                        Valor del descuento en pesos (opcional)
+                      </label>
+                      <Input id="valorDescuento" inputMode="numeric"
+                        value={formulario.valorDescuento}
+                        disabled={Boolean(retiroGuardado?.IdPazYSalvo) && String(retiroGuardado?.EstadoPazYSalvo || "").toUpperCase() !== "ABIERTO"}
+                        onChange={(event) => actualizarCampo("valorDescuento", event.target.value.replace(/\D/g, ""))}
+                        placeholder="Ej.: 50000" className="min-h-12" />
+                    </div>
+                  )}
+                  <CampoTextoDictado id="novedadesNomina" label="Observación o motivo de la novedad (opcional)"
+                    value={formulario.novedadesNomina}
+                    onChange={(valor) => actualizarCampo("novedadesNomina", valor)} rows={2}
+                    placeholder="Describe las novedades de nómina, si las hay." />
+                  <CampoArchivo id="adjuntosNovedadesNomina" label="Soportes de novedades de nómina (opcional)"
+                    files={adjuntos.novedadesNomina}
+                    onAdd={(archivos) => agregarAdjuntos("novedadesNomina", archivos, true)}
+                    onRemove={(index) => eliminarAdjunto("novedadesNomina", index)} multiple
+                    existingFiles={evidenciasPorTipo("NOVEDADES_NOMINA")}
+                    onViewExisting={verEvidenciaExistente} onDownloadExisting={descargarEvidenciaExistente} />
+                </div>
               </SeccionFormulario>
 
               <SeccionFormulario titulo="Observaciones generales" descripcion="Campo opcional para aclaraciones del Paz y Salvo.">
