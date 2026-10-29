@@ -951,6 +951,13 @@ const SalidasNoConformesView = () => {
         if (typeof detalle !== "string") detalle = "No fue posible registrar la SNC.";
         if (respuesta.status === 401) detalle = "La sesión venció. Inicie sesión nuevamente.";
         if (respuesta.status === 403) detalle = "Su usuario no tiene permisos para registrar SNC.";
+        // Mensaje claro únicamente para el rechazo por responsable sin cuenta vinculada.
+        // No ocultamos otros errores 422 ni modificamos el resto de validaciones.
+        const sinCuentaVinculada = respuesta.status === 422 &&
+          /(?:no tiene una cuenta|cuenta del aplicativo vinculada|usuario no vinculado|idusuario)/i.test(detalle);
+        if (sinCuentaVinculada) {
+          throw new Error("El responsable seleccionado no tiene una cuenta de usuario vinculada en el aplicativo. Por favor, comuníquese con el administrador para verificar su registro antes de asignarle una Salida No Conforme.");
+        }
         throw new Error(`${detalle} (HTTP ${respuesta.status})`);
       }
       if (respuesta.status !== 201 || !datos || datos.id == null) {
