@@ -123,6 +123,12 @@ const RoleBasedRedirect = () => {
 
       return <Navigate to="/login" replace />;
 
+    // Compras y Contabilidad: inicio sin contenido. El usuario elige
+    // un modulo autorizado desde el menu lateral.
+    case "Compras":
+    case "Contabilidad":
+      return null;
+
     case "Administrativo":
       if (
         permissions.includes(
@@ -155,6 +161,22 @@ const RoleBasedRedirect = () => {
     default:
       return <Navigate to="/seleccion" replace />;
   }
+};
+
+
+// Restriccion visual puntual: los roles Compras y Contabilidad
+// no pueden abrir la vista general de Seleccion por URL directa.
+// La autorizacion de datos debe verificarse tambien en FastAPI.
+const SeleccionRestrictedRoute = ({ children }) => {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+
+  const role = String(user?.role || "").trim().toLowerCase();
+  if (role === "compras" || role === "contabilidad") {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
 };
 
 
@@ -331,12 +353,20 @@ function App() {
 
           <Route
             path="seleccion"
-            element={<SeleccionView />}
+            element={
+              <SeleccionRestrictedRoute>
+                <SeleccionView />
+              </SeleccionRestrictedRoute>
+            }
           />
 
           <Route
             path="indicadores-seleccion"
-            element={<IndicadoresSeleccionView />}
+            element={
+              <SeleccionRestrictedRoute>
+                <IndicadoresSeleccionView />
+              </SeleccionRestrictedRoute>
+            }
           />
 
           <Route
