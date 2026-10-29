@@ -50,8 +50,8 @@ import PQRFView from "@/components/PQRFView";
 import PQRFGeneralView from "@/components/PQRFGeneralView";
 
 
-// Los administrativos sin permisos operativos usan exclusivamente Gestión SNC.
-// Esta protección de navegación no sustituye las autorizaciones del backend.
+// Los administrativos sin permisos operativos pueden navegar a Gestión SNC y PQRF.
+// Los permisos para crear PQRF se validan en el backend.
 const AccesoAdministrativoSNC = ({ children }) => {
   const { user } = useAuth();
   const location = useLocation();
@@ -61,8 +61,9 @@ const AccesoAdministrativoSNC = ({ children }) => {
     !permisos.includes("OPERACIONES_RETIROS") &&
     !permisos.includes("RECEPCION_AGENDA_DISCIPLINARIA");
 
-  if (soloSNC && location.pathname !== "/" &&
-      location.pathname !== "/salidas-no-conformes") {
+  const rutasPermitidas = ["/", "/salidas-no-conformes", "/pqrf"];
+
+  if (soloSNC && !rutasPermitidas.includes(location.pathname)) {
     return <Navigate to="/salidas-no-conformes" replace />;
   }
   return children;

@@ -31,6 +31,7 @@ const ROLE_IDS = {
   Nómina: 17,
   Administrativo: 18,
   Recepción: 19,
+  Comercial: Number(import.meta.env.VITE_COMERCIAL_ROLE_ID || (import.meta.env.MODE === 'qa' ? 21 : 20)),
 };
 
 
