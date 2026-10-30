@@ -313,57 +313,62 @@ const SeleccionView = () => {
     return <ArrowUpDown className={cn("w-4 h-4 ml-2", sortConfig.direction === 'ascending' ? "text-emerald-400" : "text-emerald-400 rotate-180")} />;
   };
 
-  // Exportar datos filtrados a Excel
-const exportToExcel = async () => {
-  try {
-    const response = await fetch(
-  `${import.meta.env.VITE_API_BASE_URL}/datos-seleccion/reporte-excel`,
-  {
-    method: "GET",
-  }
-);
+  // Descargar el reporte de Selección desde el backend con autenticación JWT.
+  const exportToExcel = async () => {
+    try {
+      if (!token) {
+        throw new Error('No hay una sesión activa. Inicia sesión nuevamente para descargar el Excel.');
+      }
 
-    if (!response.ok) {
-      throw new Error("Error al generar el Excel");
+      const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+      const response = await fetch(`${apiBase}/datos-seleccion/reporte-excel`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Sesión no autorizada o vencida. Inicia sesión nuevamente.');
+        }
+        if (response.status === 403) {
+          throw new Error('Tu usuario no tiene permiso para descargar este reporte.');
+        }
+        throw new Error(await leerErrorApi(response));
+      }
+
+      const blob = await response.blob();
+      if (!blob.size) {
+        throw new Error('El servidor devolvió un archivo vacío.');
+      }
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'reporte_seleccion.xlsx';
+      document.body.appendChild(a);
+      a.click();
+
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        a.remove();
+      }, 1000);
+
+      toast({
+        title: '✅ Excel generado',
+        description: 'El reporte se descargó correctamente.',
+      });
+    } catch (error) {
+      console.error('[SeleccionView] Error descargando Excel:', error);
+      toast({
+        title: 'Error descargando el Excel',
+        description: error?.message || 'No se pudo generar el archivo.',
+        variant: 'destructive',
+      });
     }
-
-    const contentType = response.headers.get("content-type");
-console.log("Content-Type Excel:", contentType);
-
-const blob = await response.blob();
-console.log("Blob size Excel:", blob.size);
-
-    const file = new Blob([blob], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-
-    const url = window.URL.createObjectURL(file);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "reporte_seleccion.xlsx";
-    document.body.appendChild(a);
-    a.click();
-
-    setTimeout(() => {
-      window.URL.revokeObjectURL(url);
-      a.remove();
-    }, 100);
-
-    toast({
-      title: "✅ Excel generado",
-      description: "El reporte se descargó correctamente",
-    });
-
-  } catch (error) {
-    console.error(error);
-    toast({
-      title: "Error descargando el Excel",
-      description: "No se pudo generar el archivo",
-      variant: "destructive",
-    });
-  }
-};
+  };
 
 return (
   <>
