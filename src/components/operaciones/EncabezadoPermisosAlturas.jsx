@@ -23,26 +23,31 @@ export const SUBMODULOS_PERMISOS_ALTURAS = [
 ];
 
 /**
- * Encabezado de las vistas de permisos de trabajo en alturas.
+ * Encabezado de las vistas de Operaciones > Alturas.
  * Con mostrarPestanas, permite pasar entre Crear y Consultar.
  * Con mostrarVolver, muestra un botón para regresar al menú principal del
  * módulo (en celular no hay otra forma de salir sin abrir la barra lateral).
+ * Por defecto apunta a Permisos de trabajo; otros módulos (p. ej. Análisis de
+ * Trabajo Seguro) envían sus propias pestañas y ruta de regreso.
  */
 const EncabezadoPermisosAlturas = ({
   titulo,
   descripcion,
   mostrarPestanas = false,
   mostrarVolver = false,
+  pestanas = SUBMODULOS_PERMISOS_ALTURAS,
+  rutaVolver = RUTAS_PERMISOS_ALTURAS.inicio,
+  etiquetaVolver = "Permisos de trabajo",
   children,
 }) => (
   <section className="w-full min-w-0 overflow-hidden rounded-2xl border-t-4 border-emerald-600 bg-white p-4 shadow-xl sm:p-6 lg:p-8">
     {mostrarVolver && (
       <Link
-        to={RUTAS_PERMISOS_ALTURAS.inicio}
+        to={rutaVolver}
         className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-50"
       >
         <ArrowLeft className="h-4 w-4" />
-        Permisos de trabajo
+        {etiquetaVolver}
       </Link>
     )}
 
@@ -64,7 +69,7 @@ const EncabezadoPermisosAlturas = ({
 
     {mostrarPestanas && (
       <nav className="mt-6 flex gap-2 overflow-x-auto border-b border-gray-100">
-        {SUBMODULOS_PERMISOS_ALTURAS.map(({ to, label, icon: Icono }) => (
+        {pestanas.map(({ to, label, icon: Icono }) => (
           <NavLink
             key={to}
             to={to}

@@ -9,6 +9,9 @@ import { cn } from "@/lib/utils";
  * desmarca. `seleccionados` es la lista de ids elegidos.
  * Las opciones elegidas que ya no están activas en el catálogo (inactivadas
  * por HSEQ) se muestran igual para no perder lo registrado.
+ *
+ * `variante`: "pildoras" (botones que se acomodan según su largo) o
+ * "cuadricula" (casillas alineadas en columnas, que se leen de arriba abajo).
  */
 const SeleccionMultiple = ({
   id,
@@ -19,7 +22,10 @@ const SeleccionMultiple = ({
   disabled = false,
   invalido = false,
   mensajeError,
+  variante = "pildoras",
 }) => {
+  const cuadricula = variante === "cuadricula";
+
   const alternar = (idOpcion) => {
     onChange(
       seleccionados.includes(idOpcion)
@@ -43,12 +49,45 @@ const SeleccionMultiple = ({
         role="group"
         aria-labelledby={`${id}-etiqueta`}
         className={cn(
-          "flex flex-wrap gap-2 rounded-xl border p-3",
+          "rounded-xl border p-3",
+          cuadricula
+            ? "columns-1 gap-x-3 sm:columns-2 lg:columns-3"
+            : "flex flex-wrap gap-2",
           invalido ? "border-red-300 bg-red-50/40" : "border-gray-200"
         )}
       >
         {opciones.map((opcion) => {
           const activo = seleccionados.includes(opcion.id);
+
+          if (cuadricula) {
+            return (
+              <button
+                key={opcion.id}
+                type="button"
+                aria-pressed={activo}
+                disabled={disabled}
+                onClick={() => alternar(opcion.id)}
+                className={cn(
+                  "mb-2 flex w-full break-inside-avoid items-center gap-2 rounded-full border px-4 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+                  activo
+                    ? "border-emerald-300 bg-emerald-50 font-medium text-emerald-800"
+                    : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300"
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
+                    activo
+                      ? "border-emerald-600 bg-emerald-600 text-white"
+                      : "border-gray-300 bg-white"
+                  )}
+                >
+                  {activo && <Check className="h-3 w-3" />}
+                </span>
+                <span className="min-w-0 break-words">{opcion.nombre}</span>
+              </button>
+            );
+          }
 
           return (
             <button

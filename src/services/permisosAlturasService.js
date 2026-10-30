@@ -4,7 +4,7 @@ import {
   IMPEDIMENTOS_ALTURAS,
 } from "../utils/permisosAlturas";
 
-const construirHeaders = () => {
+export const construirHeaders = () => {
   const token = localStorage.getItem("token");
 
   return {
@@ -13,7 +13,7 @@ const construirHeaders = () => {
   };
 };
 
-const procesarRespuesta = async (response) => {
+export const procesarRespuesta = async (response) => {
   if (response.status === 401) {
     throw new Error(
       "La sesión no está autorizada o venció. Cierra sesión e ingresa nuevamente."

@@ -300,6 +300,15 @@ const Sidebar = ({
                 "Operaciones",
               ],
             },
+            {
+              to: "/operaciones/alturas/analisis-trabajo-seguro",
+              label: "Análisis de Trabajo Seguro",
+              roles: [
+                "Administrador",
+                "Super Administrador",
+                "Operaciones",
+              ],
+            },
           ],
         },
       ],
@@ -535,6 +544,10 @@ const Sidebar = ({
             {
               to: "/operaciones/alturas/permisos-trabajo",
               label: "Permisos de Trabajo",
+            },
+            {
+              to: "/operaciones/alturas/analisis-trabajo-seguro",
+              label: "Análisis de Trabajo Seguro",
             },
           ],
         },

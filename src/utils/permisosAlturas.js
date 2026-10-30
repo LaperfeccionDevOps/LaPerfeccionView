@@ -49,8 +49,8 @@ export const LISTAS_TAREA = [
   },
   {
     campo: "herramientas",
-    tipo: "HERRAMIENTA",
-    etiqueta: "Herramientas a utilizar",
+    tipo: "HERRAMIENTA_MANUAL",
+    etiqueta: "Herramientas manuales",
     obligatoria: true,
   },
   {
