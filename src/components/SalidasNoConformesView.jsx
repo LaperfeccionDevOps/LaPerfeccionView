@@ -67,6 +67,10 @@ const SalidasNoConformesView = () => {
   const [enviandoRespuesta, setEnviandoRespuesta] = useState(false);
   const respuestaEnCurso = useRef(false);
   const [archivosRespuesta, setArchivosRespuesta] = useState([]);
+  const [archivosRegistro, setArchivosRegistro] = useState([]);
+  const [sncPendienteAdjuntos, setSncPendienteAdjuntos] = useState(null);
+  const [evidenciasRegistro, setEvidenciasRegistro] = useState([]);
+  const [errorEvidenciasRegistro, setErrorEvidenciasRegistro] = useState("");
   const [evidencias, setEvidencias] = useState([]);
   const [cargandoEvidencias, setCargandoEvidencias] = useState(false);
   const [errorEvidencias, setErrorEvidencias] = useState("");
@@ -319,6 +323,8 @@ const SalidasNoConformesView = () => {
     setPlanAccion("");
     setArchivosRespuesta([]);
     setEvidencias([]);
+    setEvidenciasRegistro([]);
+    setErrorEvidenciasRegistro("");
     setErrorEvidencias("");
     if (inputArchivosRef.current) inputArchivosRef.current.value = "";
     setErrorRespuesta("");
@@ -460,7 +466,13 @@ const SalidasNoConformesView = () => {
   // Vista previa local: no sube el archivo ni consulta al backend.
   const verArchivoAntesDeEnviar = (archivo) => {
     const tipo = tipoVistaEvidencia(archivo.name);
-    if (!tipo) return;
+    if (!tipo) {
+      const url = URL.createObjectURL(archivo);
+      const enlace = document.createElement("a"); enlace.href = url; enlace.download = archivo.name;
+      document.body.appendChild(enlace); enlace.click(); enlace.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      return;
+    }
     cerrarVistaEvidencia();
     const extension = extensionEvidencia(archivo.name);
     const mime = tipo === "pdf" ? "application/pdf" : tipo === "texto" ? "text/plain;charset=utf-8" :
@@ -489,6 +501,65 @@ const SalidasNoConformesView = () => {
     setArchivosRespuesta(seleccion);
     setErrorRespuesta("");
   };
+
+  const seleccionarArchivosRegistro = (evento) => {
+    const nuevos = Array.from(evento.target.files || []);
+    evento.target.value = "";
+    if (!nuevos.length) return;
+    const seleccion = [...archivosRegistro, ...nuevos];
+    const permitidos = new Set(["pdf", "png", "jpg", "jpeg", "webp", "doc", "docx", "xls", "xlsx", "csv", "mp3", "wav", "m4a", "ogg", "mp4", "mov", "webm"]);
+    if (seleccion.length > 10) { setErrorRegistro("Máximo 10 evidencias por registro."); return; }
+    let total = 0;
+    for (const archivo of seleccion) {
+      const ext = archivo.name.split(".").pop()?.toLowerCase();
+      if (!permitidos.has(ext)) { setErrorRegistro(`Formato no permitido: ${archivo.name}`); return; }
+      const limite = ["mp4", "mov", "webm"].includes(ext) ? 100 : 50;
+      if (archivo.size <= 0 || archivo.size > limite * 1024 * 1024) { setErrorRegistro(`Tamaño no permitido: ${archivo.name}`); return; }
+      total += archivo.size;
+    }
+    if (total > 150 * 1024 * 1024) { setErrorRegistro("Las evidencias superan 150 MB en total."); return; }
+    setArchivosRegistro(seleccion);
+    setErrorRegistro("");
+  };
+
+  const cargarEvidenciasRegistro = async (id, token) => {
+    try {
+      const res = await fetch(`${SNC_BASE_URL}/${id}/evidencias-registro`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error(`No fue posible consultar evidencias iniciales (HTTP ${res.status}).`);
+      setEvidenciasRegistro(await res.json());
+      setErrorEvidenciasRegistro("");
+    } catch (error) { setErrorEvidenciasRegistro(error.message); }
+  };
+
+  const subirEvidenciasRegistro = async (id, token, archivos) => {
+    const cuerpo = new FormData();
+    archivos.forEach((archivo) => cuerpo.append("archivos", archivo));
+    const res = await fetch(`${SNC_BASE_URL}/${id}/evidencias-registro`, {
+      method: "POST", headers: { Authorization: `Bearer ${token}` }, body: cuerpo,
+    });
+    const datos = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(typeof datos?.detail === "string" ? datos.detail : `No se guardaron las evidencias (HTTP ${res.status}).`);
+    return datos;
+  };
+
+  const descargarEvidenciaRegistro = async (adjunto) => {
+    const token = localStorage.getItem("token") || user?.token;
+    try {
+      const res = await fetch(`${SNC_BASE_URL}/evidencias-registro/${adjunto.id}/descargar`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error(`No fue posible abrir la evidencia (HTTP ${res.status}).`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const enlace = document.createElement("a");
+      enlace.href = url; enlace.download = adjunto.nombre; document.body.appendChild(enlace); enlace.click(); enlace.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (error) { setErrorEvidenciasRegistro(error.message); }
+  };
+
+  useEffect(() => {
+    if (!detalleSNC?.id) return;
+    const token = localStorage.getItem("token") || user?.token;
+    if (token) cargarEvidenciasRegistro(detalleSNC.id, token);
+  }, [detalleSNC?.id, user?.token]);
 
   // Una SNC respondida se consulta en el backend, sin depender de datos de la bandeja.
   useEffect(() => {
@@ -963,10 +1034,23 @@ const SalidasNoConformesView = () => {
       if (respuesta.status !== 201 || !datos || datos.id == null) {
         throw new Error("El servidor respondió, pero no confirmó el identificador de la SNC. Verifique antes de intentar nuevamente.");
       }
-      setExitoRegistro(
-        `SNC N.º ${datos.id} registrada correctamente. Estado: ${datos.estado || "ABIERTO"}.` +
-        (datos.asignacion_pendiente ? " La vinculación del responsable con su usuario está pendiente." : "")
-      );
+      let mensaje = `SNC N.º ${datos.id} registrada correctamente. Estado: ${datos.estado || "ABIERTO"}.`;
+      if (archivosRegistro.length) {
+        try {
+          await subirEvidenciasRegistro(datos.id, token, archivosRegistro);
+          mensaje += ` ${archivosRegistro.length} evidencia(s) guardada(s).`;
+          setArchivosRegistro([]);
+          setSncPendienteAdjuntos(null);
+        } catch (error) {
+          setSncPendienteAdjuntos(datos.id);
+          setExitoRegistro(`SNC N.º ${datos.id} creada. Los archivos aún NO se guardaron.`);
+          setErrorRegistro(`${error.message} Use «Reintentar evidencias» sin registrar otra SNC.`);
+          setRecargarBandeja((v) => v + 1);
+          notificarCambioSNC();
+          return;
+        }
+      }
+      setExitoRegistro(mensaje);
       setFormulario(formularioInicial());
       setRecargarBandeja((v) => v + 1);
       notificarCambioSNC();
@@ -980,6 +1064,19 @@ const SalidasNoConformesView = () => {
       envioEnCurso.current = false;
       setGuardando(false);
     }
+  };
+
+  const reintentarEvidenciasRegistro = async () => {
+    if (!sncPendienteAdjuntos || guardando) return;
+    const token = localStorage.getItem("token") || user?.token;
+    setGuardando(true);
+    try {
+      await subirEvidenciasRegistro(sncPendienteAdjuntos, token, archivosRegistro);
+      setExitoRegistro(`SNC N.º ${sncPendienteAdjuntos}: evidencias guardadas correctamente.`);
+      setErrorRegistro(""); setArchivosRegistro([]); setSncPendienteAdjuntos(null);
+      setFormulario(formularioInicial());
+    } catch (error) { setErrorRegistro(error.message); }
+    finally { setGuardando(false); }
   };
 
   const clasesInput =
@@ -1082,6 +1179,25 @@ const SalidasNoConformesView = () => {
                   </p>
                 </Campo>
               </div>
+              <div className="md:col-span-2 rounded-lg border border-dashed border-emerald-300 bg-emerald-50/40 p-4">
+                <label htmlFor="snc-evidencias-registro" className="mb-2 block text-sm font-semibold text-gray-700"><Paperclip size={15} className="mr-1 inline" /> Evidencias de la SNC (opcional)</label>
+                <input id="snc-evidencias-registro" type="file" multiple
+                  accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx,.csv,.mp3,.wav,.m4a,.ogg,.mp4,.mov,.webm"
+                  disabled={guardando || archivosRegistro.length >= 10 || sncPendienteAdjuntos != null}
+                  onChange={seleccionarArchivosRegistro} className="block w-full rounded border bg-white p-2 text-sm" />
+                <p className="mt-1 text-xs text-gray-600">Hasta 10 archivos. Documentos, imágenes, audios y videos. 50 MB por archivo, 100 MB por video; 150 MB en total.</p>
+                {archivosRegistro.map((archivo, indice) => (
+                  <div key={`${archivo.name}-${indice}`} className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded border bg-white p-2 text-sm">
+                    <span className="min-w-0 break-all">{archivo.name} · {(archivo.size / 1024 / 1024).toFixed(2)} MB</span>
+                    <div className="flex gap-3">
+                      <button type="button" disabled={guardando} onClick={() => verArchivoAntesDeEnviar(archivo)}
+                        className="text-emerald-700 underline">Ver</button>
+                      <button type="button" disabled={guardando || sncPendienteAdjuntos != null} onClick={() => setArchivosRegistro((prev) => prev.filter((_, i) => i !== indice))}
+                        className="text-red-700 underline">Eliminar</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
               <Campo titulo="Área responsable de gestionar la SNC">
                 <Selector disabled={controlesDeshabilitados} opciones={catalogos.areas}
                   value={formulario.areaResponsable} onChange={(valor) => actualizar("areaResponsable", valor)} />
@@ -1102,8 +1218,14 @@ const SalidasNoConformesView = () => {
                   className={`${clasesInput} bg-gray-100 font-semibold`} />
               </Campo>
             </div>
+            {sncPendienteAdjuntos && (
+              <div className="mt-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm">
+                La SNC N.º {sncPendienteAdjuntos} ya existe. No la registre nuevamente.
+                <button type="button" disabled={guardando} onClick={reintentarEvidenciasRegistro} className="ml-3 rounded bg-emerald-700 px-3 py-2 font-semibold text-white">Reintentar evidencias</button>
+              </div>
+            )}
             <div className="mt-8 flex justify-end border-t pt-5">
-              <button type="button" onClick={registrarSNC} disabled={controlesDeshabilitados}
+              <button type="button" onClick={registrarSNC} disabled={controlesDeshabilitados || sncPendienteAdjuntos != null}
                 className="flex items-center gap-2 rounded-lg bg-emerald-700 px-6 py-3 font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Send size={18} />
@@ -1166,6 +1288,17 @@ const SalidasNoConformesView = () => {
                 </div>
               </details>
             )}
+            <section className="mt-6 space-y-3 border-t pt-5" aria-label="Evidencias iniciales SNC">
+              <h4 className="font-bold text-emerald-800">Evidencias adjuntas al registro</h4>
+              {errorEvidenciasRegistro && <p role="alert" className="text-sm text-red-700">{errorEvidenciasRegistro}</p>}
+              {evidenciasRegistro.length === 0 && <p className="text-sm text-gray-500">Sin evidencias iniciales registradas.</p>}
+              {evidenciasRegistro.map((adjunto) => (
+                <div key={adjunto.id} className="flex items-center justify-between gap-2 rounded border p-2 text-sm">
+                  <span className="min-w-0 break-all">{adjunto.nombre}</span>
+                  <button type="button" onClick={() => descargarEvidenciaRegistro(adjunto)} className="shrink-0 text-emerald-700 underline">Ver / descargar</button>
+                </div>
+              ))}
+            </section>
             {["RESPONDIDO", "CERRADO", "DEVUELTO"].includes(String(detalleSNC.estado).toUpperCase()) && (
               <section className="mt-6 space-y-4 border-t pt-5" aria-label="Respuesta de la salida no conforme">
                 <h4 className="text-base font-bold text-emerald-800">Respuesta de la salida no conforme</h4>
@@ -1247,14 +1380,13 @@ const SalidasNoConformesView = () => {
                     <div key={`${archivo.name}-${indice}`} className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-gray-50 p-2 text-sm">
                       <span className="min-w-0 break-all"><Paperclip size={14} className="mr-1 inline" />{archivo.name} ({(archivo.size / 1024 / 1024).toFixed(2)} MB)</span>
                       <div className="flex shrink-0 items-center gap-2">
-                        {tipoVistaEvidencia(archivo.name) && (
-                          <button type="button" onClick={() => verArchivoAntesDeEnviar(archivo)}
-                            disabled={enviandoRespuesta}
-                            aria-label={`Ver ${archivo.name} antes de enviar`}
-                            className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-3 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50">
-                            <Eye size={15} /> Ver
-                          </button>
-                        )}
+                        <button type="button" onClick={() => verArchivoAntesDeEnviar(archivo)}
+                          disabled={enviandoRespuesta}
+                          aria-label={`Ver ${archivo.name} antes de enviar`}
+                          title="Vista previa para PDF, imágenes y texto; otros formatos se descargan para abrirlos"
+                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-3 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50">
+                          <Eye size={15} /> Ver
+                        </button>
                       <button type="button" aria-label={`Quitar ${archivo.name}`} disabled={enviandoRespuesta}
                         onClick={() => setArchivosRespuesta((anterior) => anterior.filter((_, i) => i !== indice))}
                         className="shrink-0 rounded p-1 text-red-600 hover:bg-red-50 disabled:opacity-50"><Trash2 size={16} /></button>

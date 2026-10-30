@@ -24,6 +24,11 @@ export default function PQRFView() {
   const [tieneRegistradas, setTieneRegistradas] = useState(true);
   const [cargandoPermisos, setCargandoPermisos] = useState(true);
   const [form, setForm] = useState(initial);
+  const [adjuntosNuevos, setAdjuntosNuevos] = useState([]);
+  const [adjuntosDetalle, setAdjuntosDetalle] = useState([]);
+  const [cargandoAdjuntos, setCargandoAdjuntos] = useState(false);
+  const [errorAdjuntos, setErrorAdjuntos] = useState("");
+  const [subiendoAdjuntos, setSubiendoAdjuntos] = useState(false);
   const [catalogos, setCatalogos] = useState({ tipos: [], procesos: [], correos: [], responsables: [] });
   const [cargandoCatalogos, setCargandoCatalogos] = useState(true);
   const [errorCatalogos, setErrorCatalogos] = useState("");
@@ -61,6 +66,7 @@ export default function PQRFView() {
   const [respuesta, setRespuesta] = useState("");
   const [costoReclamo, setCostoReclamo] = useState("");
   const [evidencia, setEvidencia] = useState(null);
+  const evidenciaRespuestaInputRef = useRef(null);
   const [procesando, setProcesando] = useState(false);
   const [mensajeDetalle, setMensajeDetalle] = useState("");
   const [errorAccion, setErrorAccion] = useState("");
@@ -211,6 +217,59 @@ export default function PQRFView() {
     }
     return { ...v, [campo]: valor };
   });
+  const agregarArchivos = (archivos) => {
+    const permitidas = new Set(["pdf","png","jpg","jpeg","gif","webp","bmp","doc","docx","xls","xlsx","csv","txt","ppt","pptx","mp3","wav","ogg","m4a","mp4","mov","avi","webm","zip"]);
+    const nuevos = Array.from(archivos || []);
+    if (nuevos.some(f => !permitidas.has(f.name.split(".").pop()?.toLowerCase()) || !f.size || f.size > 50 * 1024 * 1024)) {
+      setAviso({ ok: false, texto: "Archivo no permitido, vacío o mayor de 50 MB. Revise los formatos admitidos." }); return;
+    }
+    setAdjuntosNuevos(actual => {
+      const unidos = [...actual, ...nuevos.filter(f => !actual.some(a => a.name === f.name && a.size === f.size && a.lastModified === f.lastModified))];
+      if (unidos.length > 10 || unidos.reduce((n, f) => n + f.size, 0) > 100 * 1024 * 1024) {
+        setAviso({ ok: false, texto: "Máximo 10 archivos y 100 MB por carga." }); return actual;
+      }
+      return unidos;
+    });
+  };
+
+  const subirAdjuntos = async (id, archivos) => {
+    if (!archivos.length) return;
+    const fd = new FormData();
+    archivos.forEach(f => fd.append("archivos", f));
+    const r = await fetch(`${BASE}/${id}/adjuntos`, { method: "POST", headers: { Authorization: `Bearer ${tokenActual()}` }, body: fd });
+    const d = await r.json().catch(() => null);
+    if (!r.ok) throw new Error(detalleError(d, r.status));
+  };
+
+  const cargarAdjuntosDetalle = useCallback(async (id, signal) => {
+    setCargandoAdjuntos(true); setErrorAdjuntos("");
+    try {
+      const { data } = await solicitar(`/${id}/adjuntos`, { signal });
+      if (!Array.isArray(data)) throw new Error("Formato inesperado de adjuntos.");
+      if (!signal?.aborted) setAdjuntosDetalle(data);
+    } catch (e) { if (!signal?.aborted) setErrorAdjuntos(e.message); }
+    finally { if (!signal?.aborted) setCargandoAdjuntos(false); }
+  }, [solicitar]);
+
+  const descargarAdjunto = async (archivo) => {
+    try {
+      const r = await fetch(`${BASE}/${detalle.id}/adjuntos/${archivo.id}/archivo`, { headers: { Authorization: `Bearer ${tokenActual()}` } });
+      if (!r.ok) throw new Error(`No se pudo obtener el archivo (HTTP ${r.status}).`);
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = archivo.nombre; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { setErrorAdjuntos(e.message); }
+  };
+
+  const eliminarAdjunto = async (archivo) => {
+    if (!window.confirm(`¿Quitar la evidencia ${archivo.nombre}?`)) return;
+    try {
+      await solicitar(`/${detalle.id}/adjuntos/${archivo.id}`, { method: "DELETE" });
+      await cargarAdjuntosDetalle(detalle.id);
+    } catch (e) { setErrorAdjuntos(e.message); }
+  };
+
   const registrar = async (e) => {
     e.preventDefault();
     if (envioRef.current || cargandoCatalogos || errorCatalogos || cargandoPermisos || !puedeCrear) return;
@@ -222,8 +281,14 @@ export default function PQRFView() {
       const body = { fecha_pqrf: form.fecha, id_tipo_pqrf: Number(form.tipo), correo_remitente: CORREO_SISTEMA_PQRF, correo_respuesta_cliente: form.correoCorporativo.trim(), nombre_remitente: form.nombre.trim(), id_cliente: Number(form.cliente), descripcion_pqrf: form.descripcion.trim(), id_proceso_pqrf: Number(form.proceso), id_correo_pqrf: Number(form.destinatario) };
       const { data, status } = await solicitar("", { method: "POST", body: JSON.stringify(body) });
       if (status !== 201 || !data?.id || data.estado !== "ABIERTA") throw new Error("El servidor no confirmó el registro. Verifique la bandeja antes de reintentar.");
+      let mensajeAdjuntos = "";
+      if (adjuntosNuevos.length) {
+        try { await subirAdjuntos(data.id, adjuntosNuevos); }
+        catch (error) { mensajeAdjuntos = ` ATENCIÓN: la PQRF se registró, pero las evidencias NO se cargaron (${error.message}). Abra la PQRF en Mis registradas para adjuntarlas. No vuelva a registrar la PQRF.`; }
+      }
+      setAdjuntosNuevos(mensajeAdjuntos ? adjuntosNuevos : []);
       setForm(initial()); setBusquedaCliente(""); setClienteElegido(""); setListaClientesAbierta(false); notificarCambioPQRF();
-      setAviso({ ok: true, texto: `PQRF N.º ${data.id} registrada correctamente. Estado: ABIERTA.` });
+      setAviso({ ok: true, texto: `PQRF N.º ${data.id} registrada correctamente. Estado: ABIERTA.${mensajeAdjuntos}` });
     } catch (e) { setAviso({ ok: false, texto: e instanceof TypeError ? "No se confirmó la operación. Consulte la bandeja antes de reintentar para evitar duplicados." : e.message }); }
     finally { envioRef.current = false; setGuardando(false); }
   };
@@ -242,8 +307,9 @@ export default function PQRFView() {
     if (!detalle?.id) return;
     const ctrl = new AbortController();
     consultarDetalle(detalle.id, ctrl.signal);
+    cargarAdjuntosDetalle(detalle.id, ctrl.signal);
     return () => ctrl.abort();
-  }, [detalle?.id, consultarDetalle]);
+  }, [detalle?.id, consultarDetalle, cargarAdjuntosDetalle]);
 
   // El backend comprueba que la sesión pertenece al gerente configurado.
   // La interfaz ofrece el control en la bandeja de asignadas; si el usuario
@@ -315,7 +381,7 @@ export default function PQRFView() {
   };
 
   const abrir = (item, tipo) => {
-    setVistaPreviaRespuesta(false); setDetalle(item); setOrigen(tipo); setGestiones([]); setHistorial([]); setAnalisis(""); setRespuesta(""); setCostoReclamo(""); setEvidencia(null); setErrorAccion(""); setMensajeDetalle(""); setUsuarioDestino(""); setMotivoReasignacion(""); setMotivoRechazo(""); setErrorResponsables("");
+    setVistaPreviaRespuesta(false); setDetalle(item); setOrigen(tipo); setGestiones([]); setHistorial([]); setAdjuntosDetalle([]); setErrorAdjuntos(""); setAnalisis(""); setRespuesta(""); setCostoReclamo(""); setEvidencia(null); if (evidenciaRespuestaInputRef.current) evidenciaRespuestaInputRef.current.value = ""; setErrorAccion(""); setMensajeDetalle(""); setUsuarioDestino(""); setMotivoReasignacion(""); setMotivoRechazo(""); setErrorResponsables("");
   };
   const cerrarModal = () => { if (!procesando) { setVistaPreviaRespuesta(false); setDetalle(null); } };
   const ejecutarAccion = async (accion) => {
@@ -404,6 +470,31 @@ export default function PQRFView() {
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) { setErrorAccion(e.message); }
   };
+  // Vista local del archivo aún no enviado: no modifica adjuntos guardados ni llama al backend.
+  const verEvidenciaSeleccionada = () => {
+    if (!evidencia) return;
+    const extension = evidencia.name.split(".").pop()?.toLowerCase();
+    const tipo = extension === "pdf" ? "pdf" : ["jpg", "jpeg", "png"].includes(extension) ? "imagen" : null;
+    if (!tipo) {
+      // Word no dispone de una vista previa nativa confiable: abrir descarga local.
+      const url = URL.createObjectURL(evidencia);
+      const enlace = document.createElement("a");
+      enlace.href = url; enlace.download = evidencia.name;
+      document.body.appendChild(enlace); enlace.click(); enlace.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      return;
+    }
+    const url = URL.createObjectURL(evidencia);
+    cerrarVistaEvidencia();
+    vistaEvidenciaUrlRef.current = url;
+    setVistaEvidencia({ url, nombre: evidencia.name, tipo });
+  };
+
+  const quitarEvidenciaSeleccionada = () => {
+    setEvidencia(null);
+    if (evidenciaRespuestaInputRef.current) evidenciaRespuestaInputRef.current.value = "";
+  };
+
   const tarjeta = (nombre, valor) => <div className="rounded-lg bg-gray-50 p-3"><p className="text-xs font-semibold text-gray-500">{nombre}</p><p className="mt-1 break-words text-sm text-gray-800">{valor || "—"}</p></div>;
 
   return <div className="min-h-screen bg-gray-50 p-4 md:p-6"><div className="mx-auto max-w-6xl space-y-6">
@@ -420,6 +511,12 @@ export default function PQRFView() {
           </div>
         </div>
         <Campo label="Tipo de PQRF *"><Selector nombre="un tipo" campo="tipo" opciones={catalogos.tipos} value={form.tipo} onChange={cambiar} disabled={guardando || cargandoCatalogos || !!errorCatalogos}/></Campo>
+        <div className="md:col-span-2 space-y-2 rounded-lg border border-dashed border-emerald-300 bg-emerald-50/40 p-4">
+          <label className="block text-sm font-semibold text-gray-700"><Paperclip size={17} className="mr-2 inline"/>Evidencias de la PQRF (opcional)</label>
+          <input type="file" multiple disabled={guardando} className={inputClass} onChange={e => { agregarArchivos(e.target.files); e.target.value = ""; }}/>
+          <p className="text-xs text-gray-600">Puede seleccionar varios archivos: documentos, imágenes, audios, videos y ZIP. Máximo 10 archivos, 50 MB cada uno y 100 MB por carga.</p>
+          {adjuntosNuevos.map((f, i) => <div key={`${f.name}-${i}`} className="flex items-center justify-between gap-2 rounded border bg-white px-3 py-2 text-sm"><span className="min-w-0 truncate">{f.name} · {(f.size/1024/1024).toFixed(2)} MB</span><div className="flex shrink-0 gap-3"><button type="button" className="text-emerald-700 underline" onClick={() => { const u = URL.createObjectURL(f); window.open(u, "_blank", "noopener,noreferrer"); setTimeout(() => URL.revokeObjectURL(u), 60000); }}>Ver</button><button type="button" className="text-red-700 underline" onClick={() => setAdjuntosNuevos(v => v.filter((_, n) => n !== i))}>Eliminar</button></div></div>)}
+        </div>
         <Campo label="Nombre de la persona que emite la PQR (Cliente) *"><input className={inputClass} maxLength={200} required disabled={guardando} value={form.nombre} onChange={e => cambiar("nombre", e.target.value)} placeholder="Nombre del remitente"/></Campo>
         <div ref={clienteContenedorRef} className="relative space-y-2">
           <label htmlFor="pqrf-buscar-cliente" className="block text-sm font-semibold text-gray-700">Cliente relacionado *</label>
@@ -493,8 +590,17 @@ export default function PQRFView() {
     {["registradas", "asignadas", "delegadas"].includes(tab) && <section className="rounded-xl border bg-white p-5 shadow-sm md:p-7"><div className="mb-5 flex items-center justify-between gap-3"><h2 className="text-lg font-bold">{tab === "registradas" ? "Mis PQRF registradas" : tab === "delegadas" ? "Mis PQRF delegadas" : "Mis PQRF asignadas"}</h2><button type="button" onClick={notificarCambioPQRF} disabled={cargandoBandeja} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"><RefreshCw size={16}/>Actualizar</button></div>{errorBandeja && <p role="alert" className="mb-4 text-red-700">{errorBandeja}</p>}{cargandoBandeja ? <p>Consultando...</p> : <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-gray-50"><tr>{["N.º", "Fecha", "Cliente", "Tipo", "Proceso", "Responsable", "Estado", "Detalle"].map(t => <th key={t} className="px-3 py-3">{t}</th>)}</tr></thead><tbody className="divide-y">{bandejas[tab].map(item => <tr key={item.id}><td className="px-3 py-3">{item.id}</td><td className="px-3 py-3">{formatoFecha(item.fecha_pqrf)}</td><td className="px-3 py-3">{item.cliente}</td><td className="px-3 py-3">{item.tipo_pqrf}</td><td className="px-3 py-3">{item.proceso}</td><td className="px-3 py-3">{item.usuario_responsable}</td><td className="px-3 py-3 font-semibold">{item.estado}</td><td className="px-3 py-3"><button type="button" onClick={() => abrir(item,tab)} className="flex items-center gap-1 rounded-lg border px-3 py-2 text-emerald-700"><Eye size={16}/>Ver</button></td></tr>)}</tbody></table>{!errorBandeja && bandejas[tab].length === 0 && <p className="py-8 text-center text-gray-500">No hay PQRF para mostrar.</p>}</div>}<div className="mt-5 flex items-center justify-between border-t pt-4"><span className="text-xs text-gray-500">Página {pagina[tab]+1} · {bandejas[tab].length} registro(s)</span><div className="flex gap-2"><button type="button" disabled={cargandoBandeja || pagina[tab]===0} onClick={() => setPagina(v => ({...v,[tab]:v[tab]-1}))} className="flex items-center rounded-lg border px-3 py-2 disabled:opacity-40"><ChevronLeft size={16}/>Anterior</button><button type="button" disabled={cargandoBandeja || !!errorBandeja || bandejas[tab].length < LIMITE} onClick={() => setPagina(v => ({...v,[tab]:v[tab]+1}))} className="flex items-center rounded-lg border px-3 py-2 disabled:opacity-40">Siguiente<ChevronRight size={16}/></button></div></div></section>}
   </div>
   {detalle && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4" onMouseDown={e => { if(e.target===e.currentTarget) cerrarModal(); }}><section role="dialog" aria-modal="true" aria-labelledby="pqrf-titulo" className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><h2 id="pqrf-titulo" className="text-xl font-bold">Detalle de PQRF N.º {detalle.id}</h2><button type="button" onClick={cerrarModal} disabled={procesando} aria-label="Cerrar"><X/></button></div><div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">{tarjeta("Fecha", formatoFecha(detalle.fecha_pqrf))}{tarjeta("Estado", detalle.estado)}{tarjeta("Cliente", detalle.cliente)}{tarjeta("Tipo", detalle.tipo_pqrf)}<div className="sm:col-span-2">{tarjeta("Descripción", detalle.descripcion_pqrf)}</div></div>
-    <section className="mt-6 border-t pt-5"><h3 className="mb-3 font-bold text-emerald-800">Respuesta y gestión</h3>{cargandoDetalle && <p className="text-sm">Consultando gestión e historial...</p>}{errorDetalle && <p role="alert" className="text-sm text-red-700">{errorDetalle}</p>}{gestiones.map(g => <div key={g.id_gestion} className="mb-3 space-y-2 rounded-lg bg-gray-50 p-4 text-sm"><p><strong>Gestionó:</strong> {g.usuario_gestion} · {formatoMomento(g.fecha_gestion)}</p><p className="whitespace-pre-wrap"><strong>Análisis:</strong> {g.analisis_gestion}</p><p className="whitespace-pre-wrap"><strong>Respuesta:</strong> {g.respuesta_pqrf}</p>{g.costo_reclamo !== null && g.costo_reclamo !== undefined && <p><strong>Costo del reclamo:</strong> {Number(g.costo_reclamo).toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 })}</p>}{g.tiene_evidencia && <div className="flex flex-wrap items-center gap-3"><button type="button" className="inline-flex items-center gap-1 font-semibold text-emerald-700 underline disabled:opacity-50" disabled={cargandoVistaEvidencia} onClick={() => verEvidencia(g)}><Eye size={16}/>{cargandoVistaEvidencia ? "Abriendo evidencia..." : "Ver evidencia"}</button><button type="button" className="inline-flex items-center gap-1 font-semibold text-emerald-700 underline" onClick={() => descargarEvidencia(g)}><FileText size={16}/>Descargar evidencia: {g.nombre_evidencia || "Archivo"}</button></div>}</div>)}{!cargandoDetalle && !errorDetalle && gestiones.length===0 && <p className="text-sm text-gray-500">Sin respuestas registradas.</p>}</section>
-    {origen === "asignadas" && detalle.estado === "ABIERTA" && !mensajeDetalle.includes("reasignada correctamente") && !mensajeDetalle.includes("asignación rechazada") && <section className="mt-6 space-y-3 border-t pt-5"><h3 className="font-bold">Responder PQRF</h3>{!esFelicitacion && <><label className="block text-sm font-semibold">Análisis de gestión *<textarea className={`${inputClass} mt-2`} rows={3} maxLength={20000} value={analisis} onChange={e=>setAnalisis(e.target.value)} disabled={procesando}/></label><label className="block text-sm font-semibold">Plan de acción *<textarea className={`${inputClass} mt-2`} rows={3} maxLength={20000} value={respuesta} onChange={e=>setRespuesta(e.target.value)} disabled={procesando}/></label></>}{esReclamo && <label className="block text-sm font-semibold">Costo del reclamo (COP) *<input type="number" min="0" step="1" className={`${inputClass} mt-2`} value={costoReclamo} onChange={e=>setCostoReclamo(e.target.value)} placeholder="Valor en pesos colombianos" disabled={procesando} required/></label>}{evidenciaObligatoria && <label className="block text-sm font-semibold"><span className="flex items-center gap-2"><Paperclip size={17}/>Adjuntar evidencia *</span><input type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" className={`${inputClass} mt-2`} onChange={e=>setEvidencia(e.target.files?.[0] || null)} disabled={procesando} required/><span className="block mt-1 text-xs text-gray-500">PDF, imagen o Word. Máximo 10 MB.</span></label>}<button type="button" onClick={() => { setErrorAccion(""); setVistaPreviaRespuesta(true); }} disabled={procesando || !respuestaValida} className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white disabled:opacity-50"><Send size={17}/>{procesando ? "Procesando..." : "Vista previa de respuesta"}</button></section>}
+         <section className="mt-6 space-y-3 border-t pt-5"><h3 className="font-bold text-emerald-800">Evidencias adjuntas al registro</h3>
+       {cargandoAdjuntos && <p className="text-sm">Consultando evidencias...</p>}
+       {errorAdjuntos && <p role="alert" className="text-sm text-red-700">{errorAdjuntos}</p>}
+       {!cargandoAdjuntos && !errorAdjuntos && adjuntosDetalle.length === 0 && <p className="text-sm text-gray-500">Sin evidencias iniciales.</p>}
+       {adjuntosDetalle.map(a => <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"><span className="break-all">{a.nombre} · {(a.tamano/1024/1024).toFixed(2)} MB</span><div className="flex gap-3"><button type="button" className="text-emerald-700 underline" onClick={() => descargarAdjunto(a)}>Ver / descargar</button>{origen === "registradas" && detalle.estado === "ABIERTA" && <button type="button" className="text-red-700 underline" onClick={() => eliminarAdjunto(a)}>Eliminar</button>}</div></div>)}
+       {origen === "registradas" && detalle.estado === "ABIERTA" && <label className="block rounded-lg bg-gray-50 p-3 text-sm font-semibold">Agregar más evidencias (opcional)
+         <input type="file" multiple disabled={subiendoAdjuntos || adjuntosDetalle.length >= 10} className={`${inputClass} mt-2`} onChange={async e => { const archivos = Array.from(e.target.files || []); e.target.value = ""; if (!archivos.length) return; setSubiendoAdjuntos(true); setErrorAdjuntos(""); try { await subirAdjuntos(detalle.id, archivos); await cargarAdjuntosDetalle(detalle.id); } catch (error) { setErrorAdjuntos(error.message); } finally { setSubiendoAdjuntos(false); } }}/>
+       </label>}
+     </section>
+<section className="mt-6 border-t pt-5"><h3 className="mb-3 font-bold text-emerald-800">Respuesta y gestión</h3>{cargandoDetalle && <p className="text-sm">Consultando gestión e historial...</p>}{errorDetalle && <p role="alert" className="text-sm text-red-700">{errorDetalle}</p>}{gestiones.map(g => <div key={g.id_gestion} className="mb-3 space-y-2 rounded-lg bg-gray-50 p-4 text-sm"><p><strong>Gestionó:</strong> {g.usuario_gestion} · {formatoMomento(g.fecha_gestion)}</p><p className="whitespace-pre-wrap"><strong>Análisis de causas:</strong> {g.analisis_gestion}</p><p className="whitespace-pre-wrap"><strong>Respuesta:</strong> {g.respuesta_pqrf}</p>{g.costo_reclamo !== null && g.costo_reclamo !== undefined && <p><strong>Costo del reclamo:</strong> {Number(g.costo_reclamo).toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 })}</p>}{g.tiene_evidencia && <div className="flex flex-wrap items-center gap-3"><button type="button" className="inline-flex items-center gap-1 font-semibold text-emerald-700 underline disabled:opacity-50" disabled={cargandoVistaEvidencia} onClick={() => verEvidencia(g)}><Eye size={16}/>{cargandoVistaEvidencia ? "Abriendo evidencia..." : "Ver evidencia"}</button><button type="button" className="inline-flex items-center gap-1 font-semibold text-emerald-700 underline" onClick={() => descargarEvidencia(g)}><FileText size={16}/>Descargar evidencia: {g.nombre_evidencia || "Archivo"}</button></div>}</div>)}{!cargandoDetalle && !errorDetalle && gestiones.length===0 && <p className="text-sm text-gray-500">Sin respuestas registradas.</p>}</section>
+    {origen === "asignadas" && detalle.estado === "ABIERTA" && !mensajeDetalle.includes("reasignada correctamente") && !mensajeDetalle.includes("asignación rechazada") && <section className="mt-6 space-y-3 border-t pt-5"><h3 className="font-bold">Responder PQRF</h3>{!esFelicitacion && <><label className="block text-sm font-semibold">Análisis de causas *<textarea className={`${inputClass} mt-2`} rows={3} maxLength={20000} value={analisis} onChange={e=>setAnalisis(e.target.value)} disabled={procesando}/></label><label className="block text-sm font-semibold">Plan de acción *<textarea className={`${inputClass} mt-2`} rows={3} maxLength={20000} value={respuesta} onChange={e=>setRespuesta(e.target.value)} disabled={procesando}/></label></>}{esReclamo && <label className="block text-sm font-semibold">Costo del reclamo (COP) *<input type="number" min="0" step="1" className={`${inputClass} mt-2`} value={costoReclamo} onChange={e=>setCostoReclamo(e.target.value)} placeholder="Valor en pesos colombianos" disabled={procesando} required/></label>}{evidenciaObligatoria && <label className="block text-sm font-semibold"><span className="flex items-center gap-2"><Paperclip size={17}/>Adjuntar evidencia *</span><input ref={evidenciaRespuestaInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" className={`${inputClass} mt-2`} onChange={e=>setEvidencia(e.target.files?.[0] || null)} disabled={procesando} required={!evidencia}/><span className="block mt-1 text-xs text-gray-500">PDF, imagen o Word. Máximo 10 MB.</span>{evidencia && <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-gray-50 px-3 py-2"><span className="min-w-0 break-all text-sm font-normal text-gray-700">{evidencia.name} · {(evidencia.size / 1024 / 1024).toFixed(2)} MB</span><div className="flex shrink-0 gap-3"><button type="button" disabled={procesando} onClick={verEvidenciaSeleccionada} className="text-sm font-semibold text-emerald-700 underline disabled:opacity-50"><Eye size={15} className="mr-1 inline"/>Ver</button><button type="button" disabled={procesando} onClick={quitarEvidenciaSeleccionada} className="text-sm font-semibold text-red-700 underline disabled:opacity-50"><X size={15} className="mr-1 inline"/>Eliminar</button></div></div>}</label>}<button type="button" onClick={() => { setErrorAccion(""); setVistaPreviaRespuesta(true); }} disabled={procesando || !respuestaValida} className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white disabled:opacity-50"><Send size={17}/>{procesando ? "Procesando..." : "Vista previa de respuesta"}</button></section>}
     {detalle.es_gerente_proceso === true && detalle.estado === "ABIERTA" && !mensajeDetalle.includes("reasignada correctamente") && !mensajeDetalle.includes("asignación rechazada") && <section className="mt-6 space-y-3 border-t pt-5">
       <h3 className="flex items-center gap-2 font-bold text-emerald-800"><RefreshCw size={18}/>Reasignar PQRF</h3>
       <p className="text-sm text-gray-600">Solo el gerente configurado para este proceso puede delegar la PQRF a otro usuario activo. El historial conservará el motivo.</p>
@@ -521,7 +627,7 @@ export default function PQRFView() {
     {origen === "registradas" && detalle.estado === "RESPONDIDA" && <section className="mt-6 border-t pt-5"><p className="mb-3 text-sm">Revise la respuesta antes de realizar el cierre definitivo.</p><button type="button" onClick={() => ejecutarAccion("cerrar")} disabled={procesando || cargandoDetalle || !!errorDetalle || gestiones.length===0} className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white disabled:opacity-50"><CheckCircle2 size={17}/>{procesando ? "Cerrando..." : "Cerrar PQRF"}</button></section>}
     {mensajeDetalle && <p role="status" className="mt-4 rounded-lg bg-emerald-50 p-3 text-emerald-800">{mensajeDetalle}</p>}{errorAccion && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-red-700">{errorAccion}</p>}
     <section className="mt-6 border-t pt-5"><h3 className="mb-3 font-bold">Historial de movimientos</h3>{historial.map(h => <div key={h.id_historial} className="mb-2 rounded-lg border p-3 text-sm"><p className="font-semibold">{h.tipo_movimiento} · {h.estado_anterior || "Inicio"} → {h.estado_nuevo}</p><p>{h.usuario} · {formatoMomento(h.fecha_movimiento)}</p><p className="text-gray-600">{h.observacion}</p></div>)}</section><button type="button" onClick={cerrarModal} disabled={procesando} className="mt-5 w-full rounded-lg border px-4 py-3 font-semibold disabled:opacity-50">Cerrar detalle</button></section></div>}
-   {vistaPreviaRespuesta && detalle && detalle.estado === "ABIERTA" && origen === "asignadas" && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4" role="presentation"><section role="dialog" aria-modal="true" aria-labelledby="pqrf-previa-titulo" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl"><div className="flex items-center justify-between gap-3"><h2 id="pqrf-previa-titulo" className="text-xl font-bold text-gray-800">Vista previa de respuesta · PQRF N.º {detalle.id}</h2><button type="button" aria-label="Volver a editar" disabled={procesando} onClick={() => setVistaPreviaRespuesta(false)}><X size={22}/></button></div><p className="mt-2 text-sm text-gray-600">Revise la información antes de confirmar. Esta vista no registra ni envía la respuesta.</p><div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">{tarjeta("Cliente", detalle.cliente)}{tarjeta("Tipo", detalle.tipo_pqrf)}{tarjeta("Proceso", detalle.proceso)}{tarjeta("Estado actual", detalle.estado)}</div><div className="mt-4 space-y-3">{!esFelicitacion && <>{tarjeta("Análisis de gestión", analisis)}{tarjeta("Plan de acción", respuesta)}</>}{esReclamo && tarjeta("Costo del reclamo (COP)", Number(costoReclamo).toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }))}{evidencia && tarjeta("Evidencia adjunta", evidencia.name)}{!evidencia && tarjeta("Evidencia adjunta", "Sin archivo")}</div>{errorAccion && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{errorAccion}</p>}<div className="mt-6 flex flex-col gap-3 sm:flex-row"><button type="button" disabled={procesando} onClick={() => setVistaPreviaRespuesta(false)} className="flex-1 rounded-lg border border-gray-300 px-4 py-3 font-semibold text-gray-700 disabled:opacity-50">Volver a editar</button><button type="button" disabled={procesando || !respuestaValida} onClick={() => ejecutarAccion("responder")} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white disabled:opacity-50"><Send size={17}/>{procesando ? "Enviando respuesta..." : "Confirmar y responder PQRF"}</button></div></section></div>}
+   {vistaPreviaRespuesta && detalle && detalle.estado === "ABIERTA" && origen === "asignadas" && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4" role="presentation"><section role="dialog" aria-modal="true" aria-labelledby="pqrf-previa-titulo" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl"><div className="flex items-center justify-between gap-3"><h2 id="pqrf-previa-titulo" className="text-xl font-bold text-gray-800">Vista previa de respuesta · PQRF N.º {detalle.id}</h2><button type="button" aria-label="Volver a editar" disabled={procesando} onClick={() => setVistaPreviaRespuesta(false)}><X size={22}/></button></div><p className="mt-2 text-sm text-gray-600">Revise la información antes de confirmar. Esta vista no registra ni envía la respuesta.</p><div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">{tarjeta("Cliente", detalle.cliente)}{tarjeta("Tipo", detalle.tipo_pqrf)}{tarjeta("Proceso", detalle.proceso)}{tarjeta("Estado actual", detalle.estado)}</div><div className="mt-4 space-y-3">{!esFelicitacion && <>{tarjeta("Análisis de causas", analisis)}{tarjeta("Plan de acción", respuesta)}</>}{esReclamo && tarjeta("Costo del reclamo (COP)", Number(costoReclamo).toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }))}{evidencia && tarjeta("Evidencia adjunta", evidencia.name)}{!evidencia && tarjeta("Evidencia adjunta", "Sin archivo")}</div>{errorAccion && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{errorAccion}</p>}<div className="mt-6 flex flex-col gap-3 sm:flex-row"><button type="button" disabled={procesando} onClick={() => setVistaPreviaRespuesta(false)} className="flex-1 rounded-lg border border-gray-300 px-4 py-3 font-semibold text-gray-700 disabled:opacity-50">Volver a editar</button><button type="button" disabled={procesando || !respuestaValida} onClick={() => ejecutarAccion("responder")} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white disabled:opacity-50"><Send size={17}/>{procesando ? "Enviando respuesta..." : "Confirmar y responder PQRF"}</button></div></section></div>}
   {vistaEvidencia && <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/70 p-4" onMouseDown={e => { if (e.target === e.currentTarget) cerrarVistaEvidencia(); }}><section role="dialog" aria-modal="true" aria-label="Vista previa de evidencia" className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl"><div className="flex items-center justify-between gap-3 border-b px-5 py-4"><div className="min-w-0"><h3 className="font-bold text-gray-800">Vista previa de evidencia</h3><p className="truncate text-sm text-gray-500">{vistaEvidencia.nombre}</p></div><button type="button" onClick={cerrarVistaEvidencia} aria-label="Cerrar vista previa" className="rounded-lg p-2 hover:bg-gray-100"><X size={22}/></button></div><div className="min-h-0 flex-1 overflow-auto bg-gray-100 p-3">{vistaEvidencia.tipo === "pdf" ? <iframe title={`Evidencia: ${vistaEvidencia.nombre}`} src={vistaEvidencia.url} className="h-[72vh] w-full rounded-lg bg-white"/> : <img src={vistaEvidencia.url} alt={`Evidencia: ${vistaEvidencia.nombre}`} className="mx-auto max-h-[72vh] max-w-full object-contain"/>}</div><div className="border-t px-5 py-3 text-right"><button type="button" onClick={cerrarVistaEvidencia} className="rounded-lg border px-5 py-2 font-semibold">Cerrar vista</button></div></section></div>}
   {aviso && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4"><div role="alertdialog" aria-modal="true" className="w-full max-w-md rounded-xl bg-white p-7 text-center shadow-2xl"><CheckCircle2 className={`mx-auto mb-3 ${aviso.ok ? "text-emerald-700" : "text-red-600"}`} size={40}/><h3 className="mb-3 text-lg font-bold">{aviso.ok ? "PQRF registrada" : "No se pudo registrar"}</h3><p className="text-sm">{aviso.texto}</p><button type="button" autoFocus onClick={() => setAviso(null)} className="mt-6 w-full rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white">Entendido</button></div></div>}
   </div>;
