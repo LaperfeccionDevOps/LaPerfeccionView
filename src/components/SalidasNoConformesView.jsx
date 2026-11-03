@@ -790,6 +790,12 @@ const SalidasNoConformesView = () => {
     return partes.length === 3 ? `${partes[2]}/${partes[1]}/${partes[0]}` : fecha;
   };
 
+  const formatoMomentoGeneracion = (valor) => {
+    if (!valor) return "—";
+    const fecha = new Date(valor);
+    return Number.isNaN(fecha.getTime()) ? "—" : new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }).format(fecha);
+  };
+
   const BandejaSNC = ({ tipo }) => {
     const esRegistradas = tipo === "registradas";
     const registros = bandejas[tipo];
@@ -835,7 +841,8 @@ const SalidasNoConformesView = () => {
               <thead className="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-600">
                 <tr>
                   <th className="px-4 py-3">N.º</th>
-                  <th className="px-4 py-3">Fecha SNC</th>
+                  <th className="px-4 py-3">Fecha de la novedad</th>
+                  <th className="px-4 py-3">Fecha de generación</th>
                   {!esRegistradas && <th className="px-4 py-3">Enviada por</th>}
                   {esRegistradas && <th className="px-4 py-3">Responsable</th>}
                   <th className="px-4 py-3">Estado</th>
@@ -847,6 +854,7 @@ const SalidasNoConformesView = () => {
                   <tr key={snc.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-semibold text-gray-800">{snc.id}</td>
                     <td className="whitespace-nowrap px-4 py-3">{formatoFecha(snc.fecha_snc)}</td>
+                    <td className="whitespace-nowrap px-4 py-3">{formatoMomentoGeneracion(snc.fecha_creacion)}</td>
                     {!esRegistradas && <td className="px-4 py-3">{nombreCreadorSNC(snc)}</td>}
                     {esRegistradas && (
                       <td className="px-4 py-3">
@@ -1254,7 +1262,8 @@ const SalidasNoConformesView = () => {
             <p className="mt-1 text-sm text-gray-500">Consulta de la información registrada y su gestión</p>
             <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
               {[
-                ["Fecha SNC", formatoFecha(detalleSNC.fecha_snc)],
+                ["Fecha de la novedad", formatoFecha(detalleSNC.fecha_snc)],
+                ["Fecha de generación", formatoMomentoGeneracion(detalleSNC.fecha_creacion)],
                 ["Estado", detalleSNC.estado],
               ].map(([etiqueta, valor]) => (
                 <div key={etiqueta} className="rounded-lg bg-gray-50 p-3">
