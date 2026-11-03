@@ -47,6 +47,7 @@ import SalidasNoConformesView from "@/components/SalidasNoConformesView";
 import SalidasNoConformesGeneralView from "@/components/SalidasNoConformesGeneralView";
 import PQRFView from "@/components/PQRFView";
 import PQRFGeneralView from "@/components/PQRFGeneralView";
+import PQRFPublicaPage from "@/pages/PQRFPublicaPage";
 
 
 const RoleBasedRedirect = () => {
@@ -297,6 +298,8 @@ function App() {
       </Helmet>
 
       <Routes>
+        {/* Ruta pública: no requiere JWT ni ProtectedRoute. Solo QA hasta habilitar seguridad perimetral. */}
+        <Route path="/pqrf-publica" element={<PQRFPublicaPage />} />
         <Route
           path="/login"
           element={<LoginPage />}

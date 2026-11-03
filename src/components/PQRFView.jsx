@@ -67,6 +67,13 @@ export default function PQRFView() {
   const esFelicitacion = tipoActual === "FELICITACIÓN" || tipoActual === "FELICITACION";
   const evidenciaObligatoria = esReclamo || esFelicitacion;
   const respuestaValida = esFelicitacion ? !!evidencia : !!analisis.trim() && !!respuesta.trim() && (!esReclamo || (costoReclamo !== "" && Number(costoReclamo) >= 0 && !!evidencia));
+  // Cierre interno: creador desde registradas. Cierre externo: responsable de Calidad desde delegadas.
+  // La API vuelve a comprobar la autorización antes de cambiar el estado.
+  const puedeCerrarDetalle = !!detalle && detalle.estado === "RESPONDIDA" && (
+    (origen === "registradas" && String(detalle.origen_pqrf || "").toUpperCase() !== "EXTERNA") ||
+    (origen === "delegadas" && String(detalle.origen_pqrf || "").toUpperCase() === "EXTERNA" &&
+      Number(detalle.id_proceso_pqrf) === 10 && detalle.es_gerente_proceso === true)
+  );
   const tokenActual = useCallback(() => localStorage.getItem("token") || user?.token, [user?.token]);
   const solicitar = useCallback(async (ruta, options = {}) => {
     const token = tokenActual();
@@ -277,7 +284,7 @@ export default function PQRFView() {
   const ejecutarAccion = async (accion) => {
     if (!detalle?.id || procesando || respuestaRef.current || cierreRef.current) return;
     if (accion === "responder" && (origen !== "asignadas" || detalle.estado !== "ABIERTA" || !respuestaValida)) return;
-    if (accion === "cerrar" && (origen !== "registradas" || detalle.estado !== "RESPONDIDA" || gestiones.length === 0 || errorDetalle)) return;
+    if (accion === "cerrar" && (!puedeCerrarDetalle || gestiones.length === 0 || errorDetalle)) return;
     const ref = accion === "responder" ? respuestaRef : cierreRef;
     ref.current = true; setProcesando(true); setErrorAccion(""); setMensajeDetalle("");
     try {
@@ -432,7 +439,7 @@ export default function PQRFView() {
       </label>
       <button type="button" onClick={ejecutarRechazo} disabled={procesando || motivoRechazo.trim().length < 5} className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-700 bg-red-50 px-4 py-3 font-semibold text-red-800 disabled:opacity-50"><Undo2 size={17}/>{procesando ? "Devolviendo..." : "Rechazar y devolver al gerente"}</button>
     </section>}
-    {origen === "registradas" && detalle.estado === "RESPONDIDA" && <section className="mt-6 border-t pt-5"><p className="mb-3 text-sm">Revise la respuesta antes de realizar el cierre definitivo.</p><button type="button" onClick={() => ejecutarAccion("cerrar")} disabled={procesando || cargandoDetalle || !!errorDetalle || gestiones.length===0} className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white disabled:opacity-50"><CheckCircle2 size={17}/>{procesando ? "Cerrando..." : "Cerrar PQRF"}</button></section>}
+    {puedeCerrarDetalle && <section className="mt-6 border-t pt-5"><p className="mb-3 text-sm">Revise la respuesta antes de realizar el cierre definitivo.</p><button type="button" onClick={() => ejecutarAccion("cerrar")} disabled={procesando || cargandoDetalle || !!errorDetalle || gestiones.length===0} className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white disabled:opacity-50"><CheckCircle2 size={17}/>{procesando ? "Cerrando..." : "Cerrar PQRF"}</button></section>}
     {mensajeDetalle && <p role="status" className="mt-4 rounded-lg bg-emerald-50 p-3 text-emerald-800">{mensajeDetalle}</p>}{errorAccion && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-red-700">{errorAccion}</p>}
     <section className="mt-6 border-t pt-5"><h3 className="mb-3 font-bold">Historial de movimientos</h3>{historial.map(h => <div key={h.id_historial} className="mb-2 rounded-lg border p-3 text-sm"><p className="font-semibold">{h.tipo_movimiento} · {h.estado_anterior || "Inicio"} → {h.estado_nuevo}</p><p>{h.usuario} · {formatoMomento(h.fecha_movimiento)}</p><p className="text-gray-600">{h.observacion}</p></div>)}</section><button type="button" onClick={cerrarModal} disabled={procesando} className="mt-5 w-full rounded-lg border px-4 py-3 font-semibold disabled:opacity-50">Cerrar detalle</button></section></div>}
   {aviso && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4"><div role="alertdialog" aria-modal="true" className="w-full max-w-md rounded-xl bg-white p-7 text-center shadow-2xl"><CheckCircle2 className={`mx-auto mb-3 ${aviso.ok ? "text-emerald-700" : "text-red-600"}`} size={40}/><h3 className="mb-3 text-lg font-bold">{aviso.ok ? "PQRF registrada" : "No se pudo registrar"}</h3><p className="text-sm">{aviso.texto}</p><button type="button" autoFocus onClick={() => setAviso(null)} className="mt-6 w-full rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white">Entendido</button></div></div>}
