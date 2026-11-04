@@ -62,7 +62,11 @@ const AccesoAdministrativoSNC = ({ children }) => {
     !permisos.includes("OPERACIONES_RETIROS") &&
     !permisos.includes("RECEPCION_AGENDA_DISCIPLINARIA");
 
-  const rutasPermitidas = ["/", "/salidas-no-conformes", "/pqrf"];
+  const rutasPermitidas = [
+    "/", "/salidas-no-conformes", "/pqrf",
+    ...(permisos.includes("SNC_GENERAL_VER") ? ["/salidas-no-conformes/general"] : []),
+    ...(permisos.includes("PQRF_GENERAL_VER") ? ["/pqrf/general"] : []),
+  ];
 
   if (soloSNC && !rutasPermitidas.includes(location.pathname)) {
     return <Navigate to="/salidas-no-conformes" replace />;
@@ -265,11 +269,16 @@ const BienestarPermissionRoute = ({
 };
 
 
-// Protección visual de la ruta. La API debe validar también el rol en el servidor.
-const SuperAdminOnlyRoute = ({ children }) => {
+// Protección visual de las vistas generales; FastAPI también valida los permisos.
+const GeneralPermissionRoute = ({ children, permission }) => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  if (String(user.role || "").trim() !== "Super Administrador") {
+
+  const role = String(user?.role || "").trim();
+  const permisos = Array.isArray(user?.permisos) ? user.permisos : [];
+  const autorizado = role === "Super Administrador" || permisos.includes(permission);
+
+  if (!autorizado) {
     return <Navigate to="/" replace />;
   }
   return children;
@@ -477,9 +486,7 @@ function App() {
 
           <Route
             path="relaciones-laborales/procesos-disciplinarios/indicadores"
-            element={
-              <IndicadoresProcesosDisciplinariosRoute />
-            }
+            element={<IndicadoresProcesosDisciplinariosRoute />}
           />
 
           <Route
@@ -518,13 +525,13 @@ function App() {
             element={<PQRFView />}
           />
 
-          {/* PQRF GENERAL: solo SUPERADMIN */}
+          {/* PQRF GENERAL: SUPERADMIN o permiso PQRF_GENERAL_VER */}
           <Route
             path="pqrf/general"
             element={
-              <SuperAdminOnlyRoute>
+              <GeneralPermissionRoute permission="PQRF_GENERAL_VER">
                 <PQRFGeneralView />
-              </SuperAdminOnlyRoute>
+              </GeneralPermissionRoute>
             }
           />
 
@@ -537,9 +544,9 @@ function App() {
           <Route
             path="salidas-no-conformes/general"
             element={
-              <SuperAdminOnlyRoute>
+              <GeneralPermissionRoute permission="SNC_GENERAL_VER">
                 <SalidasNoConformesGeneralView />
-              </SuperAdminOnlyRoute>
+              </GeneralPermissionRoute>
             }
           />
 

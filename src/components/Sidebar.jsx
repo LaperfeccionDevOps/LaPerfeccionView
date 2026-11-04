@@ -640,7 +640,7 @@ const Sidebar = ({
                 label: "Gestión de SNC",
                 contador: pendientes.snc,
               },
-              ...(esSuperAdministrador
+              ...(esSuperAdministrador || tienePermiso("SNC_GENERAL_VER")
                 ? [
                     {
                       to: "/salidas-no-conformes/general",
@@ -660,7 +660,7 @@ const Sidebar = ({
                 label: "Gestión de PQRF",
                 contador: pendientes.pqrf,
               },
-              ...(esSuperAdministrador
+              ...(esSuperAdministrador || tienePermiso("PQRF_GENERAL_VER")
                 ? [
                     {
                       to: "/pqrf/general",
