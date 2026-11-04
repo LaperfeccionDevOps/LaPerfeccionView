@@ -49,6 +49,8 @@ import SalidasNoConformesGeneralView from "@/components/SalidasNoConformesGenera
 import PQRFView from "@/components/PQRFView";
 import PQRFGeneralView from "@/components/PQRFGeneralView";
 import PQRFPublicaPage from "@/pages/PQRFPublicaPage";
+import AdministracionSNCView from "@/components/AdministracionSNCView";
+import AdministracionPQRFView from "@/components/AdministracionPQRFView";
 
 
 // Los administrativos sin permisos operativos pueden navegar a Gestión SNC y PQRF.
@@ -281,6 +283,13 @@ const GeneralPermissionRoute = ({ children, permission }) => {
   if (!autorizado) {
     return <Navigate to="/" replace />;
   }
+  return children;
+};
+
+// Las acciones administrativas se restringen al rol Super Administrador.
+const SoloSuperAdminRoute = ({ children }) => {
+  const { user } = useAuth();
+  if (user?.role !== "Super Administrador") return <Navigate to="/" replace />;
   return children;
 };
 
@@ -535,6 +544,8 @@ function App() {
             }
           />
 
+          <Route path="pqrf/administracion" element={<SoloSuperAdminRoute><AdministracionPQRFView /></SoloSuperAdminRoute>} />
+
           {/* SALIDAS NO CONFORMES */}
           <Route
             path="salidas-no-conformes"
@@ -549,6 +560,8 @@ function App() {
               </GeneralPermissionRoute>
             }
           />
+
+          <Route path="salidas-no-conformes/administracion" element={<SoloSuperAdminRoute><AdministracionSNCView /></SoloSuperAdminRoute>} />
 
           <Route
             path="admin/crear-usuario"

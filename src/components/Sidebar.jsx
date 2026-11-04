@@ -648,6 +648,7 @@ const Sidebar = ({
                     },
                   ]
                 : []),
+              ...(esSuperAdministrador ? [{ to: "/salidas-no-conformes/administracion", label: "Inhabilitar SNC" }] : []),
             ],
           },
           {
@@ -668,6 +669,7 @@ const Sidebar = ({
                     },
                   ]
                 : []),
+              ...(esSuperAdministrador ? [{ to: "/pqrf/administracion", label: "Inhabilitar PQRF" }] : []),
             ],
           },
         ]
