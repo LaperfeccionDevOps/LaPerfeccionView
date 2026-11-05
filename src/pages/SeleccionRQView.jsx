@@ -43,6 +43,19 @@ const normalizarBusqueda = (valor) =>
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 
+// Empresa contratante de la requisición (independiente del cliente o sede).
+const empresaContratanteRQ = (rq) => {
+  const nombre = String(rq?.NombreEmpresaContratante || "").trim();
+  const codigo = String(rq?.CodigoEmpresaContratante || "").trim();
+  const id = Number(rq?.IdEmpresaContratante);
+  if (nombre) return codigo && !nombre.toUpperCase().includes(codigo.toUpperCase())
+    ? `${codigo} — ${nombre}` : nombre;
+  if (codigo) return codigo;
+  if (id === 1) return "ALP — Aseos La Perfección";
+  if (id === 2) return "MI — Mantener Ingeniería";
+  return "No registrada";
+};
+
 const etiquetaTipoRQ = (tipoRQ) =>
   String(tipoRQ || "").toUpperCase() === "PERSONAL_NUEVO"
     ? "Personal nuevo"
@@ -99,6 +112,7 @@ const SeleccionRQView = () => {
   const [resultadosAspirantesPorRq, setResultadosAspirantesPorRq] = useState({});
   const [buscandoAspirantePorRq, setBuscandoAspirantePorRq] = useState({});
   const [modalCandidatoVinculado, setModalCandidatoVinculado] = useState(null);
+  const [confirmacionAvance, setConfirmacionAvance] = useState(null);
   const [descargandoExcel, setDescargandoExcel] = useState(false);
   const [fechaInicioContratados, setFechaInicioContratados] = useState("");
   const [fechaFinContratados, setFechaFinContratados] = useState("");
@@ -201,6 +215,8 @@ const SeleccionRQView = () => {
           rq.NumeroIdentificacion,
           rq.NombreCompleto,
           rq.NombreCliente,
+          rq.NombreEmpresaContratante,
+          rq.CodigoEmpresaContratante,
           rq.NombreCargo,
           rq.NombreLider,
           rq.CodigoPerfil,
@@ -373,6 +389,27 @@ const SeleccionRQView = () => {
         ),
       "Candidato inactivado sin perder la trazabilidad."
     );
+  };
+
+  const avanzarAContratacion = async () => {
+    if (!confirmacionAvance) return;
+    const { idRq, idRegistroPersonal } = confirmacionAvance;
+    const ok = await ejecutarAccion(
+      idRq,
+      () =>
+        fetch(
+          `${API_BASE_URL}/seleccion/rq/${idRq}/candidatos/${idRegistroPersonal}/avanzar-contratacion`,
+          {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              Authorization: `Bearer ${token()}`,
+            },
+          }
+        ),
+      "Candidato enviado a Contratación (estado 24) correctamente."
+    );
+    if (ok) setConfirmacionAvance(null);
   };
 
   const toggleDetalle = (idRq) => {
@@ -802,7 +839,7 @@ const SeleccionRQView = () => {
                 type="text"
                 value={busqueda}
                 onChange={(event) => setBusqueda(event.target.value)}
-                placeholder="Buscar por RQ, candidato, identificación, cliente, cargo, perfil, ciudad, tipificación o KPI..."
+                placeholder="Buscar por RQ, empresa contratante, candidato, identificación, cliente, cargo, perfil, ciudad, tipificación o KPI..."
                 className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
               />
             </div>
@@ -907,6 +944,9 @@ const SeleccionRQView = () => {
                       <p className="mt-1 text-xs text-slate-500">
                         {textoSeguro(rq.Ciudad, "Ciudad no registrada")}
                       </p>
+                      <p className="mt-1 text-xs font-semibold text-emerald-800">
+                        Empresa: {empresaContratanteRQ(rq)}
+                      </p>
                     </CeldaMovil>
 
                     <CeldaMovil titulo="Cobertura">
@@ -978,6 +1018,7 @@ const SeleccionRQView = () => {
                   {abierta && (
                     <div className="border-t border-slate-200 bg-slate-50/70 p-4 md:p-5">
                       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                        <Dato titulo="Empresa contratante" valor={empresaContratanteRQ(rq)} />
                         <Dato titulo="Solicitante" valor={rq.NombreLider} />
                         <Dato titulo="Turno" valor={rq.Turno} />
                         <Dato titulo="Tipo de contrato" valor={rq.TipoContrato} />
@@ -1051,6 +1092,9 @@ const SeleccionRQView = () => {
                             </p>
                             <p className="mt-1 text-sm font-semibold text-slate-900">
                               1. Tipifica la RQ · 2. Identifica la persona seleccionada · 3. Vincula el candidato a la RQ · 4. Continúa el proceso de Selección
+                            </p>
+                            <p className="mt-2 text-sm font-semibold text-emerald-900">
+                              Empresa contratante de esta RQ: {empresaContratanteRQ(rq)}
                             </p>
                             <p className="mt-1 text-xs text-slate-600">
                               La RQ conservará la trazabilidad de cada persona gestionada. La cobertura solo se completa cuando Contratación registra al candidato como Contratado.
@@ -1369,7 +1413,26 @@ const SeleccionRQView = () => {
                                   </span>
                                 </div>
 
-                                <div className="lg:text-right">
+                                <div className="flex flex-col items-stretch gap-2 lg:items-end">
+                                  {String(rq.TipoRQ || "").toUpperCase() === "PERSONAL_NUEVO" &&
+                                    candidato.ActivoVinculacion &&
+                                    !candidato.CuentaComoCubierto &&
+                                    [18, 19, 20, 21, 22, 26].includes(Number(candidato.IdEstadoProceso)) &&
+                                    pestanaActiva !== "CERRADO" && (
+                                      <Button
+                                        type="button"
+                                        onClick={() => setConfirmacionAvance({
+                                          idRq: rq.IdRQOperaciones,
+                                          idRegistroPersonal: candidato.IdRegistroPersonal,
+                                          codigoRq: rq.CodigoRQ,
+                                          nombre: candidato.NombreCompleto,
+                                        })}
+                                        disabled={guardando === rq.IdRQOperaciones}
+                                        className="bg-emerald-700 text-white hover:bg-emerald-800"
+                                      >
+                                        Avanzar a Contratación
+                                      </Button>
+                                    )}
                                   {candidato.ActivoVinculacion &&
                                     !candidato.CuentaComoCubierto &&
                                     pestanaActiva !== "CERRADO" && (
@@ -1468,6 +1531,29 @@ const SeleccionRQView = () => {
               );
             })}
           </section>
+        )}
+
+        {confirmacionAvance && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
+            <div role="dialog" aria-modal="true" aria-label="Confirmar avance a Contratación" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+              <h2 className="text-lg font-bold text-slate-900">Confirmar envío a Contratación</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-700">
+                ¿Confirmas que <strong>{confirmacionAvance.nombre}</strong> terminó su proceso de Selección
+                y debe avanzar al estado 24 desde la requisición <strong>{confirmacionAvance.codigoRq}</strong>?
+              </p>
+              <p className="mt-2 text-xs text-slate-500">
+                Esta acción cambia el estado del aspirante a «Avanza a Contratación». No cierra la RQ ni registra una contratación.
+              </p>
+              <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <Button type="button" variant="outline" onClick={() => setConfirmacionAvance(null)} disabled={guardando === confirmacionAvance.idRq}>
+                  Cancelar
+                </Button>
+                <Button type="button" onClick={avanzarAContratacion} disabled={guardando === confirmacionAvance.idRq} className="bg-emerald-700 text-white hover:bg-emerald-800">
+                  {guardando === confirmacionAvance.idRq ? "Enviando..." : "Confirmar avance"}
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
 
         {modalCandidatoVinculado && (

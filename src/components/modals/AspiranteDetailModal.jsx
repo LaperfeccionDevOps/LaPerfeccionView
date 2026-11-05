@@ -641,16 +641,30 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
          }
 
          const vinculacionActualEmpresa = ciclosData?.vinculacionActual || null;
-         const idEmpresaActual = vinculacionActualEmpresa?.IdEmpresaContratante ?? null;
+         // Para PERSONAL_NUEVO la empresa puede venir asignada desde la RQ,
+         // antes de que exista una vinculación laboral. La lista de Selección
+         // ya recibe ese dato; no se debe obligar a asignarlo de nuevo.
+         // Si existe vinculación laboral, conserva prioridad (flujo legado/reintegros).
+         const idEmpresaDesdeLista = Number(
+           aspirante?.IdEmpresaContratante ?? aspirante?.idEmpresaContratante ??
+           aspirante?.vinculacionActual?.IdEmpresaContratante ?? 0
+         );
+         const idEmpresaActual = vinculacionActualEmpresa?.IdEmpresaContratante ??
+           ([1, 2].includes(idEmpresaDesdeLista) ? idEmpresaDesdeLista : null);
+         const empresaOrigen = vinculacionActualEmpresa?.IdEmpresaContratante
+           ? vinculacionActualEmpresa : aspirante;
 
-         if (idEmpresaActual) {
+         if ([1, 2].includes(Number(idEmpresaActual))) {
+           const idEmpresa = Number(idEmpresaActual);
            setEmpresaContratanteActual({
-             IdEmpresaContratante: Number(idEmpresaActual),
-             CodigoEmpresa: vinculacionActualEmpresa?.CodigoEmpresa || vinculacionActualEmpresa?.Codigo || '',
-             NombreEmpresa: vinculacionActualEmpresa?.NombreEmpresa || vinculacionActualEmpresa?.Nombre || '',
-             LogoEmpresa: vinculacionActualEmpresa?.LogoEmpresa || vinculacionActualEmpresa?.Logo || '',
+             IdEmpresaContratante: idEmpresa,
+             CodigoEmpresa: empresaOrigen?.CodigoEmpresa || empresaOrigen?.CodigoEmpresaContratante ||
+               (idEmpresa === 1 ? 'ALP' : 'MI'),
+             NombreEmpresa: empresaOrigen?.NombreEmpresa || empresaOrigen?.NombreEmpresaContratante ||
+               (idEmpresa === 1 ? 'Aseos La Perfección' : 'Mantener Ingeniería'),
+             LogoEmpresa: empresaOrigen?.LogoEmpresa || empresaOrigen?.Logo || '',
            });
-           setEmpresaContratanteSeleccionada(String(idEmpresaActual));
+           setEmpresaContratanteSeleccionada(String(idEmpresa));
            setEmpresaContratanteConfirmada(true);
          } else {
            setEmpresaContratanteActual(null);

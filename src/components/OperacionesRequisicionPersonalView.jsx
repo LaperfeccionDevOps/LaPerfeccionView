@@ -30,6 +30,7 @@ const FORMULARIO_INICIAL = {
   turno: "",
   idMotivoVacanteRQ: "",
   cantidadSolicitada: "1",
+  idEmpresaContratante: "",
   observacionCliente: "",
 };
 
@@ -416,6 +417,7 @@ const OperacionesRequisicionPersonalView = () => {
     ciudades: [],
     tiposContrato: [],
     motivosVacante: [],
+    empresasContratantes: [],
   });
 
   const [loadingCatalogos, setLoadingCatalogos] = useState(true);
@@ -498,6 +500,10 @@ const OperacionesRequisicionPersonalView = () => {
           "motivosVacante",
           "MotivosVacanteRQ",
         ]),
+        empresasContratantes: normalizarLista(fuente, [
+          "EmpresasContratantes",
+          "empresasContratantes",
+        ]),
       });
     } catch (error) {
       console.error("Error cargando catálogos RQ:", error);
@@ -509,6 +515,7 @@ const OperacionesRequisicionPersonalView = () => {
         ciudades: [],
         tiposContrato: [],
         motivosVacante: [],
+        empresasContratantes: [],
       });
 
       setMensaje(
@@ -639,6 +646,16 @@ const OperacionesRequisicionPersonalView = () => {
       return "La cantidad solicitada debe ser un número entero mayor que cero.";
     }
 
+    const empresaValida = catalogos.empresasContratantes.some(
+      (empresa) =>
+        String(obtenerValor(empresa, ["IdEmpresaContratante", "idEmpresaContratante"])) ===
+        String(datos.idEmpresaContratante || "")
+    );
+
+    if (!datos.idEmpresaContratante || !empresaValida) {
+      return "Debes seleccionar una empresa contratante de la lista.";
+    }
+
     return "";
   };
 
@@ -694,6 +711,7 @@ const OperacionesRequisicionPersonalView = () => {
         "CantidadSolicitada",
         datosFormulario.cantidadSolicitada
       );
+      body.append("IdEmpresaContratante", datosFormulario.idEmpresaContratante);
 
       if (datosFormulario.observacionCliente.trim()) {
         body.append(
@@ -1207,6 +1225,29 @@ const OperacionesRequisicionPersonalView = () => {
                         Indica cuántas personas necesita cubrir
                         esta requisición.
                       </p>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <CampoSelect
+                        id="rq-empresa-contratante"
+                        label="Empresa contratante"
+                        value={formulario.idEmpresaContratante}
+                        onChange={(valor) => actualizarCampo("idEmpresaContratante", valor)}
+                        required
+                        helper="Selecciona la empresa que contratará al personal solicitado."
+                      >
+                        <option value="">Selecciona una empresa contratante</option>
+                        {catalogos.empresasContratantes.map((empresa) => {
+                          const id = obtenerValor(empresa, ["IdEmpresaContratante", "idEmpresaContratante"]);
+                          const nombre = obtenerValor(empresa, ["Nombre", "nombre"]);
+                          const codigo = obtenerValor(empresa, ["Codigo", "codigo"]);
+                          return (
+                            <option key={id} value={id}>
+                              {codigo ? `${codigo} - ${nombre}` : nombre}
+                            </option>
+                          );
+                        })}
+                      </CampoSelect>
                     </div>
                   </div>
                 )}
