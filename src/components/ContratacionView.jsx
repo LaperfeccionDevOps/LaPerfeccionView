@@ -506,6 +506,20 @@ const ArchivoPlanoModal = ({ isOpen, onClose, aspirante, onDownload }) => {
   );
 };
 
+// Suma meses calendario sin desbordar fechas como el 31 de enero.
+// La fecha calculada se conserva internamente para Sinergy y el PDF.
+const sumarMesesContrato = (fechaISO, meses) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaISO || '') || ![2, 4, 6, 12].includes(Number(meses))) return '';
+  const [anio, mes, dia] = fechaISO.split('-').map(Number);
+  const fechaValida = new Date(Date.UTC(anio, mes - 1, dia));
+  if (fechaValida.getUTCFullYear() !== anio || fechaValida.getUTCMonth() !== mes - 1 || fechaValida.getUTCDate() !== dia) return '';
+  const indiceMes = anio * 12 + (mes - 1) + Number(meses);
+  const anioDestino = Math.floor(indiceMes / 12);
+  const mesDestino = indiceMes % 12;
+  const ultimoDia = new Date(Date.UTC(anioDestino, mesDestino + 1, 0)).getUTCDate();
+  return `${anioDestino}-${String(mesDestino + 1).padStart(2, '0')}-${String(Math.min(dia, ultimoDia)).padStart(2, '0')}`;
+};
+
 // ------------------------------
 // ✅ Modal: Registro (con nuevos campos) + SCROLL
 // ------------------------------
@@ -518,6 +532,7 @@ const RegistroContratacionModal = ({
   tiposContratoOptions = [],
   bancosLabelToId = {},
   tiposLabelToId = {},
+  idTipoContratoRQ = null,
 }) => {
   const [fechaIngreso, setFechaIngreso] = useState('');
   const [fechaIngresoProtegida, setFechaIngresoProtegida] = useState(false);
@@ -525,6 +540,8 @@ const RegistroContratacionModal = ({
   const [riesgoLaboral, setRiesgoLaboral] = useState('');
   const [tipoContrato, setTipoContrato] = useState('');
   const [fechaVencimientoContrato, setFechaVencimientoContrato] = useState('');
+  const [duracionMesesContrato, setDuracionMesesContrato] = useState('');
+  const [contratoFijoExistente, setContratoFijoExistente] = useState(false);
 
   // ✅ NUEVOS
   const [posicion, setPosicion] = useState('');
@@ -553,6 +570,8 @@ const RegistroContratacionModal = ({
       setTipoContrato('');
       setRiesgoLaboral('');
       setFechaVencimientoContrato('');
+      setDuracionMesesContrato('');
+      setContratoFijoExistente(false);
       setPosicion('');
       setEscalafon('');
       setNumeroCuenta('');
@@ -582,13 +601,18 @@ const RegistroContratacionModal = ({
             setFechaIngreso(fecha);
 
             setBanco(fromDb.IdBanco !== null && fromDb.IdBanco !== undefined ? String(fromDb.IdBanco) : '');
-            setTipoContrato(fromDb.IdTipoContrato !== null && fromDb.IdTipoContrato !== undefined ? String(fromDb.IdTipoContrato) : '');
+            // Respetar un contrato ya guardado; en ausencia de él, proponer el de la RQ activa.
+            const contratoPersistido = fromDb.IdTipoContrato;
+            setTipoContrato(contratoPersistido !== null && contratoPersistido !== undefined && contratoPersistido !== ''
+              ? String(contratoPersistido) : (idTipoContratoRQ != null ? String(idTipoContratoRQ) : ''));
             setRiesgoLaboral(fromDb.RiesgoLaboral || '');
             setFechaVencimientoContrato(
               fromDb.FechaVencimientoContrato
                 ? String(fromDb.FechaVencimientoContrato).slice(0, 10)
                 : ''
             );
+            // Un contrato fijo con vencimiento guardado es histórico: no recalcularlo.
+            setContratoFijoExistente(Number(contratoPersistido) === 2 && Boolean(fromDb.FechaVencimientoContrato));
 
             // ✅ NUEVOS
             setPosicion(fromDb.Posicion || '');
@@ -620,7 +644,15 @@ const RegistroContratacionModal = ({
         }
       }
 
-      // 2) fallback viejo
+      // RQ de reemplazo sin Contratación Básica guardada:
+      // SOLO precargar el tipo de contrato. Todos los demás campos
+      // permanecen vacíos para que Contratación los diligencie.
+      if (idTipoContratoRQ !== null && idTipoContratoRQ !== undefined && String(idTipoContratoRQ).trim() !== '') {
+        if (!cancel) setTipoContrato(String(idTipoContratoRQ));
+        return;
+      }
+
+      // 2) fallback histórico exclusivamente para candidatos sin RQ.
       const cm = aspirante.contratacionManual || {};
 
       setFechaIngreso(cm.fechaInicio || cm.fechaIngreso || '');
@@ -628,7 +660,8 @@ const RegistroContratacionModal = ({
       const bancoId = cm.IdBanco ?? cm.idBanco ?? resolveId(cm.banco, bancosLabelToId);
       setBanco(bancoId ? String(bancoId) : '');
 
-      const tipoId = cm.IdTipoContrato ?? cm.idTipoContrato ?? resolveId(cm.tipoContrato, tiposLabelToId);
+      const tipoManual = cm.IdTipoContrato ?? cm.idTipoContrato ?? resolveId(cm.tipoContrato, tiposLabelToId);
+      const tipoId = tipoManual || idTipoContratoRQ;
       setTipoContrato(tipoId ? String(tipoId) : '');
 
       setRiesgoLaboral(cm.riesgoLaboral || '');
@@ -640,7 +673,7 @@ const RegistroContratacionModal = ({
     precargar();
     return () => { cancel = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aspirante, isOpen, bancosLabelToId, tiposLabelToId]);
+  }, [aspirante, isOpen, bancosLabelToId, tiposLabelToId, idTipoContratoRQ]);
 
   useEffect(() => {
     // IdTipoContrato = 2 corresponde a Término Fijo.
@@ -650,10 +683,19 @@ const RegistroContratacionModal = ({
     }
   }, [tipoContrato]);
 
+  useEffect(() => {
+    if (Number(tipoContrato) !== 2 || contratoFijoExistente) return;
+    setFechaVencimientoContrato(sumarMesesContrato(fechaIngreso, duracionMesesContrato));
+  }, [tipoContrato, contratoFijoExistente, fechaIngreso, duracionMesesContrato]);
+
   const riesgos = ['I', 'II', 'III', 'IV', 'V'];
 
   const guardar = () => {
     if (!aspirante) return;
+    if (Number(tipoContrato) === 2 && !contratoFijoExistente && !duracionMesesContrato) {
+      toast({ title: 'Selecciona la duración', description: 'Elige 2, 4, 6 o 12 meses.', variant: 'destructive' });
+      return;
+    }
 
        const payload = {
       fechaInicio: fechaIngreso,
@@ -820,22 +862,29 @@ const RegistroContratacionModal = ({
               <div className="md:col-span-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
                 <div className="flex items-center gap-2 mb-2">
                   <CalendarDays className="w-4 h-4 text-emerald-700" />
-                  <Label className="text-sm font-semibold text-emerald-800">
-                    Fecha de vencimiento del contrato
-                  </Label>
+                  <Label className="text-sm font-semibold text-emerald-800">Duración del contrato</Label>
                 </div>
-
-                <Input
-                  type="date"
-                  value={fechaVencimientoContrato}
-                  min={fechaIngreso || undefined}
-                  onChange={(e) => setFechaVencimientoContrato(e.target.value)}
-                  className="rounded-xl bg-white"
-                />
-
-                <p className="text-xs text-emerald-700 mt-2">
-                  Obligatoria para contratos a Término Fijo. Esta fecha será la base para calcular la duración del contrato.
-                </p>
+                {contratoFijoExistente ? (
+                  <p className="text-xs text-emerald-800">
+                    Este contrato ya tiene una fecha de vencimiento registrada. Se conserva sin recalcularla.
+                  </p>
+                ) : (
+                  <>
+                    <Select value={duracionMesesContrato} onValueChange={setDuracionMesesContrato}>
+                      <SelectTrigger className="rounded-xl bg-white">
+                        <SelectValue placeholder="Selecciona la duración en meses" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[2, 4, 6, 12].map((meses) => (
+                          <SelectItem key={meses} value={String(meses)}>{meses} meses</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-emerald-700 mt-2">
+                      La fecha de vencimiento se calcula automáticamente y se guarda sin mostrarla en el formulario.
+                    </p>
+                  </>
+                )}
               </div>
             )}
 
@@ -1417,6 +1466,62 @@ const ContratacionView = () => {
   const { aspirantes, updateAspirante, loadAspirantes } = useAspirantes();
   const navigate = useNavigate();
 
+  // QA: empresa de la RQ activa, solo para aspirantes sin empresa propia.
+  const [empresasPorRQ, setEmpresasPorRQ] = useState({});
+  const idsEmpresaRQ = aspirantes
+    .filter(a => (String(a?.estado ?? '').trim() === 'Avanza a Contratación' || a?.tuvoContratacion === true)
+      && !getEmpresaContratante(a).codigo)
+    .map(a => getIdRegistroPersonal(a))
+    .filter(id => id !== null && id !== undefined && String(id).trim() !== '')
+    .map(String);
+  const claveIdsEmpresaRQ = [...new Set(idsEmpresaRQ)].sort().join(',');
+
+  useEffect(() => {
+    if (!claveIdsEmpresaRQ) {
+      setEmpresasPorRQ({});
+      return;
+    }
+    let cancelado = false;
+    // Una sola petición para todas las RQ activas, sin duplicar /api.
+    const base = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
+    const consultar = async () => {
+      try {
+        const res = await fetch(
+          `${base}/seleccion/rq/candidatos/empresas-contratantes`,
+          { headers: buildAuthHeaders() }
+        );
+        if (!res.ok) {
+          console.warn('[CONTRATACION] Consulta agrupada de empresas RQ:', res.status);
+          return;
+        }
+        const json = await res.json();
+        const empresas = {};
+        for (const [id, dato] of Object.entries(json?.data ?? {})) {
+          if (!dato?.IdEmpresaContratante && !dato?.NombreEmpresaContratante) continue;
+          empresas[id] = {
+            IdEmpresaContratante: dato.IdEmpresaContratante,
+            IdTipoContratoRQ: dato.IdTipoContrato ?? null,
+            EmpresaContratanteCodigo: dato.CodigoEmpresaContratante,
+            EmpresaContratanteNombre: dato.NombreEmpresaContratante,
+          };
+        }
+        if (!cancelado) setEmpresasPorRQ(empresas);
+        if (json?.conflictos?.length) {
+          console.warn('[CONTRATACION] Candidatos con varias RQ activas; sin empresa inferida:', json.conflictos);
+        }
+      } catch (error) {
+        console.warn('[CONTRATACION] Error en consulta agrupada de empresas RQ:', error);
+      }
+    };
+    consultar();
+    return () => { cancelado = true; };
+  }, [claveIdsEmpresaRQ]);
+
+  const aspirantesConEmpresaRQ = aspirantes.map(a => {
+    if (getEmpresaContratante(a).codigo) return a;
+    const empresa = empresasPorRQ[String(getIdRegistroPersonal(a))];
+    return empresa ? { ...a, ...empresa } : a;
+  });
   const [filteredAspirantes, setFilteredAspirantes] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [empresaFilter, setEmpresaFilter] = useState('todas');
@@ -1458,7 +1563,7 @@ const ContratacionView = () => {
 }, []);
 
   useEffect(() => {
-    let filtered = aspirantes.filter((a) => {
+    let filtered = aspirantesConEmpresaRQ.filter((a) => {
       const estado = String(a?.estado ?? '').trim();
 
       return (
@@ -1494,7 +1599,7 @@ const ContratacionView = () => {
 
     setFilteredAspirantes(filtered);
     setCurrentPage(1);
-  }, [searchTerm, empresaFilter, statusFilter, aspirantes]);
+  }, [searchTerm, empresaFilter, statusFilter, aspirantes, empresasPorRQ]);
 
  const openModal = (aspirante, docType) => {
   const idReg = getIdRegistroPersonal(aspirante);
@@ -1592,7 +1697,7 @@ const ContratacionView = () => {
     if (Number(idTipoContrato) === 2 && !payload.fechaVencimientoContrato) {
       toast({
         title: "❌ Falta fecha de vencimiento",
-        description: "Para un contrato a Término Fijo debes seleccionar la fecha de vencimiento.",
+        description: "Para un contrato a Término Fijo debes seleccionar 2, 4, 6 o 12 meses.",
         variant: "destructive",
       });
       return;
@@ -2565,6 +2670,7 @@ const currentIdsKey = currentItems
         isOpen={registroModalState.isOpen}
         onClose={() => setRegistroModalState({ isOpen: false, aspirante: null })}
         aspirante={registroModalState.aspirante}
+        idTipoContratoRQ={empresasPorRQ[String(getIdRegistroPersonal(registroModalState.aspirante))]?.IdTipoContratoRQ ?? null}
         onSave={handleRegistroSave}
         bancosOptions={bancosOptions}
         tiposContratoOptions={tiposContratoOptions}

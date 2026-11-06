@@ -3229,82 +3229,8 @@ if (response && response.status === 201) {
 
   if (!formData) return null;
 
-  if (!empresaContratanteConfirmada) {
-    return (
-      <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-2xl p-0 overflow-hidden bg-gray-50">
-          <DialogHeader className="px-6 py-4 bg-white border-b border-gray-200">
-            <DialogTitle className="text-xl font-bold text-gray-800">Detalle del Candidato</DialogTitle>
-            <DialogDescription className="text-sm text-gray-500">
-              Antes de iniciar el proceso de selección de {formData.nombres} {formData.apellidos},
-              define la empresa contratante.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="p-6">
-            <div className="rounded-xl border border-emerald-200 bg-white p-6 shadow-sm">
-              <h3 className="text-lg font-bold text-gray-800">
-                Empresa contratante <span className="text-red-500">*</span>
-              </h3>
-              <p className="mt-1 mb-5 text-sm text-gray-500">
-                Selecciona la empresa para habilitar el flujo del candidato.
-              </p>
-
-              <div className="space-y-3">
-                {[
-                  { id: '1', codigo: 'ALP', nombre: 'Aseos La Perfección' },
-                  { id: '2', codigo: 'MI', nombre: 'Mantener Ingeniería' },
-                ].map((empresa) => (
-                  <button
-                    key={empresa.id}
-                    type="button"
-                    onClick={() => setEmpresaContratanteSeleccionada(empresa.id)}
-                    className={`w-full rounded-xl border p-4 text-left transition-all ${
-                      empresaContratanteSeleccionada === empresa.id
-                        ? 'border-emerald-600 bg-emerald-50 ring-2 ring-emerald-100'
-                        : 'border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/40'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`flex h-5 w-5 items-center justify-center rounded-full border ${
-                        empresaContratanteSeleccionada === empresa.id
-                          ? 'border-emerald-600'
-                          : 'border-gray-400'
-                      }`}>
-                        {empresaContratanteSeleccionada === empresa.id && (
-                          <div className="h-2.5 w-2.5 rounded-full bg-emerald-600" />
-                        )}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-gray-800">
-                          {empresa.codigo} - {empresa.nombre}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          El proceso laboral se gestionará para {empresa.nombre}.
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-6 flex justify-end">
-                <Button
-                  type="button"
-                  className="bg-emerald-600 text-white hover:bg-emerald-700"
-                  disabled={!empresaContratanteSeleccionada || guardandoEmpresaContratante}
-                  onClick={handleConfirmarEmpresaContratante}
-                >
-                  {guardandoEmpresaContratante ? 'Guardando...' : 'Continuar'}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
+  // QA: permitir consultar y entrevistar aspirantes sin empresa contratante.
+  // La empresa se asignará al vincular el candidato a una RQ, no al abrir su ficha.
 
   const getFondoLabelFromAny = (raw) => {
   if (raw == null) return "";

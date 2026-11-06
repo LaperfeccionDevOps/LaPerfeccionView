@@ -1414,7 +1414,7 @@ const SeleccionRQView = () => {
                                 </div>
 
                                 <div className="flex flex-col items-stretch gap-2 lg:items-end">
-                                  {String(rq.TipoRQ || "").toUpperCase() === "PERSONAL_NUEVO" &&
+                                  {["PERSONAL_NUEVO", "REEMPLAZO"].includes(String(rq.TipoRQ || "").toUpperCase()) &&
                                     candidato.ActivoVinculacion &&
                                     !candidato.CuentaComoCubierto &&
                                     [18, 19, 20, 21, 22, 26].includes(Number(candidato.IdEstadoProceso)) &&
@@ -1539,7 +1539,7 @@ const SeleccionRQView = () => {
               <h2 className="text-lg font-bold text-slate-900">Confirmar envío a Contratación</h2>
               <p className="mt-3 text-sm leading-6 text-slate-700">
                 ¿Confirmas que <strong>{confirmacionAvance.nombre}</strong> terminó su proceso de Selección
-                y debe avanzar al estado 24 desde la requisición <strong>{confirmacionAvance.codigoRq}</strong>?
+                y debe avanzar al estado «Avanza a Contratación» desde la requisición <strong>{confirmacionAvance.codigoRq}</strong>?
               </p>
               <p className="mt-2 text-xs text-slate-500">
                 Esta acción cambia el estado del aspirante a «Avanza a Contratación». No cierra la RQ ni registra una contratación.

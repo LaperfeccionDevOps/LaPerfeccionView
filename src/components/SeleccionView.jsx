@@ -19,6 +19,8 @@ const SeleccionView = () => {
   const esSuperAdministrador = user?.role === 'Super Administrador';
   const { aspirantes, updateAspirante, loadAspirantes, token } = useAspirantes();
   const [filteredAspirantes, setFilteredAspirantes] = useState([]);
+  // Empresas de RQ activas: dato de consulta, sin alterar el aspirante ni su vinculacion laboral.
+  const [empresasPorRQ, setEmpresasPorRQ] = useState({});
   
   // Filter UI State
   const [estadoFilter, setEstadoFilter] = useState('todos');
@@ -308,6 +310,62 @@ const SeleccionView = () => {
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = sortedData.slice(indexOfFirstItem, indexOfLastItem);
+  // Solo consulta los aspirantes visibles que aun no tienen empresa en el listado.
+  // No sustituye empresas existentes ni genera consultas masivas por toda la bandeja.
+  const idsSinEmpresa = currentItems
+    .filter((item) => !(
+      item.NombreEmpresa || item.nombreEmpresa || item.EmpresaContratante ||
+      item.empresaContratante || item.NombreEmpresaContratante || item.nombreEmpresaContratante
+    ))
+    .map((item) => item.IdRegistroPersonal ?? item.idRegistroPersonal ?? item.id)
+    .filter((id) => id !== null && id !== undefined && id !== '')
+    .map(String);
+  const claveIdsSinEmpresa = [...new Set(idsSinEmpresa)].sort().join(',');
+
+  useEffect(() => {
+    if (!token || !claveIdsSinEmpresa) return;
+    let cancelado = false;
+    const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+    const ids = claveIdsSinEmpresa.split(',');
+
+    const consultarEmpresas = async () => {
+      const resultados = await Promise.all(ids.map(async (id) => {
+        try {
+          const respuesta = await fetch(
+            `${apiBase}/seleccion/rq/candidatos/${encodeURIComponent(id)}/empresa-contratante`,
+            { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } }
+          );
+          if (!respuesta.ok) {
+            console.warn('[SeleccionView] No se pudo consultar empresa de RQ para aspirante', id, respuesta.status);
+            return null;
+          }
+          const json = await respuesta.json();
+          return [id, json?.data?.NombreEmpresaContratante || null];
+        } catch (error) {
+          console.warn('[SeleccionView] Error consultando empresa de RQ', id, error);
+          return null;
+        }
+      }));
+      if (!cancelado) {
+        setEmpresasPorRQ((anterior) => ({
+          ...anterior,
+          ...Object.fromEntries(resultados.filter(Boolean)),
+        }));
+      }
+    };
+    consultarEmpresas();
+    return () => { cancelado = true; };
+  }, [claveIdsSinEmpresa, token]);
+
+  const obtenerEmpresaVisible = (item) => {
+    const empresaExistente =
+      item.NombreEmpresa || item.nombreEmpresa || item.EmpresaContratante ||
+      item.empresaContratante || item.NombreEmpresaContratante || item.nombreEmpresaContratante;
+    if (empresaExistente) return empresaExistente;
+    const id = item.IdRegistroPersonal ?? item.idRegistroPersonal ?? item.id;
+    return empresasPorRQ[String(id)] || '';
+  };
+
   const totalPages = Math.ceil(sortedData.length / itemsPerPage);
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
@@ -435,9 +493,7 @@ return (
               <div className="space-y-3 p-3 md:hidden">
                 {currentItems.map((item) => {
                   const estadoInfo = getEstadoInfo(item.estado);
-                  const empresa = item.NombreEmpresa || item.nombreEmpresa ||
-                    item.EmpresaContratante || item.empresaContratante ||
-                    item.NombreEmpresaContratante || item.nombreEmpresaContratante || '';
+                  const empresa = obtenerEmpresaVisible(item);
                   const idRegistro = item.IdRegistroPersonal ?? item.idRegistroPersonal ?? item.id;
                   return (
                     <article key={item.id} className="min-w-0 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
@@ -517,14 +573,7 @@ return (
                       <tr key={item.id} className="bg-white border-b hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4">
                           {(() => {
-                            const empresa =
-                              item.NombreEmpresa ||
-                              item.nombreEmpresa ||
-                              item.EmpresaContratante ||
-                              item.empresaContratante ||
-                              item.NombreEmpresaContratante ||
-                              item.nombreEmpresaContratante ||
-                              '';
+                            const empresa = obtenerEmpresaVisible(item);
 
                             return empresa ? (
                               <span className="font-medium text-gray-700 normal-case">

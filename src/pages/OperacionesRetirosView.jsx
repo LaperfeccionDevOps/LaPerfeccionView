@@ -230,6 +230,8 @@ const RQ_INICIAL = {
   ciudad: "",
   turno: "",
   motivoVacante: "",
+  idMotivoVacanteRQ: "",
+  cargoAprobadoPlanta: "",
   observacionCliente: "",
 };
 
@@ -1048,6 +1050,7 @@ const OperacionesRetirosView = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchApplied, setSearchApplied] = useState("");
   const [trabajadores, setTrabajadores] = useState([]);
+  const [empresasPorTrabajador, setEmpresasPorTrabajador] = useState({});
   const [trabajadorSeleccionado, setTrabajadorSeleccionado] =
     useState(null);
 
@@ -1109,6 +1112,7 @@ const OperacionesRetirosView = () => {
 
   const [retiroGuardado, setRetiroGuardado] = useState(null);
   const [perfilesRQ, setPerfilesRQ] = useState([]);
+  const [motivosVacanteRQ, setMotivosVacanteRQ] = useState([]);
   const [loadingPerfilesRQ, setLoadingPerfilesRQ] = useState(false);
   const [guardandoRQ, setGuardandoRQ] = useState(false);
   const [enviandoRRLL, setEnviandoRRLL] = useState(false);
@@ -1446,6 +1450,19 @@ const OperacionesRetirosView = () => {
     }
 
     return [];
+  };
+
+  // Empresa del ciclo laboral ACTIVO: independiente del cliente asignado.
+  const consultarEmpresaContratanteTrabajador = async (idRegistroPersonal) => {
+    const response = await fetch(
+      `${API_URL}/operaciones/retiros/empresa-contratante/trabajador/${idRegistroPersonal}`,
+      { method: "GET", headers: construirHeaders() }
+    );
+    if (!response.ok) {
+      throw new Error(`No se pudo consultar la empresa contratante (HTTP ${response.status}).`);
+    }
+    const resultado = await response.json();
+    return resultado?.data || null;
   };
 
   const consultarUsuarioActual = async () => {
@@ -1906,6 +1923,7 @@ const OperacionesRetirosView = () => {
     setBusquedaRealizada(false);
     setSearchApplied("");
     setTrabajadores([]);
+    setEmpresasPorTrabajador({});
     limpiarGestionRetiro();
 
     if (!criterio) {
@@ -1922,6 +1940,21 @@ const OperacionesRetirosView = () => {
       const lista = await consultarTrabajadores(criterio);
 
       setTrabajadores(lista);
+      // Cargar la empresa en la tarjeta desde la propia búsqueda.
+      // Los errores de esta consulta informativa no bloquean el retiro.
+      const empresasConsultadas = await Promise.all(
+        lista.filter((item) => esTrabajadorContratado(item)).map(async (item) => {
+          const id = obtenerIdRegistroPersonal(item);
+          if (!id) return null;
+          try {
+            return [String(id), await consultarEmpresaContratanteTrabajador(id)];
+          } catch (error) {
+            console.error(`Empresa contratante del trabajador ${id}:`, error);
+            return [String(id), null];
+          }
+        })
+      );
+      setEmpresasPorTrabajador(Object.fromEntries(empresasConsultadas.filter(Boolean)));
       setSearchApplied(criterio);
       setBusquedaRealizada(true);
 
@@ -2825,6 +2858,12 @@ const OperacionesRetirosView = () => {
 
       const lista = Array.isArray(data?.data) ? data.data : [];
       setPerfilesRQ(lista);
+      const catalogosResponse = await fetch(`${API_URL}/operaciones/retiros/rq/personal-nuevo/catalogos`, {
+        method: "GET", headers: construirHeaders(),
+      });
+      const catalogosData = await catalogosResponse.json().catch(() => null);
+      if (!catalogosResponse.ok) throw new Error(catalogosData?.detail || "No fue posible consultar motivos de vacante.");
+      setMotivosVacanteRQ(catalogosData?.data?.MotivosVacante || []);
       return lista;
     } catch (error) {
       setMensajeGestion(
@@ -3139,6 +3178,8 @@ const OperacionesRetirosView = () => {
           ciudad: rq.Ciudad || "",
           turno: rq.Turno || "",
           motivoVacante: rq.MotivoVacante || "",
+          idMotivoVacanteRQ: rq.IdMotivoVacanteRQ != null ? String(rq.IdMotivoVacanteRQ) : "",
+          cargoAprobadoPlanta: rq.CargoAprobadoPlanta == null ? "" : (rq.CargoAprobadoPlanta ? "SI" : "NO"),
           observacionCliente:
             rq.ObservacionCliente || "",
         });
@@ -3230,6 +3271,8 @@ const OperacionesRetirosView = () => {
 
     if (formularioRQ.requiereReemplazo === "SI") {
       if (!formularioRQ.idPerfilRQ) faltantes.push("Perfil");
+      if (!formularioRQ.idMotivoVacanteRQ) faltantes.push("Motivo de vacante");
+      if (!formularioRQ.cargoAprobadoPlanta) faltantes.push("¿Cargo aprobado en planta?");
       if (!formularioRQ.ciudad.trim()) faltantes.push("Ciudad");
       if (!formularioRQ.turno) faltantes.push("Turno");
       if (!formularioRQ.observacionCliente.trim()) {
@@ -3315,6 +3358,8 @@ const OperacionesRetirosView = () => {
 
       if (requiereReemplazo) {
         formData.append("IdPerfilRQ", formularioRQ.idPerfilRQ);
+        formData.append("IdMotivoVacanteRQ", formularioRQ.idMotivoVacanteRQ);
+        formData.append("CargoAprobadoPlanta", String(formularioRQ.cargoAprobadoPlanta === "SI").toLowerCase());
         formData.append("Ciudad", formularioRQ.ciudad.trim());
         formData.append("Turno", formularioRQ.turno);
         formData.append(
@@ -3643,6 +3688,12 @@ const OperacionesRetirosView = () => {
                           <p className="mt-1 break-words text-sm text-gray-600">
                             Cargo: {obtenerCargo(trabajador)}
                           </p>
+
+                          {trabajadorContratado && (
+                            <p className="mt-1 break-words text-sm font-semibold text-emerald-800">
+                              Empresa contratante: {empresasPorTrabajador[String(idRegistroPersonal)]?.NombreEmpresaContratante || "No disponible"}
+                            </p>
+                          )}
 
                           <span
                             className={cn(
@@ -4485,6 +4536,22 @@ const OperacionesRetirosView = () => {
                               />
                             </div>
 
+                            <div>
+                              <label htmlFor="motivoVacanteRQ" className="mb-2 block text-sm font-semibold text-gray-800">Motivo de vacante *</label>
+                              <select id="motivoVacanteRQ" value={formularioRQ.idMotivoVacanteRQ}
+                                onChange={(event) => actualizarCampoRQ("idMotivoVacanteRQ", event.target.value)}
+                                className="min-h-12 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm">
+                                <option value="">Selecciona el motivo</option>
+                                {motivosVacanteRQ.map((motivo) => (
+                                  <option key={motivo.IdMotivoVacanteRQ} value={motivo.IdMotivoVacanteRQ}>{motivo.NombreMotivoVacante}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <CampoSelect id="cargoAprobadoPlantaRQ" label="¿Cargo aprobado en planta?"
+                              value={formularioRQ.cargoAprobadoPlanta}
+                              onChange={(valor) => actualizarCampoRQ("cargoAprobadoPlanta", valor)}
+                              options={["SI", "NO"]} required />
+
                             <CampoSelect
                               id="turnoRQ"
                               label="Turno"
@@ -4495,6 +4562,18 @@ const OperacionesRetirosView = () => {
                               options={TURNOS_RQ}
                               required
                             />
+
+                            <div>
+                              <label className="mb-2 block text-sm font-semibold text-gray-800">
+                                Empresa contratante
+                              </label>
+                              <div className="flex min-h-12 items-center rounded-xl border border-gray-200 bg-gray-100 px-3 text-sm font-semibold text-gray-700" aria-readonly="true">
+                                {empresasPorTrabajador[String(obtenerIdRegistroPersonal(trabajadorSeleccionado))]?.NombreEmpresaContratante || "No disponible"}
+                              </div>
+                              <p className="mt-1 text-xs text-gray-500">
+                                Se toma de la vinculación laboral activa. No se puede modificar.
+                              </p>
+                            </div>
 
                           </div>
 
