@@ -1490,9 +1490,17 @@ if (experienciasValidas.length > 0) {
 }
 
 console.log('observacionExperiencia final:', observacionExperiencia);
+const idEmpresaEntrevista = Number(
+  empresaContratanteActual?.IdEmpresaContratante ?? formData?.IdEmpresaContratante
+);
+if (![1, 2].includes(idEmpresaEntrevista)) {
+  toast({ title: 'Empresa contratante no identificada', description: 'No se puede generar la entrevista sin confirmar si corresponde a ALP o Mantener Ingeniería.', variant: 'destructive' });
+  return;
+}
+const logoEntrevista = await getLogoBase64(idEmpresaEntrevista === 2 ? 'LOGO2' : 'LOGO1');
 const campos = {
-  LOGO: await getLogoBase64('LOGO1'),
-  LOGO2: await getLogoBase64('LOGO2'),
+  LOGO: logoEntrevista,
+  LOGO2: logoEntrevista,
   NOMBRES: ((formData?.nombres || '').toUpperCase() + ' ' + (formData?.apellidos || '').toUpperCase()).trim(),
   DOCUMENTO: formData?.cedula || '',
   BARRIO: (formData?.datosAdicionales?.[0]?.Barrio || '').toUpperCase(),
@@ -5876,6 +5884,7 @@ if (response && response.status === 201) {
         onClose={() => setEntrevistaModalOpen(false)} 
         onSave={handleSaveEntrevista} 
         aspirante={formData}
+        idEmpresaContratante={empresaContratanteActual?.IdEmpresaContratante ?? formData?.IdEmpresaContratante}
         existingData={selectedEntrevista}
     />
     </>

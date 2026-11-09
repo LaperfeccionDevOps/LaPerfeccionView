@@ -60,7 +60,7 @@ const getLogoBase64 = async (logo) => {
   "";
 
 
-const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = null }) => {
+const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, idEmpresaContratante, existingData = null }) => {
   const [loadingPrefill, setLoadingPrefill] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -485,9 +485,17 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
       }
     }
 
+    const empresaEntrevista = Number(
+      idEmpresaContratante ?? aspirante?.IdEmpresaContratante ?? aspirante?.idEmpresaContratante
+    );
+    if (![1, 2].includes(empresaEntrevista)) {
+      throw new Error('No se identificó la empresa contratante (ALP o Mantener Ingeniería) para generar la entrevista.');
+    }
+    const logoEntrevista = await getLogoBase64(empresaEntrevista === 2 ? 'LOGO2' : 'LOGO1');
+
     const campos = {
-      LOGO: await getLogoBase64('LOGO1'),
-      LOGO2: await getLogoBase64('LOGO2'),
+      LOGO: logoEntrevista,
+      LOGO2: logoEntrevista,
       NOMBRES: (formData?.nombre || '').toUpperCase(),
       DOCUMENTO: formData?.identificacion || '',
       BARRIO: (formData?.barrio || '').toUpperCase(),
@@ -567,7 +575,13 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
 
     console.log('Campos PDF entrevista:', campos);
 
-    const responsePdf = await DescargarDocumentoPdf(campos, 'entrevista');
+    const idVinculacionLaboral = getIdVinculacionLaboral();
+
+    if (!idVinculacionLaboral || !Number.isFinite(Number(idVinculacionLaboral)) || Number(idVinculacionLaboral) <= 0) {
+      throw new Error('No se encontró una vinculación laboral válida para generar el PDF de la entrevista.');
+    }
+
+    const responsePdf = await DescargarDocumentoPdf(campos, 'entrevista', Number(idVinculacionLaboral));
     console.log('PDF entrevista - responsePdf:', responsePdf);
 
     let pdf_base64 = '';
@@ -583,8 +597,6 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
     if (!pdf_base64) {
       throw new Error('No fue posible generar el PDF de la entrevista.');
     }
-
-    const idVinculacionLaboral = getIdVinculacionLaboral();
 
     const payloadDocumento = {
       idRegistroPersonal: Number(idRegistro),
@@ -701,6 +713,7 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
 
         if (errorPdfAdjunto) {
           setErrorMsg(errorPdfAdjunto);
+          return;
         }
       }
       onClose();
