@@ -48,6 +48,10 @@ import SalidasNoConformesView from "@/components/SalidasNoConformesView";
 import SalidasNoConformesGeneralView from "@/components/SalidasNoConformesGeneralView";
 import PQRFView from "@/components/PQRFView";
 import PQRFGeneralView from "@/components/PQRFGeneralView";
+import CentrosCostoView from "@/pages/CentrosCostoView";
+import CrearCentroCostoView from "@/pages/CrearCentroCostoView";
+import ModificarCentroCostoView from "@/pages/ModificarCentroCostoView";
+import AsignarCentroCostoView from "@/pages/AsignarCentroCostoView";
 
 
 // Los administrativos sin permisos operativos pueden navegar a Gestión SNC y PQRF.
@@ -260,6 +264,27 @@ const BienestarPermissionRoute = ({
     return <Navigate to="/" replace />;
   }
 
+  return children;
+};
+
+
+// Contabilidad: rol Contabilidad y roles globales. Protección visual; la API
+// debe validar también el rol en el servidor.
+const ContabilidadRoute = ({ children }) => {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+
+  const role = String(user.role || "").trim();
+  const rolesPermitidos = [
+    "Contabilidad",
+    "Administrador",
+    "Super Administrador",
+    "Desarrollador",
+  ];
+
+  if (!rolesPermitidos.includes(role)) {
+    return <Navigate to="/" replace />;
+  }
   return children;
 };
 
@@ -537,6 +562,43 @@ function App() {
               <SuperAdminOnlyRoute>
                 <SalidasNoConformesGeneralView />
               </SuperAdminOnlyRoute>
+            }
+          />
+
+          {/* CONTABILIDAD */}
+          <Route
+            path="contabilidad/centros-costo"
+            element={
+              <ContabilidadRoute>
+                <CentrosCostoView />
+              </ContabilidadRoute>
+            }
+          />
+
+          <Route
+            path="contabilidad/centros-costo/crear"
+            element={
+              <ContabilidadRoute>
+                <CrearCentroCostoView />
+              </ContabilidadRoute>
+            }
+          />
+
+          <Route
+            path="contabilidad/centros-costo/modificar"
+            element={
+              <ContabilidadRoute>
+                <ModificarCentroCostoView />
+              </ContabilidadRoute>
+            }
+          />
+
+          <Route
+            path="contabilidad/centros-costo/asignar"
+            element={
+              <ContabilidadRoute>
+                <AsignarCentroCostoView />
+              </ContabilidadRoute>
             }
           />
 

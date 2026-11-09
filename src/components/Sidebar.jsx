@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
+  Calculator,
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
@@ -330,6 +331,26 @@ const Sidebar = ({
         },
       ],
     },
+    {
+      label: "Contabilidad",
+      icon: Calculator,
+      roles: [
+        "Administrador",
+        "Super Administrador",
+        "Contabilidad",
+      ],
+      children: [
+        {
+          to: "/contabilidad/centros-costo",
+          label: "Centros de Costo",
+          roles: [
+            "Administrador",
+            "Super Administrador",
+            "Contabilidad",
+          ],
+        },
+      ],
+    },
   ];
 
   const talentoHumanoNavItems = [
@@ -554,6 +575,17 @@ const Sidebar = ({
         {
           to: "/archivos",
           label: "Consulta de Colaboradores",
+        },
+      ],
+    },
+    {
+      label: "Contabilidad",
+      icon: Calculator,
+      roles: ["Super Administrador"],
+      children: [
+        {
+          to: "/contabilidad/centros-costo",
+          label: "Centros de Costo",
         },
       ],
     },
