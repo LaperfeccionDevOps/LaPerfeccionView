@@ -7,6 +7,7 @@ import CreateContract from "@/utils/plantillas/contrato/createContract";
 import CreateContractTerminoFijo from "@/utils/plantillas/contrato/createContractTerminoFijo";
 import CreateContractTerminoFijoMI from "@/utils/plantillas/contrato/createContractTerminoFijoMI";
 import CreateContractTerminoIndefinidoMI from "@/utils/plantillas/contrato/createContractTerminoIndefinidoMI";
+import CreateContractObraLaborMI from "@/utils/plantillas/contrato/createContractObraLaborMI";
 import CreateContractIndefinido from "@/utils/plantillas/contrato/createContractIndefinido";
 import { getReporteSinergy } from '../services/reporteServiceApi';
 import { MotivoRechazoProceso } from '../services/motivoRechazoContratacion';
@@ -2168,7 +2169,7 @@ const currentIdsKey = currentItems
         return;
       }
 
-      // MI admite únicamente sus plantillas propias de término fijo e indefinido; ALP mantiene sus generadores.
+      // MI utiliza sus plantillas propias para término fijo, indefinido y obra o labor; ALP mantiene sus generadores.
       if (empresa.codigo !== "ALP" && empresa.codigo !== "MI") {
         toast({
           title: "❌ Empresa contratante no soportada",
@@ -2189,10 +2190,10 @@ const currentIdsKey = currentItems
       );
 
       // Mantener Ingeniería: no permitir que otro tipo utilice las plantillas ALP.
-      if (empresa.codigo === "MI" && ![1, 2].includes(idTipoContrato)) {
+      if (empresa.codigo === "MI" && ![1, 2, 3].includes(idTipoContrato)) {
         toast({
           title: "❌ Plantilla MI no disponible",
-          description: "Mantener Ingeniería solo tiene habilitados los contratos a término fijo e indefinido.",
+          description: "Mantener Ingeniería solo tiene habilitados los contratos a término fijo, indefinido y obra o labor.",
           variant: "destructive",
         });
         return;
@@ -2229,7 +2230,9 @@ const currentIdsKey = currentItems
           contratoPdf = <CreateContractTerminoFijo data={contractData} />;
         }
       } else if (idTipoContrato === 3) {
-        contratoPdf = <CreateContract data={contractData} />;
+        contratoPdf = empresa.codigo === "MI"
+          ? <CreateContractObraLaborMI data={contractData} />
+          : <CreateContract data={contractData} />;
       } else if (idTipoContrato === 1) {
         contratoPdf = empresa.codigo === "MI"
           ? <CreateContractTerminoIndefinidoMI data={contractData} />
