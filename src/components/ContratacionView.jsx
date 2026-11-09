@@ -6,6 +6,7 @@ import { pdf } from "@react-pdf/renderer";
 import CreateContract from "@/utils/plantillas/contrato/createContract";
 import CreateContractTerminoFijo from "@/utils/plantillas/contrato/createContractTerminoFijo";
 import CreateContractTerminoFijoMI from "@/utils/plantillas/contrato/createContractTerminoFijoMI";
+import CreateContractTerminoIndefinidoMI from "@/utils/plantillas/contrato/createContractTerminoIndefinidoMI";
 import CreateContractIndefinido from "@/utils/plantillas/contrato/createContractIndefinido";
 import { getReporteSinergy } from '../services/reporteServiceApi';
 import { MotivoRechazoProceso } from '../services/motivoRechazoContratacion';
@@ -2167,7 +2168,7 @@ const currentIdsKey = currentItems
         return;
       }
 
-      // MI solo dispone de plantilla a término fijo; ALP mantiene sus generadores.
+      // MI admite únicamente sus plantillas propias de término fijo e indefinido; ALP mantiene sus generadores.
       if (empresa.codigo !== "ALP" && empresa.codigo !== "MI") {
         toast({
           title: "❌ Empresa contratante no soportada",
@@ -2188,10 +2189,10 @@ const currentIdsKey = currentItems
       );
 
       // Mantener Ingeniería: no permitir que otro tipo utilice las plantillas ALP.
-      if (empresa.codigo === "MI" && idTipoContrato !== 2) {
+      if (empresa.codigo === "MI" && ![1, 2].includes(idTipoContrato)) {
         toast({
           title: "❌ Plantilla MI no disponible",
-          description: "Por ahora solo está configurado el contrato a término fijo de Mantener Ingeniería.",
+          description: "Mantener Ingeniería solo tiene habilitados los contratos a término fijo e indefinido.",
           variant: "destructive",
         });
         return;
@@ -2230,7 +2231,9 @@ const currentIdsKey = currentItems
       } else if (idTipoContrato === 3) {
         contratoPdf = <CreateContract data={contractData} />;
       } else if (idTipoContrato === 1) {
-        contratoPdf = <CreateContractIndefinido data={contractData} />;
+        contratoPdf = empresa.codigo === "MI"
+          ? <CreateContractTerminoIndefinidoMI data={contractData} />
+          : <CreateContractIndefinido data={contractData} />;
       } else if (idTipoContrato === 4) {
         toast({
           title: "⚠️ Contrato de aprendizaje pendiente",
