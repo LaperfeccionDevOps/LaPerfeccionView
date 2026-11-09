@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { pdf } from "@react-pdf/renderer";
 import CreateContract from "@/utils/plantillas/contrato/createContract";
 import CreateContractTerminoFijo from "@/utils/plantillas/contrato/createContractTerminoFijo";
+import CreateContractTerminoFijoMI from "@/utils/plantillas/contrato/createContractTerminoFijoMI";
 import CreateContractIndefinido from "@/utils/plantillas/contrato/createContractIndefinido";
 import { getReporteSinergy } from '../services/reporteServiceApi';
 import { MotivoRechazoProceso } from '../services/motivoRechazoContratacion';
@@ -2166,19 +2167,8 @@ const currentIdsKey = currentItems
         return;
       }
 
-      // ⚖️ Mantener Ingeniería tendrá su propio modelo contractual.
-      // Hasta recibir y parametrizar la plantilla oficial aprobada por Jurídica,
-      // NO reutilizamos el contrato de Aseos La Perfección.
-      if (empresa.codigo === "MI") {
-        toast({
-          title: "Contrato MI pendiente de plantilla",
-          description: "El contrato de Mantener Ingeniería debe generarse con su modelo jurídico propio. La plantilla oficial aún no está parametrizada.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (empresa.codigo !== "ALP") {
+      // MI solo dispone de plantilla a término fijo; ALP mantiene sus generadores.
+      if (empresa.codigo !== "ALP" && empresa.codigo !== "MI") {
         toast({
           title: "❌ Empresa contratante no soportada",
           description: `No existe una plantilla contractual configurada para ${empresa.nombre || empresa.codigo}.`,
@@ -2197,6 +2187,16 @@ const currentIdsKey = currentItems
         0
       );
 
+      // Mantener Ingeniería: no permitir que otro tipo utilice las plantillas ALP.
+      if (empresa.codigo === "MI" && idTipoContrato !== 2) {
+        toast({
+          title: "❌ Plantilla MI no disponible",
+          description: "Por ahora solo está configurado el contrato a término fijo de Mantener Ingeniería.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       let contratoPdf = null;
 
       if (idTipoContrato === 2) {
@@ -2209,7 +2209,24 @@ const currentIdsKey = currentItems
           return;
         }
 
-        contratoPdf = <CreateContractTerminoFijo data={contractData} />;
+        if (empresa.codigo === "MI") {
+          // El selector de meses no se persiste; deducimos únicamente las duraciones
+          // permitidas comparando las fechas reales de Contratación Básica.
+          const inicio = String(contractData?.FechaIngreso ?? contractData?.fechaIngreso ?? "").slice(0, 10);
+          const fin = String(contractData?.FechaVencimientoContrato ?? contractData?.fechaVencimientoContrato ?? "").slice(0, 10);
+          const meses = [2, 4, 6, 12].find((m) => sumarMesesContrato(inicio, m) === fin);
+          if (!meses) {
+            toast({
+              title: "❌ Duración MI no verificable",
+              description: "Las fechas guardadas no corresponden exactamente a 2, 4, 6 o 12 meses. Verifica Contratación Básica antes de generar el PDF.",
+              variant: "destructive",
+            });
+            return;
+          }
+          contratoPdf = <CreateContractTerminoFijoMI data={{ ...contractData, duracion_meses: meses }} />;
+        } else {
+          contratoPdf = <CreateContractTerminoFijo data={contractData} />;
+        }
       } else if (idTipoContrato === 3) {
         contratoPdf = <CreateContract data={contractData} />;
       } else if (idTipoContrato === 1) {
@@ -2240,13 +2257,17 @@ const currentIdsKey = currentItems
         idTipoContrato === 2 ? "termino_fijo" :
         idTipoContrato === 3 ? "labor_contratada" :
         "laboral";
-      a.download = `contrato_${tipoArchivo}_${contractData?.cedula || "aspirante"}.pdf`;
+      a.download = empresa.codigo === "MI"
+        ? `contrato_mi_${tipoArchivo}_${contractData?.cedula || "aspirante"}.pdf`
+        : `contrato_${tipoArchivo}_${contractData?.cedula || "aspirante"}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
 
       toast({
-        title: "✅ Contrato ALP generado",
-        description: "PDF descargado correctamente para Aseos La Perfección.",
+        title: empresa.codigo === "MI" ? "✅ Contrato MI generado" : "✅ Contrato ALP generado",
+        description: empresa.codigo === "MI"
+          ? "PDF descargado correctamente para Mantener Ingeniería."
+          : "PDF descargado correctamente para Aseos La Perfección.",
       });
     } catch (e) {
       console.error(e);
