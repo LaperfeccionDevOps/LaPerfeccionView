@@ -77,17 +77,25 @@ const DocumentUploadModal = ({
   const esCarpetaHSE = tipoCarpeta === 'hse';
   const esCarpetaSaludOcupacional = tipoCarpeta === 'salud_ocupacional';
 
+  // Acepta la empresa enviada por Contratación y los nombres del ciclo laboral.
+  // Solo modifica el encabezado visible de la carpeta.
   const empresaCodigo = String(
     codigoEmpresa ||
+    aspirante?.EmpresaContratanteCodigo ||
+    aspirante?.CodigoEmpresaContratante ||
     aspirante?.CodigoEmpresa ||
     aspirante?.codigoEmpresa ||
+    aspirante?.vinculacionActual?.CodigoEmpresa ||
     ''
   ).trim().toUpperCase();
 
   const empresaNombre = String(
     nombreEmpresa ||
+    aspirante?.EmpresaContratanteNombre ||
+    aspirante?.NombreEmpresaContratante ||
     aspirante?.NombreEmpresa ||
     aspirante?.nombreEmpresa ||
+    aspirante?.vinculacionActual?.NombreEmpresa ||
     ''
   ).trim();
 
@@ -811,18 +819,16 @@ const descargarDocumentoRetiro = async (doc) => {
 };
   const getDocumentoBase64Tipo42 = () => {
     if (!Array.isArray(documentos)) return '';
-
-    const doc = documentos.find(
-      d => d && String(d.IdTipoDocumentacion) === '42' && d.DocumentoBase64
+    const firmas = documentos.filter(d =>
+      d && String(d.IdTipoDocumentacion) === '42' && (d.DocumentoBase64 || d.DocumentoCargado)
     );
-
+    // Si hay ciclo seleccionado, no tomar la firma de una vinculación diferente.
+    const doc = idVinculacionLaboral
+      ? firmas.find(d => String(d.IdVinculacionLaboral ?? d.IdVinculacionLaboralConsulta ?? '') === String(idVinculacionLaboral))
+      : (firmas.find(d => d?.OrigenCarpetaDigital === 'SEGURIDAD') || firmas[0]);
     if (!doc) return '';
-
-    const base64 = doc.DocumentoBase64 || '';
-
-    return base64.startsWith('data:image/png;base64,')
-      ? base64
-      : 'data:image/png;base64,' + base64;
+    const base64 = String(doc.DocumentoBase64 || doc.DocumentoCargado || '');
+    return base64.startsWith('data:') ? base64 : 'data:image/png;base64,' + base64;
   };
 
   const getLogoBase64 = async (logo) => {
@@ -876,12 +882,22 @@ const descargarDocumentoRetiro = async (doc) => {
         EMAIL: aspirante?.email || '',
       };
 
+      const idVinculacionParaPdf = Number.isInteger(Number(idVinculacionLaboral)) &&
+        Number(idVinculacionLaboral) > 0 ? Number(idVinculacionLaboral) : null;
       let pdf_base64 = '';
       const response = await DescargarDocumentoPdf(
         campos,
         'tratamiento_datos',
-        Number(idVinculacionLaboral)
+        idVinculacionParaPdf,
+        {
+          IdRegistroPersonal: Number(aspirante?.IdRegistroPersonal ?? aspirante?.idRegistroPersonal ?? aspirante?.id),
+          IdEmpresaContratante: aspirante?.IdEmpresaContratante ?? aspirante?.idEmpresaContratante ?? null,
+        }
       );
+      if (response && typeof response.ok === 'boolean' && !response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(typeof error?.detail === 'string' ? error.detail : `Error del servicio PDF (${response.status}).`);
+      }
 
       if (response?.data?.pdf_base64) {
         pdf_base64 = response.data.pdf_base64;
@@ -2562,9 +2578,13 @@ const renderCarpetaSaludOcupacional = () => (
                         documentosFirma42[0] ||
                         null;
 
-                      const doc = docDirecto || docFirma42 || null;
-                      const hasFile = !!doc;
+                                      // La firma digital (42) no es el documento de tratamiento (73).
                       const esTratamientoDatos = String(req.id) === '73';
+                      const doc = docDirecto;
+                      const hasFile = esTratamientoDatos
+                        ? !!(docDirecto?.DocumentoBase64 || docDirecto?.DocumentoCargado)
+                        : !!docDirecto;
+                      const puedeGenerarTratamiento = esTratamientoDatos && !hasFile && !!docFirma42;
 
                       return (
                         <div key={req.id} className="border-2 border-orange-200 rounded-2xl p-6 bg-white/90 shadow-lg flex flex-col justify-between h-full group w-full hover:shadow-2xl transition-shadow duration-200">
@@ -2576,7 +2596,7 @@ const renderCarpetaSaludOcupacional = () => (
 
                             <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-4 border shadow-sm ${hasFile ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-red-100 text-red-700 border-red-300'}`}>
                               {hasFile ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                              {hasFile ? 'Adjuntado' : 'Falta adjuntar'}
+                              {hasFile ? 'Adjuntado' : puedeGenerarTratamiento ? 'Pendiente de generar' : 'Falta adjuntar'}
                             </div>
                           </div>
 
@@ -2602,17 +2622,19 @@ const renderCarpetaSaludOcupacional = () => (
                               </div>
                             )}
 
-                            {hasFile && (
+                            {(hasFile || (!soloLectura && puedeGenerarTratamiento)) && (
                               <div className="flex flex-col gap-2 w-full">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-blue-700 border-blue-300 hover:bg-blue-100 px-3 h-auto w-full font-semibold"
-                                  onClick={() => verDocumento(doc)}
-                                >
-                                  <Eye className="w-4 h-4 mr-2" /> Ver
-                                </Button>
+                                {hasFile && (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-blue-700 border-blue-300 hover:bg-blue-100 px-3 h-auto w-full font-semibold"
+                                    onClick={() => verDocumento(doc)}
+                                  >
+                                    <Eye className="w-4 h-4 mr-2" /> Ver
+                                  </Button>
+                                )}
 
                                 <Button
                                   type="button"
@@ -2620,14 +2642,13 @@ const renderCarpetaSaludOcupacional = () => (
                                   size="sm"
                                   className="text-emerald-700 border-emerald-300 hover:bg-emerald-100 px-3 h-auto w-full font-semibold"
                                   onClick={() =>
-                                    soloLectura
-                                      ? descargarDocumento(doc)
-                                      : esTratamientoDatos
-                                        ? handleDescargarTratamientoDatos()
-                                        : descargarDocumento(doc)
+                                    puedeGenerarTratamiento
+                                      ? handleDescargarTratamientoDatos()
+                                      : descargarDocumento(doc)
                                   }
                                 >
-                                  <Download className="w-4 h-4 mr-2" /> Descargar
+                                  <Download className="w-4 h-4 mr-2" />
+                                  {puedeGenerarTratamiento ? 'Generar y descargar' : 'Descargar'}
                                 </Button>
 
                                 {!soloLectura && !esTratamientoDatos && (

@@ -1604,7 +1604,9 @@ const ContratacionView = () => {
     setCurrentPage(1);
   }, [searchTerm, empresaFilter, statusFilter, aspirantes, empresasPorRQ]);
 
- const openModal = (aspirante, docType) => {
+ // QA: mostrar en la carpeta la empresa real del ciclo, incluso después de contratar.
+ // Solo lectura: no altera la vinculación ni los documentos.
+ const openModal = async (aspirante, docType) => {
   const idReg = getIdRegistroPersonal(aspirante);
 
   const aspiranteNormalizado = {
@@ -1613,6 +1615,42 @@ const ContratacionView = () => {
     idRegistroPersonal: idReg,
     id: idReg,
   };
+
+  const estado = normalizeText(aspirante?.estado);
+  const debeConsultarCiclo = Boolean(idReg) && (
+    estado === 'contratado' ||
+    aspirante?.tuvoContratacion === true ||
+    !getEmpresaContratante(aspiranteNormalizado).codigo
+  );
+
+  if (debeConsultarCiclo) {
+    try {
+      const api = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
+      const respuesta = await fetch(
+        `${api}/aspirante_detalle/${encodeURIComponent(String(idReg))}/ciclos`,
+        { method: 'GET', headers: buildAuthHeaders() }
+      );
+
+      if (respuesta.ok) {
+        const detalle = await respuesta.json();
+        const vinculacion = detalle?.vinculacionActual;
+        if (vinculacion) {
+          const empresaCiclo = getEmpresaContratante(vinculacion);
+          if (empresaCiclo.codigo === 'ALP' || empresaCiclo.codigo === 'MI') {
+            // La vinculación del trabajador contratado prevalece sobre una RQ anterior.
+            aspiranteNormalizado.IdEmpresaContratante = empresaCiclo.id;
+            aspiranteNormalizado.EmpresaContratanteCodigo = empresaCiclo.codigo;
+            aspiranteNormalizado.EmpresaContratanteNombre = empresaCiclo.nombre;
+            aspiranteNormalizado.CodigoEmpresa = empresaCiclo.codigo;
+            aspiranteNormalizado.NombreEmpresa = empresaCiclo.nombre;
+          }
+        }
+      }
+    } catch (error) {
+      // Si la consulta no está disponible, conserva la empresa ya resuelta.
+      console.warn('[CONTRATACION] No se pudo consultar empresa del ciclo para la carpeta:', error);
+    }
+  }
 
   setModalState({ isOpen: true, aspirante: aspiranteNormalizado, docType });
 };
@@ -2709,6 +2747,8 @@ const currentIdsKey = currentItems
         isOpen={modalState.isOpen}
         onClose={() => setModalState({ isOpen: false, aspirante: null, docType: null })}
         aspirante={modalState.aspirante}
+        codigoEmpresa={getEmpresaContratante(modalState.aspirante).codigo}
+        nombreEmpresa={getEmpresaContratante(modalState.aspirante).nombre}
         onSave={handleDocumentSave}
         docTypeConfigIngreso={docTypes.ingreso}
         docTypeConfigSeguridad={docTypes.seguridad}

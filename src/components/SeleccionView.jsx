@@ -88,7 +88,35 @@ const SeleccionView = () => {
   };
 
   const openDetailModal = (aspirante) => {
-    setDetailModalState({ isOpen: true, aspirante });
+    // Los datos de empresa de la RQ son solo de consulta: no se guardan
+    // sobre RegistroPersonal ni reemplazan una vinculacion laboral real.
+    const idRegistro = aspirante?.IdRegistroPersonal ?? aspirante?.idRegistroPersonal ?? aspirante?.id;
+    const empresaRQ = empresasPorRQ[String(idRegistro)] || null;
+    const idEmpresaRQ = Number(empresaRQ?.IdEmpresaContratante);
+    const idEmpresaExistente = Number(
+      aspirante?.IdEmpresaContratante ?? aspirante?.idEmpresaContratante ??
+      aspirante?.vinculacionActual?.IdEmpresaContratante ?? 0
+    );
+    const tieneVinculacionLaboral = Boolean(
+      aspirante?.IdVinculacionLaboral ?? aspirante?.idVinculacionLaboral ??
+      aspirante?.vinculacionActual?.IdVinculacionLaboral
+    );
+
+    // En aspirantes sin empresa identificada se pasa la empresa comprobada
+    // de su RQ activa. El objeto original permanece intacto.
+    const aspiranteParaDetalle = (
+      !tieneVinculacionLaboral &&
+      ![1, 2].includes(idEmpresaExistente) &&
+      [1, 2].includes(idEmpresaRQ)
+    ) ? {
+      ...aspirante,
+      IdEmpresaContratante: idEmpresaRQ,
+      CodigoEmpresaContratante: empresaRQ.CodigoEmpresaContratante || '',
+      NombreEmpresaContratante: empresaRQ.NombreEmpresaContratante || '',
+      IdRQOperaciones: empresaRQ.IdRQOperaciones,
+    } : aspirante;
+
+    setDetailModalState({ isOpen: true, aspirante: aspiranteParaDetalle });
   };
 
   const handleDetailSave = (updatedAspiranteData) => {
@@ -310,13 +338,22 @@ const SeleccionView = () => {
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = sortedData.slice(indexOfFirstItem, indexOfLastItem);
-  // Solo consulta los aspirantes visibles que aun no tienen empresa en el listado.
-  // No sustituye empresas existentes ni genera consultas masivas por toda la bandeja.
+  // Consulta solo los candidatos visibles sin ID de empresa, o sin nombre.
+  // El nombre en el listado por si solo no basta para generar los PDF.
+  // No consulta RQ para reemplazar la empresa de una vinculacion laboral real.
   const idsSinEmpresa = currentItems
-    .filter((item) => !(
-      item.NombreEmpresa || item.nombreEmpresa || item.EmpresaContratante ||
-      item.empresaContratante || item.NombreEmpresaContratante || item.nombreEmpresaContratante
-    ))
+    .filter((item) => {
+      const tieneVinculacionLaboral = Boolean(
+        item.IdVinculacionLaboral ?? item.idVinculacionLaboral ??
+        item.vinculacionActual?.IdVinculacionLaboral
+      );
+      const idEmpresa = Number(item.IdEmpresaContratante ?? item.idEmpresaContratante ?? 0);
+      const tieneNombre = Boolean(
+        item.NombreEmpresa || item.nombreEmpresa || item.EmpresaContratante ||
+        item.empresaContratante || item.NombreEmpresaContratante || item.nombreEmpresaContratante
+      );
+      return !tieneVinculacionLaboral && (![1, 2].includes(idEmpresa) || !tieneNombre);
+    })
     .map((item) => item.IdRegistroPersonal ?? item.idRegistroPersonal ?? item.id)
     .filter((id) => id !== null && id !== undefined && id !== '')
     .map(String);
@@ -340,7 +377,10 @@ const SeleccionView = () => {
             return null;
           }
           const json = await respuesta.json();
-          return [id, json?.data?.NombreEmpresaContratante || null];
+          const empresaRQ = json?.data || null;
+          // Guardar todos los datos verificados por el backend, no solo el nombre.
+          return [id, [1, 2].includes(Number(empresaRQ?.IdEmpresaContratante))
+            ? empresaRQ : null];
         } catch (error) {
           console.warn('[SeleccionView] Error consultando empresa de RQ', id, error);
           return null;
@@ -363,7 +403,7 @@ const SeleccionView = () => {
       item.empresaContratante || item.NombreEmpresaContratante || item.nombreEmpresaContratante;
     if (empresaExistente) return empresaExistente;
     const id = item.IdRegistroPersonal ?? item.idRegistroPersonal ?? item.id;
-    return empresasPorRQ[String(id)] || '';
+    return empresasPorRQ[String(id)]?.NombreEmpresaContratante || '';
   };
 
   const totalPages = Math.ceil(sortedData.length / itemsPerPage);

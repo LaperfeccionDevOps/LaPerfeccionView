@@ -455,6 +455,37 @@ const MOTIVOS_CIERRE_PREDEFINIDOS = [
   'No supera prueba física',
 ];
 
+// Fecha de la entrevista: mostrar el último guardado real registrado por el backend.
+// Si el dato antiguo solo contiene la fecha, no inventamos la hora.
+const fechaUltimoGuardadoEntrevista = (entrevista) =>
+  entrevista?.FechaActualizacion || entrevista?.fechaActualizacion ||
+  entrevista?.FechaCreacion || entrevista?.fechaCreacion || null;
+
+const formatearFechaEntrevistaColombia = (valor) => {
+  if (!valor) return 'Fecha no registrada';
+  const texto = String(valor).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
+    const [anio, mes, dia] = texto.split('-');
+    return `${dia}/${mes}/${anio} · Hora no registrada`;
+  }
+  // PostgreSQL puede devolver un timestamp sin zona horaria.
+  // En ese caso se interpreta en la zona operativa de Colombia.
+  const normalizado = texto.replace(' ', 'T');
+  const conZona = /^\d{4}-\d{2}-\d{2}T/.test(normalizado) &&
+    !/(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalizado)
+      ? `${normalizado}-05:00`
+      : normalizado;
+  const fecha = new Date(conZona);
+  if (Number.isNaN(fecha.getTime())) return 'Fecha no disponible';
+  const dia = new Intl.DateTimeFormat('es-CO', {
+    timeZone: 'America/Bogota', day: '2-digit', month: '2-digit', year: 'numeric'
+  }).format(fecha);
+  const hora = new Intl.DateTimeFormat('es-CO', {
+    timeZone: 'America/Bogota', hour: 'numeric', minute: '2-digit', hour12: true
+  }).format(fecha);
+  return `${dia} · ${hora}`;
+};
+
 const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   const { user } = useAuth();
   const esSuperAdmin = user?.role === 'Super Administrador';
@@ -555,6 +586,7 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   };
 
   const [formData, setFormData] = useState(initialFormData);
+  const [adjuntandoReferencias, setAdjuntandoReferencias] = useState(false);
   const [observacionNucleoOriginal, setObservacionNucleoOriginal] = useState('');
   const [activeTab, setActiveTab] = useState('personal');
   const [lugarNacimiento, setLugarNacimiento] = useState([]);
@@ -658,18 +690,43 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
          }
 
          const vinculacionActualEmpresa = ciclosData?.vinculacionActual || null;
-         // Para PERSONAL_NUEVO la empresa puede venir asignada desde la RQ,
-         // antes de que exista una vinculación laboral. La lista de Selección
-         // ya recibe ese dato; no se debe obligar a asignarlo de nuevo.
-         // Si existe vinculación laboral, conserva prioridad (flujo legado/reintegros).
+         // QA: la empresa de la vinculación real prevalece siempre. Para el
+         // aspirante nuevo, consultar su RQ activa sin crear vinculaciones ficticias.
+         const idEmpresaVinculacion = Number(vinculacionActualEmpresa?.IdEmpresaContratante);
          const idEmpresaDesdeLista = Number(
            aspirante?.IdEmpresaContratante ?? aspirante?.idEmpresaContratante ??
            aspirante?.vinculacionActual?.IdEmpresaContratante ?? 0
          );
-         const idEmpresaActual = vinculacionActualEmpresa?.IdEmpresaContratante ??
-           ([1, 2].includes(idEmpresaDesdeLista) ? idEmpresaDesdeLista : null);
-         const empresaOrigen = vinculacionActualEmpresa?.IdEmpresaContratante
-           ? vinculacionActualEmpresa : aspirante;
+         let empresaRQActiva = null;
+         if (![1, 2].includes(idEmpresaVinculacion) && ![1, 2].includes(idEmpresaDesdeLista)) {
+           const idRegistroRQ = aspirante?.IdRegistroPersonal ?? aspirante?.idRegistroPersonal ?? aspirante?.id;
+           if (idRegistroRQ && token) {
+             try {
+               const respuestaRQ = await axios.get(
+                 `${API_BASE}/seleccion/rq/candidatos/${encodeURIComponent(idRegistroRQ)}/empresa-contratante`,
+                 { headers: { ...authHeaders } }
+               );
+               const empresaCandidata = respuestaRQ?.data?.data;
+               if ([1, 2].includes(Number(empresaCandidata?.IdEmpresaContratante))) {
+                 empresaRQActiva = empresaCandidata;
+               }
+             } catch (error) {
+               // Sin RQ o sin permiso de consulta: conservar el flujo anterior.
+               console.warn('No se pudo consultar la empresa de la RQ activa:', error);
+             }
+           }
+         }
+         const idEmpresaActual = [1, 2].includes(idEmpresaVinculacion)
+           ? idEmpresaVinculacion
+           : [1, 2].includes(idEmpresaDesdeLista)
+             ? idEmpresaDesdeLista
+             : ([1, 2].includes(Number(empresaRQActiva?.IdEmpresaContratante))
+               ? Number(empresaRQActiva.IdEmpresaContratante) : null);
+         const empresaOrigen = [1, 2].includes(idEmpresaVinculacion)
+           ? vinculacionActualEmpresa
+           : [1, 2].includes(idEmpresaDesdeLista)
+             ? aspirante
+             : empresaRQActiva;
 
          if ([1, 2].includes(Number(idEmpresaActual))) {
            const idEmpresa = Number(idEmpresaActual);
@@ -865,6 +922,8 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
             ...prev,
             IdRegistroPersonal: fila?.IdRegistroPersonal || '',
             IdVinculacionLaboral: idVinculacionActual || null,
+            IdEmpresaContratante: idEmpresaActual,
+            IdRQOperaciones: empresaRQActiva?.IdRQOperaciones ?? aspirante?.IdRQOperaciones ?? null,
             IdTipoIdentificacion: fila?.IdTipoIdentificacion ? String(fila.IdTipoIdentificacion) : '',
             DescripcionTipoIdentificacion: fila?.tipo_identificacion?.Descripcion || '',
             NumeroIdentificacion: fila?.NumeroIdentificacion || '',
@@ -1112,6 +1171,28 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
     });
   };
 
+// QA: nunca intentar descargar como PDF una respuesta HTTP fallida o vacía.
+const extraerPdfSeleccion = async (respuesta, nombreDocumento) => {
+  if (respuesta && typeof respuesta.ok === 'boolean' && !respuesta.ok) {
+    const error = await respuesta.json().catch(() => ({}));
+    const detalle = typeof error?.detail === 'string' ? error.detail : `HTTP ${respuesta.status}`;
+    throw new Error(`${nombreDocumento}: ${detalle}`);
+  }
+  const datos = respuesta && typeof respuesta.json === 'function'
+    ? await respuesta.json()
+    : (respuesta?.data || respuesta || {});
+  const base64 = datos?.pdf_base64;
+  if (!base64 || typeof base64 !== 'string') {
+    throw new Error(`${nombreDocumento}: el servidor no devolvió un PDF válido.`);
+  }
+  return base64;
+};
+
+const contextoPdfSeleccion = (idEmpresa = null) => ({
+  IdRegistroPersonal: Number(formData?.IdRegistroPersonal || aspirante?.IdRegistroPersonal || aspirante?.id || 0) || null,
+  IdEmpresaContratante: idEmpresa ?? empresaContratanteActual?.IdEmpresaContratante ?? formData?.IdEmpresaContratante ?? null,
+});
+
 const handleDescargarReferencia = async (ref) => {
   try {
     const validacion = Array.isArray(ref?.validaciones)
@@ -1177,20 +1258,11 @@ const handleDescargarReferencia = async (ref) => {
       IDENTIFICACION: formData?.cedula || '',
     };
 
-    let pdf_base64 = '';
-    const response = await DescargarDocumentoPdf(campos, 'referencias', formData?.IdVinculacionLaboral);
-
-    if (response && typeof response.json === 'function') {
-      const data = await response.json();
-      pdf_base64 = data.pdf_base64;
-    } else if (response && response.pdf_base64) {
-      pdf_base64 = response.pdf_base64;
-    }
-
-    if (!pdf_base64) {
-      console.error('No se recibió pdf_base64');
-      return;
-    }
+    // El cuarto parámetro prepara la empresa de RQ para el ajuste del servicio PDF.
+    const response = await DescargarDocumentoPdf(
+      campos, 'referencias', formData?.IdVinculacionLaboral ?? null, contextoPdfSeleccion()
+    );
+    const pdf_base64 = await extraerPdfSeleccion(response, 'Referencias laborales');
 
     const doc = {
       DocumentoBase64: 'data:application/pdf;base64,' + pdf_base64,
@@ -1199,9 +1271,11 @@ const handleDescargarReferencia = async (ref) => {
     descargarDocumento(doc);
   } catch (error) {
     console.error('Error al descargar referencia:', error);
+    toast({ title: 'No se pudo descargar la referencia', description: error.message, variant: 'destructive' });
   }
 };
     const handleDescargarTratamientoDatos = async () => {
+    try {
     const campos = {
       LOGO: await getLogoBase64('LOGO1'),
       LOGO2: await getLogoBase64('LOGO2'),
@@ -1214,16 +1288,18 @@ const handleDescargarReferencia = async (ref) => {
       EMAIL: formData?.email || '',
     };
 
-    let pdf_base64 = '';
-    const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos', formData?.IdVinculacionLaboral);
-    if (response && typeof response.json === 'function') {
-      const data = await response.json();
-      pdf_base64 = data.pdf_base64;
-    } else if (response && response.pdf_base64) {
-      pdf_base64 = response.pdf_base64;
+    const response = await DescargarDocumentoPdf(
+      campos, 'tratamiento_datos', formData?.IdVinculacionLaboral ?? null, contextoPdfSeleccion()
+    );
+    const pdf_base64 = await extraerPdfSeleccion(response, 'Tratamiento de datos');
+    descargarDocumento({
+      DocumentoBase64: 'data:application/pdf;base64,' + pdf_base64,
+      Nombre: 'Tratamiento_de_datos.pdf', Formato: 'application/pdf'
+    });
+    } catch (error) {
+      console.error('Error al descargar tratamiento de datos:', error);
+      toast({ title: 'No se pudo descargar el tratamiento de datos', description: error.message, variant: 'destructive' });
     }
-    const doc = { DocumentoBase64: 'data:application/pdf;base64,' + (pdf_base64 || '') };
-    descargarDocumento(doc);
   };
 
    const handleVerDocumentoSeguridad = (doc, isTratamientoDatos = false) => {
@@ -1557,22 +1633,35 @@ const campos = {
   OBSERVACIONES: (entrevistaBase?.ObservacionesFinales || '').toUpperCase()
 };
 
-    let pdf_base64 = '';
+// El sello del PDF toma el mismo último guardado que aparece en la tabla
+// de entrevistas; no se obtiene de la fecha/hora de descarga.
+const entrevistaEnHistorial = (formData?.entrevistas || []).find(
+  (item) => String(item?.IdEntrevista ?? item?.IdEntrevistaCandidato ?? '') ===
+    String(entrevistaBase?.IdEntrevista ?? entrevistaBase?.IdEntrevistaCandidato ?? '')
+) || entrevistaBase;
+const fechaDelHistorial = fechaUltimoGuardadoEntrevista(entrevistaEnHistorial);
+if (fechaDelHistorial) {
+  campos.FECHA_ULTIMO_GUARDADO = String(fechaDelHistorial);
+}
+
 console.log('=== VALIDACION FINAL PDF ENTREVISTA ===');
 console.log('experienciasValidas:', experienciasValidas);
 console.log('observacionExperiencia final:', observacionExperiencia);
 console.log('campos.EXPERIENCIA:', campos?.EXPERIENCIA);
 console.log('campos completos:', campos);
 
-    const response = await DescargarDocumentoPdf(campos, 'entrevista', formData?.IdVinculacionLaboral);
-    if (response && typeof response.json === 'function') {
-      const data = await response.json();
-      pdf_base64 = data.pdf_base64;
-    } else if (response && response.pdf_base64) {
-      pdf_base64 = response.pdf_base64;
+    try {
+      const response = await DescargarDocumentoPdf(
+        campos, 'entrevista', formData?.IdVinculacionLaboral ?? null,
+        contextoPdfSeleccion(idEmpresaEntrevista)
+      );
+      const pdf_base64 = await extraerPdfSeleccion(response, 'Entrevista de selección');
+      descargarDocumento({ DocumentoBase64: 'data:application/pdf;base64,' + pdf_base64,
+        Nombre: 'Entrevista_Seleccion.pdf', Formato: 'application/pdf' });
+    } catch (error) {
+      console.error('Error descargando entrevista:', error);
+      toast({ title: 'No se pudo descargar la entrevista', description: error.message, variant: 'destructive' });
     }
-    const doc = { DocumentoBase64: 'data:application/pdf;base64,' + (pdf_base64 || '') };
-    descargarDocumento(doc);
   };
 
   // =========================
@@ -2445,14 +2534,12 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
          };
          let pdf_base64 = '';
          try {
-            const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos', formData?.IdVinculacionLaboral);
-            if (response && typeof response.json === 'function') {
-               const data = await response.json();
-               pdf_base64 = data.pdf_base64;
-            } else if (response && response.pdf_base64) {
-               pdf_base64 = response.pdf_base64;
-            }
+            const response = await DescargarDocumentoPdf(
+              campos, 'tratamiento_datos', formData?.IdVinculacionLaboral ?? null, contextoPdfSeleccion()
+            );
+            pdf_base64 = await extraerPdfSeleccion(response, 'Tratamiento de datos');
          } catch (e) {
+            console.warn('No se pudo generar el tratamiento de datos para adjuntar:', e);
             pdf_base64 = '';
          }
          if (pdf_base64) {
@@ -2671,6 +2758,115 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
       setIsAddingRefLab(false);
    };
 
+
+  // Adjunto del consolidado 68, reutilizable tras guardar una validación
+  // y mediante el botón de reintento para referencias ya registradas.
+  // No modifica las experiencias ni crea nuevas validaciones laborales.
+  const adjuntarPdfConsolidadoReferencias = async () => {
+    const idRegistroPersonal = Number(
+      formData?.IdRegistroPersonal || aspirante?.IdRegistroPersonal || aspirante?.id || 0
+    );
+    if (!Number.isSafeInteger(idRegistroPersonal) || idRegistroPersonal <= 0) {
+      throw new Error('No se encontró un IdRegistroPersonal válido.');
+    }
+
+    const respPdf = await GenerarPdfConsolidadoReferencias(idRegistroPersonal);
+    const cuerpoPdf = await respPdf.text();
+    let dataPdf = {};
+    try {
+      dataPdf = JSON.parse(cuerpoPdf);
+    } catch (_) {
+      // Si el servidor responde HTML o texto en vez de JSON, se informará.
+    }
+
+    if (!respPdf.ok) {
+      const detalle = typeof dataPdf?.detail === 'string'
+        ? dataPdf.detail
+        : (dataPdf?.error || dataPdf?.mensaje || `HTTP ${respPdf.status}`);
+      throw new Error(`No se pudo generar el PDF consolidado: ${detalle}`);
+    }
+
+    // El servicio devuelve un Response; no debe exigirse "ok: true" dentro
+    // del JSON si el backend ya respondió exitosamente y envió el PDF.
+    if (dataPdf?.ok === false) {
+      throw new Error(dataPdf?.mensaje || dataPdf?.error || 'El backend no pudo generar el consolidado.');
+    }
+    const pdfRespuesta = dataPdf?.pdf_base64 ?? dataPdf?.data?.pdf_base64;
+    if (typeof pdfRespuesta !== 'string' || !pdfRespuesta.trim()) {
+      throw new Error('El consolidado no devolvió pdf_base64. Revisar /generar-consolidado en QA.');
+    }
+    const pdfBase64 = pdfRespuesta
+      .replace(/^data:[^,]*;base64,/, '')
+      .replace(/\s/g, '');
+    if (!pdfBase64.startsWith('JVBERi0')) {
+      throw new Error('La respuesta del consolidado no parece un archivo PDF válido.');
+    }
+
+    // Mantener la separación que ya usa el formulario para reintegros.
+    const idVinculacionLaboralActual = detalleCiclos?.esReintegroActual
+      ? (detalleCiclos?.vinculacionActual?.IdVinculacionLaboral || null)
+      : null;
+
+    const payloadDocumento = {
+      idRegistroPersonal,
+      ...(idVinculacionLaboralActual
+        ? { idVinculacionLaboral: idVinculacionLaboralActual }
+        : {}),
+      documentos_seguridad: [{
+        IdTipoDocumentacion: 68,
+        DocumentoCargado: `data:application/pdf;base64,${pdfBase64}`,
+        Formato: 'application/pdf',
+        Nombre: `Confirmacion_Referencias_${idRegistroPersonal}.pdf`,
+      }],
+    };
+
+    const respuestaUpload = await RegistrarDocumentosSeguridad(payloadDocumento);
+    if (!respuestaUpload?.ok) {
+      const cuerpoError = await respuestaUpload?.json().catch(() => ({}));
+      const detalle = typeof cuerpoError?.detail === 'string'
+        ? cuerpoError.detail
+        : (cuerpoError?.error || `HTTP ${respuestaUpload?.status ?? 'sin respuesta'}`);
+      throw new Error(`No se pudo adjuntar el PDF de referencias: ${detalle}`);
+    }
+
+    // El upload ya fue confirmado; un fallo al refrescar la vista no debe
+    // presentarse como si el documento no se hubiera guardado.
+    try {
+      const respDocsSeguridad = idVinculacionLaboralActual
+        ? await obtenerDocumentoSeguridadBase64PorVinculacion(
+            idRegistroPersonal, idVinculacionLaboralActual
+          )
+        : await getDocumentosSeguridad(idRegistroPersonal);
+      setFormData(prev => ({
+        ...prev,
+        documentosSeguridad: respDocsSeguridad?.data || [],
+      }));
+    } catch (errorConsulta) {
+      console.warn('Documento 68 guardado; no fue posible refrescar Seguridad:', errorConsulta);
+    }
+  };
+
+  const reintentarAdjuntoReferencias = async () => {
+    if (adjuntandoReferencias) return;
+    setAdjuntandoReferencias(true);
+    try {
+      await adjuntarPdfConsolidadoReferencias();
+      toast({
+        title: 'Referencias adjuntadas',
+        description: 'El PDF consolidado de referencias quedó guardado en Documentos de Seguridad.',
+      });
+    } catch (error) {
+      console.error('[Selección] Error reintentando adjunto 68:', error);
+      toast({
+        title: 'No se pudo adjuntar el consolidado de referencias',
+        description: error?.message || 'Revise la respuesta del generador de consolidado en QA.',
+        variant: 'destructive',
+      });
+    } finally {
+      setAdjuntandoReferencias(false);
+    }
+  };
+
    const addRefLaboral = async () => {
       if (selectedRefLabIdx === null || selectedRefLabIdx === undefined) {
          // No cerrar ni limpiar, solo salir
@@ -2707,83 +2903,47 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
          ComentariosDelReferenciado: comentariosReferenciador || '',
       };
 
-    const response = await ValidarExperienciaLaboral(payload);
-await ActualizarEstadoValidacionExperienciaLaboral(payload);
-
-if (response && response.status === 201) {
-  try {
-    const idRegistroPersonal =
-      formData?.IdRegistroPersonal ||
-      aspirante?.id ||
-      aspirante?.IdRegistroPersonal ||
-      null;
-
-    if (idRegistroPersonal) {
-      const respPdf = await GenerarPdfConsolidadoReferencias(idRegistroPersonal);
-      const dataPdf = await respPdf.json();
-
-      if (dataPdf?.ok && dataPdf?.pdf_base64) {
-        const idVinculacionLaboralActual =
-          detalleCiclos?.esReintegroActual
-            ? detalleCiclos?.vinculacionActual?.IdVinculacionLaboral || null
-            : null;
-
-        const payloadDocumento = {
-          idRegistroPersonal: Number(idRegistroPersonal),
-          ...(idVinculacionLaboralActual
-            ? { idVinculacionLaboral: idVinculacionLaboralActual }
-            : {}),
-          documentos_seguridad: [
-            {
-              IdTipoDocumentacion: 68,
-              DocumentoCargado: dataPdf.pdf_base64.startsWith('data:application/pdf;base64,')
-                ? dataPdf.pdf_base64
-                : `data:application/pdf;base64,${dataPdf.pdf_base64}`,
-              Formato: 'application/pdf',
-              Nombre: `Confirmacion_Referencias_${idRegistroPersonal}.pdf`,
-            },
-          ],
-        };
-
-        const responseUpload = await RegistrarDocumentosSeguridad(payloadDocumento);
-
-        if (!responseUpload.ok) {
-          const txt = await responseUpload.text();
-          console.error('Error adjuntando consolidado de referencias:', txt);
-        } else {
-          const respDocsSeguridad = idVinculacionLaboralActual
-            ? await obtenerDocumentoSeguridadBase64PorVinculacion(
-                idRegistroPersonal,
-                idVinculacionLaboralActual
-              )
-            : await getDocumentosSeguridad(idRegistroPersonal);
-
-          const documentosSeguridadActualizados = respDocsSeguridad?.data || [];
-
-          setFormData(prev => ({
-            ...prev,
-            documentosSeguridad: documentosSeguridadActualizados,
-          }));
-        }
-      } else {
-        console.warn('No se generó PDF consolidado de referencias:', dataPdf);
+    // Primero registrar la validación; el PDF es una operación independiente.
+    // Acepta cualquier estado HTTP exitoso (200, 201, etc.).
+    try {
+      const response = await ValidarExperienciaLaboral(payload);
+      if (!response?.ok) {
+        const errorApi = await response?.json().catch(() => ({}));
+        const detalle = typeof errorApi?.detail === 'string'
+          ? errorApi.detail
+          : (errorApi?.error || `HTTP ${response?.status ?? 'sin respuesta'}`);
+        throw new Error(`No se guardó la validación laboral: ${detalle}`);
       }
-    }
-  } catch (error) {
-    console.error('Error generando o adjuntando consolidado de referencias:', error);
-  }
 
-  setIsAddingRefLab(false);
-  setNombreContacto('');
-  setIndexValidacionExperiencia(null);
-  alert('Referencia laboral validada correctamente.');
-} else {
-  setIsAddingRefLab(false);
-  setNombreContacto('');
-  setIndexValidacionExperiencia(null);
-  alert('Error al validar la referencia laboral.');
-}
-      // No limpiar ni cerrar el modal ni los campos, para mantener los datos visibles
+      await ActualizarEstadoValidacionExperienciaLaboral(payload);
+      setIsAddingRefLab(false);
+      setNombreContacto('');
+      setIndexValidacionExperiencia(null);
+
+      // La validación ya quedó guardada. Si falla el adjunto 68, informar
+      // sin volver a registrar ni duplicar esta validación.
+      try {
+        await adjuntarPdfConsolidadoReferencias();
+        toast({
+          title: 'Referencia validada',
+          description: 'El PDF consolidado de referencias quedó adjunto en Documentos de Seguridad.',
+        });
+      } catch (errorAdjunto) {
+        console.error('[Selección] Validación guardada; documento 68 pendiente:', errorAdjunto);
+        toast({
+          title: 'Referencia guardada, consolidado pendiente',
+          description: errorAdjunto?.message || 'No se pudo adjuntar el PDF consolidado. Puede reintentarlo desde Referencias.',
+          variant: 'destructive',
+        });
+      }
+    } catch (errorValidacion) {
+      console.error('[Selección] Error validando referencia laboral:', errorValidacion);
+      toast({
+        title: 'No se pudo guardar la validación laboral',
+        description: errorValidacion?.message || 'Revise el servicio de validación.',
+        variant: 'destructive',
+      });
+    }
    };
 
    const ActualizarEstadoValidacionExperienciaLaboral = async (payload) => {
@@ -4169,6 +4329,30 @@ if (response && response.status === 201) {
                                  Validación {indexValidacionExperiencia} Contacto {nombreContacto}
                               </div>
                           </div>
+                          {/* Recuperación de adjuntos sin volver a validar la experiencia. */}
+                          {Array.isArray(formData?.experienciaLaboral) &&
+                            formData.experienciaLaboral.some(ref =>
+                              Array.isArray(ref?.validaciones)
+                                ? ref.validaciones.length > 0
+                                : Boolean(ref?.validaciones)
+                            ) && (
+                              <div className="mb-4 flex justify-end">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={reintentarAdjuntoReferencias}
+                                  disabled={adjuntandoReferencias}
+                                >
+                                  {adjuntandoReferencias
+                                    ? 'Preparando consolidado...'
+                                    : formData?.documentosSeguridad?.some(doc =>
+                                        String(doc?.IdTipoDocumentacion) === '68'
+                                      )
+                                      ? 'Actualizar PDF de referencias'
+                                      : 'Adjuntar referencias a Seguridad'}
+                                </Button>
+                              </div>
+                            )}
                           {isAddingRefLab && (
                              <div className="bg-gray-50 p-4 rounded-lg mb-4 border border-emerald-200">
                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -5358,7 +5542,7 @@ if (response && response.status === 201) {
                                  <Table>
                                     <TableHeader>
                                        <TableRow className="bg-gray-50">
-                                       <TableHead>FECHA</TableHead>
+                                       <TableHead>ÚLTIMO GUARDADO (COLOMBIA)</TableHead>
                                        <TableHead>CONCEPTO SELECCIÓN</TableHead>
                                        <TableHead>ENTREVISTADOR</TableHead>
                                        <TableHead className="text-right">ACCIONES</TableHead>
@@ -5369,7 +5553,7 @@ if (response && response.status === 201) {
                                        {formData?.entrevistas && formData.entrevistas.length > 0 ? (
                                        formData.entrevistas.map((ent, idx) => (
                                           <TableRow key={idx}>
-                                             <TableCell>{ent.FechaCreacion}</TableCell>
+                                             <TableCell className="text-sm whitespace-nowrap">{formatearFechaEntrevistaColombia(fechaUltimoGuardadoEntrevista(ent))}</TableCell>
                                              <TableCell>
                                              <span
                                                 className={cn(

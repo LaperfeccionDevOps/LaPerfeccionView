@@ -441,7 +441,7 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, idEmpresaContrata
     });
   };
 
-  const generarYAdjuntarPdfEntrevista = async (idRegistro) => {
+  const generarYAdjuntarPdfEntrevista = async (idRegistro, fechaUltimoGuardado = null) => {
     const experienciasValidas = Array.isArray(aspirante?.experienciaLaboral)
       ? aspirante.experienciaLaboral.slice(0, 2)
       : [];
@@ -575,13 +575,25 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, idEmpresaContrata
 
     console.log('Campos PDF entrevista:', campos);
 
-    const idVinculacionLaboral = getIdVinculacionLaboral();
+    const idVinculacionLaboralOriginal = getIdVinculacionLaboral();
+    const idVinculacionLaboral = Number.isInteger(Number(idVinculacionLaboralOriginal)) &&
+      Number(idVinculacionLaboralOriginal) > 0 ? Number(idVinculacionLaboralOriginal) : null;
 
-    if (!idVinculacionLaboral || !Number.isFinite(Number(idVinculacionLaboral)) || Number(idVinculacionLaboral) <= 0) {
-      throw new Error('No se encontró una vinculación laboral válida para generar el PDF de la entrevista.');
+    // En Selección puede existir RQ activa y empresa confirmada antes de contratar.
+    // La API de generación de PDF deberá aceptar este contexto sin vínculo laboral.
+    if (fechaUltimoGuardado) {
+      campos.FECHA_ULTIMO_GUARDADO = String(fechaUltimoGuardado);
     }
-
-    const responsePdf = await DescargarDocumentoPdf(campos, 'entrevista', Number(idVinculacionLaboral));
+    const responsePdf = await DescargarDocumentoPdf(
+      campos, 'entrevista', idVinculacionLaboral,
+      { IdRegistroPersonal: Number(idRegistro), IdEmpresaContratante: empresaEntrevista }
+    );
+    if (responsePdf && typeof responsePdf.ok === 'boolean' && !responsePdf.ok) {
+      const errorRespuesta = await responsePdf.json().catch(() => ({}));
+      const detalleError = errorRespuesta?.detail ?? errorRespuesta?.error ?? errorRespuesta?.message;
+      throw new Error(typeof detalleError === 'string'
+        ? detalleError : `No fue posible generar el PDF (HTTP ${responsePdf.status}).`);
+    }
     console.log('PDF entrevista - responsePdf:', responsePdf);
 
     let pdf_base64 = '';
@@ -632,7 +644,7 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, idEmpresaContrata
       const errorDetalle =
         uploadResult?.detail ||
         'No fue posible adjuntar automáticamente la entrevista en documentos de seguridad.';
-      throw new Error(errorDetalle);
+      throw new Error(typeof errorDetalle === 'string' ? errorDetalle : JSON.stringify(errorDetalle));
     }
 
     return true;
@@ -685,10 +697,14 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, idEmpresaContrata
           duration: 4000,
         });
 
+        // Un mismo instante para el PDF que se adjunta y la tabla del historial.
+        // Prioriza siempre el timestamp confirmado por el servicio de guardado.
+        const fechaRespuesta = data?.FechaActualizacion || data?.fechaActualizacion ||
+          data?.FechaCreacion || data?.fechaCreacion || new Date().toISOString();
         let errorPdfAdjunto = '';
 
         try {
-          await generarYAdjuntarPdfEntrevista(idRegistro);
+          await generarYAdjuntarPdfEntrevista(idRegistro, fechaRespuesta);
         } catch (errorAdjunto) {
           console.error('Error generando o adjuntando PDF de entrevista:', errorAdjunto);
           errorPdfAdjunto =
@@ -697,17 +713,21 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, idEmpresaContrata
         }
 
         if (typeof onSave === 'function') {
+          // La hora debe corresponder al GUARDADO, no a la descarga del PDF.
+          // Se prioriza la fecha devuelta por la API; el instante local solo
+          // actualiza la visualización inmediata cuando el POST no la devuelve.
           onSave({
+            ...formData,
             ...(idVinculacionLaboral
               ? { IdVinculacionLaboral: Number(idVinculacionLaboral) }
               : {}),
-            FechaCreacion: formData.fechaActualizacion || new Date().toISOString().split('T')[0],
+            FechaCreacion: data?.FechaCreacion || data?.fechaCreacion || fechaRespuesta,
+            FechaActualizacion: fechaRespuesta,
             ConceptoFinalSeleccion: formData.conceptoFinalPruebaSeleccion || '',
             EntrevistadorPor: formData.entrevistadoPor || '',
             Fortalezas: formData.fortalezas || '',
             AreasDeMejora: formData.areasDeMejora || '',
-            ObservacionesFinales: formData.observacionesFinales || '',
-            ...formData
+            ObservacionesFinales: formData.observacionesFinales || ''
           });
         }
 
