@@ -328,6 +328,25 @@ const consultarDatosCitacionProceso = async (
           dataDetalle?.FechaInicio ||
           dataDetalle?.FechaIngreso ||
           "—",
+
+        IdVinculacionLaboral:
+          eventoAgenda?.IdVinculacionLaboral ||
+          null,
+
+        IdEmpresaContratante:
+          eventoAgenda?.IdEmpresaContratante ||
+          null,
+
+        NombreEmpresa:
+          eventoAgenda?.NombreEmpresa ||
+          dataDetalle?.NombreEmpresa ||
+          dataDetalle?.EmpresaNombre ||
+          "—",
+
+        LogoEmpresa:
+          eventoAgenda?.LogoEmpresa ||
+          dataDetalle?.LogoEmpresa ||
+          "",
       };
 
       setTrabajador(trabajadorFinal);
@@ -448,6 +467,8 @@ setProcesoCreado(procesoDesdeAgenda);
 
       const dataDetalle = await resDetalle.json();
 
+      let historialData = [];
+
       const trabajadorFinal = {
         IdRegistroPersonal:
           dataDetalle?.IdRegistroPersonal || item?.IdRegistroPersonal,
@@ -472,22 +493,166 @@ setProcesoCreado(procesoDesdeAgenda);
           dataDetalle?.FechaInicio ||
           dataDetalle?.FechaIngreso ||
           "—",
-      };
 
-      setTrabajador(trabajadorFinal);
-      setResultadosBusqueda([]);
+        IdVinculacionLaboral:
+          dataDetalle?.IdVinculacionLaboral ||
+          null,
+
+        IdEmpresaContratante:
+          dataDetalle?.IdEmpresaContratante ||
+          null,
+
+        NombreEmpresa:
+          dataDetalle?.NombreEmpresa ||
+          dataDetalle?.EmpresaNombre ||
+          "—",
+
+        LogoEmpresa:
+          dataDetalle?.LogoEmpresa ||
+          "",
+      };
 
       if (trabajadorFinal.IdRegistroPersonal) {
         try {
-          const historialData = await obtenerHistorialDisciplinarioTrabajador(
+          historialData = await obtenerHistorialDisciplinarioTrabajador(
             trabajadorFinal.IdRegistroPersonal
           );
 
-          setHistorial(Array.isArray(historialData) ? historialData : []);
+          historialData = Array.isArray(historialData) ? historialData : [];
+          setHistorial(historialData);
         } catch {
+          historialData = [];
           setHistorial([]);
         }
       }
+
+      // El endpoint de detalle del trabajador puede no traer la empresa
+      // contratante. En ese caso la resolvemos desde el proceso disciplinario.
+      // Se soportan tanto las claves PascalCase que entrega la API actual
+      // como las variantes camelCase para evitar que la UI muestre "—".
+      const obtenerValorEmpresa = (origen) => {
+        const dato = origen?.data || origen?.resultado || origen || {};
+
+        return {
+          id:
+            dato?.IdEmpresaContratante ??
+            dato?.idEmpresaContratante ??
+            dato?.IdEmpresa ??
+            dato?.idEmpresa ??
+            null,
+          nombre:
+            dato?.NombreEmpresa ??
+            dato?.nombreEmpresa ??
+            dato?.EmpresaNombre ??
+            dato?.empresaNombre ??
+            dato?.NombreEmpresaContratante ??
+            dato?.nombreEmpresaContratante ??
+            "",
+          logo:
+            dato?.LogoEmpresa ??
+            dato?.logoEmpresa ??
+            dato?.LogoEmpresaContratante ??
+            dato?.logoEmpresaContratante ??
+            "",
+          idVinculacion:
+            dato?.IdVinculacionLaboral ??
+            dato?.idVinculacionLaboral ??
+            null,
+        };
+      };
+
+      // Primero aprovechamos cualquier dato de empresa que ya venga en el
+      // historial, sin hacer otra consulta innecesaria.
+      const procesoConEmpresa = historialData.find((proceso) => {
+        const empresa = obtenerValorEmpresa(proceso);
+        return (
+          proceso?.EstadoProceso !== "CERRADO" &&
+          Boolean(empresa.nombre || empresa.id)
+        );
+      });
+
+      if (procesoConEmpresa) {
+        const empresa = obtenerValorEmpresa(procesoConEmpresa);
+
+        trabajadorFinal.IdVinculacionLaboral =
+          empresa.idVinculacion ||
+          trabajadorFinal.IdVinculacionLaboral ||
+          null;
+
+        trabajadorFinal.IdEmpresaContratante =
+          empresa.id ||
+          trabajadorFinal.IdEmpresaContratante ||
+          null;
+
+        trabajadorFinal.NombreEmpresa =
+          empresa.nombre || trabajadorFinal.NombreEmpresa || "—";
+
+        trabajadorFinal.LogoEmpresa =
+          empresa.logo || trabajadorFinal.LogoEmpresa || "";
+      }
+
+      // Si el historial no trae el nombre, consultamos directamente el
+      // expediente. Este es el endpoint que devuelve, entre otros campos:
+      // IdEmpresaContratante, CodigoEmpresa y NombreEmpresa.
+      const procesosParaConsultar = historialData
+        .filter((proceso) => proceso?.IdProcesoDisciplinario)
+        .sort((a, b) => {
+          const aAbierto = a?.EstadoProceso !== "CERRADO" ? 0 : 1;
+          const bAbierto = b?.EstadoProceso !== "CERRADO" ? 0 : 1;
+          return aAbierto - bAbierto;
+        });
+
+      for (const proceso of procesosParaConsultar) {
+        // Si ya tenemos una empresa real, no seguimos haciendo consultas.
+        if (
+          trabajadorFinal.NombreEmpresa &&
+          trabajadorFinal.NombreEmpresa !== "—"
+        ) {
+          break;
+        }
+
+        try {
+          const respuestaProceso = await fetch(
+            `${API_URL}/procesos-disciplinarios/${proceso.IdProcesoDisciplinario}`,
+            {
+              method: "GET",
+              headers: construirHeaders(),
+            }
+          );
+
+          if (!respuestaProceso.ok) {
+            continue;
+          }
+
+          const dataProceso = await respuestaProceso.json();
+          const empresa = obtenerValorEmpresa(dataProceso);
+
+          trabajadorFinal.IdVinculacionLaboral =
+            empresa.idVinculacion ||
+            dataProceso?.IdVinculacionLaboral ||
+            trabajadorFinal.IdVinculacionLaboral ||
+            null;
+
+          trabajadorFinal.IdEmpresaContratante =
+            empresa.id ||
+            trabajadorFinal.IdEmpresaContratante ||
+            null;
+
+          trabajadorFinal.NombreEmpresa =
+            empresa.nombre || trabajadorFinal.NombreEmpresa || "—";
+
+          trabajadorFinal.LogoEmpresa =
+            empresa.logo || trabajadorFinal.LogoEmpresa || "";
+        } catch (error) {
+          console.warn(
+            `No se pudo obtener la empresa contratante del proceso ${proceso.IdProcesoDisciplinario}:`,
+            error
+          );
+        }
+      }
+
+      setTrabajador(trabajadorFinal);
+      setResultadosBusqueda([]);
     } catch (error) {
       setMensaje(error?.message || "No se pudo cargar el trabajador.");
     }
@@ -855,6 +1020,13 @@ setProcesoCreado(procesoDesdeAgenda);
                   <p className="text-xs text-gray-500">Cliente</p>
                   <p className="font-semibold text-gray-800">
                     {trabajador.ClienteNombre}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-gray-500">Empresa contratante</p>
+                  <p className="font-semibold text-gray-800">
+                    {trabajador.NombreEmpresa || "—"}
                   </p>
                 </div>
 

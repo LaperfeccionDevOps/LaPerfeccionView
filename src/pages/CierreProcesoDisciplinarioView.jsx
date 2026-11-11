@@ -1480,7 +1480,7 @@ if (!fechaCierre) {
           </h3>
 
           {trabajador ? (
-            <div className="grid grid-cols-1 gap-4 rounded-xl border border-emerald-200 bg-white p-5 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid grid-cols-1 gap-4 rounded-xl border border-emerald-200 bg-white p-5 sm:grid-cols-2 lg:grid-cols-6">
               <div>
                 <p className="text-xs text-gray-500">
                   Nombre
@@ -1526,6 +1526,16 @@ if (!fechaCierre) {
 
                 <p className="font-semibold text-gray-800">
                   {trabajador.Cargo || "—"}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-500">
+                  Empresa contratante
+                </p>
+
+                <p className="font-semibold text-gray-800">
+                  {trabajador.NombreEmpresa || "—"}
                 </p>
               </div>
 

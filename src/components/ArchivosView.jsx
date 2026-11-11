@@ -149,6 +149,7 @@ const ArchivosView = () => {
     permisosUsuario.includes('BIENESTAR_DOCUMENTACION');
 
   const isOperaciones = user?.role === 'Operaciones';
+  const isSuperAdmin = user?.role === 'Super Administrador';
 
   const isBienestar =
     user?.role === 'Bienestar' ||
@@ -172,6 +173,8 @@ const ArchivosView = () => {
     esHistorico: false,
     numeroCiclo: null,
     estadoVinculacion: null,
+    codigoEmpresa: null,
+    nombreEmpresa: null,
   });
 
   const [ciclosPorAspirante, setCiclosPorAspirante] = useState({});
@@ -249,6 +252,16 @@ const ArchivosView = () => {
       esHistorico: Boolean(opciones?.esHistorico),
       numeroCiclo: opciones?.numeroCiclo || null,
       estadoVinculacion: opciones?.estadoVinculacion || null,
+      codigoEmpresa:
+        opciones?.codigoEmpresa ??
+        aspirante?.CodigoEmpresa ??
+        aspirante?.codigoEmpresa ??
+        null,
+      nombreEmpresa:
+        opciones?.nombreEmpresa ??
+        aspirante?.NombreEmpresa ??
+        aspirante?.nombreEmpresa ??
+        null,
     });
   };
 
@@ -262,6 +275,8 @@ const ArchivosView = () => {
       esHistorico: false,
       numeroCiclo: null,
       estadoVinculacion: null,
+      codigoEmpresa: null,
+      nombreEmpresa: null,
     });
   };
 
@@ -493,6 +508,62 @@ const ArchivosView = () => {
     aspirante?.Cargo ||
     'No asignado';
 
+  const getEmpresaInfo = (origen) => {
+    const codigo = String(
+      origen?.CodigoEmpresa ||
+      origen?.codigoEmpresa ||
+      ''
+    ).trim().toUpperCase();
+
+    const nombre = String(
+      origen?.NombreEmpresa ||
+      origen?.nombreEmpresa ||
+      ''
+    ).trim();
+
+    if (codigo === 'ALP') {
+      return {
+        codigo: 'ALP',
+        nombre: nombre || 'Aseos La Perfección S.A.S.',
+        className: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+      };
+    }
+
+    if (codigo === 'MI') {
+      return {
+        codigo: 'MI',
+        nombre: nombre || 'Mantener Ingeniería',
+        className: 'bg-sky-100 text-sky-800 border-sky-200',
+      };
+    }
+
+    return {
+      codigo: 'SIN ASIGNAR',
+      nombre: nombre || 'Sin empresa contratante asignada',
+      className: 'bg-gray-100 text-gray-600 border-gray-200',
+    };
+  };
+
+  const renderEmpresa = (origen) => {
+    const empresa = getEmpresaInfo(origen);
+
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <span
+          className={cn(
+            'inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide',
+            empresa.className
+          )}
+        >
+          {empresa.codigo}
+        </span>
+        <span className="max-w-[190px] text-xs leading-tight text-gray-500">
+          {empresa.nombre}
+        </span>
+      </div>
+    );
+  };
+
   const SortIcon = ({ columnKey }) => {
     if (sortConfig.key !== columnKey) {
       return <ArrowUpDown className="w-4 h-4 ml-2 text-gray-500 opacity-50" />;
@@ -516,23 +587,23 @@ const ArchivosView = () => {
       animate={{ opacity: 1, y: 0 }}
       className={cn(
         'space-y-6',
-        isOperaciones && 'w-full max-w-full min-w-0 overflow-x-hidden'
+        (isOperaciones || isSuperAdmin) && 'w-full max-w-full min-w-0 overflow-x-hidden'
       )}
     >
       <div
         className={cn(
           'bg-white rounded-2xl shadow-xl border-t-4 border-emerald-600',
-          isOperaciones ? 'w-full max-w-full min-w-0 overflow-hidden p-4 sm:p-6 lg:p-8' : 'p-8'
+          (isOperaciones || isSuperAdmin) ? 'w-full max-w-full min-w-0 overflow-hidden p-4 sm:p-6 lg:p-8' : 'p-8'
         )}
       >
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="shrink-0 w-12 h-12 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
               <FolderOpen className="w-6 h-6 text-white" />
             </div>
 
-            <div>
-            <h1 className="text-2xl font-bold text-gray-800">
+            <div className="min-w-0">
+            <h1 className="break-words text-2xl font-bold text-gray-800">
                 {isOperaciones
                   ? 'Gestión de Operaciones'
                   : isBienestar
@@ -559,7 +630,7 @@ const ArchivosView = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row w-full md:w-auto gap-3">
-            <div className="relative flex-1">
+            <div className="relative min-w-0 flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
 
               <Input
@@ -663,16 +734,122 @@ const ArchivosView = () => {
           </div>
         )}
 
+        {isSuperAdmin && (
+          <div className="space-y-3 md:hidden">
+            {currentItems.length > 0 ? (
+              currentItems.map((aspirante) => {
+                const ciclos = obtenerCiclosTrabajador(aspirante);
+                const vinculacionActual = ciclos?.vinculacionActual || null;
+                const vinculacionesHistoricas = Array.isArray(ciclos?.vinculacionesHistoricas)
+                  ? ciclos.vinculacionesHistoricas
+                  : [];
+
+                return (
+                  <article key={aspirante.id} className="min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                    <h2 className="break-words text-base font-bold text-gray-900">
+                      {getNombreCompleto(aspirante) || 'SIN NOMBRE'}
+                    </h2>
+                    <p className="mt-1 break-all text-xs text-gray-500">
+                      {(aspirante.correo || 'SIN CORREO').toUpperCase()}
+                    </p>
+                    <div className="mt-3">{renderEmpresa(aspirante)}</div>
+                    <div className="mt-3 grid grid-cols-1 gap-2 text-sm">
+                      <div className="min-w-0 rounded-xl bg-gray-50 p-3">
+                        <p className="text-xs font-semibold text-gray-500">Identificación</p>
+                        <p className="break-words font-medium">{getIdentificacion(aspirante)}</p>
+                      </div>
+                      <div className="min-w-0 rounded-xl bg-gray-50 p-3">
+                        <p className="text-xs font-semibold text-gray-500">Cargo</p>
+                        <p className="break-words font-medium">{getCargo(aspirante)}</p>
+                      </div>
+                      <div className="min-w-0 rounded-xl bg-gray-50 p-3">
+                        <p className="text-xs font-semibold text-gray-500">Estado</p>
+                        <p className="break-words font-medium">{getEstadoInfo(aspirante.estado).label}</p>
+                      </div>
+                    </div>
+                    <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-gray-500">Carpeta digital</p>
+                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      <button type="button" className="min-h-11 rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800"
+                        onClick={() => openDocumentosTrabajador(aspirante, 'ingreso', {
+                          idVinculacionLaboral: ciclos?.esReintegroActual
+                            ? vinculacionActual?.IdVinculacionLaboral || null : null,
+                          esHistorico: false,
+                          numeroCiclo: vinculacionActual?.NumeroCiclo || null,
+                          estadoVinculacion: vinculacionActual?.EstadoVinculacion || null,
+                        })}>
+                        Ingreso
+                      </button>
+                      <button type="button" className="min-h-11 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800"
+                        onClick={() => openDocumentosTrabajador(aspirante, 'activo')}>
+                        Activos
+                      </button>
+                      <button type="button" className="min-h-11 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-800"
+                        onClick={() => openDocumentosTrabajador(aspirante, 'retiro')}>
+                        Retiro
+                      </button>
+                    </div>
+                    {vinculacionesHistoricas.map((vinculacion) => (
+                      <div key={`historico-movil-${aspirante.id}-${vinculacion.IdVinculacionLaboral}`}
+                        className="mt-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3">
+                        <p className="break-words text-xs font-semibold text-slate-700">
+                          Histórico laboral · Ciclo {vinculacion.NumeroCiclo || '-'} · {vinculacion.EstadoVinculacion || 'HISTÓRICO'}
+                        </p>
+                        <div className="mt-2">{renderEmpresa(vinculacion)}</div>
+                        <button type="button" className="mt-3 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
+                          onClick={() => openDocumentosTrabajador(aspirante, 'ingreso', {
+                            idVinculacionLaboral: vinculacion.IdVinculacionLaboral,
+                            esHistorico: true,
+                            numeroCiclo: vinculacion.NumeroCiclo || null,
+                            estadoVinculacion: vinculacion.EstadoVinculacion || null,
+                            codigoEmpresa: vinculacion.CodigoEmpresa || null,
+                            nombreEmpresa: vinculacion.NombreEmpresa || null,
+                          })}>
+                          Ver ingreso histórico
+                        </button>
+                      </div>
+                    ))}
+                  </article>
+                );
+              })
+            ) : (
+              <div className="rounded-2xl border border-gray-200 p-8 text-center text-gray-500">
+                <Search className="mx-auto mb-3 h-8 w-8" />
+                <p className="font-semibold">{searchTerm.trim() ? 'No se encontraron registros' : 'Busca un trabajador'}</p>
+                <p className="mt-2 text-sm">{searchTerm.trim()
+                  ? 'No se encontró ningún colaborador con ese criterio.'
+                  : 'Ingresa el nombre o número de identificación para consultar la carpeta digital.'}</p>
+              </div>
+            )}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between gap-2 rounded-xl bg-gray-50 p-3">
+                <span className="text-xs text-gray-500">
+                  {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, sortedData.length)} de {sortedData.length}
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="icon" onClick={() => paginate(currentPage - 1)} disabled={currentPage === 1} aria-label="Página anterior">
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={() => paginate(currentPage + 1)} disabled={currentPage === totalPages} aria-label="Página siguiente">
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div
           className={cn(
             'rounded-xl border border-gray-200 overflow-hidden shadow-sm',
-            isOperaciones && 'hidden md:block'
+            (isOperaciones || isSuperAdmin) && 'hidden md:block'
           )}
         >
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-gray-900 text-white">
+                  <th className="p-4 font-semibold">Empresa</th>
+
                   <th className="p-4 font-semibold cursor-pointer hover:bg-gray-800 transition-colors" onClick={() => handleSort('nombres')}>
                     <div className="flex items-center">
                       Colaborador <SortIcon columnKey="nombres" />
@@ -718,6 +895,10 @@ const ArchivosView = () => {
                         )}
                         
                       >
+                        <td className="p-4 align-top">
+                          {renderEmpresa(aspirante)}
+                        </td>
+
                         <td className="p-4">
                           <div className="font-medium text-gray-900 flex items-center gap-2">
                             {`${aspirante.nombres || ''} ${aspirante.apellidos || ''}`.toUpperCase()}
@@ -884,6 +1065,10 @@ const ArchivosView = () => {
                             animate={{ opacity: 1 }}
                             className="bg-slate-50/80 border-t border-dashed border-slate-300"
                           >
+                            <td className="p-4 align-top">
+                              {renderEmpresa(vinculacion)}
+                            </td>
+
                             <td className="p-4">
                               <div className="font-semibold text-slate-700">
                                 {`${aspirante.nombres || ''} ${aspirante.apellidos || ''}`.toUpperCase()}
@@ -924,6 +1109,10 @@ const ArchivosView = () => {
                                           vinculacion.NumeroCiclo || null,
                                         estadoVinculacion:
                                           vinculacion.EstadoVinculacion || null,
+                                        codigoEmpresa:
+                                          vinculacion.CodigoEmpresa || null,
+                                        nombreEmpresa:
+                                          vinculacion.NombreEmpresa || null,
                                       }
                                     )
                                   }
@@ -943,7 +1132,7 @@ const ArchivosView = () => {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="5" className="text-center py-16">
+                    <td colSpan="6" className="text-center py-16">
                       <div className="flex flex-col items-center text-gray-500">
                         <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                           <Search className="w-8 h-8 text-gray-400" />
@@ -1016,6 +1205,8 @@ const ArchivosView = () => {
         esHistorico={modalState.esHistorico}
         numeroCiclo={modalState.numeroCiclo}
         estadoVinculacion={modalState.estadoVinculacion}
+        codigoEmpresa={modalState.codigoEmpresa}
+        nombreEmpresa={modalState.nombreEmpresa}
         soloLectura={
           modalState.esHistorico ||
           modalState.carpeta === 'ingreso' ||

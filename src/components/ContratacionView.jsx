@@ -4,6 +4,11 @@ import { saveAs } from 'file-saver';
 import { motion } from 'framer-motion';
 import { pdf } from "@react-pdf/renderer";
 import CreateContract from "@/utils/plantillas/contrato/createContract";
+import CreateContractTerminoFijo from "@/utils/plantillas/contrato/createContractTerminoFijo";
+import CreateContractTerminoFijoMI from "@/utils/plantillas/contrato/createContractTerminoFijoMI";
+import CreateContractTerminoIndefinidoMI from "@/utils/plantillas/contrato/createContractTerminoIndefinidoMI";
+import CreateContractObraLaborMI from "@/utils/plantillas/contrato/createContractObraLaborMI";
+import CreateContractIndefinido from "@/utils/plantillas/contrato/createContractIndefinido";
 import { getReporteSinergy } from '../services/reporteServiceApi';
 import { MotivoRechazoProceso } from '../services/motivoRechazoContratacion';
 import { MarcarContratadoProceso } from '../services/motivoContratadoContratacion';
@@ -31,6 +36,7 @@ import {
 } from 'lucide-react';
 
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -167,6 +173,60 @@ const getIdRegistroPersonal = (a) => {
     a.id ??
     null
   );
+};
+
+// ✅ Empresa contratante heredada desde VinculacionLaboral.
+// No se selecciona nuevamente en Contratación.
+const getEmpresaContratante = (a) => {
+  if (!a) return { id: null, codigo: '', nombre: '' };
+
+  const id =
+    a.IdEmpresaContratante ??
+    a.idEmpresaContratante ??
+    a.id_empresa_contratante ??
+    a.vinculacionActual?.IdEmpresaContratante ??
+    a.VinculacionActual?.IdEmpresaContratante ??
+    null;
+
+  const codigo = String(
+    a.EmpresaContratanteCodigo ??
+    a.empresaContratanteCodigo ??
+    a.CodigoEmpresaContratante ??
+    a.codigoEmpresaContratante ??
+    a.EmpresaCodigo ??
+    a.empresaCodigo ??
+    a.CodigoEmpresa ??
+    a.codigoEmpresa ??
+    a.vinculacionActual?.EmpresaContratanteCodigo ??
+    a.vinculacionActual?.CodigoEmpresaContratante ??
+    ''
+  ).trim().toUpperCase();
+
+  const nombre = String(
+    a.EmpresaContratanteNombre ??
+    a.empresaContratanteNombre ??
+    a.NombreEmpresaContratante ??
+    a.nombreEmpresaContratante ??
+    a.EmpresaNombre ??
+    a.empresaNombre ??
+    a.vinculacionActual?.EmpresaContratanteNombre ??
+    a.vinculacionActual?.NombreEmpresaContratante ??
+    ''
+  ).trim();
+
+  const codigoFinal =
+    codigo ||
+    (Number(id) === 1 ? 'ALP' : Number(id) === 2 ? 'MI' : '');
+
+  const nombreFinal =
+    nombre ||
+    (codigoFinal === 'ALP'
+      ? 'Aseos La Perfección'
+      : codigoFinal === 'MI'
+        ? 'Mantener Ingeniería'
+        : '');
+
+  return { id: id ?? null, codigo: codigoFinal, nombre: nombreFinal };
 };
 
 // ✅ helpers numéricos / strings
@@ -449,6 +509,20 @@ const ArchivoPlanoModal = ({ isOpen, onClose, aspirante, onDownload }) => {
   );
 };
 
+// Suma meses calendario sin desbordar fechas como el 31 de enero.
+// La fecha calculada se conserva internamente para Sinergy y el PDF.
+const sumarMesesContrato = (fechaISO, meses) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaISO || '') || ![2, 4, 6, 12].includes(Number(meses))) return '';
+  const [anio, mes, dia] = fechaISO.split('-').map(Number);
+  const fechaValida = new Date(Date.UTC(anio, mes - 1, dia));
+  if (fechaValida.getUTCFullYear() !== anio || fechaValida.getUTCMonth() !== mes - 1 || fechaValida.getUTCDate() !== dia) return '';
+  const indiceMes = anio * 12 + (mes - 1) + Number(meses);
+  const anioDestino = Math.floor(indiceMes / 12);
+  const mesDestino = indiceMes % 12;
+  const ultimoDia = new Date(Date.UTC(anioDestino, mesDestino + 1, 0)).getUTCDate();
+  return `${anioDestino}-${String(mesDestino + 1).padStart(2, '0')}-${String(Math.min(dia, ultimoDia)).padStart(2, '0')}`;
+};
+
 // ------------------------------
 // ✅ Modal: Registro (con nuevos campos) + SCROLL
 // ------------------------------
@@ -461,13 +535,16 @@ const RegistroContratacionModal = ({
   tiposContratoOptions = [],
   bancosLabelToId = {},
   tiposLabelToId = {},
+  idTipoContratoRQ = null,
 }) => {
   const [fechaIngreso, setFechaIngreso] = useState('');
   const [fechaIngresoProtegida, setFechaIngresoProtegida] = useState(false);
   const [banco, setBanco] = useState('');
   const [riesgoLaboral, setRiesgoLaboral] = useState('');
   const [tipoContrato, setTipoContrato] = useState('');
-  const [duracionFijo, setDuracionFijo] = useState('');
+  const [fechaVencimientoContrato, setFechaVencimientoContrato] = useState('');
+  const [duracionMesesContrato, setDuracionMesesContrato] = useState('');
+  const [contratoFijoExistente, setContratoFijoExistente] = useState(false);
 
   // ✅ NUEVOS
   const [posicion, setPosicion] = useState('');
@@ -495,7 +572,9 @@ const RegistroContratacionModal = ({
       setBanco('');
       setTipoContrato('');
       setRiesgoLaboral('');
-      setDuracionFijo('');
+      setFechaVencimientoContrato('');
+      setDuracionMesesContrato('');
+      setContratoFijoExistente(false);
       setPosicion('');
       setEscalafon('');
       setNumeroCuenta('');
@@ -525,8 +604,18 @@ const RegistroContratacionModal = ({
             setFechaIngreso(fecha);
 
             setBanco(fromDb.IdBanco !== null && fromDb.IdBanco !== undefined ? String(fromDb.IdBanco) : '');
-            setTipoContrato(fromDb.IdTipoContrato !== null && fromDb.IdTipoContrato !== undefined ? String(fromDb.IdTipoContrato) : '');
+            // Respetar un contrato ya guardado; en ausencia de él, proponer el de la RQ activa.
+            const contratoPersistido = fromDb.IdTipoContrato;
+            setTipoContrato(contratoPersistido !== null && contratoPersistido !== undefined && contratoPersistido !== ''
+              ? String(contratoPersistido) : (idTipoContratoRQ != null ? String(idTipoContratoRQ) : ''));
             setRiesgoLaboral(fromDb.RiesgoLaboral || '');
+            setFechaVencimientoContrato(
+              fromDb.FechaVencimientoContrato
+                ? String(fromDb.FechaVencimientoContrato).slice(0, 10)
+                : ''
+            );
+            // Un contrato fijo con vencimiento guardado es histórico: no recalcularlo.
+            setContratoFijoExistente(Number(contratoPersistido) === 2 && Boolean(fromDb.FechaVencimientoContrato));
 
             // ✅ NUEVOS
             setPosicion(fromDb.Posicion || '');
@@ -551,7 +640,6 @@ const RegistroContratacionModal = ({
                 : ''
             );
 
-            setDuracionFijo('');
             return;
           }
         } catch (e) {
@@ -559,7 +647,15 @@ const RegistroContratacionModal = ({
         }
       }
 
-      // 2) fallback viejo
+      // RQ de reemplazo sin Contratación Básica guardada:
+      // SOLO precargar el tipo de contrato. Todos los demás campos
+      // permanecen vacíos para que Contratación los diligencie.
+      if (idTipoContratoRQ !== null && idTipoContratoRQ !== undefined && String(idTipoContratoRQ).trim() !== '') {
+        if (!cancel) setTipoContrato(String(idTipoContratoRQ));
+        return;
+      }
+
+      // 2) fallback histórico exclusivamente para candidatos sin RQ.
       const cm = aspirante.contratacionManual || {};
 
       setFechaIngreso(cm.fechaInicio || cm.fechaIngreso || '');
@@ -567,28 +663,42 @@ const RegistroContratacionModal = ({
       const bancoId = cm.IdBanco ?? cm.idBanco ?? resolveId(cm.banco, bancosLabelToId);
       setBanco(bancoId ? String(bancoId) : '');
 
-      const tipoId = cm.IdTipoContrato ?? cm.idTipoContrato ?? resolveId(cm.tipoContrato, tiposLabelToId);
+      const tipoManual = cm.IdTipoContrato ?? cm.idTipoContrato ?? resolveId(cm.tipoContrato, tiposLabelToId);
+      const tipoId = tipoManual || idTipoContratoRQ;
       setTipoContrato(tipoId ? String(tipoId) : '');
 
       setRiesgoLaboral(cm.riesgoLaboral || '');
-      setDuracionFijo(cm.duracionFijo || '');
+      setFechaVencimientoContrato(
+        cm.FechaVencimientoContrato || cm.fechaVencimientoContrato || ''
+      );
     };
 
     precargar();
     return () => { cancel = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aspirante, isOpen, bancosLabelToId, tiposLabelToId]);
+  }, [aspirante, isOpen, bancosLabelToId, tiposLabelToId, idTipoContratoRQ]);
 
   useEffect(() => {
-    const fijoId = resolveId('Fijo', tiposLabelToId);
-    if (String(tipoContrato) !== String(fijoId ?? '')) setDuracionFijo('');
-  }, [tipoContrato, tiposLabelToId]);
+    // IdTipoContrato = 2 corresponde a Término Fijo.
+    // Al cambiar a otro tipo, limpiamos la fecha para evitar datos obsoletos.
+    if (Number(tipoContrato) !== 2) {
+      setFechaVencimientoContrato('');
+    }
+  }, [tipoContrato]);
+
+  useEffect(() => {
+    if (Number(tipoContrato) !== 2 || contratoFijoExistente) return;
+    setFechaVencimientoContrato(sumarMesesContrato(fechaIngreso, duracionMesesContrato));
+  }, [tipoContrato, contratoFijoExistente, fechaIngreso, duracionMesesContrato]);
 
   const riesgos = ['I', 'II', 'III', 'IV', 'V'];
-  const duraciones = ['2 meses', '4 meses', '6 meses', '8 meses', '12 meses'];
 
   const guardar = () => {
     if (!aspirante) return;
+    if (Number(tipoContrato) === 2 && !contratoFijoExistente && !duracionMesesContrato) {
+      toast({ title: 'Selecciona la duración', description: 'Elige 2, 4, 6 o 12 meses.', variant: 'destructive' });
+      return;
+    }
 
        const payload = {
       fechaInicio: fechaIngreso,
@@ -596,7 +706,7 @@ const RegistroContratacionModal = ({
       bancoId: banco,
       riesgoLaboral,
       tipoContratoId: tipoContrato,
-      duracionFijo,
+      fechaVencimientoContrato,
 
       // NUEVOS
       posicion,
@@ -626,8 +736,8 @@ const RegistroContratacionModal = ({
     ? tiposContratoOptions
     : TIPOS_CONTRATO_FALLBACK;
 
-  const fijoId = resolveId('Fijo', tiposLabelToId);
-  const isFijo = fijoId ? (String(tipoContrato) === String(fijoId)) : false;
+  // Catálogo confirmado en BD: 2 = Término Fijo.
+  const isFijo = Number(tipoContrato) === 2;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -753,25 +863,31 @@ const RegistroContratacionModal = ({
 
             {isFijo && (
               <div className="md:col-span-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div>
-                    <Label className="text-sm font-semibold text-emerald-800">Duración del contrato fijo</Label>
-                    <p className="text-xs text-emerald-700 mt-1">Solo aplica cuando el contrato es “Fijo”.</p>
-                  </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <CalendarDays className="w-4 h-4 text-emerald-700" />
+                  <Label className="text-sm font-semibold text-emerald-800">Duración del contrato</Label>
                 </div>
-
-                <div className="mt-3">
-                  <Select value={duracionFijo} onValueChange={setDuracionFijo}>
-                    <SelectTrigger className="rounded-xl bg-white">
-                      <SelectValue placeholder="Selecciona duración (2,4,6,8,12 meses)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {duraciones.map((d) => (
-                        <SelectItem key={d} value={d}>{d}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {contratoFijoExistente ? (
+                  <p className="text-xs text-emerald-800">
+                    Este contrato ya tiene una fecha de vencimiento registrada. Se conserva sin recalcularla.
+                  </p>
+                ) : (
+                  <>
+                    <Select value={duracionMesesContrato} onValueChange={setDuracionMesesContrato}>
+                      <SelectTrigger className="rounded-xl bg-white">
+                        <SelectValue placeholder="Selecciona la duración en meses" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[2, 4, 6, 12].map((meses) => (
+                          <SelectItem key={meses} value={String(meses)}>{meses} meses</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-emerald-700 mt-2">
+                      La fecha de vencimiento se calcula automáticamente y se guarda sin mostrarla en el formulario.
+                    </p>
+                  </>
+                )}
               </div>
             )}
 
@@ -950,6 +1066,9 @@ const RegistroContratacionModal = ({
 
 // ------------------------------
 const ContratacionView = () => {
+  const { user } = useAuth();
+  // Vista móvil de Contratación: conserva intacto el diseño propio de Operaciones.
+  const esVistaMovilContratacion = String(user?.role ?? '').trim().toLowerCase() !== 'operaciones';
     // Estados para los filtros de fecha
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
@@ -1350,9 +1469,66 @@ const ContratacionView = () => {
   const { aspirantes, updateAspirante, loadAspirantes } = useAspirantes();
   const navigate = useNavigate();
 
+  // QA: empresa de la RQ activa, solo para aspirantes sin empresa propia.
+  const [empresasPorRQ, setEmpresasPorRQ] = useState({});
+  const idsEmpresaRQ = aspirantes
+    .filter(a => (String(a?.estado ?? '').trim() === 'Avanza a Contratación' || a?.tuvoContratacion === true)
+      && !getEmpresaContratante(a).codigo)
+    .map(a => getIdRegistroPersonal(a))
+    .filter(id => id !== null && id !== undefined && String(id).trim() !== '')
+    .map(String);
+  const claveIdsEmpresaRQ = [...new Set(idsEmpresaRQ)].sort().join(',');
+
+  useEffect(() => {
+    if (!claveIdsEmpresaRQ) {
+      setEmpresasPorRQ({});
+      return;
+    }
+    let cancelado = false;
+    // Una sola petición para todas las RQ activas, sin duplicar /api.
+    const base = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
+    const consultar = async () => {
+      try {
+        const res = await fetch(
+          `${base}/seleccion/rq/candidatos/empresas-contratantes`,
+          { headers: buildAuthHeaders() }
+        );
+        if (!res.ok) {
+          console.warn('[CONTRATACION] Consulta agrupada de empresas RQ:', res.status);
+          return;
+        }
+        const json = await res.json();
+        const empresas = {};
+        for (const [id, dato] of Object.entries(json?.data ?? {})) {
+          if (!dato?.IdEmpresaContratante && !dato?.NombreEmpresaContratante) continue;
+          empresas[id] = {
+            IdEmpresaContratante: dato.IdEmpresaContratante,
+            IdTipoContratoRQ: dato.IdTipoContrato ?? null,
+            EmpresaContratanteCodigo: dato.CodigoEmpresaContratante,
+            EmpresaContratanteNombre: dato.NombreEmpresaContratante,
+          };
+        }
+        if (!cancelado) setEmpresasPorRQ(empresas);
+        if (json?.conflictos?.length) {
+          console.warn('[CONTRATACION] Candidatos con varias RQ activas; sin empresa inferida:', json.conflictos);
+        }
+      } catch (error) {
+        console.warn('[CONTRATACION] Error en consulta agrupada de empresas RQ:', error);
+      }
+    };
+    consultar();
+    return () => { cancelado = true; };
+  }, [claveIdsEmpresaRQ]);
+
+  const aspirantesConEmpresaRQ = aspirantes.map(a => {
+    if (getEmpresaContratante(a).codigo) return a;
+    const empresa = empresasPorRQ[String(getIdRegistroPersonal(a))];
+    return empresa ? { ...a, ...empresa } : a;
+  });
   const [filteredAspirantes, setFilteredAspirantes] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
- const [statusFilter, setStatusFilter] = useState('todos');
+  const [empresaFilter, setEmpresaFilter] = useState('todas');
+  const [statusFilter, setStatusFilter] = useState('todos');
 
   const [asignacionMap, setAsignacionMap] = useState({});
   const [cargoMap, setCargoMap] = useState({});
@@ -1390,7 +1566,7 @@ const ContratacionView = () => {
 }, []);
 
   useEffect(() => {
-    let filtered = aspirantes.filter((a) => {
+    let filtered = aspirantesConEmpresaRQ.filter((a) => {
       const estado = String(a?.estado ?? '').trim();
 
       return (
@@ -1398,6 +1574,18 @@ const ContratacionView = () => {
         a?.tuvoContratacion === true
       );
     });
+
+    if (empresaFilter !== 'todas') {
+      filtered = filtered.filter((a) => {
+        const empresa = getEmpresaContratante(a);
+
+        if (empresaFilter === 'sin_asignar') {
+          return !empresa.codigo;
+        }
+
+        return empresa.codigo === empresaFilter;
+      });
+    }
 
     if (statusFilter !== 'todos') {
       filtered = filtered.filter(
@@ -1414,7 +1602,7 @@ const ContratacionView = () => {
 
     setFilteredAspirantes(filtered);
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, aspirantes]);
+  }, [searchTerm, empresaFilter, statusFilter, aspirantes, empresasPorRQ]);
 
  const openModal = (aspirante, docType) => {
   const idReg = getIdRegistroPersonal(aspirante);
@@ -1509,6 +1697,29 @@ const ContratacionView = () => {
       return;
     }
 
+    if (Number(idTipoContrato) === 2 && !payload.fechaVencimientoContrato) {
+      toast({
+        title: "❌ Falta fecha de vencimiento",
+        description: "Para un contrato a Término Fijo debes seleccionar 2, 4, 6 o 12 meses.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (
+      Number(idTipoContrato) === 2 &&
+      payload.fechaInicio &&
+      payload.fechaVencimientoContrato &&
+      payload.fechaVencimientoContrato <= payload.fechaInicio
+    ) {
+      toast({
+        title: "❌ Fecha de vencimiento inválida",
+        description: "La fecha de vencimiento debe ser posterior a la fecha de ingreso.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!payload.riesgoLaboral) {
       toast({
         title: "❌ Falta riesgo",
@@ -1523,6 +1734,10 @@ const ContratacionView = () => {
       IdBanco: Number(idBanco),
       IdTipoContrato: Number(idTipoContrato),
       FechaIngreso: payload.fechaInicioProtegida ? null : payload.fechaInicio,
+      FechaVencimientoContrato:
+        Number(idTipoContrato) === 2
+          ? (payload.fechaVencimientoContrato || null)
+          : null,
       RiesgoLaboral: payload.riesgoLaboral,
 
       Posicion: (payload.posicion ?? '').trim() || null,
@@ -1735,6 +1950,16 @@ const currentIdsKey = currentItems
     const regRaw = unwrapApiPayload(regResp);
     const regObj = Array.isArray(regRaw) ? (regRaw[0] || null) : regRaw;
 
+    // 2.1) Contratación Básica: fuente de verdad para tipo de contrato y fechas.
+    let contratacionBasica = null;
+    if (idReg) {
+      try {
+        contratacionBasica = await apiGetContratacionBasicaByRegistroPersonal(idReg);
+      } catch (e) {
+        console.warn("[CONTRATO] No pude traer ContratacionBasica:", e);
+      }
+    }
+
     // 3) DatosAdicionales
     let daResp = null;
     if (idReg) {
@@ -1850,8 +2075,41 @@ const currentIdsKey = currentItems
       ) || null;
 
     // 9) Data final para el PDF
+    const empresaContratante = getEmpresaContratante(aspirante);
+
     const contractData = {
       ...aspirante,
+
+      IdEmpresaContratante: empresaContratante.id,
+      EmpresaContratanteCodigo: empresaContratante.codigo,
+      EmpresaContratanteNombre: empresaContratante.nombre,
+
+      // Tipo y fechas contractuales: se prioriza ContratacionBasica persistida en BD.
+      IdTipoContrato:
+        contratacionBasica?.IdTipoContrato ??
+        aspirante?.IdTipoContrato ??
+        aspirante?.idTipoContrato ??
+        null,
+      FechaIngreso:
+        contratacionBasica?.FechaIngreso ??
+        aspirante?.FechaIngreso ??
+        aspirante?.fechaIngreso ??
+        null,
+      fechaIngreso:
+        contratacionBasica?.FechaIngreso ??
+        aspirante?.fechaIngreso ??
+        aspirante?.FechaIngreso ??
+        null,
+      FechaVencimientoContrato:
+        contratacionBasica?.FechaVencimientoContrato ??
+        aspirante?.FechaVencimientoContrato ??
+        aspirante?.fechaVencimientoContrato ??
+        null,
+      fechaVencimientoContrato:
+        contratacionBasica?.FechaVencimientoContrato ??
+        aspirante?.fechaVencimientoContrato ??
+        aspirante?.FechaVencimientoContrato ??
+        null,
 
       celular: aspirante?.celular ?? celular,
       correo: aspirante?.correo ?? correo,
@@ -1899,24 +2157,123 @@ const currentIdsKey = currentItems
 
   const descargarContrato = async (aspirante) => {
     try {
+      const empresa = getEmpresaContratante(aspirante);
+
+      // 🔒 Nunca generar el contrato ALP por defecto si el ciclo no tiene empresa.
+      if (!empresa.codigo) {
+        toast({
+          title: "❌ Empresa contratante no definida",
+          description: "Este proceso no tiene empresa contratante asociada al ciclo laboral. No se generó ningún contrato.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // MI utiliza sus plantillas propias para término fijo, indefinido y obra o labor; ALP mantiene sus generadores.
+      if (empresa.codigo !== "ALP" && empresa.codigo !== "MI") {
+        toast({
+          title: "❌ Empresa contratante no soportada",
+          description: `No existe una plantilla contractual configurada para ${empresa.nombre || empresa.codigo}.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
       const contractData = await buildContractData(aspirante);
 
       console.log("CONTRATO DATA FINAL:", contractData);
 
-      const blob = await pdf(
-        <CreateContract data={contractData} />
-      ).toBlob();
+      const idTipoContrato = Number(
+        contractData?.IdTipoContrato ??
+        contractData?.idTipoContrato ??
+        0
+      );
+
+      // Mantener Ingeniería: no permitir que otro tipo utilice las plantillas ALP.
+      if (empresa.codigo === "MI" && ![1, 2, 3].includes(idTipoContrato)) {
+        toast({
+          title: "❌ Plantilla MI no disponible",
+          description: "Mantener Ingeniería solo tiene habilitados los contratos a término fijo, indefinido y obra o labor.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      let contratoPdf = null;
+
+      if (idTipoContrato === 2) {
+        if (!contractData?.FechaVencimientoContrato && !contractData?.fechaVencimientoContrato) {
+          toast({
+            title: "❌ Falta fecha de vencimiento",
+            description: "El contrato a Término Fijo requiere una fecha de vencimiento antes de generar el PDF.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        if (empresa.codigo === "MI") {
+          // El selector de meses no se persiste; deducimos únicamente las duraciones
+          // permitidas comparando las fechas reales de Contratación Básica.
+          const inicio = String(contractData?.FechaIngreso ?? contractData?.fechaIngreso ?? "").slice(0, 10);
+          const fin = String(contractData?.FechaVencimientoContrato ?? contractData?.fechaVencimientoContrato ?? "").slice(0, 10);
+          const meses = [2, 4, 6, 12].find((m) => sumarMesesContrato(inicio, m) === fin);
+          if (!meses) {
+            toast({
+              title: "❌ Duración MI no verificable",
+              description: "Las fechas guardadas no corresponden exactamente a 2, 4, 6 o 12 meses. Verifica Contratación Básica antes de generar el PDF.",
+              variant: "destructive",
+            });
+            return;
+          }
+          contratoPdf = <CreateContractTerminoFijoMI data={{ ...contractData, duracion_meses: meses }} />;
+        } else {
+          contratoPdf = <CreateContractTerminoFijo data={contractData} />;
+        }
+      } else if (idTipoContrato === 3) {
+        contratoPdf = empresa.codigo === "MI"
+          ? <CreateContractObraLaborMI data={contractData} />
+          : <CreateContract data={contractData} />;
+      } else if (idTipoContrato === 1) {
+        contratoPdf = empresa.codigo === "MI"
+          ? <CreateContractTerminoIndefinidoMI data={contractData} />
+          : <CreateContractIndefinido data={contractData} />;
+      } else if (idTipoContrato === 4) {
+        toast({
+          title: "⚠️ Contrato de aprendizaje pendiente",
+          description: "La plantilla de Aprendizaje SENA aún no está parametrizada. No se generó un contrato incorrecto.",
+          variant: "destructive",
+        });
+        return;
+      } else {
+        toast({
+          title: "❌ Tipo de contrato no definido",
+          description: "No fue posible identificar el tipo de contrato guardado en Contratación Básica.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const blob = await pdf(contratoPdf).toBlob();
 
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `contrato_laboral_${contractData?.cedula || "aspirante"}.pdf`;
+      const tipoArchivo =
+        idTipoContrato === 1 ? "indefinido" :
+        idTipoContrato === 2 ? "termino_fijo" :
+        idTipoContrato === 3 ? "labor_contratada" :
+        "laboral";
+      a.download = empresa.codigo === "MI"
+        ? `contrato_mi_${tipoArchivo}_${contractData?.cedula || "aspirante"}.pdf`
+        : `contrato_${tipoArchivo}_${contractData?.cedula || "aspirante"}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
 
       toast({
-        title: "✅ Contrato generado",
-        description: "PDF descargado correctamente.",
+        title: empresa.codigo === "MI" ? "✅ Contrato MI generado" : "✅ Contrato ALP generado",
+        description: empresa.codigo === "MI"
+          ? "PDF descargado correctamente para Mantener Ingeniería."
+          : "PDF descargado correctamente para Aseos La Perfección.",
       });
     } catch (e) {
       console.error(e);
@@ -1963,14 +2320,14 @@ const currentIdsKey = currentItems
   return (
     <>
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-        <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
+        <div className="min-w-0 bg-white rounded-2xl shadow-xl p-3 sm:p-5 md:p-8 border-t-4 border-emerald-600">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-center gap-3">
               <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
                 <Briefcase className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-800">Contratación</h1>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Contratación</h1>
                 <p className="text-sm text-gray-500">Gestión inicial y formalización de contratos.</p>
               </div>
             </div>
@@ -1986,6 +2343,21 @@ const currentIdsKey = currentItems
                 <Button size="icon" variant="ghost" className="absolute right-0 hover:bg-transparent" onClick={() => { }}>
                   <Search className="w-5 h-5 text-gray-400" />
                 </Button>
+              </div>
+
+              <div className="w-full sm:w-64 flex flex-col gap-2">
+                <Select value={empresaFilter} onValueChange={setEmpresaFilter}>
+                  <SelectTrigger className="border-emerald-200 focus:border-emerald-500 rounded-xl">
+                    <Briefcase className="w-4 h-4 mr-2 text-emerald-600" />
+                    <SelectValue placeholder="Filtrar por empresa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas las Empresas</SelectItem>
+                    <SelectItem value="ALP">Aseos La Perfección</SelectItem>
+                    <SelectItem value="MI">Mantener Ingeniería</SelectItem>
+                    <SelectItem value="sin_asignar">Sin asignar</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="w-full sm:w-64 flex flex-col gap-2">
@@ -2051,11 +2423,68 @@ const currentIdsKey = currentItems
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+          {/* Tarjetas móviles exclusivamente para SUPERADMIN. La tabla original se conserva. */}
+          {esVistaMovilContratacion && (
+            <div className="grid grid-cols-1 gap-3 md:hidden">
+              {currentItems.length === 0 ? (
+                <div className="rounded-xl border border-gray-200 bg-white p-5 text-center text-sm text-gray-500">
+                  No se encontraron resultados
+                </div>
+              ) : currentItems.map((aspirante) => {
+                const idReg = getIdRegistroPersonal(aspirante);
+                const asignacion = idReg ? asignacionMap[String(idReg)] : null;
+                const cargo = asignacion?.CargoNombre || (asignacion?.IdCargo ? cargoMap[String(asignacion.IdCargo)] : '') || aspirante?.cargo_nombre || aspirante?.cargo || '—';
+                const salario = asignacion?.Salario ?? aspirante?.salario ?? aspirante?.Salario;
+                const cliente = asignacion?.ClienteNombre || (asignacion?.IdCliente ? clienteMap[String(asignacion.IdCliente)] : '') || aspirante?.cliente_nombre || aspirante?.cliente || '—';
+                const empresa = getEmpresaContratante(aspirante);
+                const estado = String(aspirante?.estado ?? '').trim();
+                const puedeActualizar = estado === 'Avanza a Contratación';
+                const estadoVisual = idReg ? estadoVisualMap[String(idReg)] || '' : '';
+                return (
+                  <article key={String(idReg ?? aspirante.cedula ?? `${aspirante.nombres}-${aspirante.apellidos}`)} className="min-w-0 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+                    <div className="flex min-w-0 items-start justify-between gap-2 border-b border-gray-100 pb-3">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="break-words text-sm font-bold uppercase leading-snug text-gray-900">{aspirante.nombres} {aspirante.apellidos}</h3>
+                        <p className="mt-1 break-words text-xs text-gray-500">{empresa.nombre || 'Empresa sin asignar'}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold ${empresa.codigo === 'MI' ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+                        {empresa.codigo || '—'}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid min-w-0 grid-cols-1 gap-2 text-xs">
+                      <div className="rounded-lg bg-gray-50 p-2"><span className="block text-[11px] text-gray-500">Estado</span><span className="break-words font-semibold text-gray-800">{estado || '—'}</span></div>
+                      <div className="rounded-lg bg-gray-50 p-2"><span className="block text-[11px] text-gray-500">Cargo</span><span className="break-words font-medium text-gray-800">{cargo}</span></div>
+                      <div className="rounded-lg bg-gray-50 p-2"><span className="block text-[11px] text-gray-500">Salario</span><span className="font-medium text-gray-800">{salario !== '' && salario !== null && salario !== undefined ? formatMoney(salario) : '—'}</span></div>
+                      <div className="rounded-lg bg-gray-50 p-2"><span className="block text-[11px] text-gray-500">Cliente</span><span className="break-words font-medium text-gray-800">{cliente}</span></div>
+                    </div>
+                    <div className="mt-3 border-t border-gray-100 pt-3">
+                      <p className="mb-2 text-xs font-semibold text-gray-700">Actualizar estado</p>
+                      {puedeActualizar ? (
+                        <div className="flex gap-2">
+                          <button type="button" title="Contratado" onClick={() => marcarContratadoBD(aspirante)} className={`rounded-lg border px-4 py-2 text-xs font-bold ${estadoVisual === 'C' ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-gray-200 bg-white text-gray-700'}`}>C</button>
+                          <button type="button" title="No contratado" onClick={() => openNCModal(aspirante)} className={`rounded-lg border px-4 py-2 text-xs font-bold ${estadoVisual === 'NC' ? 'border-rose-600 bg-rose-600 text-white' : 'border-gray-200 bg-white text-gray-700'}`}>NC</button>
+                        </div>
+                      ) : <span className="text-xs text-gray-500">Solo consulta</span>}
+                    </div>
+                    <div className="mt-3 border-t border-gray-100 pt-3">
+                      <p className="mb-2 text-xs font-semibold text-gray-700">Acciones</p>
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => openRegistroModal(aspirante)} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2 py-2 text-[11px] text-gray-700"><ClipboardList className="h-4 w-4" /> Registro</button>
+                        <button type="button" onClick={() => openModal(aspirante, 'activos')} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2 py-2 text-[11px] text-gray-700"><Sheet className="h-4 w-4" /> Documentos</button>
+                        <button type="button" onClick={() => descargarContrato(aspirante)} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2 py-2 text-[11px] text-gray-700"><Download className="h-4 w-4" /> Contrato</button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+          <div className={`bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden ${esVistaMovilContratacion ? "hidden md:block" : ""}`}>
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
                   <tr>
+                    <th className="px-6 py-3">Empresa</th>
                     <th className="px-6 py-3 text-center">Estado</th>
                     <th className="px-6 py-3">Nombre</th>
                     <th className="px-6 py-3">Apellido</th>
@@ -2102,9 +2531,31 @@ const currentIdsKey = currentItems
 
                 const clienteCell = clienteNombre || '—';
 
+                const empresaContratante = getEmpresaContratante(aspirante);
+
                                           
                       return (
                          <tr key={String(getIdRegistroPersonal(aspirante) ?? aspirante.cedula ?? `${aspirante.nombres}-${aspirante.apellidos}`)}>
+                          <td className="px-6 py-4">
+                            {empresaContratante.codigo ? (
+                              <div className="flex flex-col items-start gap-1 normal-case">
+                                <span
+                                  className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold ${
+                                    empresaContratante.codigo === 'MI'
+                                      ? 'border-blue-200 bg-blue-50 text-blue-700'
+                                      : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                  }`}
+                                >
+                                  {empresaContratante.codigo}
+                                </span>
+                                <span className="text-[11px] text-gray-500">
+                                  {empresaContratante.nombre}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-xs normal-case text-gray-400">Sin asignar</span>
+                            )}
+                          </td>
                           <td className="px-6 py-4 font-medium text-gray-900">{aspirante.estado}</td>
                           <td className="px-6 py-4 font-medium text-gray-900">{aspirante.nombres}</td>
                           <td className="px-6 py-4 text-gray-600">{aspirante.apellidos}</td>
@@ -2203,15 +2654,16 @@ const currentIdsKey = currentItems
                     })
                   ) : (
                     <tr>
-                      <td colSpan="6" className="px-6 py-8 text-center text-gray-500">No se encontraron resultados</td>
+                      <td colSpan="9" className="px-6 py-8 text-center text-gray-500">No se encontraron resultados</td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
 
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-4 border-t border-gray-200 bg-gray-50/50">
+          </div>
+          {totalPages > 1 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-4 border border-gray-200 rounded-xl bg-gray-50/50">
                 <div className="text-sm text-gray-500">
                   Mostrando {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, sortedData.length)} de {sortedData.length}
                 </div>
@@ -2238,7 +2690,6 @@ const currentIdsKey = currentItems
                 </div>
               </div>
             )}
-          </div>
         </div>
       </motion.div>
 
@@ -2246,6 +2697,7 @@ const currentIdsKey = currentItems
         isOpen={registroModalState.isOpen}
         onClose={() => setRegistroModalState({ isOpen: false, aspirante: null })}
         aspirante={registroModalState.aspirante}
+        idTipoContratoRQ={empresasPorRQ[String(getIdRegistroPersonal(registroModalState.aspirante))]?.IdTipoContratoRQ ?? null}
         onSave={handleRegistroSave}
         bancosOptions={bancosOptions}
         tiposContratoOptions={tiposContratoOptions}

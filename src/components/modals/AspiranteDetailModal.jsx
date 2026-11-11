@@ -29,6 +29,7 @@ import axios from 'axios';
 import { upsertObservacionNF } from "@/services/observacionesNucleoFamiliarService";
 import { upsertAsignacionCargoCliente } from "../../services/asignacionCargoClienteServiceApi";
 import { toast } from '@/components/ui/use-toast';
+import { useAuth } from '@/context/AuthContext';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -61,6 +62,8 @@ import { DatosSeleccion, ActualizarDatosSeleccion, getListaLugarNacimiento } fro
 import { cn, generarReferenciaLaboralHTML, generarEntrevistaHTML, descargarDocumentoPDF, generarTratamientoDatosHTML } from '@/lib/utils';
 import { DescargarDocumentoPdf } from '../../services/descargarDocumento';
 import { getAsignacionCargoCliente } from '../../services/asignacionCargoClienteServiceApi';
+import { listarClientes as listarClientesApi, crearCliente as crearClienteApi } from '../../services/clientesServiceApi';
+import { crearCargo as crearCargoApi } from '../../services/cargosServiceApi';
 import { GetObservacionesExperienciaLaboral } from "../../services/experiencia_laboral";
 
 
@@ -453,6 +456,8 @@ const MOTIVOS_CIERRE_PREDEFINIDOS = [
 ];
 
 const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
+  const { user } = useAuth();
+  const esSuperAdmin = user?.role === 'Super Administrador';
   // Estado para loader al abrir modal
   const [loadingAspiranteDetalle, setLoadingAspiranteDetalle] = useState(false);
   const [listaCargo, setListaCargo] = useState([]);
@@ -558,11 +563,46 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   // Solo se activa visualmente cuando el backend confirma REINTEGRO.
   const [detalleCiclos, setDetalleCiclos] = useState(null);
 
+  // Empresa contratante del ciclo actual.
+  const [empresaContratanteActual, setEmpresaContratanteActual] = useState(null);
+  const [empresaContratanteSeleccionada, setEmpresaContratanteSeleccionada] = useState('');
+  const [empresaContratanteConfirmada, setEmpresaContratanteConfirmada] = useState(false);
+  const [guardandoEmpresaContratante, setGuardandoEmpresaContratante] = useState(false);
+
+  // Clientes: BD como fuente principal y catálogo actual como respaldo seguro.
+  const [listaClientes, setListaClientes] = useState(clientesALP);
+  const [crearClienteOpen, setCrearClienteOpen] = useState(false);
+  const [nuevoClienteNombre, setNuevoClienteNombre] = useState('');
+  const [creandoCliente, setCreandoCliente] = useState(false);
+
+  // Cargos: creación dinámica desde Selección.
+  const [crearCargoOpen, setCrearCargoOpen] = useState(false);
+  const [nuevoCargoNombre, setNuevoCargoNombre] = useState('');
+  const [creandoCargo, setCreandoCargo] = useState(false);
+
+  const cargarClientes = async () => {
+    try {
+      const data = await listarClientesApi();
+      const normalizados = (Array.isArray(data) ? data : [])
+        .map((cliente) => ({
+          id: Number(cliente.IdCliente),
+          name: String(cliente.Nombre || '').trim(),
+        }))
+        .filter((cliente) => cliente.id > 0 && cliente.name)
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+
+      if (normalizados.length > 0) setListaClientes(normalizados);
+    } catch (error) {
+      console.error('Error cargando clientes desde BD. Se conserva catálogo actual:', error);
+    }
+  };
+
   useEffect(() => {
     const fetchDropDownList = async () => {
       try {
         const response = await getListaCargo();
         setListaCargo(response.data || []);
+        await cargarClientes();
         const responseNacimiento = await getListaLugarNacimiento();
         setLugarNacimiento(
           (responseNacimiento.data || [])
@@ -582,6 +622,12 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   // Solo resetea payloads temporales cuando abres o cambias aspirante
   useEffect(() => {
     if (!isOpen) return;
+
+    setEmpresaContratanteActual(null);
+    setEmpresaContratanteSeleccionada('');
+    setEmpresaContratanteConfirmada(false);
+    setGuardandoEmpresaContratante(false);
+
     console.log("IdNivelEducativo:", formData?.IdNivelEducativo);
   console.log("nivelAcademico:", formData?.nivelAcademico);
     localStorage.removeItem('estadoValidacionExperienciaLaboral_payload_1');
@@ -611,14 +657,47 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
            ciclosData = null;
          }
 
+         const vinculacionActualEmpresa = ciclosData?.vinculacionActual || null;
+         // Para PERSONAL_NUEVO la empresa puede venir asignada desde la RQ,
+         // antes de que exista una vinculación laboral. La lista de Selección
+         // ya recibe ese dato; no se debe obligar a asignarlo de nuevo.
+         // Si existe vinculación laboral, conserva prioridad (flujo legado/reintegros).
+         const idEmpresaDesdeLista = Number(
+           aspirante?.IdEmpresaContratante ?? aspirante?.idEmpresaContratante ??
+           aspirante?.vinculacionActual?.IdEmpresaContratante ?? 0
+         );
+         const idEmpresaActual = vinculacionActualEmpresa?.IdEmpresaContratante ??
+           ([1, 2].includes(idEmpresaDesdeLista) ? idEmpresaDesdeLista : null);
+         const empresaOrigen = vinculacionActualEmpresa?.IdEmpresaContratante
+           ? vinculacionActualEmpresa : aspirante;
+
+         if ([1, 2].includes(Number(idEmpresaActual))) {
+           const idEmpresa = Number(idEmpresaActual);
+           setEmpresaContratanteActual({
+             IdEmpresaContratante: idEmpresa,
+             CodigoEmpresa: empresaOrigen?.CodigoEmpresa || empresaOrigen?.CodigoEmpresaContratante ||
+               (idEmpresa === 1 ? 'ALP' : 'MI'),
+             NombreEmpresa: empresaOrigen?.NombreEmpresa || empresaOrigen?.NombreEmpresaContratante ||
+               (idEmpresa === 1 ? 'Aseos La Perfección' : 'Mantener Ingeniería'),
+             LogoEmpresa: empresaOrigen?.LogoEmpresa || empresaOrigen?.Logo || '',
+           });
+           setEmpresaContratanteSeleccionada(String(idEmpresa));
+           setEmpresaContratanteConfirmada(true);
+         } else {
+           setEmpresaContratanteActual(null);
+           setEmpresaContratanteSeleccionada('');
+           setEmpresaContratanteConfirmada(false);
+         }
+
          const esReintegroActual = Boolean(
            ciclosData?.esReintegroActual &&
            ciclosData?.vinculacionActual?.IdVinculacionLaboral
          );
 
-         const idVinculacionActual = esReintegroActual
-           ? ciclosData.vinculacionActual.IdVinculacionLaboral
-           : null;
+         // La vinculación actual aplica tanto para procesos NUEVOS como para REINTEGROS.
+         // La separación visual por ciclos sigue siendo exclusiva del reintegro.
+         const idVinculacionActual =
+           ciclosData?.vinculacionActual?.IdVinculacionLaboral || null;
 
          // Documentos de ingreso:
          // - Aspirante normal: conserva el endpoint legado.
@@ -1099,7 +1178,7 @@ const handleDescargarReferencia = async (ref) => {
     };
 
     let pdf_base64 = '';
-    const response = await DescargarDocumentoPdf(campos, 'referencias');
+    const response = await DescargarDocumentoPdf(campos, 'referencias', formData?.IdVinculacionLaboral);
 
     if (response && typeof response.json === 'function') {
       const data = await response.json();
@@ -1136,7 +1215,7 @@ const handleDescargarReferencia = async (ref) => {
     };
 
     let pdf_base64 = '';
-    const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos');
+    const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos', formData?.IdVinculacionLaboral);
     if (response && typeof response.json === 'function') {
       const data = await response.json();
       pdf_base64 = data.pdf_base64;
@@ -1428,9 +1507,17 @@ if (experienciasValidas.length > 0) {
 }
 
 console.log('observacionExperiencia final:', observacionExperiencia);
+const idEmpresaEntrevista = Number(
+  empresaContratanteActual?.IdEmpresaContratante ?? formData?.IdEmpresaContratante
+);
+if (![1, 2].includes(idEmpresaEntrevista)) {
+  toast({ title: 'Empresa contratante no identificada', description: 'No se puede generar la entrevista sin confirmar si corresponde a ALP o Mantener Ingeniería.', variant: 'destructive' });
+  return;
+}
+const logoEntrevista = await getLogoBase64(idEmpresaEntrevista === 2 ? 'LOGO2' : 'LOGO1');
 const campos = {
-  LOGO: await getLogoBase64('LOGO1'),
-  LOGO2: await getLogoBase64('LOGO2'),
+  LOGO: logoEntrevista,
+  LOGO2: logoEntrevista,
   NOMBRES: ((formData?.nombres || '').toUpperCase() + ' ' + (formData?.apellidos || '').toUpperCase()).trim(),
   DOCUMENTO: formData?.cedula || '',
   BARRIO: (formData?.datosAdicionales?.[0]?.Barrio || '').toUpperCase(),
@@ -1477,7 +1564,7 @@ console.log('observacionExperiencia final:', observacionExperiencia);
 console.log('campos.EXPERIENCIA:', campos?.EXPERIENCIA);
 console.log('campos completos:', campos);
 
-    const response = await DescargarDocumentoPdf(campos, 'entrevista');
+    const response = await DescargarDocumentoPdf(campos, 'entrevista', formData?.IdVinculacionLaboral);
     if (response && typeof response.json === 'function') {
       const data = await response.json();
       pdf_base64 = data.pdf_base64;
@@ -1828,10 +1915,144 @@ console.log('campos completos:', campos);
   }
 };
 
+  const handleCrearCargo = async () => {
+    const nombre = nuevoCargoNombre.trim().replace(/\s+/g, ' ');
+
+    if (!nombre) {
+      toast({
+        title: 'Campo requerido',
+        description: 'Debe escribir el nombre del cargo.',
+        className: 'bg-white border-2 border-red-500 text-slate-900 shadow-xl',
+      });
+      return;
+    }
+
+    setCreandoCargo(true);
+
+    try {
+      const nuevo = await crearCargoApi({
+        NombreCargo: nombre,
+        UsuarioActualizacion: localStorage.getItem('usuario') || 'TALENTO_SELECCION',
+      });
+
+      const cargoCreado = {
+        IdCargo: Number(nuevo.IdCargo),
+        NombreCargo: String(nuevo.NombreCargo || nombre).trim(),
+        IdTipoCargo: nuevo.IdTipoCargo ?? null,
+        Activo: nuevo.Activo ?? true,
+        UsuarioActualizacion: nuevo.UsuarioActualizacion ?? null,
+      };
+
+      // Actualiza el catálogo local y conserva el orden alfabético.
+      setListaCargo((prev) => {
+        const actuales = Array.isArray(prev) ? prev : [];
+        const sinDuplicar = actuales.filter(
+          (cargo) => Number(cargo.IdCargo) !== cargoCreado.IdCargo
+        );
+
+        return [...sinDuplicar, cargoCreado].sort((a, b) =>
+          String(a?.NombreCargo || '').localeCompare(
+            String(b?.NombreCargo || ''),
+            'es',
+            { sensitivity: 'base' }
+          )
+        );
+      });
+
+      // Deja seleccionado automáticamente el cargo recién creado.
+      setFormData((prev) => ({
+        ...prev,
+        asignacionCargo: {
+          ...(prev.asignacionCargo || {}),
+          IdCargo: cargoCreado.IdCargo,
+        },
+      }));
+
+      setNuevoCargoNombre('');
+      setCrearCargoOpen(false);
+
+      toast({
+        title: 'Cargo creado',
+        description: `El cargo ${cargoCreado.NombreCargo} fue creado y seleccionado.`,
+        className: 'bg-white border-2 border-emerald-500 text-slate-900 shadow-xl',
+      });
+    } catch (error) {
+      const esDuplicado = error?.status === 409;
+
+      toast({
+        title: esDuplicado
+          ? 'Cargo existente'
+          : 'No fue posible crear el cargo',
+        description:
+          error?.detail ||
+          error?.message ||
+          'Intente nuevamente.',
+        className: esDuplicado
+          ? 'bg-white border-2 border-amber-500 text-slate-900 shadow-xl'
+          : 'bg-white border-2 border-red-500 text-slate-900 shadow-xl',
+      });
+
+      // En duplicado NO se cierra el modal para permitir corregir el nombre.
+    } finally {
+      setCreandoCargo(false);
+    }
+  };
+
   const [clienteQuery, setClienteQuery] = useState('');
-  const clientesFiltrados = clientesALP.filter((c) =>
+  const clientesFiltrados = listaClientes.filter((c) =>
     c.name.toLowerCase().includes(clienteQuery.toLowerCase().trim())
   );
+
+  const handleCrearCliente = async () => {
+    const nombre = nuevoClienteNombre.trim().replace(/\s+/g, ' ');
+    if (!nombre) {
+      toast({ title: 'Campo requerido', description: 'Debe escribir el nombre del cliente.', variant: 'destructive' });
+      return;
+    }
+
+    setCreandoCliente(true);
+    try {
+      const nuevo = await crearClienteApi({
+        Nombre: nombre,
+        CreadoPor: localStorage.getItem('usuario') || 'sistema',
+      });
+
+      const clienteCreado = { id: Number(nuevo.IdCliente), name: String(nuevo.Nombre || nombre).trim() };
+      setListaClientes((prev) => {
+        const sinDuplicar = prev.filter((c) => Number(c.id) !== clienteCreado.id);
+        return [...sinDuplicar, clienteCreado].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+      });
+      setFormData((prev) => ({
+        ...prev,
+        asignacionCargo: { ...(prev.asignacionCargo || {}), IdCliente: clienteCreado.id },
+      }));
+      setClienteQuery('');
+      setNuevoClienteNombre('');
+      setCrearClienteOpen(false);
+      toast({
+        title: 'Cliente creado',
+        description: `El cliente ${clienteCreado.name} fue creado y seleccionado.`,
+        className: 'bg-white border-2 border-emerald-500 text-slate-900 shadow-xl',
+      });
+    } catch (error) {
+      const esDuplicado = error?.status === 409;
+
+      toast({
+        title: esDuplicado
+          ? 'Cliente existente'
+          : 'No fue posible crear el cliente',
+        description:
+          error?.detail ||
+          error?.message ||
+          'Intente nuevamente.',
+        className: esDuplicado
+          ? 'bg-white border-2 border-amber-500 text-slate-900 shadow-xl'
+          : 'bg-white border-2 border-red-500 text-slate-900 shadow-xl',
+      });
+    } finally {
+      setCreandoCliente(false);
+    }
+  };
 
   // Helper states for dynamic lists
   const [newFamiliar, setNewFamiliar] = useState({
@@ -1988,6 +2209,70 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
       }));
     }
   }, [aspirante, isOpen]);
+
+  const handleConfirmarEmpresaContratante = async () => {
+    if (!aspirante?.id || !empresaContratanteSeleccionada) {
+      toast({
+        title: 'Empresa contratante obligatoria',
+        description: 'Selecciona Aseos La Perfección o Mantener Ingeniería para continuar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setGuardandoEmpresaContratante(true);
+
+      const response = await axios.post(
+        `${API_BASE}/aspirantes/${aspirante.id}/empresa-contratante`,
+        {
+          IdEmpresaContratante: Number(empresaContratanteSeleccionada),
+          UsuarioActualizacion: localStorage.getItem('usuario') || null,
+        },
+        { headers: { ...authHeaders } }
+      );
+
+      const data = response?.data || {};
+      setEmpresaContratanteActual({
+        IdEmpresaContratante: Number(data?.IdEmpresaContratante),
+        CodigoEmpresa: data?.CodigoEmpresa || '',
+        NombreEmpresa: data?.NombreEmpresa || '',
+        LogoEmpresa: data?.LogoEmpresa || '',
+      });
+      setEmpresaContratanteSeleccionada(String(data?.IdEmpresaContratante));
+      setEmpresaContratanteConfirmada(true);
+
+      setFormData(prev => ({
+        ...prev,
+        IdVinculacionLaboral: data?.IdVinculacionLaboral ?? prev?.IdVinculacionLaboral ?? null,
+        IdEmpresaContratante: data?.IdEmpresaContratante ?? prev?.IdEmpresaContratante ?? null,
+      }));
+
+      try {
+        const responseCiclos = await getAspirantePorCiclos(aspirante.id);
+        const ciclosActualizados = responseCiclos?.data || null;
+        if (ciclosActualizados?.esReintegroActual) {
+          setDetalleCiclos(ciclosActualizados);
+        }
+      } catch (error) {
+        console.error('Empresa asignada; no fue posible refrescar ciclos:', error);
+      }
+
+      toast({
+        title: 'Empresa contratante asignada',
+        description: `${data?.CodigoEmpresa || ''} ${data?.NombreEmpresa || ''}`.trim(),
+      });
+    } catch (error) {
+      console.error('Error asignando empresa contratante:', error);
+      toast({
+        title: 'No fue posible asignar la empresa',
+        description: error?.response?.data?.detail || 'Ocurrió un error al guardar la empresa contratante.',
+        variant: 'destructive',
+      });
+    } finally {
+      setGuardandoEmpresaContratante(false);
+    }
+  };
 
   if (loadingAspiranteDetalle) {
     return (
@@ -2160,7 +2445,7 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
          };
          let pdf_base64 = '';
          try {
-            const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos');
+            const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos', formData?.IdVinculacionLaboral);
             if (response && typeof response.json === 'function') {
                const data = await response.json();
                pdf_base64 = data.pdf_base64;
@@ -2829,26 +3114,72 @@ if (response && response.status === 201) {
   };
 
   const descargarDocumento = (doc) => {
-   if (!doc?.DocumentoBase64) return;
-      let prefix = '';
-      if (doc.Formato === 'image/png') {
-         prefix = doc && doc.Formato === 'image/png'
-      ? 'data:image/png;base64,'
-      : '';
-      } else if (doc.Formato === 'application/pdf') {
-         prefix = doc && doc.Formato === 'application/pdf'
-         ? 'data:application/pdf;base64,'
-         : '';
+    try {
+      if (!doc?.DocumentoBase64) {
+        console.error('No se recibió contenido para descargar el documento.');
+        return;
+      }
+
+      const contenidoOriginal = String(doc.DocumentoBase64).trim();
+
+      // El backend puede entregar Base64 puro o una data URI completa.
+      // Se normaliza antes de crear el archivo para evitar prefijos duplicados
+      // y PDFs que Adobe interpreta como dañados.
+      const tieneDataUri = contenidoOriginal.startsWith('data:');
+      const mimeDesdeDataUri = tieneDataUri
+        ? (contenidoOriginal.match(/^data:([^;,]+)[;,]/i)?.[1] || '')
+        : '';
+
+      const mimeType =
+        mimeDesdeDataUri ||
+        doc?.Formato ||
+        'application/pdf';
+
+      const base64Limpio = tieneDataUri
+        ? contenidoOriginal.substring(contenidoOriginal.indexOf(',') + 1)
+        : contenidoOriginal;
+
+      if (!base64Limpio) {
+        console.error('El documento no contiene Base64 válido.');
+        return;
+      }
+
+      const byteCharacters = atob(base64Limpio);
+      const byteNumbers = new Uint8Array(byteCharacters.length);
+
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+
+      const blob = new Blob([byteNumbers], { type: mimeType });
+      const blobUrl = URL.createObjectURL(blob);
+
+      const extension = mimeType === 'application/pdf'
+        ? '.pdf'
+        : mimeType === 'image/png'
+          ? '.png'
+          : '';
+
+      let nombreArchivo = String(doc?.Nombre || 'documento').trim() || 'documento';
+      if (extension && !nombreArchivo.toLowerCase().endsWith(extension)) {
+        nombreArchivo += extension;
       }
 
       const link = document.createElement('a');
-      link.href = `${prefix}${doc.DocumentoBase64}`;
-      link.download = doc.Nombre || 'documento';
+      link.href = blobUrl;
+      link.download = nombreArchivo;
 
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-   };
+
+      // Se libera la URL temporal después de iniciar la descarga.
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    } catch (error) {
+      console.error('Error al descargar documento:', error);
+      alert('No fue posible descargar el documento.');
+    }
+  };
 
   const handelObservacionesExperienciaLaboral = async () => {
   setSavingDatosProceso(true);
@@ -2950,6 +3281,9 @@ if (response && response.status === 201) {
 
   if (!formData) return null;
 
+  // QA: permitir consultar y entrevistar aspirantes sin empresa contratante.
+  // La empresa se asignará al vincular el candidato a una RQ, no al abrir su ficha.
+
   const getFondoLabelFromAny = (raw) => {
   if (raw == null) return "";
 
@@ -2998,23 +3332,32 @@ if (response && response.status === 201) {
   return (
     <>
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0 overflow-hidden bg-gray-50">
-        <DialogHeader className="px-6 py-4 bg-white border-b border-gray-200 shrink-0">
+      <DialogContent className={cn("max-w-5xl h-[90vh] flex flex-col p-0 overflow-hidden bg-gray-50", esSuperAdmin && "max-md:!w-[calc(100vw-16px)] max-md:!max-w-none max-md:!h-[calc(100dvh-16px)] max-md:!max-h-none max-md:!p-0")}>
+        <DialogHeader className={cn("px-6 py-4 bg-white border-b border-gray-200 shrink-0", esSuperAdmin && "max-md:px-4 max-md:py-3 max-md:pr-10")}>
           <div className="flex items-center justify-between">
              <div>
-                <DialogTitle className="text-xl font-bold text-gray-800">Detalle del Candidato</DialogTitle>
+                <div className="flex items-center gap-3">
+                  <DialogTitle className="text-xl font-bold text-gray-800">Detalle del Candidato</DialogTitle>
+                  {empresaContratanteActual?.IdEmpresaContratante && (
+                    <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                      {empresaContratanteActual?.CodigoEmpresa ||
+                        (Number(empresaContratanteActual?.IdEmpresaContratante) === 1 ? 'ALP' : 'MI')}
+                    </span>
+                  )}
+                </div>
                 <DialogDescription className="text-sm text-gray-500">
                    Gestiona la información completa de {formData.nombres} {formData.apellidos}
+                   {empresaContratanteActual?.NombreEmpresa ? ` · ${empresaContratanteActual.NombreEmpresa}` : ''}
                 </DialogDescription>
              </div>
           </div>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-hidden flex">
-           <Tabs value={activeTab} onValueChange={setActiveTab} orientation="vertical" className="flex-1 flex h-full min-h-0">
+        <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex">
+           <Tabs value={activeTab} onValueChange={setActiveTab} orientation="vertical" className={cn("flex-1 flex h-full min-h-0 min-w-0", esSuperAdmin && "max-md:flex-col")}>
               {/* Sidebar Navigation for Tabs */}
-              <div className="w-64 bg-white border-r border-gray-200 h-full overflow-y-auto shrink-0 py-2">
-                 <TabsList className="flex flex-col h-auto w-full bg-transparent space-y-1 p-2">
+              <div className={cn("w-64 bg-white border-r border-gray-200 h-full overflow-y-auto shrink-0 py-2", esSuperAdmin && "max-md:w-full max-md:h-auto max-md:overflow-x-auto max-md:overflow-y-hidden max-md:border-r-0 max-md:border-b max-md:py-1")}>
+                 <TabsList className={cn("flex flex-col h-auto w-full bg-transparent space-y-1 p-2", esSuperAdmin && "max-md:flex-row max-md:w-max max-md:min-w-full max-md:space-y-0 max-md:gap-1 max-md:p-2")}>
                     {[
                        { id: 'personal', label: 'Datos Personales', icon: User },
                        { id: 'familiar', label: 'Núcleo Familiar', icon: Users },
@@ -3029,7 +3372,7 @@ if (response && response.status === 201) {
                        <TabsTrigger 
                           key={tab.id} 
                           value={tab.id} 
-                          className="w-full justify-start px-3 py-2.5 text-sm font-medium text-gray-600 data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700 data-[state=active]:border-r-4 data-[state=active]:border-emerald-600 rounded-none transition-all"
+                          className={cn("w-full justify-start px-3 py-2.5 text-sm font-medium text-gray-600 data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700 data-[state=active]:border-r-4 data-[state=active]:border-emerald-600 rounded-none transition-all", esSuperAdmin && "max-md:w-auto max-md:shrink-0 max-md:whitespace-nowrap max-md:rounded-lg max-md:px-3 max-md:py-2 max-md:data-[state=active]:border-r-0 max-md:data-[state=active]:border-b-2")}
                        >
                           <tab.icon className="w-4 h-4 mr-3" />
                           {tab.label}
@@ -3039,8 +3382,22 @@ if (response && response.status === 201) {
               </div>
 
               {/* Content Area */}
-              <div className="aspirante-detail-scroll flex-1 h-full min-h-0 overflow-y-scroll bg-gray-50/50">
+              <div className={cn("aspirante-detail-scroll flex-1 h-full min-h-0 overflow-y-scroll bg-gray-50/50", esSuperAdmin && "aspirante-superadmin-mobile max-md:min-w-0 max-md:w-full max-md:overflow-x-hidden")}>
                   <style>{`
+                    @media (max-width: 767px) {
+                      .aspirante-superadmin-mobile .bg-white.p-6.rounded-xl {
+                        padding: 0.875rem;
+                        min-width: 0;
+                      }
+                      .aspirante-superadmin-mobile input,
+                      .aspirante-superadmin-mobile textarea,
+                      .aspirante-superadmin-mobile select {
+                        max-width: 100%;
+                      }
+                      .aspirante-superadmin-mobile table {
+                        max-width: none;
+                      }
+                    }
                     .aspirante-detail-scroll {
                       scrollbar-width: auto;
                       scrollbar-color: #6b7280 #f3f4f6;
@@ -3065,7 +3422,7 @@ if (response && response.status === 201) {
                       background: #4b5563;
                     }
                   `}</style>
-                 <div className="p-6 max-w-4xl mx-auto pb-20">
+                 <div className={cn("p-6 max-w-4xl mx-auto pb-20", esSuperAdmin && "max-md:w-full max-md:min-w-0 max-md:p-3 max-md:pb-20")}>
                     {/* 2. Datos Personales */}
                     <TabsContent value="personal" className="mt-0 space-y-6">
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
@@ -5094,7 +5451,22 @@ if (response && response.status === 201) {
 
                                  {/* CARGO */}
                                  <div className="space-y-2 min-w-0">
-                                    <Label>Cargo</Label>
+                                    <div className="flex items-center justify-between gap-2">
+                                       <Label>Cargo</Label>
+                                       <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 px-2 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                                          onClick={() => {
+                                             setNuevoCargoNombre('');
+                                             setCrearCargoOpen(true);
+                                          }}
+                                       >
+                                          <Plus className="h-4 w-4 mr-1" />
+                                          Crear cargo
+                                       </Button>
+                                    </div>
 
                                     <Select
                                        disabled={!puedeModificarAsignacionDesdeSeleccion}
@@ -5180,7 +5552,22 @@ if (response && response.status === 201) {
 
                                  {/* CLIENTE */}
                                  <div className="space-y-2 min-w-0">
-                                    <Label>Cliente</Label>
+                                    <div className="flex items-center justify-between gap-2">
+                                       <Label>Cliente</Label>
+                                       <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 px-2 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                                          onClick={() => {
+                                             setNuevoClienteNombre('');
+                                             setCrearClienteOpen(true);
+                                          }}
+                                       >
+                                          <Plus className="h-4 w-4 mr-1" />
+                                          Crear cliente
+                                       </Button>
+                                    </div>
 
                                     <Select
                                        disabled={!puedeModificarAsignacionDesdeSeleccion}
@@ -5391,6 +5778,110 @@ if (response && response.status === 201) {
     </Dialog>
 
 
+    {/* Modal Crear Cargo */}
+    <Dialog
+      open={crearCargoOpen}
+      onOpenChange={(open) => {
+        if (creandoCargo) return;
+        setCrearCargoOpen(open);
+        if (!open) setNuevoCargoNombre('');
+      }}
+    >
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Crear cargo</DialogTitle>
+          <DialogDescription>
+            Registre el nombre del nuevo cargo. Al crearlo quedará seleccionado automáticamente.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-2 py-2">
+          <Label htmlFor="nuevo-cargo-nombre">Nombre del cargo</Label>
+          <Input
+            id="nuevo-cargo-nombre"
+            value={nuevoCargoNombre}
+            onChange={(e) => setNuevoCargoNombre(e.target.value)}
+            placeholder="Ej: AUXILIAR ADMINISTRATIVO"
+            maxLength={150}
+            disabled={creandoCargo}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !creandoCargo) {
+                e.preventDefault();
+                handleCrearCargo();
+              }
+            }}
+          />
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={creandoCargo}
+            onClick={() => {
+              setCrearCargoOpen(false);
+              setNuevoCargoNombre('');
+            }}
+          >
+            Cancelar
+          </Button>
+
+          <Button
+            type="button"
+            className="bg-emerald-600 text-white hover:bg-emerald-700"
+            disabled={creandoCargo || !nuevoCargoNombre.trim()}
+            onClick={handleCrearCargo}
+          >
+            {creandoCargo ? 'Creando...' : 'Crear cargo'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* Modal Crear Cliente */}
+    <Dialog
+      open={crearClienteOpen}
+      onOpenChange={(open) => {
+        if (creandoCliente) return;
+        setCrearClienteOpen(open);
+        if (!open) setNuevoClienteNombre('');
+      }}
+    >
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Crear cliente</DialogTitle>
+          <DialogDescription>
+            Registre el nombre del nuevo cliente. Al crearlo quedará seleccionado automáticamente.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <Label htmlFor="nuevo-cliente-nombre">Nombre del cliente</Label>
+          <Input
+            id="nuevo-cliente-nombre"
+            value={nuevoClienteNombre}
+            onChange={(e) => setNuevoClienteNombre(e.target.value)}
+            placeholder="Ej: Nombre del cliente - servicio"
+            maxLength={250}
+            disabled={creandoCliente}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !creandoCliente) {
+                e.preventDefault();
+                handleCrearCliente();
+              }
+            }}
+          />
+        </div>
+        <DialogFooter className="gap-2">
+          <Button type="button" variant="outline" disabled={creandoCliente} onClick={() => { setCrearClienteOpen(false); setNuevoClienteNombre(''); }}>
+            Cancelar
+          </Button>
+          <Button type="button" className="bg-emerald-600 text-white hover:bg-emerald-700" disabled={creandoCliente || !nuevoClienteNombre.trim()} onClick={handleCrearCliente}>
+            {creandoCliente ? 'Creando...' : 'Crear cliente'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
     {/* Modal Observaciones - Experiencia Laboral */}
     <Dialog open={obsRefLabOpen} onOpenChange={setObsRefLabOpen}>
       <DialogContent className="max-w-xl">
@@ -5444,6 +5935,7 @@ if (response && response.status === 201) {
         onClose={() => setEntrevistaModalOpen(false)} 
         onSave={handleSaveEntrevista} 
         aspirante={formData}
+        idEmpresaContratante={empresaContratanteActual?.IdEmpresaContratante ?? formData?.IdEmpresaContratante}
         existingData={selectedEntrevista}
     />
     </>

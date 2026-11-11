@@ -86,6 +86,37 @@ const formatearTiempoSegundos = (valor) => {
   return partes.slice(0, 2).join(' ');
 };
 
+const calcularDiasAbiertoOperaciones = (valorFecha) => {
+  if (!valorFecha) return null;
+
+  const fechaInicio = new Date(valorFecha);
+  if (Number.isNaN(fechaInicio.getTime())) return null;
+
+  const ahora = new Date();
+
+  const inicioColombia = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Bogota',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(fechaInicio);
+
+  const hoyColombia = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Bogota',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(ahora);
+
+  const [anioInicio, mesInicio, diaInicio] = inicioColombia.split('-').map(Number);
+  const [anioHoy, mesHoy, diaHoy] = hoyColombia.split('-').map(Number);
+
+  const inicioUTC = Date.UTC(anioInicio, mesInicio - 1, diaInicio);
+  const hoyUTC = Date.UTC(anioHoy, mesHoy - 1, diaHoy);
+
+  return Math.max(0, Math.floor((hoyUTC - inicioUTC) / 86400000));
+};
+
 const valorTiempoProceso = (valor, tipo = 'dias') => {
   if (valor === null || valor === undefined) return '—';
 
@@ -112,8 +143,12 @@ const mapRetiroApi = (item) => ({
   identificacion: item.NumeroIdentificacion || '',
   nombre: `${item.Nombres || ''} ${item.Apellidos || ''}`.toUpperCase().trim(),
   cliente: item.NombreCliente || 'SIN CLIENTE',
+  idVinculacionLaboral: item.IdVinculacionLaboral ?? null,
+  empresaCodigo: item.EmpresaCodigo || 'SIN_ASIGNAR',
+  empresaNombre: item.EmpresaNombre || 'Sin asignar',
   fechaRetiro: item.FechaRetiro || '',
   fechaProceso: item.FechaProceso || '',
+  fechaCreacion: item.FechaCreacion || '',
   fechaCierre: item.FechaCierre || '',
   fechaEnvioNomina: item.FechaEnvioNomina || '',
   fechaPagoLiquidacion: item.FechaPagoLiquidacion || '',
@@ -128,6 +163,8 @@ const mapRetiroApi = (item) => ({
   fechaObservacionNomina: item.FechaObservacionNomina || '',
   puedeGestionarNomina: Boolean(item.PuedeGestionarNomina),
   fechaPazYSalvo: item.FechaPazYSalvo || '',
+  esAbiertoOperaciones: String(item.EstadoCasoRRLL || '').toUpperCase() === 'PENDIENTE_OPERACIONES',
+  estadoPazYSalvo: item.EstadoPazYSalvo || '',
 
 diasRetiroPazYSalvo:
   item.DiasRetiroPazYSalvo ?? null,
@@ -148,8 +185,10 @@ segundosCierreRRLLNomina:
 const NominaRetirosView = () => {
   const [busqueda, setBusqueda] = useState('');
   const [busquedaIndicador, setBusquedaIndicador] = useState('');
-  const [filtroEstado, setFiltroEstado] = useState('abiertos');
+  const [filtroEstado, setFiltroEstado] = useState('operaciones');
+  const [filtroEmpresa, setFiltroEmpresa] = useState('TODAS');
   const [retiros, setRetiros] = useState([]);
+  const [retirosOperaciones, setRetirosOperaciones] = useState([]);
   const [indicadores, setIndicadores] = useState(indicadoresIniciales);
   const [retiroSeleccionado, setRetiroSeleccionado] = useState(null);
 
@@ -228,12 +267,41 @@ const NominaRetirosView = () => {
     }
   };
 
+  const cargarRetirosOperaciones = async () => {
+    try {
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(`${API_BASE_URL}/nomina-retiros/abiertos-operaciones`, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data?.detail || data?.message || 'No fue posible consultar los retiros abiertos en Operaciones.');
+      }
+
+      const lista = Array.isArray(data.data) ? data.data.map(mapRetiroApi) : [];
+      setRetirosOperaciones(lista);
+    } catch (error) {
+      console.error('Error cargando retiros abiertos en Operaciones:', error);
+      setRetirosOperaciones([]);
+      throw error;
+    }
+  };
+
   const cargarRetiros = async () => {
     setCargando(true);
     setErrorCarga('');
 
     try {
       const token = localStorage.getItem('token');
+
+      await cargarRetirosOperaciones();
 
       const response = await fetch(`${API_BASE_URL}/nomina-retiros`, {
         method: 'GET',
@@ -835,6 +903,20 @@ const retirosPeriodo = useMemo(() => {
   });
 }, [retiros, periodoSeleccionado]);
 
+const retirosOperacionesPeriodo = useMemo(() => {
+  if (!periodoSeleccionado) return retirosOperaciones;
+
+  return retirosOperaciones.filter((retiro) => {
+    const fechaReferencia = String(retiro.fechaRetiro || retiro.fechaProceso || '').slice(0, 10);
+    const [anioRetiro, mesRetiro] = fechaReferencia.split('-').map(Number);
+
+    return (
+      anioRetiro === periodoSeleccionado.anio
+      && mesRetiro === periodoSeleccionado.mes
+    );
+  });
+}, [retirosOperaciones, periodoSeleccionado]);
+
 const totalesPeriodo = useMemo(() => {
   if (!periodoCompletoSeleccionado) {
     return {
@@ -867,8 +949,19 @@ const totalRetirados = totalesPeriodo.retirados;
 
 const retirosFiltrados = useMemo(() => {
   const q = busqueda.trim().toLowerCase();
+  const coincideEmpresa = (r) => filtroEmpresa === 'TODAS' || r.empresaCodigo === filtroEmpresa;
+
+  if (filtroEstado === 'operaciones') {
+    return retirosOperacionesPeriodo.filter((r) => coincideEmpresa(r) && (
+      !q ||
+      String(r.identificacion || '').toLowerCase().includes(q) ||
+      String(r.nombre || '').toLowerCase().includes(q) ||
+      String(r.cliente || '').toLowerCase().includes(q)
+    ));
+  }
 
   return retirosPeriodo.filter((r) => {
+    if (!coincideEmpresa(r)) return false;
     const coincideBusqueda =
       !q ||
       String(r.identificacion || '').toLowerCase().includes(q) ||
@@ -877,17 +970,17 @@ const retirosFiltrados = useMemo(() => {
 
     const coincideEstado = grupoEstadoRetiro(r) === filtroEstado;
 
-      if (q) {
-        return coincideBusqueda;
-      }
+    if (q) {
+      return coincideBusqueda;
+    }
 
-      return coincideEstado;
-        });
-}, [busqueda, retirosPeriodo, filtroEstado]);
+    return coincideEstado;
+  });
+}, [busqueda, retirosPeriodo, retirosOperacionesPeriodo, filtroEstado, filtroEmpresa]);
 
 useEffect(() => {
   setPaginaActual(1);
-}, [busqueda, filtroEstado, anioFiltro, mesFiltro]);
+}, [busqueda, filtroEstado, filtroEmpresa, anioFiltro, mesFiltro]);
 
 const totalPaginas = Math.max(
   1,
@@ -928,9 +1021,12 @@ const retiroIndicador = useMemo(() => {
   ) || null;
 }, [busquedaIndicador, retirosPeriodo]);
 
+  const esRetiroAbiertoOperaciones = retiroSeleccionado?.esAbiertoOperaciones === true;
+
   const puedeGestionar =
-    retiroSeleccionado?.puedeGestionarNomina === true ||
-    retiroSeleccionado?.estado === 32;
+    !esRetiroAbiertoOperaciones &&
+    (retiroSeleccionado?.puedeGestionarNomina === true ||
+      retiroSeleccionado?.estado === 32);
 
   const getEstadoBadge = (estado) => {
     if (estado === 32) return 'bg-emerald-100 text-emerald-700';
@@ -938,28 +1034,38 @@ const retiroIndicador = useMemo(() => {
     return 'bg-yellow-100 text-yellow-700';
   };
 
+  const abrirDetalleRetiro = (r) => {
+    setRetiroSeleccionado(r);
+    setTextoObservacionNomina(r.observacionNomina || '');
+    setEditandoObservacionNomina(false);
+    setDocumentosRetiro([]);
+    setMensajeAccion('');
+    setErrorCarga('');
+    if (!r.esAbiertoOperaciones) cargarDocumentosRetiro(r);
+  };
+
   const getFiltroButtonVariant = (value) => {
     return filtroEstado === value ? 'default' : 'outline';
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="bg-white rounded-2xl shadow-md border p-6">
-        <div className="flex items-center gap-3">
+    <div className="w-full min-w-0 space-y-4 p-2 sm:space-y-6 sm:p-6">
+      <div className="min-w-0 bg-white rounded-2xl shadow-md border p-4 sm:p-6">
+        <div className="flex items-start gap-3">
           <div className="bg-emerald-100 text-emerald-700 rounded-xl p-3">
             <WalletCards className="w-7 h-7" />
           </div>
 
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">Nómina Retiros</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Nómina Retiros</h1>
             <p className="text-sm text-gray-500">
-              Gestión de retiros recibidos desde Relaciones Laborales.
+              Consulta de retiros abiertos en Operaciones y gestión de retiros recibidos desde Relaciones Laborales.
             </p>
           </div>
         </div>
       </div>
 
-      <div className="rounded-2xl border bg-white p-6 shadow-md">
+      <div className="min-w-0 rounded-2xl border bg-white p-4 sm:p-6 shadow-md">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-lg font-bold text-gray-800">
@@ -1058,7 +1164,7 @@ const retiroIndicador = useMemo(() => {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-md border p-6">
+      <div className="min-w-0 bg-white rounded-2xl shadow-md border p-4 sm:p-6">
       <div className="flex items-center justify-between mb-5">
         <div>
           <h2 className="text-lg font-bold text-gray-800">
@@ -1145,7 +1251,7 @@ const retiroIndicador = useMemo(() => {
       )}
     </div>
 
-      <div className="bg-white rounded-2xl shadow-md border p-6">
+      <div className="min-w-0 bg-white rounded-2xl shadow-md border p-4 sm:p-6">
         <label className="text-sm font-semibold text-gray-700">Buscar trabajador</label>
 
         <div className="flex flex-col lg:flex-row gap-3 mt-2">
@@ -1183,150 +1289,267 @@ const retiroIndicador = useMemo(() => {
         <div className="p-4 border-b">
           <h2 className="font-bold text-gray-800">Retiros recibidos</h2>
           <p className="text-xs text-gray-500">
-            Los retiros abiertos son solo consulta. Los enviados a nómina permiten gestión. Los retirados quedan como histórico.
+            Los abiertos en Operaciones y los abiertos en RRLL son solo consulta. Los enviados a nómina permiten gestión. Los retirados quedan como histórico.
           </p>
 
-          <div className="flex flex-wrap gap-2 mt-3">
-            <Button type="button" variant={getFiltroButtonVariant('abiertos')} size="sm" onClick={() => setFiltroEstado('abiertos')}>
-              Abiertos
+                     <div className="mt-4 max-w-xs">
+             <label htmlFor="nomina-filtro-empresa" className="block text-xs font-semibold text-gray-700 mb-1">Empresa contratante</label>
+             <select id="nomina-filtro-empresa" value={filtroEmpresa} onChange={(e) => setFiltroEmpresa(e.target.value)} className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm">
+               <option value="TODAS">Todas</option>
+               <option value="ALP">ALP - Aseos La Perfección</option>
+               <option value="MI">MI - Mantener Ingeniería</option>
+               <option value="SIN_ASIGNAR">Sin asignar (históricos)</option>
+             </select>
+           </div>
+
+<div className="grid grid-cols-2 gap-2 mt-3 sm:flex sm:flex-wrap">
+            <Button type="button" variant={getFiltroButtonVariant('operaciones')} size="sm" className="h-auto min-h-9 whitespace-normal px-2 py-2 text-xs sm:text-sm" onClick={() => setFiltroEstado('operaciones')}>
+              Abiertos Operaciones
             </Button>
 
-            <Button type="button" variant={getFiltroButtonVariant('nomina')} size="sm" onClick={() => setFiltroEstado('nomina')}>
+            <Button type="button" variant={getFiltroButtonVariant('abiertos')} size="sm" className="h-auto min-h-9 whitespace-normal px-2 py-2 text-xs sm:text-sm" onClick={() => setFiltroEstado('abiertos')}>
+              Abiertos RRLL
+            </Button>
+
+            <Button type="button" variant={getFiltroButtonVariant('nomina')} size="sm" className="h-auto min-h-9 whitespace-normal px-2 py-2 text-xs sm:text-sm" onClick={() => setFiltroEstado('nomina')}>
               Cerrados
             </Button>
 
-            <Button type="button" variant={getFiltroButtonVariant('retirados')} size="sm" onClick={() => setFiltroEstado('retirados')}>
+            <Button type="button" variant={getFiltroButtonVariant('retirados')} size="sm" className="h-auto min-h-9 whitespace-normal px-2 py-2 text-xs sm:text-sm" onClick={() => setFiltroEstado('retirados')}>
               Retirados
             </Button>
           </div>
         </div>
 
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600">
-            <tr>
-              <th className="text-left p-4 min-w-[150px]">Identificación</th>
-              <th className="text-left p-4 min-w-[260px]">Trabajador</th>
-              <th className="text-left p-4 min-w-[150px]">Estado</th>
-              <th className="text-center p-4 min-w-[300px]">Comunicaciones</th>
-              <th className="text-left p-4 min-w-[190px]">Fecha pago liquidación</th>
-              <th className="text-center p-4 min-w-[120px]">Acción</th>
-            </tr>
-          </thead>
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-gray-600">
+              {filtroEstado === 'operaciones' ? (
+                <tr>
+                  <th className="text-left p-4 min-w-[160px]">Empresa</th>
+                   <th className="text-left p-4 min-w-[145px]">Identificación</th>
+                  <th className="text-left p-4 min-w-[250px]">Trabajador</th>
+                  <th className="text-left p-4 min-w-[250px]">Sede</th>
+                  <th className="text-left p-4 min-w-[150px]">Fecha de retiro</th>
+                  <th className="text-center p-4 min-w-[170px]">Días en Operaciones</th>
+                  <th className="text-center p-4 min-w-[110px]">Acción</th>
+                </tr>
+              ) : (
+                <tr>
+                  <th className="text-left p-4 min-w-[160px]">Empresa</th>
+                   <th className="text-left p-4 min-w-[150px]">Identificación</th>
+                  <th className="text-left p-4 min-w-[260px]">Trabajador</th>
+                  <th className="text-left p-4 min-w-[150px]">Estado</th>
+                  <th className="text-center p-4 min-w-[300px]">Comunicaciones</th>
+                  <th className="text-left p-4 min-w-[190px]">Fecha pago liquidación</th>
+                  <th className="text-center p-4 min-w-[120px]">Acción</th>
+                </tr>
+              )}
+            </thead>
 
-          <tbody>
-            {cargando && (
-              <tr>
-                <td colSpan="6" className="p-10 text-center text-gray-500">
-                  Consultando retiros...
-                </td>
-              </tr>
-            )}
+            <tbody>
+              {cargando && (
+                <tr>
+                  <td colSpan="7" className="p-10 text-center text-gray-500">
+                    Consultando retiros...
+                  </td>
+                </tr>
+              )}
 
-            {!cargando && retirosPaginados.map((r) => (
-              <tr key={r.id} className="border-t hover:bg-gray-50">
-                <td className="p-4 whitespace-nowrap">{r.identificacion}</td>
+              {!cargando && retirosPaginados.map((r) => (
+                <tr key={r.id} className="border-t hover:bg-gray-50">
+                  {filtroEstado === 'operaciones' ? (
+                    <>
+                      <td className="p-4 whitespace-nowrap font-semibold">{r.empresaCodigo === "SIN_ASIGNAR" ? "Sin asignar" : r.empresaCodigo}</td>
+                       <td className="p-4 whitespace-nowrap">{r.identificacion}</td>
 
-                <td className="p-4 font-medium">
-                  {r.nombre}
-                </td>
+                      <td className="p-4 font-medium min-w-[250px]">
+                        {r.nombre}
+                      </td>
 
-                <td className="p-4">
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getEstadoBadge(r.estado)}`}>
-                  {grupoEstadoRetiro(r) === 'nomina'
-                    ? 'Cerrado'
-                    : grupoEstadoRetiro(r) === 'retirados'
-                      ? 'Retirado'
-                      : 'Abierto'}
-                </span>
-              </td>
+                      <td className="p-4 min-w-[250px] text-gray-700">
+                        {r.cliente || 'SIN SEDE'}
+                      </td>
 
-            <td className="p-4">
-            <div className="flex flex-row items-center justify-center gap-1.5 whitespace-nowrap">
-              <button
-                type="button"
-                title="Enviar certificado laboral"
-                onClick={() => enviarCertificadoLaboral(r)}
-                disabled={procesando}
-                className="w-8 h-8 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center justify-center text-sm disabled:opacity-50"
-              >
-                ✉️
-              </button>
+                      <td className="p-4 whitespace-nowrap">
+                        {r.fechaRetiro
+                          ? new Date(`${r.fechaRetiro}T00:00:00`).toLocaleDateString('es-CO', {
+                              timeZone: 'America/Bogota',
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                            })
+                          : 'Sin fecha'}
+                      </td>
 
-              <button
-                type="button"
-                title="Descargar certificado laboral"
-                onClick={() => descargarCertificadoLaboral(r)}
-                className="w-8 h-8 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center justify-center text-sm"
-              >
-                ⬇️
-              </button>
+                      <td className="p-4">
+                        <div className="flex items-center justify-center">
+                          {(() => {
+                            const dias = calcularDiasAbiertoOperaciones(r.fechaCreacion);
 
-              <span className="w-px h-6 bg-gray-300 mx-1" />
+                            return (
+                              <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 whitespace-nowrap">
+                                <Clock className="h-4 w-4" />
+                                {dias === null
+                                  ? 'Sin información'
+                                  : `${dias} ${dias === 1 ? 'día' : 'días'}`}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="p-4 whitespace-nowrap font-semibold">{r.empresaCodigo === "SIN_ASIGNAR" ? "Sin asignar" : r.empresaCodigo}</td>
+                       <td className="p-4 whitespace-nowrap">{r.identificacion}</td>
 
-              <button
-                type="button"
-                title="Enviar carta de cesantías"
-                onClick={() => enviarCartaCesantias(r)}
-                disabled={procesando}
-                className="w-8 h-8 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center justify-center text-sm disabled:opacity-50"
-              >
-                💰
-              </button>
+                      <td className="p-4 font-medium">
+                        {r.nombre}
+                      </td>
 
-              <button
-                type="button"
-                title="Descargar carta de cesantías"
-                onClick={() => descargarCartaCesantias(r)}
-                className="w-8 h-8 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center justify-center text-sm"
-              >
-                ⬇️
-              </button>
+                      <td className="p-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getEstadoBadge(r.estado)}`}>
+                          {grupoEstadoRetiro(r) === 'nomina'
+                            ? 'Cerrado'
+                            : grupoEstadoRetiro(r) === 'retirados'
+                              ? 'Retirado'
+                              : 'Abierto RRLL'}
+                        </span>
+                      </td>
+
+                      <td className="p-4">
+                        <div className="flex flex-row items-center justify-center gap-1.5 whitespace-nowrap">
+                          <button
+                            type="button"
+                            title="Enviar certificado laboral"
+                            onClick={() => enviarCertificadoLaboral(r)}
+                            disabled={procesando || !["ALP", "MI"].includes(r.empresaCodigo)}
+                            className="w-8 h-8 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center justify-center text-sm disabled:opacity-50"
+                          >
+                            ✉️
+                          </button>
+
+                          <button
+                            type="button"
+                            title="Descargar certificado laboral"
+                            onClick={() => descargarCertificadoLaboral(r)}
+                            disabled={!["ALP", "MI"].includes(r.empresaCodigo)}
+                            className="w-8 h-8 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center justify-center text-sm"
+                          >
+                            ⬇️
+                          </button>
+
+                          <span className="w-px h-6 bg-gray-300 mx-1" />
+
+                          <button
+                            type="button"
+                            title="Enviar carta de cesantías"
+                            onClick={() => enviarCartaCesantias(r)}
+                            disabled={procesando || !["ALP", "MI"].includes(r.empresaCodigo)}
+                            className="w-8 h-8 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 flex items-center justify-center text-sm disabled:opacity-50"
+                          >
+                            💰
+                          </button>
+
+                          <button
+                            type="button"
+                            title="Descargar carta de cesantías"
+                            onClick={() => descargarCartaCesantias(r)}
+                            disabled={!["ALP", "MI"].includes(r.empresaCodigo)}
+                            className="w-8 h-8 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center justify-center text-sm"
+                          >
+                            ⬇️
+                          </button>
+                        </div>
+                      </td>
+
+                      <td className="p-4 whitespace-nowrap">
+                        {r.fechaPagoLiquidacion
+                          ? new Date(`${r.fechaPagoLiquidacion}T00:00:00`).toLocaleDateString('es-CO', {
+                              timeZone: 'America/Bogota',
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                            })
+                          : 'Sin fecha'}
+                      </td>
+                    </>
+                  )}
+
+                  <td className="p-4 text-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => abrirDetalleRetiro(r)}
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      Ver
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+
+              {!cargando && retirosFiltrados.length === 0 && (
+                <tr>
+                  <td colSpan="7" className="p-10 text-center text-gray-500">
+                    <FileText className="w-10 h-10 mx-auto mb-3 text-gray-400" />
+                    No hay retiros para el filtro seleccionado.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Vista móvil: las mismas acciones y datos de la tabla, sin desplazamiento horizontal. */}
+        <div className="space-y-3 p-3 md:hidden">
+          {cargando && <p className="py-8 text-center text-sm text-gray-500">Consultando retiros...</p>}
+          {!cargando && retirosFiltrados.length === 0 && (
+            <div className="rounded-xl border border-dashed p-6 text-center text-sm text-gray-500">
+              <FileText className="mx-auto mb-2 h-8 w-8" />
+              No hay retiros para el filtro seleccionado.
             </div>
-          </td>
-
-              <td className="p-4 whitespace-nowrap">
-                {r.fechaPagoLiquidacion
-                  ? new Date(`${r.fechaPagoLiquidacion}T00:00:00`).toLocaleDateString('es-CO', {
-                      timeZone: 'America/Bogota',
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric',
-                    })
-                  : 'Sin fecha'}
-              </td>
-
-              <td className="p-4 text-center">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                    setRetiroSeleccionado(r);
-                    setTextoObservacionNomina(r.observacionNomina || '');
-                    setEditandoObservacionNomina(false);
-                    setDocumentosRetiro([]);
-                    setMensajeAccion('');
-                    setErrorCarga('');
-                    cargarDocumentosRetiro(r);
-                    }}
-                  >
-                    <Eye className="w-4 h-4 mr-1" />
-                    Ver
-                  </Button>
-                </td>
-              </tr>
-            ))}
-
-            {!cargando && retirosFiltrados.length === 0 && (
-              <tr>
-                <td colSpan="6" className="p-10 text-center text-gray-500">
-                  <FileText className="w-10 h-10 mx-auto mb-3 text-gray-400" />
-                  No hay retiros para el filtro seleccionado.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+          )}
+          {!cargando && retirosPaginados.map((r) => (
+            <article key={r.id} className="min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="flex min-w-0 items-start justify-between gap-2 border-b pb-3">
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-bold text-gray-900">{r.nombre || 'Sin nombre'}</p>
+                  <p className="mt-1 text-xs text-gray-500">CC {r.identificacion || 'Sin identificación'}</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
+                  {r.empresaCodigo === 'SIN_ASIGNAR' ? 'Sin asignar' : r.empresaCodigo}
+                </span>
+              </div>
+              <div className="mt-3 space-y-2 text-xs">
+                {filtroEstado === 'operaciones' ? (
+                  <>
+                    <p className="break-words"><span className="font-semibold text-gray-500">Sede: </span>{r.cliente || 'SIN SEDE'}</p>
+                    <p><span className="font-semibold text-gray-500">Fecha de retiro: </span>{r.fechaRetiro ? new Date(`${r.fechaRetiro}T00:00:00`).toLocaleDateString('es-CO', {timeZone:'America/Bogota',day:'2-digit',month:'2-digit',year:'numeric'}) : 'Sin fecha'}</p>
+                    <p><span className="font-semibold text-gray-500">Días en Operaciones: </span>{(() => { const dias = calcularDiasAbiertoOperaciones(r.fechaCreacion); return dias === null ? 'Sin información' : `${dias} ${dias === 1 ? 'día' : 'días'}`; })()}</p>
+                  </>
+                ) : (
+                  <>
+                    <p><span className="font-semibold text-gray-500">Estado: </span><span className={`rounded-full px-2 py-1 font-semibold ${getEstadoBadge(r.estado)}`}>{grupoEstadoRetiro(r) === 'nomina' ? 'Cerrado' : grupoEstadoRetiro(r) === 'retirados' ? 'Retirado' : 'Abierto RRLL'}</span></p>
+                    <p><span className="font-semibold text-gray-500">Fecha pago liquidación: </span>{r.fechaPagoLiquidacion ? new Date(`${r.fechaPagoLiquidacion}T00:00:00`).toLocaleDateString('es-CO', {timeZone:'America/Bogota',day:'2-digit',month:'2-digit',year:'numeric'}) : 'Sin fecha'}</p>
+                    <div className="rounded-xl bg-gray-50 p-3">
+                      <p className="mb-2 font-semibold text-gray-600">Comunicaciones</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button type="button" size="sm" variant="outline" className="h-auto min-h-9 whitespace-normal text-xs" disabled={procesando || !['ALP','MI'].includes(r.empresaCodigo)} onClick={() => enviarCertificadoLaboral(r)}>Enviar certificado</Button>
+                        <Button type="button" size="sm" variant="outline" className="h-auto min-h-9 whitespace-normal text-xs" disabled={!['ALP','MI'].includes(r.empresaCodigo)} onClick={() => descargarCertificadoLaboral(r)}>Descargar certificado</Button>
+                        <Button type="button" size="sm" variant="outline" className="h-auto min-h-9 whitespace-normal text-xs" disabled={procesando || !['ALP','MI'].includes(r.empresaCodigo)} onClick={() => enviarCartaCesantias(r)}>Enviar cesantías</Button>
+                        <Button type="button" size="sm" variant="outline" className="h-auto min-h-9 whitespace-normal text-xs" disabled={!['ALP','MI'].includes(r.empresaCodigo)} onClick={() => descargarCartaCesantias(r)}>Descargar cesantías</Button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+              <Button type="button" variant="outline" size="sm" className="mt-3 w-full" onClick={() => abrirDetalleRetiro(r)}><Eye className="mr-2 h-4 w-4" />Ver detalle</Button>
+            </article>
+          ))}
+        </div>
 
         {!cargando && retirosFiltrados.length > 0 && (
           <div className="flex flex-col gap-3 border-t bg-gray-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1335,7 +1558,7 @@ const retiroIndicador = useMemo(() => {
               {retirosFiltrados.length} retiros
             </p>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-center gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -1371,11 +1594,11 @@ const retiroIndicador = useMemo(() => {
       </div>
 
       {retiroSeleccionado && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="bg-white w-full max-w-6xl max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl border">
-            <div className="sticky top-0 bg-white z-10 border-b px-8 py-5 flex items-center justify-between rounded-t-3xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:px-4">
+          <div className="min-w-0 bg-white w-full max-w-6xl max-h-[95dvh] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-2xl sm:rounded-3xl shadow-2xl border">
+            <div className="sticky top-0 bg-white z-10 border-b px-4 py-4 sm:px-8 sm:py-5 flex items-center justify-between gap-2 rounded-t-2xl sm:rounded-t-3xl">
               <div>
-                <h2 className="text-2xl font-bold text-gray-800">
+                <h2 className="text-lg sm:text-2xl font-bold text-gray-800">
                   Detalle del retiro
                 </h2>
                 <p className="text-sm text-gray-500">
@@ -1392,7 +1615,7 @@ const retiroIndicador = useMemo(() => {
               </button>
             </div>
 
-            <div className="p-8 space-y-6">
+            <div className="min-w-0 p-3 sm:p-8 space-y-4 sm:space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="border rounded-2xl p-5 bg-gray-50">
                   <div className="flex items-center gap-2 text-emerald-700 font-bold mb-4">
@@ -1420,10 +1643,12 @@ const retiroIndicador = useMemo(() => {
                       <p className="text-gray-500 font-semibold">Estado</p>
                       <span className={`inline-flex mt-1 px-3 py-1 rounded-full text-xs font-semibold ${getEstadoBadge(retiroSeleccionado.estado)}`}>
                         {grupoEstadoRetiro(retiroSeleccionado) === 'nomina'
-                          ? 'Cerrado'
-                          : grupoEstadoRetiro(retiroSeleccionado) === 'retirados'
-                            ? 'Retirado'
-                            : 'Abierto'}
+                        ? 'Cerrado'
+                        : grupoEstadoRetiro(retiroSeleccionado) === 'retirados'
+                          ? 'Retirado'
+                          : retiroSeleccionado.estadoCasoRRLL === 'PENDIENTE_OPERACIONES'
+                            ? 'Abierto Operaciones'
+                            : 'Abierto RRLL'}
                       </span>
                     </div>
 
@@ -1450,7 +1675,9 @@ const retiroIndicador = useMemo(() => {
                     </div>
 
                     <div>
-                      <p className="text-gray-500 font-semibold">Observación RRLL</p>
+                      <p className="text-gray-500 font-semibold">
+                        {esRetiroAbiertoOperaciones ? 'Observación del proceso' : 'Observación RRLL'}
+                      </p>
                       <p className="text-gray-900 whitespace-pre-wrap">
                         {retiroSeleccionado.observacionRRLL || 'Sin observación'}
                       </p>
@@ -1459,6 +1686,7 @@ const retiroIndicador = useMemo(() => {
                 </div>
               </div>
 
+              {!esRetiroAbiertoOperaciones && (
               <div className="border rounded-2xl p-5 bg-white">
               <div className="flex items-center gap-2 text-blue-700 font-bold mb-4">
                 <Clock className="w-5 h-5" />
@@ -1511,7 +1739,9 @@ const retiroIndicador = useMemo(() => {
                 </div>
               </div>
             </div>
+              )}
 
+              {!esRetiroAbiertoOperaciones && (
               <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-sm text-emerald-900">
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                   <div className="flex-1">
@@ -1597,8 +1827,14 @@ const retiroIndicador = useMemo(() => {
                   )}
                 </div>
               </div>
+              )}
 
-              {puedeGestionar ? (
+              {esRetiroAbiertoOperaciones ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm text-blue-800 flex gap-2">
+                  <Lock className="w-4 h-4 mt-0.5" />
+                  Este retiro continúa abierto en Operaciones. Nómina puede consultarlo, pero no puede modificarlo ni gestionarlo.
+                </div>
+              ) : puedeGestionar ? (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-sm text-emerald-800">
                   Este retiro está enviado a nómina y permite gestionar los documentos propios de nómina.
                 </div>
@@ -1614,6 +1850,7 @@ const retiroIndicador = useMemo(() => {
                 </div>
               )}
 
+              {!esRetiroAbiertoOperaciones ? (
               <div className="border rounded-2xl p-5">
                 <div className="flex items-center gap-2 text-emerald-700 font-bold mb-4">
                   <WalletCards className="w-5 h-5" />
@@ -1743,6 +1980,12 @@ const retiroIndicador = useMemo(() => {
                   </div>
                 )}
               </div>
+              ) : (
+                <div className="border rounded-2xl p-5 bg-gray-50 text-sm text-gray-600 flex gap-2">
+                  <Lock className="w-4 h-4 mt-0.5" />
+                  Los documentos de Nómina estarán disponibles cuando el proceso avance por el flujo correspondiente.
+                </div>
+              )}
 
               {mensajeAccion && <p className="text-sm text-emerald-700">{mensajeAccion}</p>}
               {errorCarga && <p className="text-sm text-red-600">{errorCarga}</p>}
@@ -1757,6 +2000,7 @@ const retiroIndicador = useMemo(() => {
                   Cerrar
                 </Button>
 
+                {!esRetiroAbiertoOperaciones && (
                 <Button
                   type="button"
                   variant="outline"
@@ -1770,7 +2014,9 @@ const retiroIndicador = useMemo(() => {
                   <RotateCcw className="w-4 h-4 mr-2" />
                   {procesando ? 'Procesando...' : 'Devolver a RRLL'}
                 </Button>
+                )}
 
+                {!esRetiroAbiertoOperaciones && (
                 <Button
                   type="button"
                   disabled={!puedeGestionar || procesando}
@@ -1782,6 +2028,7 @@ const retiroIndicador = useMemo(() => {
                   <CheckCircle2 className="w-4 h-4 mr-2" />
                   {procesando ? 'Procesando...' : 'Finalizar retiro'}
                 </Button>
+                )}
               </div>
             </div>
           </div>
