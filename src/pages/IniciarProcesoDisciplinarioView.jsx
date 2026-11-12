@@ -307,8 +307,13 @@ const consultarDatosCitacionProceso = async (
         TipoDocumento: tipoDocumento,
         Cargo: dataDetalle?.Cargo || "—",
 
+        // Cliente registrado por Operaciones para este expediente.
+        // La empresa contratante se mantiene como dato independiente.
         ClienteNombre:
-          dataDetalle?.ClienteNombre || dataDetalle?.Cliente || "—",
+          datosCitacion?.Cliente ||
+          dataDetalle?.ClienteNombre ||
+          dataDetalle?.Cliente ||
+          "—",
 
         TelefonoTrabajador:
           datosCitacion?.TelefonoTrabajador ||
@@ -648,6 +653,29 @@ setProcesoCreado(procesoDesdeAgenda);
             `No se pudo obtener la empresa contratante del proceso ${proceso.IdProcesoDisciplinario}:`,
             error
           );
+        }
+      }
+
+      // Si el detalle no informa el cliente, consultar la citación del
+      // expediente vigente del trabajador (igual que en el paso 2).
+      // No modificar ni reemplazar la empresa contratante.
+      if (
+        (!trabajadorFinal.ClienteNombre ||
+          trabajadorFinal.ClienteNombre === "—") &&
+        historialData.length > 0
+      ) {
+        const procesoVigente = historialData.find(
+          (proceso) =>
+            proceso?.IdProcesoDisciplinario &&
+            proceso?.EstadoProceso !== "CERRADO"
+        );
+
+        if (procesoVigente) {
+          const datosCitacion = await consultarDatosCitacionProceso(
+            procesoVigente.IdProcesoDisciplinario
+          );
+          trabajadorFinal.ClienteNombre =
+            datosCitacion?.Cliente || trabajadorFinal.ClienteNombre;
         }
       }
 

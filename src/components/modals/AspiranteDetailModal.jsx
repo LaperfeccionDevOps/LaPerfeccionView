@@ -587,6 +587,8 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
 
   const [formData, setFormData] = useState(initialFormData);
   const [adjuntandoReferencias, setAdjuntandoReferencias] = useState(false);
+  const [adjuntandoTratamientoDatos, setAdjuntandoTratamientoDatos] = useState(false);
+  const tratamientoDatosEnProceso = useRef(false);
   const [observacionNucleoOriginal, setObservacionNucleoOriginal] = useState('');
   const [activeTab, setActiveTab] = useState('personal');
   const [lugarNacimiento, setLugarNacimiento] = useState([]);
@@ -1274,48 +1276,139 @@ const handleDescargarReferencia = async (ref) => {
     toast({ title: 'No se pudo descargar la referencia', description: error.message, variant: 'destructive' });
   }
 };
-    const handleDescargarTratamientoDatos = async () => {
-    try {
-    const campos = {
-      LOGO: await getLogoBase64('LOGO1'),
-      LOGO2: await getLogoBase64('LOGO2'),
-      NOMBRES: ((formData?.nombres || '') + ' ' + (formData?.apellidos || '')).trim(),
-      TIPO_IDENTIFICACION: formData?.DescripcionTipoIdentificacion || '',
-      NUMERO_IDENTIFICACION: formData?.cedula || '',
-      CIUDAD_EXPEDICION: formData?.lugarExpedicion || '',
-      FECHA_FIRMA: formData?.fechaExpedicion || '',
-      FIRMA: getDocumentoBase64Tipo42(),
-      EMAIL: formData?.email || '',
+    // QA: el documento 73 se guarda realmente en Seguridad al generarse.
+    // Descargar un PDF sin registrarlo no lo hace aparecer en Carpeta Digital.
+    const obtenerTratamientoDatosGuardado = () =>
+      Array.isArray(formData?.documentosSeguridad)
+        ? formData.documentosSeguridad.find((doc) =>
+            String(doc?.IdTipoDocumentacion) === '73' &&
+            Boolean(doc?.DocumentoBase64 || doc?.DocumentoCargado)
+          )
+        : null;
+
+    const generarPdfTratamientoDatos = async () => {
+      const firmaDigital = getDocumentoBase64Tipo42();
+      if (!firmaDigital) {
+        throw new Error('No se encontró la firma digital del aspirante (documento 42).');
+      }
+      const campos = {
+        LOGO: await getLogoBase64('LOGO1'),
+        LOGO2: await getLogoBase64('LOGO2'),
+        NOMBRES: `${formData?.nombres || ''} ${formData?.apellidos || ''}`.trim(),
+        TIPO_IDENTIFICACION: formData?.DescripcionTipoIdentificacion || '',
+        NUMERO_IDENTIFICACION: formData?.cedula || formData?.NumeroIdentificacion || '',
+        CIUDAD_EXPEDICION: formData?.lugarExpedicion || '',
+        FECHA_FIRMA: formData?.fechaExpedicion || '',
+        FIRMA: firmaDigital,
+        EMAIL: formData?.email || '',
+      };
+
+      const response = await DescargarDocumentoPdf(
+        campos, 'tratamiento_datos', formData?.IdVinculacionLaboral ?? null, contextoPdfSeleccion()
+      );
+      const pdf = await extraerPdfSeleccion(response, 'Tratamiento de datos');
+      const pdfBase64 = String(pdf).replace(/^data:[^,]*;base64,/i, '').replace(/\s/g, '');
+      if (!pdfBase64.startsWith('JVBERi0')) {
+        throw new Error('El servicio no devolvió un PDF válido para Tratamiento de Datos.');
+      }
+      return pdfBase64;
     };
 
-    const response = await DescargarDocumentoPdf(
-      campos, 'tratamiento_datos', formData?.IdVinculacionLaboral ?? null, contextoPdfSeleccion()
-    );
-    const pdf_base64 = await extraerPdfSeleccion(response, 'Tratamiento de datos');
-    descargarDocumento({
-      DocumentoBase64: 'data:application/pdf;base64,' + pdf_base64,
-      Nombre: 'Tratamiento_de_datos.pdf', Formato: 'application/pdf'
-    });
-    } catch (error) {
-      console.error('Error al descargar tratamiento de datos:', error);
-      toast({ title: 'No se pudo descargar el tratamiento de datos', description: error.message, variant: 'destructive' });
-    }
-  };
+    const handleDescargarTratamientoDatos = async () => {
+      if (tratamientoDatosEnProceso.current) return;
 
-   const handleVerDocumentoSeguridad = (doc, isTratamientoDatos = false) => {
-   try {
-      if (isTratamientoDatos) {
-         handleDescargarTratamientoDatos();
-         return;
+      // Si ya está adjunto, reutilizar el documento guardado sin duplicarlo.
+      const existente = obtenerTratamientoDatosGuardado();
+      if (existente) {
+        descargarDocumento(existente);
+        return;
       }
 
-      if (!doc || !doc.DocumentoBase64) {
+      tratamientoDatosEnProceso.current = true;
+      setAdjuntandoTratamientoDatos(true);
+      try {
+        const idRegistroPersonal = Number(
+          formData?.IdRegistroPersonal || aspirante?.IdRegistroPersonal || aspirante?.id || 0
+        );
+        if (!Number.isSafeInteger(idRegistroPersonal) || idRegistroPersonal <= 0) {
+          throw new Error('No se encontró un IdRegistroPersonal válido.');
+        }
+
+        const pdfBase64 = await generarPdfTratamientoDatos();
+        const idVinculacion = Number(formData?.IdVinculacionLaboral || 0) || null;
+        const documento = {
+          IdTipoDocumentacion: 73,
+          Nombre: `Tratamiento_Datos_${idRegistroPersonal}.pdf`,
+          DocumentoBase64: `data:application/pdf;base64,${pdfBase64}`,
+          Formato: 'application/pdf',
+        };
+        const payload = {
+          idRegistroPersonal,
+          ...(idVinculacion ? { idVinculacionLaboral: idVinculacion } : {}),
+          documentos_seguridad: [{
+            IdTipoDocumentacion: 73,
+            Nombre: documento.Nombre,
+            DocumentoCargado: documento.DocumentoBase64,
+            Formato: documento.Formato,
+          }],
+        };
+        const respuesta = await RegistrarDocumentosSeguridad(payload);
+        if (!respuesta?.ok) {
+          const errorApi = await respuesta?.json().catch(() => ({}));
+          throw new Error(errorApi?.detail || `No se pudo adjuntar el documento 73 (HTTP ${respuesta?.status || 'desconocido'}).`);
+        }
+
+        // Actualizar la vista solamente después de que el backend confirme el guardado.
+        setFormData((prev) => ({
+          ...prev,
+          documentosSeguridad: [
+            ...(Array.isArray(prev.documentosSeguridad) ? prev.documentosSeguridad : [])
+              .filter((doc) => String(doc?.IdTipoDocumentacion) !== '73'),
+            documento,
+          ],
+        }));
+        try {
+          const respuestaDocs = detalleCiclos?.esReintegroActual && idVinculacion
+            ? await obtenerDocumentoSeguridadBase64PorVinculacion(idRegistroPersonal, idVinculacion)
+            : await getDocumentosSeguridad(idRegistroPersonal);
+          const documentosActualizados = respuestaDocs?.data;
+          if (Array.isArray(documentosActualizados) && documentosActualizados.some((doc) =>
+            String(doc?.IdTipoDocumentacion) === '73' &&
+            Boolean(doc?.DocumentoBase64 || doc?.DocumentoCargado)
+          )) {
+            setFormData((prev) => ({ ...prev, documentosSeguridad: documentosActualizados }));
+          }
+        } catch (errorConsulta) {
+          console.warn('Tratamiento 73 guardado; no fue posible refrescar Seguridad:', errorConsulta);
+        }
+
+        descargarDocumento(documento);
+        toast({
+          title: 'Tratamiento de datos adjuntado',
+          description: 'El PDF quedó guardado en Documentos de Selección y se descargó.',
+        });
+      } catch (error) {
+        console.error('Error generando o adjuntando tratamiento de datos:', error);
+        toast({
+          title: 'No se pudo adjuntar el tratamiento de datos',
+          description: error?.message || 'Revise el servicio de documentos de seguridad en QA.',
+          variant: 'destructive',
+        });
+      } finally {
+        tratamientoDatosEnProceso.current = false;
+        setAdjuntandoTratamientoDatos(false);
+      }
+    };
+
+   const handleVerDocumentoSeguridad = (doc) => {
+   try {
+      if (!doc || !(doc.DocumentoBase64 || doc.DocumentoCargado)) {
          alert('No se encontró el documento para visualizar.');
          return;
       }
 
       const formato = doc.Formato || 'application/pdf';
-      let base64 = doc.DocumentoBase64 || '';
+      let base64 = doc.DocumentoBase64 || doc.DocumentoCargado || '';
 
       if (base64.startsWith('data:')) {
          base64 = base64.split(',')[1];
@@ -2510,75 +2603,115 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
   }
 };
 
-   // Construye el payload para documentos de seguridad y lo muestra en consola
+   // QA: guardar documentos de Selección y generar el 73 únicamente si falta.
    const handleEnviarDocumentosSeguridad = async (docsSeguridad) => {
       setLoadingAspiranteDetalle(true);
-      const idRegistroPersonal = aspirante?.id || formData?.IdRegistroPersonal;
+      try {
+         const idRegistroPersonal = Number(
+            formData?.IdRegistroPersonal || aspirante?.IdRegistroPersonal || aspirante?.id || 0
+         );
+         if (!Number.isSafeInteger(idRegistroPersonal) || idRegistroPersonal <= 0) {
+            throw new Error('No se encontró un IdRegistroPersonal válido.');
+         }
 
-      // Generar PDF de tratamiento de datos y agregarlo al listado
-      // Solo si no existe ya en docsSeguridad
-      const yaTieneTratamiento = docsSeguridad.some(doc => String(doc.IdTipoDocumentacion) === '73');
-      let docsSeguridadFinal = [...docsSeguridad];
-      if (!yaTieneTratamiento) {
-         // Construir los campos necesarios para la plantilla
-         const campos = {
-            LOGO: await getLogoBase64('LOGO1'),
-            LOGO2: await getLogoBase64('LOGO2'),
-            NOMBRES: formData?.nombres + ' ' + formData?.apellidos || '',
-            TIPO_IDENTIFICACION: formData.DescripcionTipoIdentificacion || '',
-            NUMERO_IDENTIFICACION: formData?.cedula || '',
-            CIUDAD_EXPEDICION: formData?.lugarExpedicion || '',
-            FECHA_FIRMA: formData?.fechaExpedicion || '',
-            FIRMA: getDocumentoBase64Tipo42 && typeof getDocumentoBase64Tipo42 === 'function' ? getDocumentoBase64Tipo42() : '',
-            EMAIL: formData?.email || '',
+         // No reenviar entradas vacías; no confundir una tarjeta con un archivo real.
+         const docsSeguridadFinal = (Array.isArray(docsSeguridad) ? docsSeguridad : [])
+            .filter((doc) => Boolean(doc?.DocumentoBase64 || doc?.DocumentoCargado));
+         const yaTieneTratamiento = Boolean(obtenerTratamientoDatosGuardado()) ||
+            docsSeguridadFinal.some((doc) => String(doc.IdTipoDocumentacion) === '73');
+         let errorTratamiento = null;
+
+         if (!yaTieneTratamiento) {
+            try {
+               const pdfBase64 = await generarPdfTratamientoDatos();
+               docsSeguridadFinal.push({
+                  IdTipoDocumentacion: 73,
+                  Nombre: `Tratamiento_Datos_${idRegistroPersonal}.pdf`,
+                  DocumentoBase64: `data:application/pdf;base64,${pdfBase64}`,
+                  Formato: 'application/pdf',
+               });
+            } catch (error) {
+               errorTratamiento = error;
+               console.warn('No se pudo generar Tratamiento de Datos (73):', error);
+            }
+         }
+
+         if (docsSeguridadFinal.length === 0) {
+            if (errorTratamiento) throw errorTratamiento;
+            toast({ title: 'No hay documentos nuevos para guardar' });
+            return;
+         }
+
+         // El backend QA identifica el ciclo incluso en una contratación NUEVA.
+         // No guardar el 73 como legado cuando la vinculación actual ya existe.
+         const idVinculacionLaboralActual = Number(
+            formData?.IdVinculacionLaboral ||
+            detalleCiclos?.vinculacionActual?.IdVinculacionLaboral || 0
+         ) || null;
+         const payload = {
+            idRegistroPersonal,
+            ...(idVinculacionLaboralActual
+               ? { idVinculacionLaboral: idVinculacionLaboralActual }
+               : {}),
+            documentos_seguridad: docsSeguridadFinal.map((doc) => ({
+               IdTipoDocumentacion: doc.IdTipoDocumentacion,
+               Nombre: doc.Nombre,
+               DocumentoCargado: doc.DocumentoBase64 || doc.DocumentoCargado,
+               Formato: doc.Formato || 'application/pdf',
+            })),
          };
-         let pdf_base64 = '';
+         const respuesta = await RegistrarDocumentosSeguridad(payload);
+         if (!respuesta?.ok) {
+            const errorApi = await respuesta?.json().catch(() => ({}));
+            throw new Error(errorApi?.detail || `Error al guardar documentos de Selección (HTTP ${respuesta?.status || 'desconocido'}).`);
+         }
+
+         const tratamientoGuardadoAhora = docsSeguridadFinal.find(
+            (doc) => String(doc.IdTipoDocumentacion) === '73'
+         );
+         if (tratamientoGuardadoAhora) {
+            setFormData((prev) => ({
+               ...prev,
+               documentosSeguridad: [
+                  ...(Array.isArray(prev.documentosSeguridad) ? prev.documentosSeguridad : [])
+                     .filter((doc) => String(doc?.IdTipoDocumentacion) !== '73'),
+                  tratamientoGuardadoAhora,
+               ],
+            }));
+         }
+
          try {
-            const response = await DescargarDocumentoPdf(
-              campos, 'tratamiento_datos', formData?.IdVinculacionLaboral ?? null, contextoPdfSeleccion()
-            );
-            pdf_base64 = await extraerPdfSeleccion(response, 'Tratamiento de datos');
-         } catch (e) {
-            console.warn('No se pudo generar el tratamiento de datos para adjuntar:', e);
-            pdf_base64 = '';
+            const respDocs = idVinculacionLaboralActual
+               ? await obtenerDocumentoSeguridadBase64PorVinculacion(
+                   idRegistroPersonal, idVinculacionLaboralActual
+                 )
+               : await getDocumentosSeguridad(idRegistroPersonal);
+            if (Array.isArray(respDocs?.data)) {
+               setFormData((prev) => ({ ...prev, documentosSeguridad: respDocs.data }));
+            }
+         } catch (errorConsulta) {
+            console.warn('Documentos guardados; no se pudo refrescar Seguridad:', errorConsulta);
          }
-         if (pdf_base64) {
-            docsSeguridadFinal.push({
-               IdTipoDocumentacion: 73,
-               Nombre: 'Tratamiento de datos',
-               DocumentoBase64: 'data:application/pdf;base64,' + pdf_base64,
-               Formato: 'application/pdf',
+
+         if (errorTratamiento) {
+            toast({
+               title: 'Documentos guardados, excepto Tratamiento de Datos',
+               description: errorTratamiento.message || 'No fue posible generar el documento 73.',
+               variant: 'destructive',
             });
+         } else {
+            toast({ title: 'Documentos de Selección guardados correctamente' });
          }
-      }
-
-      const idVinculacionLaboralActual =
-         detalleCiclos?.esReintegroActual
-           ? detalleCiclos?.vinculacionActual?.IdVinculacionLaboral || null
-           : null;
-
-      const payload = {
-         idRegistroPersonal,
-         ...(idVinculacionLaboralActual
-           ? { idVinculacionLaboral: idVinculacionLaboralActual }
-           : {}),
-         documentos_seguridad: docsSeguridadFinal.map(doc => ({
-            IdTipoDocumentacion: doc.IdTipoDocumentacion,
-            Nombre: doc.Nombre,
-            DocumentoCargado: doc.DocumentoBase64 || doc.DocumentoCargado,
-            Formato: doc.Formato || 'application/pdf',
-         }))
-      };
-      const res = await RegistrarDocumentosSeguridad(payload);
-      if (res && res.status === 201) {
-         alert('Documentos de seguridad registrados correctamente.');
-         setLoadingAspiranteDetalle(false);
-      } else {
-         alert('Error al registrar documentos de seguridad.');
+      } catch (error) {
+         console.error('Error al guardar documentos de Selección:', error);
+         toast({
+            title: 'No se pudieron guardar los documentos de Selección',
+            description: error?.message || 'Revise la respuesta del backend de QA.',
+            variant: 'destructive',
+         });
+      } finally {
          setLoadingAspiranteDetalle(false);
       }
-      setLoadingAspiranteDetalle(false);
-      // Aquí puedes hacer el fetch/post a la API usando 'payload'
    };
 
 
@@ -5424,22 +5557,32 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
                                           const foundDoc = Array.isArray(formData.documentosSeguridad)
                                           ? formData.documentosSeguridad.find(d => String(d.IdTipoDocumentacion) === String(seguridadDoc.id))
                                           : null;
-                                          let hasFile = !!foundDoc;
+                                          const hasFile = isTratamientoDatos
+                                            ? !!(foundDoc?.DocumentoBase64 || foundDoc?.DocumentoCargado)
+                                            : !!foundDoc;
                                           let accept = '.pdf,image/*';
-                                          // Forzar que Tratamiento de datos siempre aparezca como adjuntado
-                                          if (isTratamientoDatos) {
-                                            hasFile = true;
-                                          }
                                           return (
                                              <div key={seguridadDoc.id} className="border border-gray-200 rounded-xl p-5 bg-white shadow-sm flex flex-col justify-between h-full group w-full max-w-xs min-w-[220px] flex-1">
                                                 <div>
                                                    <h4 className="font-semibold text-gray-800 mb-3 text-sm leading-tight min-h-[40px]">{seguridadDoc.label}</h4>
                                                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium mb-4 border ${hasFile ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-600 border-red-100'}`}> 
                                                       {hasFile ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />} 
-                                                      {hasFile ? 'Adjuntado' : 'Falta adjuntar'}
+                                                      {hasFile ? 'Adjuntado' : (isTratamientoDatos ? 'Pendiente de generar' : 'Falta adjuntar')}
                                                    </div>
                                                 </div>
                                                 <div className="space-y-3">
+                                                   {!hasFile && isTratamientoDatos && (
+                                                      <Button
+                                                         type="button"
+                                                         variant="outline"
+                                                         size="sm"
+                                                         className="text-emerald-700 border-emerald-200 hover:bg-emerald-50 w-full"
+                                                         disabled={adjuntandoTratamientoDatos}
+                                                         onClick={() => handleDescargarTratamientoDatos()}
+                                                      >
+                                                         {adjuntandoTratamientoDatos ? 'Generando y adjuntando...' : 'Generar, adjuntar y descargar'}
+                                                      </Button>
+                                                   )}
                                                    {!hasFile && !isTratamientoDatos && (
                                                       <div className="flex gap-2">
                                                          <div className="relative flex-1">
@@ -5466,7 +5609,7 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
                                                          variant="outline" 
                                                          size="sm"
                                                          className="text-sky-600 border-sky-200 hover:bg-sky-50 px-3 h-auto w-full"
-                                                         onClick={() => handleVerDocumentoSeguridad(foundDoc, isTratamientoDatos)}
+                                                         onClick={() => handleVerDocumentoSeguridad(foundDoc)}
                                                       >
                                                          Ver
                                                       </Button>
@@ -5477,11 +5620,7 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
                                                          size="sm"
                                                          className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 px-3 h-auto w-full"
                                                          onClick={() => {
-                                                            if (isTratamientoDatos) {
-                                                               handleDescargarTratamientoDatos();
-                                                            } else {
-                                                               descargarDocumento(foundDoc);
-                                                            }
+                                                            descargarDocumento(foundDoc);
                                                          }}
                                                       >
                                                          Descargar
@@ -5501,7 +5640,7 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
                                                    </div>
 )}
                                                    <p className="text-xs text-gray-400 truncate h-4">
-                                                      {hasFile && foundDoc && !isTratamientoDatos ? foundDoc.Nombre : (isTratamientoDatos ? 'Generado automáticamente' : 'Sin archivo')}
+                                                      {hasFile && foundDoc ? foundDoc.Nombre : (isTratamientoDatos ? 'Pendiente de generar' : 'Sin archivo')}
                                                    </p>
                                                 </div>
                                              </div>

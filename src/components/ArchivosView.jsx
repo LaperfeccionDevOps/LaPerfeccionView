@@ -20,6 +20,78 @@ import { getAspirantePorCiclos } from '@/services/detalle_aspirante';
 import { getEstadoInfo } from '@/utils/statusUtils';
 import { cn } from '@/lib/utils';
 
+// QA: misma configuración de API utilizada en Contratación.
+// Estas consultas son exclusivamente de lectura.
+const API_BASE_URL = (
+  import.meta?.env?.VITE_API_BASE_URL ||
+  import.meta?.env?.VITE_API_URL ||
+  (window.location.hostname === 'localhost'
+    ? 'http://localhost:8000'
+    : 'https://api.laperfeccion.app')
+).replace(/\/+$/, '');
+
+const API_PREFIX = API_BASE_URL.endsWith('/api')
+  ? API_BASE_URL
+  : `${API_BASE_URL}/api`;
+
+const buildAuthHeaders = () => {
+  const token =
+    localStorage.getItem('access_token') ||
+    localStorage.getItem('accessToken') ||
+    localStorage.getItem('token') ||
+    '';
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+// Empresa real del trabajador. No confundir cliente comercial con empleador.
+// Se acepta el código, el identificador de catálogo o el nombre inequívoco.
+const normalizarEmpresaContratante = (origen) => {
+  if (!origen || typeof origen !== 'object') return null;
+
+  const idRaw =
+    origen.IdEmpresaContratante ??
+    origen.idEmpresaContratante ??
+    origen.id_empresa_contratante ??
+    null;
+  const id = idRaw === null || idRaw === '' ? null : Number(idRaw);
+
+  const codigoOriginal = String(
+    origen.EmpresaContratanteCodigo ??
+    origen.empresaContratanteCodigo ??
+    origen.CodigoEmpresaContratante ??
+    origen.codigoEmpresaContratante ??
+    origen.CodigoEmpresa ??
+    origen.codigoEmpresa ??
+    ''
+  ).trim().toUpperCase();
+
+  const nombreOriginal = String(
+    origen.EmpresaContratanteNombre ??
+    origen.empresaContratanteNombre ??
+    origen.NombreEmpresaContratante ??
+    origen.nombreEmpresaContratante ??
+    origen.NombreEmpresa ??
+    origen.nombreEmpresa ??
+    ''
+  ).trim();
+
+  let codigo = codigoOriginal;
+  if (codigo !== 'ALP' && codigo !== 'MI') {
+    if (id === 1) codigo = 'ALP';
+    else if (id === 2) codigo = 'MI';
+    else if (/^aseos\s+la\s+perfecci[oó]n\b/i.test(nombreOriginal)) codigo = 'ALP';
+    else if (/^mantener\s+ingenier[ií]a\b/i.test(nombreOriginal)) codigo = 'MI';
+  }
+
+  if (codigo !== 'ALP' && codigo !== 'MI') return null;
+
+  return {
+    CodigoEmpresa: codigo,
+    NombreEmpresa: nombreOriginal ||
+      (codigo === 'MI' ? 'Mantener Ingeniería' : 'Aseos La Perfección S.A.S.'),
+  };
+};
+
 const documentosIngreso = [
   { id: 3, label: 'Hoja de vida' },
   { id: 4, label: 'Cedula' },
@@ -178,6 +250,7 @@ const ArchivosView = () => {
   });
 
   const [ciclosPorAspirante, setCiclosPorAspirante] = useState({});
+  const [empresasPorRQ, setEmpresasPorRQ] = useState({});
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
@@ -236,12 +309,25 @@ const ArchivosView = () => {
     return id ? ciclosPorAspirante[String(id)] || null : null;
   };
 
+  // Prioridad: vinculación actual > empresa del listado > RQ activa inequívoca.
+  // No se altera la empresa de una vinculación histórica ni se escribe en BD.
+  const obtenerEmpresaTrabajador = (aspirante) => {
+    const vinculacionActual = obtenerCiclosTrabajador(aspirante)?.vinculacionActual;
+    const id = obtenerIdRegistroPersonal(aspirante);
+    return (
+      normalizarEmpresaContratante(vinculacionActual) ||
+      normalizarEmpresaContratante(aspirante) ||
+      (id ? empresasPorRQ[String(id)] || null : null)
+    );
+  };
+
   const openDocumentosTrabajador = (
     aspirante,
     carpeta = 'ingreso',
     opciones = {}
   ) => {
     const isDemo = false;
+    const empresa = obtenerEmpresaTrabajador(aspirante);
 
     setModalState({
       isOpen: true,
@@ -254,11 +340,13 @@ const ArchivosView = () => {
       estadoVinculacion: opciones?.estadoVinculacion || null,
       codigoEmpresa:
         opciones?.codigoEmpresa ??
+        empresa?.CodigoEmpresa ??
         aspirante?.CodigoEmpresa ??
         aspirante?.codigoEmpresa ??
         null,
       nombreEmpresa:
         opciones?.nombreEmpresa ??
+        empresa?.NombreEmpresa ??
         aspirante?.NombreEmpresa ??
         aspirante?.nombreEmpresa ??
         null,
@@ -412,6 +500,55 @@ const ArchivosView = () => {
   const currentItems = sortedData.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(sortedData.length / itemsPerPage);
 
+  // Complemento QA para contratados sin VinculacionLaboral (ej. Stefania).
+  // Consulta agrupada de RQ: no elige empresa si hay varias RQ activas.
+  const claveIdsSinEmpresa = [...new Set(
+    currentItems
+      .filter((aspirante) => !normalizarEmpresaContratante(aspirante))
+      .map(obtenerIdRegistroPersonal)
+      .filter((id) => id !== null && id !== undefined && String(id).trim() !== '')
+      .map(String)
+  )].sort().join(',');
+
+  useEffect(() => {
+    if (!claveIdsSinEmpresa) return;
+
+    let cancelado = false;
+    const consultarEmpresasRQ = async () => {
+      try {
+        const respuesta = await fetch(
+          `${API_PREFIX}/seleccion/rq/candidatos/empresas-contratantes`,
+          { method: 'GET', headers: buildAuthHeaders() }
+        );
+        if (!respuesta.ok) {
+          // El backend puede restringir esta consulta por rol; no afecta carpetas.
+          if (respuesta.status !== 403) {
+            console.warn('[CARPETA DIGITAL] No fue posible consultar empresas RQ:', respuesta.status);
+          }
+          return;
+        }
+
+        const json = await respuesta.json();
+        const empresas = {};
+        for (const [id, dato] of Object.entries(json?.data ?? {})) {
+          const empresa = normalizarEmpresaContratante(dato);
+          if (empresa) empresas[id] = empresa;
+        }
+        if (!cancelado) {
+          setEmpresasPorRQ((anteriores) => ({ ...anteriores, ...empresas }));
+        }
+        if (json?.conflictos?.length) {
+          console.warn('[CARPETA DIGITAL] RQ ambiguas; empresa no inferida:', json.conflictos);
+        }
+      } catch (error) {
+        console.warn('[CARPETA DIGITAL] Consulta de empresas RQ no disponible:', error);
+      }
+    };
+
+    consultarEmpresasRQ();
+    return () => { cancelado = true; };
+  }, [claveIdsSinEmpresa]);
+
   useEffect(() => {
     if (
       isOperaciones ||
@@ -509,17 +646,9 @@ const ArchivosView = () => {
     'No asignado';
 
   const getEmpresaInfo = (origen) => {
-    const codigo = String(
-      origen?.CodigoEmpresa ||
-      origen?.codigoEmpresa ||
-      ''
-    ).trim().toUpperCase();
-
-    const nombre = String(
-      origen?.NombreEmpresa ||
-      origen?.nombreEmpresa ||
-      ''
-    ).trim();
+    const empresaNormalizada = normalizarEmpresaContratante(origen);
+    const codigo = empresaNormalizada?.CodigoEmpresa || '';
+    const nombre = empresaNormalizada?.NombreEmpresa || '';
 
     if (codigo === 'ALP') {
       return {
@@ -752,7 +881,7 @@ const ArchivosView = () => {
                     <p className="mt-1 break-all text-xs text-gray-500">
                       {(aspirante.correo || 'SIN CORREO').toUpperCase()}
                     </p>
-                    <div className="mt-3">{renderEmpresa(aspirante)}</div>
+                    <div className="mt-3">{renderEmpresa(obtenerEmpresaTrabajador(aspirante) || aspirante)}</div>
                     <div className="mt-3 grid grid-cols-1 gap-2 text-sm">
                       <div className="min-w-0 rounded-xl bg-gray-50 p-3">
                         <p className="text-xs font-semibold text-gray-500">Identificación</p>
@@ -896,7 +1025,7 @@ const ArchivosView = () => {
                         
                       >
                         <td className="p-4 align-top">
-                          {renderEmpresa(aspirante)}
+                          {renderEmpresa(obtenerEmpresaTrabajador(aspirante) || aspirante)}
                         </td>
 
                         <td className="p-4">

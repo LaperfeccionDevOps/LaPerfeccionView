@@ -1830,6 +1830,45 @@ const OperacionesRetirosView = () => {
     );
   };
 
+  // El catalogo es la fuente de nombres e IDs validos para el formulario.
+  // Se respeta la seleccion manual y no se deduce un cliente desde la empresa contratante.
+  const buscarClientePorId = (lista, idCliente) => {
+    const idBuscado = String(idCliente ?? "").trim();
+    if (!idBuscado) return null;
+
+    return lista.find(
+      (cliente) => String(cliente?.IdCliente ?? "").trim() === idBuscado
+    ) || null;
+  };
+
+  const resolverClientePrecargado = (lista, clienteActual, trabajador) => {
+    const idClienteApi =
+      clienteActual?.IdCliente ??
+      clienteActual?.idCliente ??
+      clienteActual?.id_cliente;
+    const nombreClienteApi =
+      clienteActual?.NombreCliente ??
+      clienteActual?.nombreCliente ??
+      clienteActual?.Cliente ??
+      "";
+    const idClienteTrabajador =
+      trabajador?.IdCliente ??
+      trabajador?.idCliente ??
+      trabajador?.id_cliente;
+
+    // 1. Cliente actual consultado al backend.
+    // 2. ID del trabajador, si el listado lo proporciona.
+    // 3. Nombre recibido del backend o de la busqueda.
+    // Siempre se valida contra el catalogo antes de asignar IdCliente.
+    return (
+      buscarClientePorId(lista, idClienteApi) ||
+      buscarClientePorId(lista, idClienteTrabajador) ||
+      buscarClientePorNombre(lista, nombreClienteApi) ||
+      buscarClientePorNombre(lista, obtenerCliente(trabajador)) ||
+      null
+    );
+  };
+
   const actualizarClienteFormulario = (nombreCliente) => {
     const clienteEncontrado = buscarClientePorNombre(
       clientes,
@@ -2092,9 +2131,17 @@ const OperacionesRetirosView = () => {
         configuracionElementos,
       ] = await Promise.all([
         consultarClientes(),
+        // Si la consulta informativa del cliente falla, no se pierde
+        // la carga de los elementos ni la posibilidad de elegirlo manualmente.
         consultarClienteActualTrabajador(
           trabajadorParaFormulario.IdRegistroPersonal
-        ),
+        ).catch((error) => {
+          if (String(error?.message || "").includes("sesión no está autorizada")) {
+            throw error;
+          }
+          console.error("No fue posible precargar el cliente:", error);
+          return null;
+        }),
         consultarUsuarioActual(),
         consultarElementosPazSalvoTrabajador(
           trabajadorParaFormulario.IdRegistroPersonal
@@ -2195,12 +2242,13 @@ const OperacionesRetirosView = () => {
           "",
       }));
 
-      const clientePrecargado =
-        clienteActual ||
-        buscarClientePorNombre(
-          listaClientes,
-          trabajadorParaFormulario.Cliente
-        );
+      // Precarga el cliente real si el backend o el listado lo identifica.
+      // El usuario conserva la posibilidad de escribir y elegir otro cliente.
+      const clientePrecargado = resolverClientePrecargado(
+        listaClientes,
+        clienteActual,
+        trabajadorParaFormulario
+      );
 
       setFormulario((actual) => ({
         ...actual,
@@ -2209,6 +2257,7 @@ const OperacionesRetirosView = () => {
           : "",
         clienteNombre:
           clientePrecargado?.NombreCliente ||
+          clienteActual?.NombreCliente ||
           trabajadorParaFormulario.Cliente ||
           "",
       }));
@@ -3034,6 +3083,13 @@ const OperacionesRetirosView = () => {
         String(configuracionElementos?.TipoClasificacion || "")
       );
 
+      // En una continuacion, mostrar el nombre correspondiente al IdCliente
+      // que ya esta guardado en RetiroLaboral, aunque el resumen no lo traiga.
+      const clienteRetiroGuardado = buscarClientePorId(
+        listaClientes,
+        retiro.IdCliente
+      );
+
       const formularioExistente = {
         ...FORMULARIO_INICIAL,
         elaboradoPor:
@@ -3045,7 +3101,10 @@ const OperacionesRetirosView = () => {
           retiro.IdCliente !== undefined
             ? String(retiro.IdCliente)
             : "",
-        clienteNombre: trabajadorBackend.NombreCliente || "",
+        clienteNombre:
+          clienteRetiroGuardado?.NombreCliente ||
+          trabajadorBackend.NombreCliente ||
+          "",
         idMotivoRetiro:
           retiro.IdMotivoRetiro !== null &&
           retiro.IdMotivoRetiro !== undefined

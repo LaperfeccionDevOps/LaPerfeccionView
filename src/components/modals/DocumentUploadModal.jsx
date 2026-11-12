@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   getDocumentacionIngreso,
   getDocumentacionIngresoPorVinculacion,
+  getAspirantePorCiclos,
 } from '@/services/detalle_aspirante';
 import {
   obtenerDocumentoSeguridadBase64,
@@ -65,6 +66,9 @@ const DocumentUploadModal = ({
 }) => {
   const [documentos, setDocumentos] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [generandoTratamientoDatos, setGenerandoTratamientoDatos] = useState(false);
+  // Evita dos generaciones simultáneas al abrir la misma carpeta (React StrictMode).
+  const sincronizacionesTratamiento73 = useRef(new Set());
   const [tab, setTab] = useState('ingreso');
 
   const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
@@ -77,25 +81,17 @@ const DocumentUploadModal = ({
   const esCarpetaHSE = tipoCarpeta === 'hse';
   const esCarpetaSaludOcupacional = tipoCarpeta === 'salud_ocupacional';
 
-  // Acepta la empresa enviada por Contratación y los nombres del ciclo laboral.
-  // Solo modifica el encabezado visible de la carpeta.
   const empresaCodigo = String(
     codigoEmpresa ||
-    aspirante?.EmpresaContratanteCodigo ||
-    aspirante?.CodigoEmpresaContratante ||
     aspirante?.CodigoEmpresa ||
     aspirante?.codigoEmpresa ||
-    aspirante?.vinculacionActual?.CodigoEmpresa ||
     ''
   ).trim().toUpperCase();
 
   const empresaNombre = String(
     nombreEmpresa ||
-    aspirante?.EmpresaContratanteNombre ||
-    aspirante?.NombreEmpresaContratante ||
     aspirante?.NombreEmpresa ||
     aspirante?.nombreEmpresa ||
-    aspirante?.vinculacionActual?.NombreEmpresa ||
     ''
   ).trim();
 
@@ -237,6 +233,7 @@ const tituloModal = esCarpetaActivos
 
  useEffect(() => {
   if (!aspirante) {
+    sincronizacionesTratamiento73.current.clear();
     setDocumentos([]);
     return;
   }
@@ -412,6 +409,14 @@ const tituloModal = esCarpetaActivos
         }
 
         setDocumentos(docs);
+
+        // QA: la carpeta solo consulta los documentos existentes. Como el PDF
+        // 73 antes podía generarse sin persistir, sincronizamos ÚNICAMENTE ese
+        // tipo al abrir la carpeta actual, sin tocar entrevistas, referencias,
+        // contratos ni expedientes históricos.
+        if (isOpen && esCarpetaIngreso && !esHistorico) {
+          void sincronizarTratamiento73EnCarpeta(id, docs);
+        }
       })
       .finally(() => setLoading(false));
 }, [
@@ -427,6 +432,7 @@ const tituloModal = esCarpetaActivos
   idVinculacionLaboral,
   esHistorico,
   numeroCiclo,
+  isOpen,
 ]);
 
   if (!aspirante) return null;
@@ -855,7 +861,207 @@ const descargarDocumentoRetiro = async (doc) => {
     });
   };
 
+  // QA / documento 73: recuperar el PDF en Carpeta Digital cuando la firma
+  // (42) ya existe, pero la autorización no fue almacenada en Documentos.
+  // Solo para el ciclo actual; NO se reutiliza una firma de un reintegro anterior.
+  const sincronizarTratamiento73EnCarpeta = async (idRegistro, docsCargados) => {
+    if (!isOpen || !esCarpetaIngreso || esHistorico || !idRegistro) return;
+
+    const clave = String(idRegistro);
+    if (sincronizacionesTratamiento73.current.has(clave)) return;
+    sincronizacionesTratamiento73.current.add(clave);
+    let sincronizado = false;
+    try {
+
+    const docs = Array.isArray(docsCargados) ? docsCargados : [];
+    const tieneArchivo = (doc) => Boolean(
+      doc?.DocumentoBase64 || doc?.DocumentoCargado
+    );
+    const docs73 = docs.filter((doc) =>
+      String(doc?.IdTipoDocumentacion) === '73' && tieneArchivo(doc)
+    );
+
+    // Consultamos el ciclo en BD; no inferimos la empresa por el cliente comercial.
+    let ciclos;
+    try {
+      const respuesta = await getAspirantePorCiclos(idRegistro);
+      ciclos = respuesta?.data || respuesta || {};
+    } catch (error) {
+      console.warn('[CARPETA DIGITAL][73] No se pudo consultar el ciclo:', error);
+      return;
+    }
+
+    const vinculacion = ciclos?.vinculacionActual || null;
+    const idVinculacion = Number(vinculacion?.IdVinculacionLaboral || 0) || null;
+    const ciclo = Number(vinculacion?.NumeroCiclo || 0) || null;
+    const estado = String(vinculacion?.EstadoVinculacion || '').trim().toUpperCase();
+
+    // No crear documentos para un retiro, un histórico ni un reintegro.
+    // Para reintegros, la fecha y firma deben auditarse en su propio ciclo.
+    if (vinculacion && (!['ACTIVO', 'EN_PROCESO'].includes(estado) || ciclo !== 1)) {
+      return;
+    }
+    if (!vinculacion && Array.isArray(ciclos?.vinculacionesHistoricas) &&
+        ciclos.vinculacionesHistoricas.length > 0) {
+      return;
+    }
+
+    // Si ya existe el 73 del primer ciclo (incluido legado sin vinculación),
+    // la carpeta debe mostrarlo, nunca generar ni sobrescribir otro PDF.
+    const existe73 = docs73.some((doc) => {
+      const cicloDoc = doc?.IdVinculacionLaboral;
+      return idVinculacion
+        ? String(cicloDoc) === String(idVinculacion) || cicloDoc == null
+        : cicloDoc == null;
+    });
+    if (existe73) return;
+
+    const firmas = docs.filter((doc) =>
+      String(doc?.IdTipoDocumentacion) === '42' && tieneArchivo(doc)
+    );
+    let firma = idVinculacion
+      ? firmas.find((doc) => String(doc?.IdVinculacionLaboral) === String(idVinculacion))
+      : null;
+    // La firma 42 de un registro inicial puede ser legacy (ciclo NULL).
+    if (!firma) firma = firmas.find((doc) => doc?.IdVinculacionLaboral == null);
+
+    if (!firma) {
+      // La carpeta por ciclo puede no incluir la firma de registro legacy.
+      try {
+        const respuestaIngreso = await getDocumentacionIngreso(idRegistro);
+        const docsIngreso = Array.isArray(respuestaIngreso?.data)
+          ? respuestaIngreso.data
+          : [];
+        firma = docsIngreso.find((doc) =>
+          String(doc?.IdTipoDocumentacion) === '42' &&
+          doc?.IdVinculacionLaboral == null && tieneArchivo(doc)
+        );
+      } catch (error) {
+        console.warn('[CARPETA DIGITAL][73] Firma legacy no disponible:', error);
+      }
+    }
+    if (!firma) return;
+
+    // El registro inicial exige aceptación y firma antes de guardar.
+    // Se usa su fecha auditada de creación, NUNCA la expedición de cédula
+    // ni la fecha del momento en que alguien consulta la carpeta.
+    const fechaRegistro = String(
+      ciclos?.persona?.FechaCreacion || aspirante?.FechaCreacion ||
+      aspirante?.fechaCreacion || ''
+    );
+    const fechaISO = fechaRegistro.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!fechaISO) {
+      console.warn('[CARPETA DIGITAL][73] Sin fecha de registro verificable; no se genera.');
+      return;
+    }
+    const fechaFirma = `${fechaISO[3]}/${fechaISO[2]}/${fechaISO[1]}`;
+
+    const persona = ciclos?.persona || {};
+    const nombreCompleto = `${persona?.Nombres || aspirante?.nombres || aspirante?.Nombres || ''} ${persona?.Apellidos || aspirante?.apellidos || aspirante?.Apellidos || ''}`.trim();
+    const identificacion = String(
+      persona?.NumeroIdentificacion || aspirante?.cedula ||
+      aspirante?.NumeroIdentificacion || ''
+    ).trim();
+    if (!nombreCompleto || !identificacion) return;
+
+    const tipoRaw =
+      aspirante?.DescripcionTipoIdentificacion ||
+      aspirante?.tipoIdentificacion ||
+      aspirante?.TipoIdentificacion || '';
+    const tipoIdentificacion = typeof tipoRaw === 'object'
+      ? (tipoRaw?.Descripcion || tipoRaw?.Nombre || 'documento de identidad')
+      : (String(tipoRaw).trim() || 'documento de identidad');
+
+    const firmaRaw = String(firma.DocumentoBase64 || firma.DocumentoCargado || '');
+    const mimeFirma = String(firma.Formato || 'image/png');
+    const firmaDataUri = firmaRaw.startsWith('data:')
+      ? firmaRaw
+      : `data:${mimeFirma};base64,${firmaRaw}`;
+    const idNumero = Number(idRegistro);
+    if (!Number.isSafeInteger(idNumero) || idNumero <= 0) return;
+
+    try {
+      const campos = {
+        NOMBRES: nombreCompleto,
+        TIPO_IDENTIFICACION: tipoIdentificacion,
+        NUMERO_IDENTIFICACION: identificacion,
+        FECHA_FIRMA: fechaFirma,
+        FIRMA: firmaDataUri,
+        EMAIL: aspirante?.correo || aspirante?.email || aspirante?.Email || '',
+      };
+      // El backend valida y toma la empresa real de VinculacionLaboral o RQ.
+      const respuestaPDF = await DescargarDocumentoPdf(
+        campos, 'tratamiento_datos', idVinculacion,
+        { IdRegistroPersonal: idNumero }
+      );
+      if (respuestaPDF?.ok === false) {
+        const detalle = await respuestaPDF.json().catch(() => ({}));
+        throw new Error(detalle?.detail || `Error PDF HTTP ${respuestaPDF.status}`);
+      }
+      let pdfBase64 = respuestaPDF?.data?.pdf_base64 || respuestaPDF?.pdf_base64 || '';
+      if (!pdfBase64 && typeof respuestaPDF?.json === 'function') {
+        const json = await respuestaPDF.json();
+        pdfBase64 = json?.pdf_base64 || '';
+      }
+      pdfBase64 = String(pdfBase64).replace(/^data:[^,]*;base64,/i, '').replace(/\s/g, '');
+      if (!pdfBase64.startsWith('JVBERi0')) {
+        throw new Error('El generador no devolvió un PDF válido.');
+      }
+
+      const nombre = `Tratamiento_Datos_${idNumero}.pdf`;
+      const respuestaGuardado = await RegistrarDocumentosSeguridad({
+        idRegistroPersonal: idNumero,
+        ...(idVinculacion ? { idVinculacionLaboral: idVinculacion } : {}),
+        documentos_seguridad: [{
+          IdTipoDocumentacion: 73,
+          Nombre: nombre,
+          Formato: 'application/pdf',
+          DocumentoCargado: `data:application/pdf;base64,${pdfBase64}`,
+        }],
+      });
+      if (!respuestaGuardado?.ok) {
+        const detalle = await respuestaGuardado?.json().catch(() => ({}));
+        throw new Error(detalle?.detail || `No se pudo guardar el 73 (HTTP ${respuestaGuardado?.status || 'desconocido'}).`);
+      }
+
+      // El archivo se muestra solo DESPUÉS de que el backend confirma guardado.
+      const doc73 = {
+        IdTipoDocumentacion: 73,
+        Nombre: nombre,
+        Formato: 'application/pdf',
+        DocumentoBase64: `data:application/pdf;base64,${pdfBase64}`,
+        IdVinculacionLaboral: idVinculacion,
+        OrigenCarpetaDigital: 'SEGURIDAD',
+      };
+      setDocumentos((anteriores) => [
+        ...(Array.isArray(anteriores) ? anteriores : []).filter((doc) =>
+          String(doc?.IdTipoDocumentacion) !== '73' ||
+          (idVinculacion && doc?.IdVinculacionLaboral != null &&
+            String(doc.IdVinculacionLaboral) !== String(idVinculacion))
+        ),
+        doc73,
+      ]);
+      sincronizado = true;
+      toast({
+        title: 'Tratamiento de datos sincronizado',
+        description: 'El documento 73 quedó guardado y disponible en Carpeta Digital → Selección.',
+      });
+    } catch (error) {
+      console.error('[CARPETA DIGITAL][73] Error sincronizando PDF:', error);
+      toast({
+        title: 'No se pudo sincronizar el tratamiento de datos',
+        description: error?.message || 'Revise el generador PDF y el servicio de documentos en QA.',
+        variant: 'destructive',
+      });
+    }
+    } finally {
+      if (!sincronizado) sincronizacionesTratamiento73.current.delete(clave);
+    }
+  };
+
   const handleDescargarTratamientoDatos = async () => {
+    if (soloLectura || generandoTratamientoDatos) return;
+    setGenerandoTratamientoDatos(true);
     try {
       const firmaBase64 = getDocumentoBase64Tipo42();
 
@@ -917,18 +1123,63 @@ const descargarDocumentoRetiro = async (doc) => {
         return;
       }
 
-      descargarDocumento({
-        DocumentoBase64: 'data:application/pdf;base64,' + pdf_base64,
-        Nombre: 'Tratamiento_de_datos.pdf',
+      // QA: generar y descargar también debe guardar el PDF en Seguridad (tipo 73).
+      const pdfBase64 = String(pdf_base64).replace(/^data:[^,]*;base64,/i, '').replace(/\s/g, '');
+      if (!pdfBase64.startsWith('JVBERi0')) {
+        throw new Error('El servicio no devolvió un PDF válido.');
+      }
+      const idRegistroPersonal = Number(
+        aspirante?.IdRegistroPersonal ?? aspirante?.idRegistroPersonal ?? aspirante?.id ?? 0
+      );
+      if (!Number.isSafeInteger(idRegistroPersonal) || idRegistroPersonal <= 0) {
+        throw new Error('No se encontró el IdRegistroPersonal del trabajador.');
+      }
+
+      const documento = {
+        IdTipoDocumentacion: 73,
+        Nombre: `Tratamiento_Datos_${idRegistroPersonal}.pdf`,
+        DocumentoBase64: `data:application/pdf;base64,${pdfBase64}`,
         Formato: 'application/pdf',
+        OrigenCarpetaDigital: 'SEGURIDAD',
+        IdVinculacionLaboral: idVinculacionParaPdf,
+        IdVinculacionLaboralConsulta: idVinculacionParaPdf,
+      };
+      const payload = {
+        idRegistroPersonal,
+        ...(idVinculacionParaPdf ? { idVinculacionLaboral: idVinculacionParaPdf } : {}),
+        documentos_seguridad: [{
+          IdTipoDocumentacion: 73,
+          Nombre: documento.Nombre,
+          DocumentoCargado: documento.DocumentoBase64,
+          Formato: documento.Formato,
+        }],
+      };
+      const respuestaGuardado = await RegistrarDocumentosSeguridad(payload);
+      if (!respuestaGuardado?.ok) {
+        const errorApi = await respuestaGuardado?.json().catch(() => ({}));
+        throw new Error(errorApi?.detail || `No se pudo guardar el documento 73 (HTTP ${respuestaGuardado?.status || 'desconocido'}).`);
+      }
+
+      setDocumentos((prev) => [
+        ...(Array.isArray(prev) ? prev : []).filter(
+          (doc) => String(doc?.IdTipoDocumentacion) !== '73'
+        ),
+        documento,
+      ]);
+      descargarDocumento(documento);
+      toast({
+        title: 'Tratamiento de datos adjuntado',
+        description: 'El documento 73 quedó guardado en Selección y se descargó.',
       });
     } catch (error) {
-      console.error('Error al descargar tratamiento de datos:', error);
+      console.error('Error generando o adjuntando tratamiento de datos:', error);
       toast({
-        title: 'Error al generar el documento',
-        description: 'No fue posible descargar el tratamiento de datos.',
+        title: 'No se pudo adjuntar el tratamiento de datos',
+        description: error?.message || 'Revise el servicio de documentos de seguridad en QA.',
         variant: 'destructive',
       });
+    } finally {
+      setGenerandoTratamientoDatos(false);
     }
   };
 
@@ -2415,7 +2666,7 @@ const renderCarpetaSaludOcupacional = () => (
               <Tabs value={tab} onValueChange={setTab} className="w-full">
                 <TabsContent value="ingreso">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-4 max-h-[50vh] overflow-y-auto pr-2">
-                    {docTypeConfigIngreso?.list?.map((req) => {
+                    {docTypeConfigIngreso?.list?.filter((req) => String(req.id) !== '73')?.map((req) => {
                       const doc = Array.isArray(documentos)
                         ? documentos.find(d => String(d.IdTipoDocumentacion) === String(req.id))
                         : null;
@@ -2641,6 +2892,7 @@ const renderCarpetaSaludOcupacional = () => (
                                   variant="outline"
                                   size="sm"
                                   className="text-emerald-700 border-emerald-300 hover:bg-emerald-100 px-3 h-auto w-full font-semibold"
+                                  disabled={puedeGenerarTratamiento && generandoTratamientoDatos}
                                   onClick={() =>
                                     puedeGenerarTratamiento
                                       ? handleDescargarTratamientoDatos()
@@ -2648,7 +2900,9 @@ const renderCarpetaSaludOcupacional = () => (
                                   }
                                 >
                                   <Download className="w-4 h-4 mr-2" />
-                                  {puedeGenerarTratamiento ? 'Generar y descargar' : 'Descargar'}
+                                  {puedeGenerarTratamiento
+                                    ? (generandoTratamientoDatos ? 'Generando y adjuntando...' : 'Generar, adjuntar y descargar')
+                                    : 'Descargar'}
                                 </Button>
 
                                 {!soloLectura && !esTratamientoDatos && (

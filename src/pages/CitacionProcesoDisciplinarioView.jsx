@@ -1193,6 +1193,16 @@ export default function CitacionProcesoDisciplinarioView({
 
               <div>
                 <p className="text-xs text-gray-500">
+                  Empresa contratante
+                </p>
+
+                <p className="font-semibold text-gray-800">
+                  {trabajador.NombreEmpresa || "—"}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-500">
                   Fecha de ingreso
                 </p>
 
