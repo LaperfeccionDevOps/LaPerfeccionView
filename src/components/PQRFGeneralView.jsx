@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line } from "recharts";
 import { ClipboardList, Search, RotateCcw, Eye, ChevronLeft, ChevronRight, BarChart3, X, AlertCircle, CalendarDays, RefreshCw } from "lucide-react";
 const PAGE_SIZE = 15;
-const STATES = [{ key: "", label: "Todas" }, { key: "ABIERTA", label: "Abiertas" }, { key: "RESPONDIDA", label: "Respondidas" }, { key: "CERRADA", label: "Cerradas" }, { key: "INHABILITADAS", label: "Inhabilitadas" }];
+const STATES = [{ key: "ABIERTA", label: "Abiertas" }, { key: "RESPONDIDA", label: "Respondidas" }, { key: "CERRADA", label: "Cerradas" }, { key: "INHABILITADAS", label: "Inhabilitadas" }];
 const BASE = (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:8000").replace(/\/+$/, "");
 const ENDPOINT = `${BASE.replace(/\/api$/i, "")}/api/pqrf`;
 const card = "rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-5";
@@ -60,10 +60,11 @@ const diasCalendarioRespuesta = (inicio, fin) => {
   const dias = Math.round((Date.UTC(yb, mb - 1, db) - Date.UTC(ya, ma - 1, da)) / 86400000) + 1;
   return dias > 0 ? dias : null;
 };
-const fechaRespuesta = r => r?.fecha_primera_respuesta || r?.fecha_respuesta || r?.fecha_gestion_respuesta || null;
-const diasRespuesta = r => {
-  if (r?.dias_calendario_respuesta != null) return Number(r.dias_calendario_respuesta);
-  return diasCalendarioRespuesta(r?.fecha_creacion || r?.fecha_pqrf, fechaRespuesta(r));
+// En PQRF el contador de la bandeja se congela SOLO con el cierre.
+const diasHastaCierre = (r, hoy) => {
+  const inicio = r?.fecha_creacion || r?.fecha_pqrf;
+  const fin = r?.estado === "CERRADA" ? r?.fecha_cierre : hoy;
+  return diasCalendarioRespuesta(inicio, fin);
 };
 const statusClass = state => ({ ABIERTA: "bg-amber-100 text-amber-800", RESPONDIDA: "bg-blue-100 text-blue-800", CERRADA: "bg-emerald-100 text-emerald-800" }[state] || "bg-slate-100 text-slate-700");
 export default function PQRFGeneralView() {
@@ -80,8 +81,11 @@ export default function PQRFGeneralView() {
   const clientRef = useRef(null);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [state, setState] = useState("");
+  const [state, setState] = useState("ABIERTA");
+  const [relation, setRelation] = useState("");
+  const [today, setToday] = useState(() => new Date());
   const [page, setPage] = useState(1);
+  useEffect(() => { const interval = setInterval(() => setToday(new Date()), 60000); return () => clearInterval(interval); }, []);
   const [refresh, setRefresh] = useState(0);
   const [catalogs, setCatalogs] = useState({ processes: [], types: [], clients: [] });
   const [data, setData] = useState({ registros: [], total: 0, paginas: 1 });
@@ -106,7 +110,7 @@ export default function PQRFGeneralView() {
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError("");
-    const common = { busqueda: search.trim(), id_proceso: process, id_tipo: type, id_cliente: client, fecha_desde: from, fecha_hasta: to };
+    const common = { busqueda: search.trim(), id_proceso: process, id_tipo: type, id_cliente: client, relacion: relation, fecha_desde: from, fecha_hasta: to };
     Promise.all([
       request(`/general${paramsOf({ ...common, estado: state, pagina: page, limite: PAGE_SIZE })}`, controller.signal),
       request(`/general/indicadores${paramsOf(common)}`, controller.signal),
@@ -115,7 +119,7 @@ export default function PQRFGeneralView() {
     }).catch(e => { if (!controller.signal.aborted) setError(e.message || "No fue posible consultar las PQRF."); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [search, process, type, client, from, to, state, page, refresh]);
+  }, [search, process, type, client, from, to, state, relation, page, refresh]);
   useEffect(() => {
     if (!selected) { setDetail(null); setDetailError(""); return; }
     const controller = new AbortController();
@@ -156,9 +160,9 @@ export default function PQRFGeneralView() {
   }, []);
   const counts = indicators.totales || {};
   const responseDays = r => {
-    const dias = diasRespuesta(r);
+    const dias = diasHastaCierre(r, today.toISOString());
     if (dias != null && Number.isFinite(dias)) return `${dias} día(s)`;
-    return r?.estado === "ABIERTA" ? "Pendiente" : "Por calcular en API";
+    return r?.estado === "CERRADA" ? "Sin fecha de cierre" : "Sin fecha de registro";
   };
   const rows = Array.isArray(data.registros) ? data.registros : [];
   const pages = Math.max(1, Number(data.paginas) || 1);
@@ -169,11 +173,9 @@ export default function PQRFGeneralView() {
   const record = detail?.pqrf;
   const managements = Array.isArray(detail?.gestiones) ? detail.gestiones : [];
   const history = Array.isArray(detail?.historial) ? detail.historial : [];
-  const primeraGestion = [...managements].filter(g => g.fecha_gestion && String(g.respuesta_pqrf || "").trim())
-    .sort((a, b) => new Date(a.fecha_gestion) - new Date(b.fecha_gestion))[0];
-  const diasDetalle = record ? (diasRespuesta(record) ?? diasCalendarioRespuesta(record.fecha_creacion || record.fecha_pqrf, primeraGestion?.fecha_gestion)) : null;
+  const diasDetalle = record ? diasHastaCierre(record, today.toISOString()) : null;
   const promedioCalendario = indicators.promedio_dias_calendario_respuesta;
-  const reset = () => { setSearch(""); setProcess(""); setType(""); setClient(""); setClientQuery(""); setClientOpen(false); setFrom(""); setTo(""); setState(""); setPage(1); };
+  const reset = () => { setSearch(""); setProcess(""); setType(""); setClient(""); setClientQuery(""); setClientOpen(false); setFrom(""); setTo(""); setState("ABIERTA"); setPage(1); };
   const chart = (items, label) => items.length ? <div style={{ height: Math.max(260, items.length * 38 + 55) }}>
     <ResponsiveContainer width="100%" height="100%"><BarChart data={items} layout="vertical" margin={{ top: 8, right: 22, left: 5, bottom: 8 }}>
       <CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} /><YAxis dataKey="nombre" type="category" width={165} tick={{ fontSize: 10 }} /><Tooltip /><Bar dataKey="total" name={label} fill="#0f766e" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer>
@@ -237,12 +239,19 @@ export default function PQRFGeneralView() {
     <section className={card}>
       <h2 className="text-lg font-bold">Bandeja general de PQRF</h2><p className="text-sm text-slate-500">Consulta de todas las PQRF · 15 registros por página · Solo lectura</p>
       <div className="mt-4 flex flex-wrap gap-2">{STATES.map(x => <button key={x.key} type="button" aria-pressed={state === x.key} onClick={() => { setState(x.key); setPage(1); }} className={`rounded-lg border px-4 py-2 text-sm font-semibold ${state === x.key ? "bg-emerald-700 text-white" : "hover:bg-slate-50"}`}>{x.label} ({x.key === "INHABILITADAS" ? indicators.inhabilitadas || 0 : x.key ? counts[x.key] || 0 : indicators.total || 0})</button>)}</div>
-      <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[1200px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-600"><tr>{["N.º PQRF", "Tipo", "Cliente", "Proceso", "Registrada por", "Responsable", "Estado", "Situación", "Fecha", "Días respuesta", "Acción"].map(h => <th key={h} className="border-b px-3 py-3">{h}</th>)}</tr></thead><tbody>{rows.map(r => <tr key={r.id} className="border-b hover:bg-slate-50"><td className="px-3 py-3 font-bold">{r.id}</td><td className="px-3 py-3">{text(r.tipo_pqrf)}</td><td className="px-3 py-3">{text(r.cliente)}</td><td className="px-3 py-3">{text(r.proceso)}</td><td className="px-3 py-3">{text(r.usuario_registro)}</td><td className="px-3 py-3">{text(r.usuario_responsable)}</td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${statusClass(r.estado)}`}>{r.estado}</span></td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${r.activo === false ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>{r.activo === false ? "Inhabilitada" : "Activa"}</span></td><td className="px-3 py-3">{dateText(r.fecha_creacion)}</td><td className="px-3 py-3">{responseDays(r)}</td><td className="px-3 py-3"><button type="button" className="flex items-center gap-1 rounded-lg border px-3 py-2 font-semibold" onClick={() => setSelected(r)}><Eye size={15} /> Ver</button></td></tr>)}{!rows.length && <tr><td colSpan={11} className="py-10 text-center text-slate-500">{loading ? "Consultando..." : error ? "Error consultando registros" : "Sin registros para los filtros seleccionados"}</td></tr>}</tbody></table></div>
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border bg-slate-50 p-3 text-sm">
+        <label htmlFor="pqrf-filtro-area" className="font-semibold">Filtrar bandeja por área / proceso:</label>
+        <select id="pqrf-filtro-area" className="min-w-[220px] flex-1 rounded border bg-white px-3 py-2" value={process} onChange={e => { setProcess(e.target.value); setPage(1); }}><option value="">TODAS LAS ÁREAS / PROCESOS</option>{catalogs.processes.map(x => <option key={x.id} value={x.id}>{text(x.nombre)}</option>)}</select>
+        <label htmlFor="pqrf-filtro-relacion" className="font-semibold">Relación:</label>
+        <select id="pqrf-filtro-relacion" className="rounded border bg-white px-3 py-2" value={relation} onChange={e => { setRelation(e.target.value); setPage(1); }}><option value="">TODAS</option><option value="INTERNA">INTERNAS</option><option value="EXTERNA">EXTERNAS</option></select>
+      </div>
+      <p className="mt-2 text-xs text-slate-500">Días calendario desde el registro: se actualizan mientras está abierta y se congelan únicamente al cerrar la PQRF (no al responder).</p>
+      <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[1200px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-600"><tr>{["N.º PQRF", "Tipo", "Cliente", "Proceso", "Registrada por", "Responsable", "Fecha de registro de la PQRF", "Fecha de la novedad", "Días de gestión", "Acción"].map(h => <th key={h} className="border-b px-3 py-3">{h}</th>)}</tr></thead><tbody>{rows.map(r => <tr key={r.id} className="border-b hover:bg-slate-50"><td className="px-3 py-3 font-bold">{r.id}</td><td className="px-3 py-3">{text(r.tipo_pqrf)}</td><td className="px-3 py-3">{text(r.cliente)}</td><td className="px-3 py-3">{text(r.proceso)}</td><td className="px-3 py-3">{text(r.usuario_registro)}</td><td className="px-3 py-3">{text(r.usuario_responsable)}</td><td className="px-3 py-3">{dateText(r.fecha_creacion)}</td><td className="px-3 py-3">{r.fecha_pqrf ? String(r.fecha_pqrf).slice(0,10).split("-").reverse().join("/") : "—"}</td><td className="px-3 py-3">{responseDays(r)}</td><td className="px-3 py-3"><button type="button" className="flex items-center gap-1 rounded-lg border px-3 py-2 font-semibold" onClick={() => setSelected(r)}><Eye size={15} /> Ver</button></td></tr>)}{!rows.length && <tr><td colSpan={10} className="py-10 text-center text-slate-500">{loading ? "Consultando..." : error ? "Error consultando registros" : "Sin registros para los filtros seleccionados"}</td></tr>}</tbody></table></div>
       <div className="mt-4 flex items-center justify-between gap-3 text-sm"><span>{data.total || 0} registro(s) · Página {Math.min(page, pages)} de {pages}</span><div className="flex items-center gap-2"><button aria-label="Página anterior" disabled={page <= 1 || loading} onClick={() => setPage(p => Math.max(1, p - 1))} className="rounded border px-3 py-2 disabled:opacity-40"><ChevronLeft size={16} /></button>{page}/{pages}<button aria-label="Página siguiente" disabled={page >= pages || loading} onClick={() => setPage(p => Math.min(pages, p + 1))} className="rounded border px-3 py-2 disabled:opacity-40"><ChevronRight size={16} /></button></div></div>
     </section>
     {selected && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onMouseDown={e => { if (e.target === e.currentTarget) setSelected(null); }}><div role="dialog" aria-modal="true" aria-label={`Detalle PQRF ${selected.id}`} className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl md:p-8"><div className="flex items-center justify-between gap-3"><h2 className="text-lg font-bold">Detalle PQRF N.º {selected.id}</h2><button type="button" aria-label="Cerrar detalle" onClick={() => setSelected(null)}><X size={20} /></button></div>
       {detailLoading && <p className="mt-4 text-sm">Cargando detalle…</p>}{detailError && <p role="alert" className="mt-4 text-sm text-red-700">{detailError}</p>}
-      {!detailLoading && !detailError && record && <div className="mt-5 space-y-5 text-sm"><div className="grid gap-3 sm:grid-cols-2"><p><strong>Estado:</strong> {text(record.estado)}</p><p><strong>Situación:</strong> <span className={record.activo === false ? "font-semibold text-red-700" : "font-semibold text-emerald-700"}>{record.activo === false ? "Inhabilitada" : "Activa"}</span></p><p><strong>Tipo:</strong> {text(record.tipo_pqrf)}</p><p><strong>Cliente:</strong> {text(record.cliente)}</p><p><strong>Proceso:</strong> {text(record.proceso)}</p><p><strong>Remitente:</strong> {text(record.nombre_remitente)}</p><p><strong>Correo remitente:</strong> {text(record.correo_remitente)}</p><p><strong>Correo destinatario:</strong> {text(record.correo_destinatario)}</p><p><strong>Registrada por:</strong> {text(record.usuario_registro)}</p><p><strong>Responsable actual:</strong> {text(record.usuario_responsable)}</p><p><strong>Fecha:</strong> {dateText(record.fecha_creacion)}</p><p><strong>Tiempo de respuesta:</strong> {diasDetalle == null ? (record.estado === "ABIERTA" ? "Pendiente" : "Por calcular en API") : `${diasDetalle} día(s) calendario (incluidos domingos y festivos)`}</p></div><section className="rounded-lg bg-slate-50 p-4"><h3 className="font-bold">Descripción de la PQRF</h3><p className="mt-2 whitespace-pre-wrap">{text(record.descripcion_pqrf)}</p></section><section className="rounded-lg border p-4"><h3 className="font-bold">Gestiones y respuestas ({managements.length})</h3>{managements.length ? managements.map((g, i) => <div key={g.id_gestion || i} className="mt-3 rounded-lg bg-slate-50 p-3"><p className="font-semibold">{text(g.usuario_gestion)} · {dateText(g.fecha_gestion)}</p><p className="mt-2"><strong>Análisis:</strong> {text(g.analisis_gestion)}</p><p className="mt-2 whitespace-pre-wrap"><strong>Respuesta:</strong> {text(g.respuesta_pqrf)}</p><p className="mt-2 whitespace-pre-wrap"><strong>Acciones:</strong> {text(g.acciones_realizadas)}</p></div>) : <p className="mt-2 text-slate-500">Sin respuesta registrada.</p>}</section><section className="rounded-lg border p-4"><h3 className="font-bold">Historial de movimientos ({history.length})</h3>{history.length ? <ol className="mt-3 space-y-3">{history.map((h, i) => <li key={h.id_historial || i} className="border-l-2 border-emerald-500 pl-3"><strong>{text(h.tipo_movimiento)}</strong> · {dateText(h.fecha_movimiento)}<p className="text-xs text-slate-600">{text(h.usuario)} · {text(h.estado_anterior)} → {text(h.estado_nuevo)}</p><p className="mt-1 whitespace-pre-wrap">{text(h.observacion)}</p></li>)}</ol> : <p className="mt-2 text-slate-500">Sin historial disponible.</p>}</section></div>}
+      {!detailLoading && !detailError && record && <div className="mt-5 space-y-5 text-sm"><div className="grid gap-3 sm:grid-cols-2"><p><strong>Estado:</strong> {text(record.estado)}</p><p><strong>Situación:</strong> <span className={record.activo === false ? "font-semibold text-red-700" : "font-semibold text-emerald-700"}>{record.activo === false ? "Inhabilitada" : "Activa"}</span></p><p><strong>Tipo:</strong> {text(record.tipo_pqrf)}</p><p><strong>Cliente:</strong> {text(record.cliente)}</p><p><strong>Proceso:</strong> {text(record.proceso)}</p><p><strong>Remitente:</strong> {text(record.nombre_remitente)}</p><p><strong>Correo remitente:</strong> {text(record.correo_remitente)}</p><p><strong>Correo destinatario:</strong> {text(record.correo_destinatario)}</p><p><strong>Registrada por:</strong> {text(record.usuario_registro)}</p><p><strong>Responsable actual:</strong> {text(record.usuario_responsable)}</p><p><strong>Fecha de registro de la PQRF:</strong> {dateText(record.fecha_creacion)}</p><p><strong>Fecha de la novedad:</strong> {record.fecha_pqrf ? String(record.fecha_pqrf).slice(0,10).split("-").reverse().join("/") : "—"}</p><p><strong>Días hasta cierre (o transcurridos):</strong> {diasDetalle == null ? (record.estado === "ABIERTA" ? "Pendiente" : "Sin fecha de cierre") : `${diasDetalle} día(s) calendario (incluidos domingos y festivos)`}</p></div><section className="rounded-lg bg-slate-50 p-4"><h3 className="font-bold">Descripción de la PQRF</h3><p className="mt-2 whitespace-pre-wrap">{text(record.descripcion_pqrf)}</p></section><section className="rounded-lg border p-4"><h3 className="font-bold">Gestiones y respuestas ({managements.length})</h3>{managements.length ? managements.map((g, i) => <div key={g.id_gestion || i} className="mt-3 rounded-lg bg-slate-50 p-3"><p className="font-semibold">{text(g.usuario_gestion)} · {dateText(g.fecha_gestion)}</p><p className="mt-2"><strong>Análisis:</strong> {text(g.analisis_gestion)}</p><p className="mt-2 whitespace-pre-wrap"><strong>Respuesta:</strong> {text(g.respuesta_pqrf)}</p><p className="mt-2 whitespace-pre-wrap"><strong>Acciones:</strong> {text(g.acciones_realizadas)}</p></div>) : <p className="mt-2 text-slate-500">Sin respuesta registrada.</p>}</section><section className="rounded-lg border p-4"><h3 className="font-bold">Historial de movimientos ({history.length})</h3>{history.length ? <ol className="mt-3 space-y-3">{history.map((h, i) => <li key={h.id_historial || i} className="border-l-2 border-emerald-500 pl-3"><strong>{text(h.tipo_movimiento)}</strong> · {dateText(h.fecha_movimiento)}<p className="text-xs text-slate-600">{text(h.usuario)} · {text(h.estado_anterior)} → {text(h.estado_nuevo)}</p><p className="mt-1 whitespace-pre-wrap">{text(h.observacion)}</p></li>)}</ol> : <p className="mt-2 text-slate-500">Sin historial disponible.</p>}</section></div>}
       <button type="button" onClick={() => setSelected(null)} className="mt-5 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white">Cerrar</button></div></div>}
   </div>;
 }

@@ -6,6 +6,16 @@ import { useAuth } from "@/context/AuthContext";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
 const SNC_BASE_URL = `${API_BASE_URL}/salidas-no-conformes`;
 
+// Fecha informativa en zona horaria Colombia. La fecha definitiva de creación
+// pertenece al servidor y no se envía desde este formulario.
+const fechaActualColombia = () => {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const valores = Object.fromEntries(partes.map(({ type, value }) => [type, value]));
+  return `${valores.year}-${valores.month}-${valores.day}`;
+};
+
 const formularioInicial = () => ({
   fecha: "",
   proceso: "",
@@ -50,6 +60,18 @@ const SalidasNoConformesView = () => {
   const [cargandoCatalogos, setCargandoCatalogos] = useState(true);
   const [errorCatalogos, setErrorCatalogos] = useState("");
   const [formulario, setFormulario] = useState(formularioInicial);
+  const [fechaRegistroVisible, setFechaRegistroVisible] = useState(fechaActualColombia);
+  useEffect(() => {
+    const actualizarFecha = () => setFechaRegistroVisible(fechaActualColombia());
+    const intervalo = window.setInterval(actualizarFecha, 60000);
+    window.addEventListener("focus", actualizarFecha);
+    document.addEventListener("visibilitychange", actualizarFecha);
+    return () => {
+      window.clearInterval(intervalo);
+      window.removeEventListener("focus", actualizarFecha);
+      document.removeEventListener("visibilitychange", actualizarFecha);
+    };
+  }, []);
   const [guardando, setGuardando] = useState(false);
   const [errorRegistro, setErrorRegistro] = useState("");
   const [exitoRegistro, setExitoRegistro] = useState("");
@@ -1154,12 +1176,25 @@ const SalidasNoConformesView = () => {
             )}
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <div className="space-y-2 md:col-span-2">
-                <Campo titulo="Fecha de la Salida No Conforme">
-                  <input type="date" value={formulario.fecha} disabled={guardando} required
-                    aria-describedby="snc-aviso-fecha"
-                    onChange={(e) => actualizar("fecha", e.target.value)}
-                    className={`${clasesInput} ${!formulario.fecha ? "border-amber-300" : ""}`} />
-                </Campo>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <label htmlFor="snc-fecha-registro" className="block text-sm font-semibold text-gray-700">
+                      Fecha de registro de la SNC
+                    </label>
+                    <input id="snc-fecha-registro" type="date" value={fechaRegistroVisible}
+                      readOnly disabled aria-label="Fecha de registro automática, no modificable"
+                      className={`${clasesInput} bg-gray-100 text-gray-700 cursor-not-allowed`} />
+                    <p className="text-xs text-gray-500">Fecha automática de Colombia. No modificable.</p>
+                  </div>
+                  <div>
+                    <Campo titulo="Fecha de la Salida No Conforme">
+                      <input type="date" value={formulario.fecha} disabled={guardando} required
+                        aria-describedby="snc-aviso-fecha"
+                        onChange={(e) => actualizar("fecha", e.target.value)}
+                        className={`${clasesInput} ${!formulario.fecha ? "border-amber-300" : ""}`} />
+                    </Campo>
+                  </div>
+                </div>
                 <div id="snc-aviso-fecha" className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-red-800">
                   <AlertCircle size={19} className="mt-0.5 shrink-0 text-red-600" aria-hidden="true" />
                   <div className="min-w-0">
