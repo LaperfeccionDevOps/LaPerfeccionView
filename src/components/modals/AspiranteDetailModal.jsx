@@ -2193,14 +2193,26 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
          let pdf_base64 = '';
          try {
             const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos');
-            if (response && typeof response.json === 'function') {
-               const data = await response.json();
-               pdf_base64 = data.pdf_base64;
-            } else if (response && response.pdf_base64) {
+            if (response?.data?.pdf_base64) {
+               pdf_base64 = response.data.pdf_base64;
+            } else if (response?.pdf_base64) {
                pdf_base64 = response.pdf_base64;
+            } else if (response && typeof response.json === 'function') {
+               const data = await response.json();
+               pdf_base64 = data?.pdf_base64 || '';
             }
          } catch (e) {
+            console.error('Error generando tratamiento de datos:', e);
             pdf_base64 = '';
+         }
+         if (!pdf_base64) {
+            toast({
+               title: 'No se pudo adjuntar el tratamiento de datos',
+               description: 'Verifique la firma digital y el servicio de generación del PDF. No se guardarán documentos incompletos.',
+               variant: 'destructive',
+            });
+            setLoadingAspiranteDetalle(false);
+            return;
          }
          if (pdf_base64) {
             docsSeguridadFinal.push({
@@ -4917,10 +4929,6 @@ if (response && response.status === 201) {
                                           : null;
                                           let hasFile = !!foundDoc;
                                           let accept = '.pdf,image/*';
-                                          // Forzar que Tratamiento de datos siempre aparezca como adjuntado
-                                          if (isTratamientoDatos) {
-                                            hasFile = true;
-                                          }
                                           return (
                                              <div key={seguridadDoc.id} className="border border-gray-200 rounded-xl p-5 bg-white shadow-sm flex flex-col justify-between h-full group w-full max-w-xs min-w-[220px] flex-1">
                                                 <div>

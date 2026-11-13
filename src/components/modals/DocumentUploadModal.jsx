@@ -2162,7 +2162,13 @@ const renderCarpetaSaludOcupacional = () => (
   const existeTipo = (id) => documentosParaIndicadores.some(
     (doc) => String(doc?.IdTipoDocumentacion) === String(id)
   );
-  const pendientesIngreso = (docTypeConfigIngreso?.list || []).filter(
+  // El catálogo visible y el contador de Aspirante deben usar el mismo filtro.
+  // Tratamiento de datos (73) corresponde exclusivamente a Selección.
+  const documentosIngresoVisibles = (docTypeConfigIngreso?.list || []).filter(
+    (req) => String(req.id) !== '73' &&
+      !/^tratamiento de datos$/i.test(String(req.nombre || req.label || '').trim())
+  );
+  const pendientesIngreso = documentosIngresoVisibles.filter(
     (req) => !existeTipo(req.id)
   ).length;
   const pendientesSeleccion = (docTypeConfigSeguridad?.list || []).filter(
@@ -2390,7 +2396,7 @@ const renderCarpetaSaludOcupacional = () => (
               <Tabs value={tab} onValueChange={setTab} className="w-full">
                 <TabsContent value="ingreso">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-4 max-h-[50vh] overflow-y-auto pr-2">
-                    {docTypeConfigIngreso?.list?.map((req) => {
+                    {documentosIngresoVisibles.map((req) => {
                       const doc = Array.isArray(documentos)
                         ? documentos.find(d => String(d.IdTipoDocumentacion) === String(req.id))
                         : null;
