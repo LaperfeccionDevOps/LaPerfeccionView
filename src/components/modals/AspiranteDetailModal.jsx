@@ -1772,6 +1772,32 @@ console.log('campos completos:', campos);
       }
     }
 
+    if (estadoInt === 24) {
+      const idVinculacion = detalleCiclos?.esReintegroActual
+        ? detalleCiclos?.vinculacionActual?.IdVinculacionLaboral
+        : null;
+      try {
+        const resultado = await entrevistaCandidatoService.listarPorRegistro(
+          formData.idRegistroPersonal,
+          idVinculacion
+        );
+        const entrevistas = Array.isArray(resultado?.data)
+          ? resultado.data
+          : (Array.isArray(resultado?.datos) ? resultado.datos : []);
+        if (entrevistas.length === 0) {
+          setAlertaEntrevistaObligatoria(true);
+          return;
+        }
+      } catch (error) {
+        toast({
+          title: 'No fue posible verificar la entrevista',
+          description: 'Intente nuevamente. El estado no se ha modificado.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     const response = await ActualizarEstadoProcesoService(
       formData.idRegistroPersonal,
       estadoInt,
@@ -1818,6 +1844,11 @@ console.log('campos completos:', campos);
       );
     }
   } catch (error) {
+    const detalleError = String(error?.response?.data?.detail || error?.message || '');
+    if (detalleError.includes('entrevista de Selección')) {
+      setAlertaEntrevistaObligatoria(true);
+      return;
+    }
     window.alert(
       'Error al actualizar el estado.\n\nNo fue posible actualizar el estado del proceso. Si el error persiste, comuníquese con el administrador.'
     );
@@ -1898,6 +1929,7 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
 
   // Entrevista Modal State
   const [entrevistaModalOpen, setEntrevistaModalOpen] = useState(false);
+  const [alertaEntrevistaObligatoria, setAlertaEntrevistaObligatoria] = useState(false);
   const [selectedEntrevista, setSelectedEntrevista] = useState(null);
 
   // ✅ (CAMBIO) Estados para el Select "Estado del Proceso General"
@@ -4972,115 +5004,8 @@ if (response && response.status === 201) {
                            </div>
                      </TabsContent>
                     <TabsContent value="entrevista" className="mt-0 space-y-6">
-                       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                         {/* 8. Entrevista */}
-                           <TabsContent value="entrevista" className="mt-0 space-y-6">
-                           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                              <h3 className="text-lg font-bold text-gray-800 mb-6 border-b pb-2">
-                                 Gestión de Entrevista
-                              </h3>
-
-                              {/* Fila 1: Botón Registrar Información Entrevista */}
-                              {!(formData?.entrevistas && formData.entrevistas.length > 0) && (
-                                <div className="mb-6 flex justify-center">
-                                   <Button
-                                   onClick={handleAddEntrevista}
-                                   className="w-full md:w-auto bg-white text-emerald-600 border border-emerald-600 hover:bg-emerald-50 shadow-sm"
-                                   >
-                                   <Plus className="w-4 h-4 mr-2" />
-                                   Registrar Información de Entrevista
-                                   </Button>
-                                </div>
-                              )}
-
-                              {/* Fila 3: Historial de Entrevistas */}
-                              <div className="mb-6">
-                                 <h4 className="font-medium text-gray-700 mb-3">HISTORIAL DE ENTREVISTAS</h4>
-
-                                 <div className="border rounded-lg overflow-hidden">
-                                 <Table>
-                                    <TableHeader>
-                                       <TableRow className="bg-gray-50">
-                                       <TableHead>FECHA</TableHead>
-                                       <TableHead>CONCEPTO SELECCIÓN</TableHead>
-                                       <TableHead>ENTREVISTADOR</TableHead>
-                                       <TableHead className="text-right">ACCIONES</TableHead>
-                                       </TableRow>
-                                    </TableHeader>
-
-                                    <TableBody>
-                                       {formData?.entrevistas && formData.entrevistas.length > 0 ? (
-                                       formData.entrevistas.map((ent, idx) => (
-                                          <TableRow key={idx}>
-                                             <TableCell>{ent.FechaCreacion}</TableCell>
-                                             <TableCell>
-                                             <span
-                                                className={cn(
-                                                   "px-2 py-1 rounded-full text-xs font-semibold",
-                                                    ent.ConceptoFinalSeleccion === "Aprobado"
-                                                   ? "bg-green-100 text-green-700"
-                                                   : ent.ConceptoFinalSeleccion === "Rechazado"
-                                                   ? "bg-red-100 text-red-700"
-                                                   : "bg-yellow-100 text-yellow-700"
-                                                )}
-                                             >
-                                                {ent.ConceptoFinalSeleccion}
-                                             </span>
-                                             </TableCell>
-
-                                             <TableCell>{ent.EntrevistadorPor}</TableCell>
-
-                                             <TableCell className="text-right">
-                                             <div className="flex justify-end gap-2">
-                                                <Button
-                                                   size="icon"
-                                                   variant="ghost"
-                                                   className="h-8 w-8"
-                                                   onClick={() => handleEditEntrevista(ent, idx)}
-                                                >
-                                                   <Eye className="w-4 h-4 text-blue-500" />
-                                                </Button>
-
-                                                <Button
-                                                   size="icon"
-                                                   variant="ghost"
-                                                   className="h-8 w-8"
-                                                   onClick={() => handleRemoveEntrevista(idx)}
-                                                >
-                                                   <Trash2 className="w-4 h-4 text-red-500" />
-                                                </Button>
-                                             </div>
-                                             </TableCell>
-                                          </TableRow>
-                                       ))
-                                       ) : (
-                                       <TableRow>
-                                          <TableCell colSpan={4} className="text-center py-8 text-gray-500">
-                                             NO SE HAN REGISTRADO ENTREVISTAS AÚN.
-                                          </TableCell>
-                                       </TableRow>
-                                       )}
-                                    </TableBody>
-                                 </Table>
-                                 </div>
-                              </div>
-                              <Button
-                                 type="button"
-                                 size="sm"
-                                 className="h-9 px-4 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white"
-                                 onClick={() => {
-                                 console.log('CLICK BOTON DESCARGAR ENTREVISTA');
-                                 handleDescargarEntrevista();
-                                 }}
-                                 style={{ marginTop: '1rem' }}
-                              >
-                                 Descargar entrevista
-                              </Button>
-                           </div>
-                           </TabsContent>
-
                            {/* ✅✅✅ NUEVO BLOQUE: Asignación cargo y cliente (JUSTO AQUÍ, debajo del historial) */}
-                           {/* <details className="mb-6 bg-white border border-gray-200 rounded-xl shadow-sm"> */}
+                           <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Para realizar la entrevista, primero debe asignar y guardar el cargo del aspirante.</div>
                            <summary className="cursor-pointer select-none list-none px-4 py-3 flex items-center justify-between">
                               <span className="font-semibold text-gray-800">
                                  Asignación cargo y cliente
@@ -5272,6 +5197,114 @@ if (response && response.status === 201) {
 
 
                            {/* </details> */}
+
+                       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                         {/* 8. Entrevista */}
+                           <TabsContent value="entrevista" className="mt-0 space-y-6">
+                           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                              <h3 className="text-lg font-bold text-gray-800 mb-6 border-b pb-2">
+                                 Gestión de Entrevista
+                              </h3>
+
+                              {/* Fila 1: Botón Registrar Información Entrevista */}
+                              {!(formData?.entrevistas && formData.entrevistas.length > 0) && (
+                                <div className="mb-6 flex justify-center">
+                                   <Button
+                                   onClick={handleAddEntrevista}
+                                   className="w-full md:w-auto bg-white text-emerald-600 border border-emerald-600 hover:bg-emerald-50 shadow-sm"
+                                   >
+                                   <Plus className="w-4 h-4 mr-2" />
+                                   Registrar Información de Entrevista
+                                   </Button>
+                                </div>
+                              )}
+
+                              {/* Fila 3: Historial de Entrevistas */}
+                              <div className="mb-6">
+                                 <h4 className="font-medium text-gray-700 mb-3">HISTORIAL DE ENTREVISTAS</h4>
+
+                                 <div className="border rounded-lg overflow-hidden">
+                                 <Table>
+                                    <TableHeader>
+                                       <TableRow className="bg-gray-50">
+                                       <TableHead>FECHA</TableHead>
+                                       <TableHead>CONCEPTO SELECCIÓN</TableHead>
+                                       <TableHead>ENTREVISTADOR</TableHead>
+                                       <TableHead className="text-right">ACCIONES</TableHead>
+                                       </TableRow>
+                                    </TableHeader>
+
+                                    <TableBody>
+                                       {formData?.entrevistas && formData.entrevistas.length > 0 ? (
+                                       formData.entrevistas.map((ent, idx) => (
+                                          <TableRow key={idx}>
+                                             <TableCell>{ent.FechaCreacion}</TableCell>
+                                             <TableCell>
+                                             <span
+                                                className={cn(
+                                                   "px-2 py-1 rounded-full text-xs font-semibold",
+                                                    ent.ConceptoFinalSeleccion === "Aprobado"
+                                                   ? "bg-green-100 text-green-700"
+                                                   : ent.ConceptoFinalSeleccion === "Rechazado"
+                                                   ? "bg-red-100 text-red-700"
+                                                   : "bg-yellow-100 text-yellow-700"
+                                                )}
+                                             >
+                                                {ent.ConceptoFinalSeleccion}
+                                             </span>
+                                             </TableCell>
+
+                                             <TableCell>{ent.EntrevistadorPor}</TableCell>
+
+                                             <TableCell className="text-right">
+                                             <div className="flex justify-end gap-2">
+                                                <Button
+                                                   size="icon"
+                                                   variant="ghost"
+                                                   className="h-8 w-8"
+                                                   onClick={() => handleEditEntrevista(ent, idx)}
+                                                >
+                                                   <Eye className="w-4 h-4 text-blue-500" />
+                                                </Button>
+
+                                                <Button
+                                                   size="icon"
+                                                   variant="ghost"
+                                                   className="h-8 w-8"
+                                                   onClick={() => handleRemoveEntrevista(idx)}
+                                                >
+                                                   <Trash2 className="w-4 h-4 text-red-500" />
+                                                </Button>
+                                             </div>
+                                             </TableCell>
+                                          </TableRow>
+                                       ))
+                                       ) : (
+                                       <TableRow>
+                                          <TableCell colSpan={4} className="text-center py-8 text-gray-500">
+                                             NO SE HAN REGISTRADO ENTREVISTAS AÚN.
+                                          </TableCell>
+                                       </TableRow>
+                                       )}
+                                    </TableBody>
+                                 </Table>
+                                 </div>
+                              </div>
+                              <Button
+                                 type="button"
+                                 size="sm"
+                                 className="h-9 px-4 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white"
+                                 onClick={() => {
+                                 console.log('CLICK BOTON DESCARGAR ENTREVISTA');
+                                 handleDescargarEntrevista();
+                                 }}
+                                 style={{ marginTop: '1rem' }}
+                              >
+                                 Descargar entrevista
+                              </Button>
+                           </div>
+                           </TabsContent>
+
                            {/* CONTENEDOR: Estado del proceso general y motivo de cierre */}
                            {puedeModificarEstadoDesdeSeleccion && (
                            <div className="mb-6 p-4 rounded-xl border border-emerald-200 flex flex-col gap-4" style={{ marginTop: '20px' }}>
@@ -5390,6 +5423,24 @@ if (response && response.status === 201) {
       </DialogContent>
     </Dialog>
 
+
+    <Dialog open={alertaEntrevistaObligatoria} onOpenChange={setAlertaEntrevistaObligatoria}>
+      <DialogContent className="max-w-lg rounded-2xl border-2 border-red-200 p-7 shadow-2xl" style={{ backgroundColor: "#ffffff", color: "#111827", opacity: 1 }}>
+        <DialogHeader>
+          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-red-100">
+            <AlertCircle className="h-8 w-8 text-red-600" />
+          </div>
+          <DialogTitle className="text-xl font-bold" style={{ color: "#b91c1c" }}>No es posible avanzar a Contratación</DialogTitle>
+          <DialogDescription className="pt-3 text-base font-medium leading-7" style={{ color: "#1f2937", opacity: 1 }}>
+            Este aspirante aún no tiene una entrevista registrada para su proceso actual.
+            Realice y guarde la entrevista antes de avanzar al estado 24 — Avanza a Contratación.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button type="button" onClick={() => setAlertaEntrevistaObligatoria(false)} className="bg-emerald-600 font-semibold text-white hover:bg-emerald-700" style={{ color: "#ffffff" }}>Entendido</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     {/* Modal Observaciones - Experiencia Laboral */}
     <Dialog open={obsRefLabOpen} onOpenChange={setObsRefLabOpen}>
