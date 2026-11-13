@@ -2,6 +2,7 @@ import { RegistroPersonal, getListaLocalidades, getListaLugarNacimiento, getAspi
 import { getAspirante } from '../services/detalle_aspirante';
 import React, { useState, useEffect } from 'react';
 import SignaturePad from 'react-signature-canvas';
+import { DescargarDocumentoPdf } from '../services/descargarDocumento';
 import { motion } from 'framer-motion';
 import Swal from 'sweetalert2';
 import {
@@ -1271,6 +1272,7 @@ const handleTelEmergenciaChange = (e) => {
         description: 'Por favor confirma el número de identificación.',
         variant: 'destructive',
       });
+      setIsSubmitting(false);
       return;
     }
 
@@ -1280,6 +1282,7 @@ const handleTelEmergenciaChange = (e) => {
         description: 'El número y la confirmación deben ser iguales.',
         variant: 'destructive',
       });
+      setIsSubmitting(false);
       return;
     }
 
@@ -1300,8 +1303,78 @@ const handleTelEmergenciaChange = (e) => {
 
     const { Referencias, ...restFormData } = formData;
 
+    // Documento 73: se genera antes del POST del aspirante nuevo.
+    let documentosParaGuardar = documentos;
+    const tratamientoExistente = Object.values(documentos).some(
+      (doc) => Number(doc?.IdTipoDocumentacion) === 73 && Boolean(doc?.DocumentoCargado)
+    );
+    if (!existeAspirante && !tratamientoExistente) {
+      try {
+        const firma = documentos?.[42]?.DocumentoCargado || documentos?.['42']?.DocumentoCargado || '';
+        if (!firma || !firma.startsWith('data:image/')) {
+          throw new Error('Debe guardar primero la firma digital.');
+        }
+        const logoResp = await fetch('/LOGO/LOGOPRINCIPAL.png');
+        if (!logoResp.ok) throw new Error('No se pudo cargar el logo.');
+        const logoBlob = await logoResp.blob();
+        const logo = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error('No se pudo leer el logo.'));
+          reader.readAsDataURL(logoBlob);
+        });
+        const tipoIdentificacion = TIPOS_IDENTIFICACION.find(
+          (tipo) => Number(tipo.key) === Number(formData.IdTipoIdentificacion)
+        )?.value || '';
+        const fechaFirma = new Date().toLocaleDateString('es-CO', {
+          timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit'
+        });
+        const campos = {
+          LOGO: logo,
+          NOMBRES: `${formData.Nombres || ''} ${formData.Apellidos || ''}`.trim(),
+          TIPO_IDENTIFICACION: tipoIdentificacion,
+          NUMERO_IDENTIFICACION: String(formData.NumeroIdentificacion || ''),
+          FIRMA: firma,
+          FECHA_FIRMA: fechaFirma,
+          EMAIL: formData.Email || '',
+        };
+        const respuestaPdf = await DescargarDocumentoPdf(campos, 'tratamiento_datos');
+        const datosPdf = typeof respuestaPdf?.json === 'function'
+          ? await respuestaPdf.json()
+          : (respuestaPdf?.data || respuestaPdf);
+        if (respuestaPdf?.ok === false) {
+          throw new Error(datosPdf?.error || datosPdf?.detail || `Error HTTP ${respuestaPdf.status} al generar el PDF 73.`);
+        }
+        const pdfBase64 = datosPdf?.pdf_base64;
+        if (typeof pdfBase64 !== 'string' || !pdfBase64.startsWith('JVBER')) {
+          throw new Error('El generador no devolvió un PDF válido.');
+        }
+        documentosParaGuardar = {
+          ...documentos,
+          73: {
+            IdTipoDocumentacion: 73,
+            Nombre: 'tratamiento_datos.pdf',
+            Formato: 'application/pdf',
+            DocumentoCargado: `data:application/pdf;base64,${pdfBase64}`,
+          },
+        };
+      } catch (error) {
+        console.error('Error generando documento 73:', error);
+        toast({
+          title: 'No se pudo generar el Tratamiento de datos',
+          description: error?.message || 'Intente nuevamente antes de guardar el registro.',
+          variant: 'destructive',
+        });
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
     // Transformar documentos (objeto) a Documentacion (array)
-    const Documentacion = Object.entries(documentos).map(([key, doc]) => {
+    const Documentacion = Object.entries(documentosParaGuardar)
+      // La foto se referencia con dos claves en la UI; enviar una sola copia al backend.
+      .filter(([key]) => key !== 'fotoAspirante' || !documentosParaGuardar[2])
+      .map(([key, doc]) => {
       // Asegurar IdTipoDocumentacion numérico (la foto se guarda con key 'fotoAspirante', pero su ID real es 2)
       const idTipoDoc =
         doc.IdTipoDocumentacion ?? (key === 'fotoAspirante' ? 2 : Number(key));
@@ -1334,6 +1407,23 @@ const handleTelEmergenciaChange = (e) => {
       };
     });
 
+    // Garantía previa a la escritura: nunca registrar un aspirante nuevo sin PDF 73.
+    // Evita éxito parcial cuando el PDF no se incorporó al payload.
+    if (!existeAspirante) {
+      const doc73 = Documentacion.find((doc) => Number(doc.IdTipoDocumentacion) === 73);
+      const doc42 = Documentacion.find((doc) => Number(doc.IdTipoDocumentacion) === 42);
+      if (!doc73?.DocumentoCargado?.startsWith('data:application/pdf;base64,JVBER') ||
+          !doc42?.DocumentoCargado?.startsWith('data:image/')) {
+        toast({
+          title: 'No se puede guardar el registro',
+          description: 'Falta el PDF firmado de Tratamiento de datos (73) o la firma digital (42).',
+          variant: 'destructive',
+        });
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
    // Si NumeroWhatsapp está vacío o no definido, enviarlo como null
         const numeroWhatsappFinal =
           !formData.NumeroWhatsapp || formData.NumeroWhatsapp.trim() === ''
@@ -1348,6 +1438,12 @@ const handleTelEmergenciaChange = (e) => {
           IdEstadoProceso: formData.IdEstadoProceso,
           IdTipoCargo: 5,
           NumeroWhatsapp: numeroWhatsappFinal,
+          // Consentimientos reales, solo en la creación de un aspirante nuevo.
+          // No modificar consentimientos históricos al actualizar un registro.
+          ...(!existeAspirante ? {
+            AceptoTratamientoDatos: aceptaTratamientoDatos,
+            ConflictoInteres: aceptaConflictoInteres,
+          } : {}),
           Documentacion,
           Referencias: referenciasLimpias,
           NucleoFamiliar: nucleoFamiliarLimpio,
@@ -1384,6 +1480,7 @@ const handleTelEmergenciaChange = (e) => {
             title: 'swal2-title-sm'
           }
         });
+        setIsSubmitting(false);
         return; // ⛔ bloquea el submit (Guardar Registro)
       }
       let response;
@@ -1414,7 +1511,7 @@ const handleTelEmergenciaChange = (e) => {
       }
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Error del servidor: ${response.status}`);
+        throw new Error(errorData.detail || errorData.message || `Error del servidor: ${response.status}`);
       }
 
       const responseData = await response.json();
@@ -3467,19 +3564,15 @@ const tieneFirmaCargada = () => {
                     style: { touchAction: "none", width: "100%", maxWidth: 420, height: 140 }
                   }}
 
+                    // Dibujar o modificar la firma NO la guarda automáticamente.
+                    // Se exige pulsar «Guardar Firma» para confirmar la versión final.
                     onEnd={() => {
-                      if (window.firmaPad && !window.firmaPad.isEmpty()) {
-                        const dataUrl = window.firmaPad.toDataURL();
-                        setDocumentos((prev) => ({
-                          ...prev,
-                          42: {
-                            IdTipoDocumentacion: 42,
-                            Nombre: 'firma-digital.png',
-                            Formato: 'image/png',
-                            DocumentoCargado: dataUrl,
-                          },
-                        }));
-                      }
+                      setDocumentos((prev) => {
+                        if (!prev[42]) return prev;
+                        const next = { ...prev };
+                        delete next[42];
+                        return next;
+                      });
                     }}
                   />
 
