@@ -2058,6 +2058,13 @@ const renderCarpetaSaludOcupacional = () => (
           </p>
         </div>
       ) : (
+        <div>
+          <div className={`mb-4 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold ${pendientesRetiro > 0 ? 'border-red-200 bg-red-50 text-red-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
+            {pendientesRetiro > 0 ? <AlertCircle className="h-5 w-5 shrink-0" /> : <CheckCircle2 className="h-5 w-5 shrink-0" />}
+            {pendientesRetiro > 0
+              ? `${pendientesRetiro} documento(s) de retiro sin archivo adjunto`
+              : 'Todos los documentos de retiro listados tienen archivo adjunto'}
+          </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-h-[50vh] overflow-y-auto pr-2">
           {documentos.map((doc) => {
             const hasFile = !!doc?.Adjuntado;
@@ -2144,8 +2151,49 @@ const renderCarpetaSaludOcupacional = () => (
             );
           })}
         </div>
+        </div>
       )}
     </div>
+  );
+
+  // Indicadores visuales: se calculan con los mismos catálogos de cada pestaña.
+  // No modifican los documentos ni los servicios existentes.
+  const documentosParaIndicadores = Array.isArray(documentos) ? documentos : [];
+  const existeTipo = (id) => documentosParaIndicadores.some(
+    (doc) => String(doc?.IdTipoDocumentacion) === String(id)
+  );
+  const pendientesIngreso = (docTypeConfigIngreso?.list || []).filter(
+    (req) => !existeTipo(req.id)
+  ).length;
+  const pendientesSeleccion = (docTypeConfigSeguridad?.list || []).filter(
+    (req) => !existeTipo(req.id) && !(String(req.id) === '73' && existeTipo('42'))
+  ).length;
+  const pendientesContratacion = listaDocumentosContratacion.filter(
+    (req) => !documentosParaIndicadores.some(
+      (doc) => String(doc?.IdTipoDocumentacion) === String(req.id) &&
+        Boolean(doc?.DocumentoBase64 || doc?.DocumentoCargado)
+    )
+  ).length;
+
+  // Retiro: contar únicamente las tarjetas devueltas por el servicio de
+  // carpeta digital que actualmente aparecen como 'Sin archivo'.
+  // No se presume obligatoriedad para documentos condicionales.
+  const pendientesRetiro = esCarpetaRetiro
+    ? documentosParaIndicadores.filter((doc) => doc && !doc.Adjuntado).length
+    : 0;
+
+  const indicadorPendientes = (cantidad) => (
+    <span
+      className={`ml-2 inline-flex min-w-[26px] h-7 items-center justify-center rounded-full px-2 text-sm font-extrabold shadow-sm border ${
+        cantidad > 0
+          ? 'bg-red-600 text-white border-red-700'
+          : 'bg-emerald-700 text-white border-emerald-800'
+      }`}
+      title={cantidad > 0 ? `${cantidad} tipo(s) documental(es) pendiente(s)` : 'Sin pendientes'}
+      aria-label={cantidad > 0 ? `${cantidad} pendientes` : 'Sin pendientes'}
+    >
+      {loading ? '…' : cantidad > 0 ? cantidad : <CheckCircle2 className="w-4 h-4" />}
+    </span>
   );
 
   return (
@@ -2181,6 +2229,7 @@ const renderCarpetaSaludOcupacional = () => (
                   }
                 />
                 <span className="min-w-0 break-words">{tituloModal}</span>
+                {esCarpetaRetiro && documentosParaIndicadores.length > 0 && indicadorPendientes(pendientesRetiro)}
               </DialogTitle>
 
               <DialogDescription
@@ -2233,15 +2282,15 @@ const renderCarpetaSaludOcupacional = () => (
               <Tabs value={tab} onValueChange={setTab} className="w-full mt-6">
                 <TabsList className="flex gap-2 mb-2 bg-emerald-50 rounded-xl p-1 border border-emerald-100 shadow-sm">
                   <TabsTrigger value="ingreso" className="rounded-lg px-6 py-2 text-base font-semibold data-[state=active]:bg-yellow-400 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-yellow-500 data-[state=active]:border">
-                    Documentos de Aspirante
+                    Documentos de Aspirante {indicadorPendientes(pendientesIngreso)}
                   </TabsTrigger>
 
                   <TabsTrigger value="seguridad" className="rounded-lg px-6 py-2 text-base font-semibold data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-orange-600 data-[state=active]:border">
-                    Documentos de Selección
+                    Documentos de Selección {indicadorPendientes(pendientesSeleccion)}
                   </TabsTrigger>
 
                   <TabsTrigger value="contratacion" className="rounded-lg px-6 py-2 text-base font-semibold data-[state=active]:bg-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-emerald-600 data-[state=active]:border">
-                    Documentos de Contratación
+                    Documentos de Contratación {indicadorPendientes(pendientesContratacion)}
                   </TabsTrigger>
                 </TabsList>
               </Tabs>

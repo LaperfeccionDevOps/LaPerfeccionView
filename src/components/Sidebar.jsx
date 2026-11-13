@@ -448,6 +448,10 @@ const Sidebar = ({
           to: "/admin/actualizar-usuario",
           label: "Actualizar Usuario",
         },
+        {
+          to: "/nomina-actualizacion-datos",
+          label: "Actualización de Datos",
+        },
       ],
     },
     {
@@ -482,30 +486,6 @@ const Sidebar = ({
               label: "Carpeta Digital",
             },
           ],
-        },
-        ...(tienePermiso("OPERACIONES_PROCESOS_DISCIPLINARIOS")
-          ? [
-              {
-                to: "/operaciones/procesos-disciplinarios",
-                label: "Procesos Disciplinarios",
-              },
-              {
-                to: "/operaciones/agenda-disciplinaria",
-                label: "Agenda Disciplinaria",
-              },
-            ]
-          : []),
-        ...(tienePermiso("OPERACIONES_RETIROS")
-          ? [
-              {
-                to: "/operaciones/retiros",
-                label: "Retiros",
-              },
-            ]
-          : []),
-        {
-          to: "/nomina-actualizacion-datos",
-          label: "Actualización de Datos",
         },
         {
           to: "/relaciones-laborales",
@@ -543,6 +523,26 @@ const Sidebar = ({
             },
           ],
         },
+        ...(tienePermiso("OPERACIONES_PROCESOS_DISCIPLINARIOS")
+          ? [
+              {
+                to: "/operaciones/procesos-disciplinarios",
+                label: "Procesos Disciplinarios",
+              },
+              {
+                to: "/operaciones/agenda-disciplinaria",
+                label: "Agenda Disciplinaria",
+              },
+            ]
+          : []),
+        ...(tienePermiso("OPERACIONES_RETIROS")
+          ? [
+              {
+                to: "/operaciones/retiros",
+                label: "Retiros",
+              },
+            ]
+          : []),
       ],
     },
     {
