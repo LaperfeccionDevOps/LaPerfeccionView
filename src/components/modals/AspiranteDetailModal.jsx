@@ -919,6 +919,29 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   // =========================
   // ✅ VALIDACIÓN OBLIGATORIA: Certificado laboral si hay experiencia
   // =========================
+   // Indicadores documentales de Selección: mismos catálogos y criterio visual
+   // que las tarjetas existentes. No altera carga, eliminación ni backend.
+   const docsIngresoIndicador = Array.isArray(formData?.documentos) ? formData.documentos : [];
+   const docsSeguridadIndicador = Array.isArray(formData?.documentosSeguridad) ? formData.documentosSeguridad : [];
+   const existeDocumentoIndicador = (lista, id) =>
+      lista.some((doc) => String(doc?.IdTipoDocumentacion) === String(id));
+   const pendientesIngresoSeleccion = requisitosObligatorios.filter(
+      (req) => !existeDocumentoIndicador(docsIngresoIndicador, req.id)
+   ).length;
+   const pendientesSeguridadSeleccion = documentosSeguridad.filter(
+      (req) => !existeDocumentoIndicador(docsSeguridadIndicador, req.id) &&
+         !(String(req.id) === '73' && existeDocumentoIndicador(docsIngresoIndicador, 42))
+   ).length;
+   const indicadorDocumentosSeleccion = (cantidad) => (
+      <span
+         className={`inline-flex min-w-[26px] h-7 items-center justify-center rounded-full px-2 text-sm font-extrabold shadow-sm border ${cantidad > 0 ? 'bg-red-600 text-white border-red-700' : 'bg-emerald-700 text-white border-emerald-800'}`}
+         title={cantidad > 0 ? `${cantidad} documento(s) pendiente(s)` : 'Sin pendientes'}
+         aria-label={cantidad > 0 ? `${cantidad} pendientes` : 'Sin pendientes'}
+      >
+         {loadingAspiranteDetalle ? '…' : cantidad > 0 ? cantidad : <CheckCircle2 className="w-4 h-4" />}
+      </span>
+   );
+
   const tieneDocumentoAdjunto = (docId) => {
     if (!Array.isArray(formData?.documentos)) return false;
     return formData.documentos.some((d) => {
@@ -4831,7 +4854,7 @@ if (response && response.status === 201) {
                                     Descargar masivamente documentos de ingreso
                                  </Button>
                               </div>
-                              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><FileText className="w-5 h-5 text-emerald-600"/> Documentos de Ingreso</h3>
+                              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><FileText className="w-5 h-5 text-emerald-600"/> Documentos de Ingreso {indicadorDocumentosSeleccion(pendientesIngresoSeleccion)}</h3>
                                <div className="grid grid-cols-2 sm:grid-cols-2 gap-4">
                               {requisitosObligatorios.map((req) => {
                                  // Buscar el documento correspondiente en el array de documentos
@@ -4920,7 +4943,7 @@ if (response && response.status === 201) {
                                           Guardar documentos de selección
                                        </Button>
                                     </div>
-                                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><FileText className="w-5 h-5 text-emerald-600"/> Documentos de Seguridad</h3>
+                                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><FileText className="w-5 h-5 text-emerald-600"/> Documentos de Seguridad {indicadorDocumentosSeleccion(pendientesSeguridadSeleccion)}</h3>
                                     <div className="w-full flex flex-wrap gap-6 justify-center">
                                        {documentosSeguridad.map((seguridadDoc) => {
                                           const isTratamientoDatos = String(seguridadDoc.id) === '73';
