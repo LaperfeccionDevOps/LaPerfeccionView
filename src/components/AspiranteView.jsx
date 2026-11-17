@@ -1,6 +1,6 @@
 import { RegistroPersonal, getListaLocalidades, getListaLugarNacimiento, getAspirantexNumeroIdentificacion, ActualizarRegistro, getDocumentacionIngreso } from '../services/aspirante';
 import { getAspirante } from '../services/detalle_aspirante';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import SignaturePad from 'react-signature-canvas';
 import { DescargarDocumentoPdf } from '../services/descargarDocumento';
 import { motion } from 'framer-motion';
@@ -467,6 +467,48 @@ const PdfViewerModal = ({ open, title, url, onClose }) => {
 
 const AspiranteView = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [firmaAmpliada, setFirmaAmpliada] = useState(false);
+  const firmaPadRef = useRef(null);
+  const firmaContenedorRef = useRef(null);
+
+  // Ajustar el tamaño REAL del canvas a la pantalla (incluyendo densidad de píxeles).
+  // Conservar el dibujo cuando cambie el tamaño, sin cambiar el formato PNG de documento 42.
+  useEffect(() => {
+    if (!firmaAmpliada) return;
+    const contenedor = firmaContenedorRef.current;
+    if (!contenedor) return;
+    const ajustar = () => {
+      const pad = firmaPadRef.current;
+      const canvas = pad?.getCanvas();
+      if (!pad || !canvas) return;
+      const rect = contenedor.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const ratio = Math.min(window.devicePixelRatio || 1, 2.5);
+      const ancho = Math.round(rect.width * ratio);
+      const alto = Math.round(rect.height * ratio);
+      if (canvas.width === ancho && canvas.height === alto) return;
+      const anterior = !pad.isEmpty() ? canvas.toDataURL('image/png') : null;
+      canvas.width = ancho;
+      canvas.height = alto;
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = `${rect.height}px`;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(ratio, ratio);
+      pad.clear();
+      if (anterior) pad.fromDataURL(anterior, { width: ancho, height: alto, ratio: 1 });
+    };
+    const observador = new ResizeObserver(ajustar);
+    observador.observe(contenedor);
+    ajustar();
+    return () => observador.disconnect();
+  }, [firmaAmpliada]);
+
+  useEffect(() => {
+    if (!firmaAmpliada) return;
+    const overflowAnterior = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = overflowAnterior; };
+  }, [firmaAmpliada]);
 
   // ✅ Confirmación de correo (solo front; NO se envía al backend)
   const [emailConfirmacion, setEmailConfirmacion] = useState('');
@@ -3549,100 +3591,80 @@ const tieneFirmaCargada = () => {
               })}
             </div>
 
-            {/* Firma Digital (Dibujo) */}
+            {/* Firma digital: solo dibujo. Se conserva el documento 42 en PNG y el flujo de registro. */}
             <div className="border p-4 rounded-lg mt-6 bg-gray-50">
               <Label className="mb-2 block">FIRMA DIGITAL (DIBUJO)</Label>
-              <div className="flex flex-col md:flex-row gap-4">
-                <div>
-                  <SignaturePad
-                    ref={(ref) => (window.firmaPad = ref)}
-                    penColor="black"
-                   canvasProps={{
-                    width: window.innerWidth < 640 ? 320 : 300,
-                    height: 140,
-                    className: "rounded-lg bg-white border",
-                    style: { touchAction: "none", width: "100%", maxWidth: 420, height: 140 }
-                  }}
+              <p className="text-sm text-gray-600 mb-3">
+                Firma con el dedo desde tu celular o con el mouse desde un computador.
+              </p>
+              <Button type="button" variant="outline" onClick={() => {
+                setFirmaAmpliada(true);
+              }}>
+                {documentos[42] ? 'Volver a firmar' : 'Abrir espacio amplio para firmar'}
+              </Button>
+              {documentos[42]?.DocumentoCargado && (
+                <div className="mt-3">
+                  <p className="text-sm font-medium text-emerald-700 mb-2">Firma guardada correctamente</p>
+                  <img src={documentos[42].DocumentoCargado} alt="Vista previa de tu firma"
+                    className="w-full max-w-md h-32 object-contain bg-white border rounded" />
+                </div>
+              )}
+            </div>
 
-                    // Dibujar o modificar la firma NO la guarda automáticamente.
-                    // Se exige pulsar «Guardar Firma» para confirmar la versión final.
-                    onEnd={() => {
-                      setDocumentos((prev) => {
-                        if (!prev[42]) return prev;
-                        const next = { ...prev };
-                        delete next[42];
-                        return next;
-                      });
+            {firmaAmpliada && (
+              <div className="fixed inset-0 z-[11000] bg-white flex flex-col p-3 sm:p-5"
+                role="dialog" aria-modal="true" aria-label="Firmar digitalmente"
+                style={{ height: '100dvh' }}>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <strong className="text-gray-800">Firma del trabajador</strong>
+                  <Button type="button" variant="outline" onClick={() => setFirmaAmpliada(false)}>
+                    Cancelar
+                  </Button>
+                </div>
+                <p className="text-xs text-gray-600 mb-2">Dibuja tu firma en el espacio blanco.</p>
+                <div ref={firmaContenedorRef}
+                  className="w-full flex-1 min-h-0 rounded-lg border border-gray-300 bg-white overflow-hidden"
+                  style={{ touchAction: 'none' }}>
+                  <SignaturePad
+                    ref={firmaPadRef}
+                    penColor="#000000"
+                    minWidth={1.5}
+                    maxWidth={3}
+                    canvasProps={{
+                      className: 'block bg-white',
+                      style: { touchAction: 'none', width: '100%', height: '100%' },
                     }}
                   />
-
-                  <div className="flex gap-2 mt-2">
-                   <Button
-                      type="button"
-                      onClick={() => {
-                        window.firmaPad?.clear();
-                        setDocumentos((prev) => {
-                          const copy = { ...prev };
-                          delete copy[42];
-                          return copy;
-                        });
-                      }}
-                    >
-                      Limpiar
-                    </Button>
-
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="bg-emerald-600 text-white"
-                      onClick={() => {
-                        if (window.firmaPad && !window.firmaPad.isEmpty()) {
-                          const dataUrl = window.firmaPad.toDataURL();
-                          setDocumentos((prev) => ({
-                            ...prev,
-                            42: {
-                              IdTipoDocumentacion: 42,
-                              Nombre: 'firma-digital.png',
-                              Formato: 'image/png',
-                              DocumentoCargado: dataUrl,
-                            },
-                          }));
-                          toast({ title: '✅ Firma digital guardada exitosamente' });
-                        }
-                      }}
-                    >
-                      Guardar Firma
-                    </Button>
-                  </div>
                 </div>
-
-                <div className="flex flex-col justify-center gap-2">
-                  <div className="text-sm text-gray-500">También puedes subir una imagen de la firma</div>
-                  <Input
-                    id="firmaDigital"
-                    type="file"
-                    className="hidden"
-                    accept="image/*"
-                    onChange={(e) => handleFileUpload(e, 42)}
-                  />
-                  <label
-                    htmlFor="firmaDigital"
-                    className="text-sm inline-block px-3 py-1 border rounded-md cursor-pointer bg-white hover:bg-emerald-50"
-                  >
-                    Cargar Imagen
-                  </label>
-                  {documentos[42] && (
-                    <a
-                      href={documentos[42].PreviewUrl || documentos[42].DocumentoCargado}
-                      download="firma.png"
-                      className="text-sm text-emerald-600 mt-2"
-                    >
-                      Descargar firma
-                    </a>
-                  )}
+                <div className="flex gap-2 flex-wrap pt-3 pb-2">
+                  <Button type="button" onClick={() => firmaPadRef.current?.clear()}>
+                    Limpiar
+                  </Button>
+                  <Button type="button" size="sm" className="bg-emerald-600 text-white"
+                    onClick={() => {
+                      const pad = firmaPadRef.current;
+                      if (!pad || pad.isEmpty()) {
+                        toast({ title: 'Debes dibujar tu firma antes de guardarla', variant: 'destructive' });
+                        return;
+                      }
+                      const dataUrl = pad.toDataURL('image/png');
+                      setDocumentos((prev) => ({
+                        ...prev,
+                        42: {
+                          IdTipoDocumentacion: 42,
+                          Nombre: 'firma-digital.png',
+                          Formato: 'image/png',
+                          DocumentoCargado: dataUrl,
+                        },
+                      }));
+                      toast({ title: '✅ Firma digital guardada exitosamente' });
+                      setFirmaAmpliada(false);
+                    }}>
+                    Guardar Firma
+                  </Button>
                 </div>
               </div>
-            </div>
+            )}
 
             <div className="flex justify-end pt-4 border-t border-gray-100 mt-6">
               {/*
