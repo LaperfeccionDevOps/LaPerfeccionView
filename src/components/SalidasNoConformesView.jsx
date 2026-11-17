@@ -53,7 +53,34 @@ const Selector = ({ opciones, value, onChange, placeholder, disabled = false }) 
 
 const SalidasNoConformesView = () => {
   const { user } = useAuth();
-  const [pestana, setPestana] = useState("nueva");
+  const [pestana, setPestana] = useState("registradas");
+  const [puedeCrearSNC, setPuedeCrearSNC] = useState(false);
+  const [cargandoPermisoCrear, setCargandoPermisoCrear] = useState(true);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    const consultarPermiso = async () => {
+      try {
+        const token = localStorage.getItem("token") || user?.token;
+        if (!token) return;
+        const respuesta = await fetch(`${SNC_BASE_URL}/permisos`, {
+          headers: { Authorization: `Bearer ${token}` }, signal: ctrl.signal,
+        });
+        if (!respuesta.ok) return;
+        const datos = await respuesta.json();
+        if (!ctrl.signal.aborted) {
+          const autorizado = datos?.puede_crear === true;
+          setPuedeCrearSNC(autorizado);
+          if (!autorizado) setPestana(actual => actual === "nueva" ? "registradas" : actual);
+        }
+      } catch (error) {
+        // En caso de error, no se habilita creación; las bandejas siguen accesibles.
+      } finally {
+        if (!ctrl.signal.aborted) setCargandoPermisoCrear(false);
+      }
+    };
+    consultarPermiso();
+    return () => ctrl.abort();
+  }, [user?.token]);
   const [catalogos, setCatalogos] = useState({
     procesos: [], areas: [], correos: [], responsables: [],
   });
@@ -976,6 +1003,10 @@ const SalidasNoConformesView = () => {
   };
 
   const registrarSNC = async () => {
+    if (cargandoPermisoCrear || !puedeCrearSNC) {
+      setErrorRegistro("No tiene autorización para registrar nuevas SNC.");
+      return;
+    }
     if (envioEnCurso.current || guardando || cargandoCatalogos || errorCatalogos) return;
     setErrorRegistro("");
     setExitoRegistro("");
@@ -1128,7 +1159,7 @@ const SalidasNoConformesView = () => {
 
         <div className="flex flex-wrap gap-2">
           {[
-            { id: "nueva", nombre: "Nueva SNC", icono: PlusCircle },
+            ...(puedeCrearSNC && !cargandoPermisoCrear ? [{ id: "nueva", nombre: "Nueva SNC", icono: PlusCircle }] : []),
             { id: "registradas", nombre: "Mis SNC registradas", icono: FileText },
             { id: "asignadas", nombre: "SNC asignadas", icono: Inbox },
           ].map(({ id, nombre, icono: Icono }) => (
@@ -1165,7 +1196,7 @@ const SalidasNoConformesView = () => {
           ))}
         </div>
 
-        {pestana === "nueva" && (
+        {pestana === "nueva" && puedeCrearSNC && !cargandoPermisoCrear && (
           <div className="rounded-xl border bg-white p-5 shadow-sm md:p-7">
             <h2 className="mb-6 text-lg font-bold text-gray-800">Registro de Salida No Conforme</h2>
             {cargandoCatalogos && (
