@@ -2611,17 +2611,20 @@ const renderCarpetaSaludOcupacional = () => (
 
             {esCarpetaIngreso && (
               <Tabs value={tab} onValueChange={setTab} className="mt-4 w-full min-w-0 sm:mt-6">
-                <TabsList className="mb-2 grid h-auto w-full min-w-0 grid-cols-1 gap-1 rounded-xl border border-emerald-100 bg-emerald-50 p-1 shadow-sm sm:flex sm:justify-start sm:gap-2">
-                  <TabsTrigger value="ingreso" className="min-w-0 whitespace-normal rounded-lg px-2 py-2 text-xs font-semibold sm:shrink-0 sm:px-6 sm:text-base data-[state=active]:bg-yellow-400 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-yellow-500 data-[state=active]:border">
+                <TabsList className="mb-2 grid h-auto w-full min-w-0 grid-cols-1 gap-1 rounded-xl border border-emerald-100 bg-emerald-50 p-1 shadow-sm sm:grid-cols-3 sm:gap-2">
+                  <TabsTrigger value="ingreso" className="flex h-auto min-w-0 flex-wrap items-center justify-center whitespace-normal break-words rounded-lg px-2 py-2 text-center text-xs font-semibold sm:px-2 sm:text-sm data-[state=active]:bg-yellow-400 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-yellow-500 data-[state=active]:border">
                     Documentos de Aspirante {indicadorPendientes(pendientesIngreso)}
                   </TabsTrigger>
 
-                  <TabsTrigger value="seguridad" className="min-w-0 whitespace-normal rounded-lg px-2 py-2 text-xs font-semibold sm:shrink-0 sm:px-6 sm:text-base data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-orange-600 data-[state=active]:border">
+                  <TabsTrigger value="seguridad" className="flex h-auto min-w-0 flex-wrap items-center justify-center whitespace-normal break-words rounded-lg px-2 py-2 text-center text-xs font-semibold sm:px-2 sm:text-sm data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-orange-600 data-[state=active]:border">
                     Documentos de Selección {indicadorPendientes(pendientesSeleccion)}
                   </TabsTrigger>
 
-                  <TabsTrigger value="contratacion" className="min-w-0 whitespace-normal rounded-lg px-2 py-2 text-xs font-semibold sm:shrink-0 sm:px-6 sm:text-base data-[state=active]:bg-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-emerald-600 data-[state=active]:border">
-                    Documentos de Contratación {indicadorPendientes(pendientesContratacion)}
+                  <TabsTrigger value="contratacion" className="flex h-auto min-w-0 flex-wrap items-center justify-center whitespace-normal break-words rounded-lg px-2 py-2 text-center text-xs font-semibold sm:px-2 sm:text-sm data-[state=active]:bg-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-emerald-600 data-[state=active]:border">
+                    <span className="inline-flex max-w-full items-center justify-center whitespace-nowrap text-[11px] sm:text-xs lg:text-sm">
+                      Documentos de Contratación
+                      <span className="shrink-0">{indicadorPendientes(pendientesContratacion)}</span>
+                    </span>
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
