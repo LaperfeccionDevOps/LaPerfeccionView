@@ -957,6 +957,7 @@ const ContratacionView = () => {
   // ✅ VISUAL: Modal No Contratado (solo UI por ahora)
   const [ncModal, setNcModal] = useState({ isOpen: false, aspirante: null });
   const [ncObservacion, setNcObservacion] = useState('');
+  const [guardandoNC, setGuardandoNC] = useState(false);
 
   // ✅ VISUAL: estado local "C / NC" (solo para mostrar en pantalla)
   // Clave: IdRegistroPersonal (string) => "C" | "NC"
@@ -968,33 +969,43 @@ const ContratacionView = () => {
     setNcModal({ isOpen: true, aspirante });
   };
 
-  // Guardar NC (solo visual)
+  // Registrar rechazo con una tipificación estandarizada.
   const guardarNCVisual = async () => {
     const a = ncModal.aspirante;
-    if (!a) return;
+    if (!a || !ncObservacion || guardandoNC) return;
 
-    
-    const idReg = String(getIdRegistroPersonal(a) ?? '');
-    const payload = {
-      IdRegistroPersonal: idReg,
-      ObservacionesRechazo: ncObservacion,
-    };
-    const respons = await MotivoRechazoProceso(payload)
-  
-    setEstadoVisualMap((prev) => ({ ...prev, [idReg]: 'NC' }));
-    if (respons.status === 200 || respons.status === 201) {
-      toast({
-        title: '✅ Actualización Exitosa',
-        description: "Motivo de rechazo guardado correctamente.",
+    const idReg = getIdRegistroPersonal(a);
+    if (!idReg) {
+      toast({ title: 'No se encontró el trabajador', variant: 'destructive' });
+      return;
+    }
+
+    setGuardandoNC(true);
+    try {
+      const respons = await MotivoRechazoProceso({
+        IdRegistroPersonal: String(idReg),
+        ObservacionesRechazo: ncObservacion,
       });
-    } else {
+      if (respons?.status !== 200 && respons?.status !== 201) {
+        throw new Error(respons?.data?.detail || 'No se pudo guardar el motivo de rechazo.');
+      }
+      setEstadoVisualMap((prev) => ({ ...prev, [String(idReg)]: 'NC' }));
       toast({
-        title: '❌ Error al guardar',
-        description: "No se pudo guardar el motivo de rechazo.",
+        title: 'Actualización exitosa',
+        description: 'El rechazo de Contratación quedó registrado con su motivo.',
+      });
+      setNcModal({ isOpen: false, aspirante: null });
+      setNcObservacion('');
+      if (typeof loadAspirantes === 'function') loadAspirantes();
+    } catch (error) {
+      toast({
+        title: 'Error al guardar',
+        description: error?.message || 'No se pudo registrar el rechazo.',
         variant: 'destructive',
       });
+    } finally {
+      setGuardandoNC(false);
     }
-    setNcModal({ isOpen: false, aspirante: null });
   };
 
         // Marcar C (solo visual)
@@ -2279,29 +2290,90 @@ const currentIdsKey = currentItems
         newStatus={statusUpdateModalState.newStatus}
         aspiranteName={`${statusUpdateModalState.aspirante?.nombres} ${statusUpdateModalState.aspirante?.apellidos}`}
       />
-      <Dialog open={ncModal.isOpen} onOpenChange={(open) => setNcModal((p) => ({ ...p, isOpen: open }))}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>No contratado</DialogTitle>
-            <DialogDescription>Escribe la observación. (Solo visual por ahora)</DialogDescription>
+      <Dialog
+        open={ncModal.isOpen}
+        onOpenChange={(open) => {
+          if (guardandoNC) return;
+          if (!open) {
+            setNcModal({ isOpen: false, aspirante: null });
+            setNcObservacion('');
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg rounded-2xl border border-gray-200 p-6 shadow-xl">
+          <DialogHeader className="space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+                <ClipboardList className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-semibold text-gray-900">No contratado</DialogTitle>
+                <DialogDescription className="mt-1 text-sm text-gray-500">
+                  Seleccione el motivo por el que el aspirante no continuará en Contratación.
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
-          <div className="space-y-2">
-            <Label>Observación</Label>
-            <Textarea
-              value={ncObservacion}
-              onChange={(e) => setNcObservacion(e.target.value)}
-              placeholder="Ej: No cumple perfil..."
-              className="min-h-[110px]"
-            />
+          {ncModal.aspirante && (
+            <div className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-700">
+              <span className="text-gray-500">Aspirante: </span>
+              <span className="font-semibold">
+                {ncModal.aspirante.nombres} {ncModal.aspirante.apellidos}
+              </span>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <Label className="text-sm font-semibold text-gray-800">Motivo de no contratación</Label>
+            {[
+              'No asiste a firma de contrato',
+              'Desiste del proceso',
+              'Desiste por condiciones laborales',
+            ].map((motivo) => (
+              <label
+                key={motivo}
+                className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm transition-colors ${
+                  ncObservacion === motivo
+                    ? 'border-rose-400 bg-rose-50 text-gray-900'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="motivoNoContratacion"
+                  value={motivo}
+                  checked={ncObservacion === motivo}
+                  onChange={() => setNcObservacion(motivo)}
+                  disabled={guardandoNC}
+                  className="h-4 w-4 accent-rose-600"
+                />
+                <span className="font-medium">{motivo}</span>
+              </label>
+            ))}
+            <p className="text-xs text-gray-500">
+              El motivo seleccionado quedará registrado en el historial del proceso.
+            </p>
           </div>
 
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setNcModal({ isOpen: false, aspirante: null })}>
+          <DialogFooter className="mt-2 gap-2 sm:gap-3">
+            <Button
+              variant="outline"
+              disabled={guardandoNC}
+              onClick={() => {
+                setNcModal({ isOpen: false, aspirante: null });
+                setNcObservacion('');
+              }}
+              className="rounded-xl"
+            >
               Cancelar
             </Button>
-            <Button className="bg-rose-600 hover:bg-rose-700 text-white" onClick={guardarNCVisual}>
-              Guardar
+            <Button
+              className="rounded-xl bg-rose-600 text-white hover:bg-rose-700"
+              onClick={guardarNCVisual}
+              disabled={!ncObservacion || guardandoNC}
+            >
+              {guardandoNC ? 'Guardando...' : 'Guardar rechazo'}
             </Button>
           </DialogFooter>
         </DialogContent>

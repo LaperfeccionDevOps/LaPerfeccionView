@@ -855,85 +855,33 @@ const IndicadoresContratacionView = () => {
     cargarIndicadoresGenerales(filtrosAplicados);
   };
 
+  // Cohorte historica: cada fila representa un avance real al estado 24.
   const indicadores = useMemo(() => {
-    const registrados = Number(data?.registrados_seleccion || 0);
-    const avanzan = Number(
-      data?.comparativo_avanzan_contratados?.avanzan_contratacion || 0,
-    );
-    const contratados = Number(
-      data?.comparativo_avanzan_contratados?.contratados || 0,
-    );
-    const pendientes = Number(data?.pendientes_contratacion?.total || 0);
-    const rechazados = Number(data?.rechazados?.total || 0);
-    const porcentajeContratacion = Number(
-      data?.comparativo_avanzan_contratados?.porcentaje_contratados || 0,
-    );
-    return {
-      registrados,
-      avanzan,
-      contratados,
-      pendientes,
-      rechazados,
-      porcentajeContratacion,
-    };
+    const avanzan = Number(data?.tarjetas?.avanzan_contratacion?.cantidad ?? data?.comparativo_avanzan_contratados?.avanzan_contratacion ?? 0);
+    const contratados = Number(data?.tarjetas?.contratados?.cantidad ?? data?.comparativo_avanzan_contratados?.contratados ?? 0);
+    const rechazados = Number(data?.tarjetas?.rechazados_contratacion?.cantidad ?? data?.rechazados?.total ?? 0);
+    const porcentaje = (cantidad) => avanzan ? Number((cantidad * 100 / avanzan).toFixed(2)) : 0;
+    return { avanzan, contratados, rechazados, enEstado24: Math.max(0, avanzan - contratados - rechazados),
+      porcentajeContratacion: porcentaje(contratados), porcentajeRechazados: porcentaje(rechazados),
+      porcentajeAvanzan: avanzan ? 100 : 0 };
   }, [data]);
 
-  const comparativoProceso = useMemo(
-    () => [
-      { nombre: 'Registrados', cantidad: indicadores.registrados, color: '#2563eb' },
-      { nombre: 'Avanzan', cantidad: indicadores.avanzan, color: '#f59e0b' },
-      { nombre: 'Pendientes', cantidad: indicadores.pendientes, color: '#0ea5e9' },
-      { nombre: 'Contratados', cantidad: indicadores.contratados, color: '#059669' },
-    ],
-    [indicadores],
-  );
-
-  const resultadoContratacion = useMemo(() => {
-    const total =
-      indicadores.contratados +
-      indicadores.pendientes +
-      indicadores.rechazados;
-
-    return [
-      {
-        estado: 'Contratados',
-        cantidad: indicadores.contratados,
-        porcentaje: total
-          ? Number(((indicadores.contratados / total) * 100).toFixed(2))
-          : 0,
-        color: '#059669',
-      },
-      {
-        estado: 'Pendientes',
-        cantidad: indicadores.pendientes,
-        porcentaje: total
-          ? Number(((indicadores.pendientes / total) * 100).toFixed(2))
-          : 0,
-        color: '#0ea5e9',
-      },
-      {
-        estado: 'Rechazados',
-        cantidad: indicadores.rechazados,
-        porcentaje: total
-          ? Number(((indicadores.rechazados / total) * 100).toFixed(2))
-          : 0,
-        color: '#dc2626',
-      },
-    ].filter((item) => item.cantidad > 0);
-  }, [indicadores]);
-
-  const motivosRechazo = useMemo(
-    () =>
-      (data?.rechazados?.motivos || [])
-        .filter((item) => Number(item?.cantidad || 0) > 0)
-        .map((item, index) => ({
-          motivo: item?.motivo || 'Sin motivo',
-          cantidad: Number(item?.cantidad || 0),
-          porcentaje: Number(item?.porcentaje || 0),
-          color: coloresMotivos[index % coloresMotivos.length],
-        })),
-    [data],
-  );
+  const comparativoProceso = useMemo(() => [
+    { nombre: 'Avanzaron', cantidad: indicadores.avanzan, porcentaje: indicadores.porcentajeAvanzan, color: '#d97706', tipo: 'AVANZARON' },
+    { nombre: 'Contratados', cantidad: indicadores.contratados, porcentaje: indicadores.porcentajeContratacion, color: '#059669', tipo: 'CONTRATADO' },
+    { nombre: 'Rechazados', cantidad: indicadores.rechazados, porcentaje: indicadores.porcentajeRechazados, color: '#dc2626', tipo: 'RECHAZADO' },
+  ], [indicadores]);
+  const resultadoContratacion = useMemo(() => [
+    { estado: 'Contratados', cantidad: indicadores.contratados, porcentaje: indicadores.porcentajeContratacion, color: '#059669', tipo: 'CONTRATADO' },
+    { estado: 'Rechazados', cantidad: indicadores.rechazados, porcentaje: indicadores.porcentajeRechazados, color: '#dc2626', tipo: 'RECHAZADO' },
+    { estado: 'Continúan en avance', cantidad: indicadores.enEstado24,
+      porcentaje: indicadores.avanzan ? Number((indicadores.enEstado24 * 100 / indicadores.avanzan).toFixed(2)) : 0,
+      color: '#d97706', tipo: 'AVANZA A CONTRATACION' },
+  ].filter((item) => item.cantidad > 0), [indicadores]);
+  const motivosRechazo = useMemo(() => (data?.rechazados?.motivos || [])
+    .filter((item) => Number(item?.cantidad || 0) > 0)
+    .map((item, index) => ({ motivo: item.motivo || 'Sin motivo registrado', cantidad: Number(item.cantidad),
+      porcentaje: Number(item.porcentaje || 0), color: coloresMotivos[index % coloresMotivos.length] })), [data]);
 
   const textoPeriodo = useMemo(() => {
     if (modoIndividual) {
@@ -944,13 +892,15 @@ const IndicadoresContratacionView = () => {
       return 'Vista general: todos los periodos.';
     }
 
-    const nombreMes =
-      meses.find((item) => item.value === filtrosAplicados.mes)?.label ||
-      'Todos los meses';
+    const nombreMes = meses.find((item) => item.value === filtrosAplicados.mes)?.label;
 
-    return `Periodo consultado: ${nombreMes} de ${
-      filtrosAplicados.anio || 'todos los años'
-    }.`;
+    if (filtrosAplicados.mes && !filtrosAplicados.anio) {
+      return `Período consultado: Mes de ${nombreMes.toLowerCase()} (todos los años).`;
+    }
+    if (!filtrosAplicados.mes && filtrosAplicados.anio) {
+      return `Período consultado: Año ${filtrosAplicados.anio} (todos los meses).`;
+    }
+    return `Período consultado: ${nombreMes} de ${filtrosAplicados.anio}.`;
   }, [data, filtrosAplicados, modoIndividual]);
 
   if (loading && !data) {
@@ -1152,17 +1102,20 @@ const IndicadoresContratacionView = () => {
         )}
 
         {!modoIndividual ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            <KpiCard title="Registrados por Selección" value={indicadores.registrados} icon={Users} accentClass="text-blue-600" backgroundClass="bg-blue-50" />
-            <KpiCard title="Avanzan a Contratación" value={indicadores.avanzan} icon={ArrowRight} accentClass="text-amber-600" backgroundClass="bg-amber-50" />
-            <KpiCard title="Pendientes de Contratación" subtitle="Avanzaron y aún no tienen decisión final C o NC" value={indicadores.pendientes} icon={Hourglass} accentClass="text-sky-600" backgroundClass="bg-sky-50" />
-            <KpiCard title="Contratados" value={indicadores.contratados} icon={UserCheck} accentClass="text-emerald-600" backgroundClass="bg-emerald-50" />
-            <KpiCard title="Rechazados" value={indicadores.rechazados} icon={UserX} accentClass="text-red-600" backgroundClass="bg-red-50" />
-            <KpiCard title="Porcentaje de contratación" subtitle="Contratados respecto a quienes avanzaron" value={`${indicadores.porcentajeContratacion}%`} icon={TrendingUp} accentClass="text-violet-600" backgroundClass="bg-violet-50" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {comparativoProceso.map((item) => (
+              <div key={item.tipo}
+                className="rounded-2xl border border-gray-200 bg-white p-5 text-left shadow-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-bold text-gray-600">{item.tipo === 'AVANZARON' ? 'Avanzaron a Contratación' : item.tipo === 'CONTRATADO' ? 'Contratados' : 'Rechazados en Contratación'}</span>
+                  <BarChart3 className="h-5 w-5" style={{ color: item.color }} />
+                </div>
+                <div className="mt-3 text-4xl font-black" style={{ color: item.color }}>{item.porcentaje.toFixed(2)}%</div>
+                <p className="mt-2 text-sm font-semibold text-gray-700">{item.cantidad} procesos</p>
+              </div>
+            ))}
           </div>
-        ) : (
-          <IndividualSummary data={data} />
-        )}
+        ) : <IndividualSummary data={data} />}
       </section>
 
       {!modoIndividual ? (
@@ -1172,6 +1125,7 @@ const IndicadoresContratacionView = () => {
             resultadoContratacion={resultadoContratacion}
             motivosRechazo={motivosRechazo}
             indicadores={indicadores}
+            textoPeriodo={textoPeriodo}
           />
 
           {periodoMensualSeleccionado && (
@@ -1204,125 +1158,141 @@ const IndicadoresContratacionView = () => {
   );
 };
 
-const GeneralDashboard = ({
-  comparativoProceso,
-  resultadoContratacion,
-  motivosRechazo,
-  indicadores,
-}) => (
-  <>
-    <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-      <ChartCard
-        title="Comparativo del proceso"
-        subtitle="Registrados por Selección, personas que avanzan, pendientes y personas contratadas."
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={comparativoProceso} margin={{ top: 10, right: 10, left: -15, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="nombre" tick={{ fontSize: 12 }} />
-            <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-            <Tooltip formatter={(value) => [`${value} personas`, 'Cantidad']} />
-            <Bar dataKey="cantidad" radius={[10, 10, 0, 0]} maxBarSize={80}>
-              {comparativoProceso.map((entry) => (
-                <Cell key={entry.nombre} fill={entry.color} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </ChartCard>
-
-      <ChartCard
-        title="Distribución de resultados registrados"
-        subtitle="Comparación visual entre contratados, pendientes y rechazos registrados en el periodo."
-      >
-        {resultadoContratacion.length > 0 ? (
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={resultadoContratacion}
-                dataKey="cantidad"
-                nameKey="estado"
-                cx="50%"
-                cy="46%"
-                outerRadius={125}
-                innerRadius={62}
-                paddingAngle={4}
-                label={({ porcentaje }) => `${porcentaje}%`}
-              >
-                {resultadoContratacion.map((entry) => (
-                  <Cell key={entry.estado} fill={entry.color} stroke="#ffffff" strokeWidth={2} />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(value, name, props) => [
-                  `${value} personas`,
-                  props?.payload?.estado || 'Estado',
-                ]}
-              />
-              <Legend verticalAlign="bottom" height={60} />
-            </PieChart>
-          </ResponsiveContainer>
-        ) : (
-          <EmptyChartMessage message="No hay personas contratadas, pendientes o rechazadas para el periodo seleccionado." />
-        )}
-      </ChartCard>
-    </section>
-
-    <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-      <ChartCard
-        title="Motivos de rechazo"
-        subtitle="Distribución de los motivos registrados en los procesos rechazados."
-      >
-        {motivosRechazo.length > 0 ? (
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={motivosRechazo}
-                dataKey="cantidad"
-                nameKey="motivo"
-                cx="50%"
-                cy="46%"
-                outerRadius={120}
-                innerRadius={58}
-                paddingAngle={3}
-                label={({ porcentaje }) => `${porcentaje}%`}
-              >
-                {motivosRechazo.map((entry) => (
-                  <Cell key={entry.motivo} fill={entry.color} stroke="#ffffff" strokeWidth={2} />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(value, name, props) => [
-                  `${value} registros`,
-                  props?.payload?.motivo || 'Motivo',
-                ]}
-              />
-              <Legend verticalAlign="bottom" height={80} wrapperStyle={{ fontSize: '12px' }} />
-            </PieChart>
-          </ResponsiveContainer>
-        ) : (
-          <EmptyChartMessage message="No hay motivos de rechazo registrados para el periodo seleccionado." />
-        )}
-      </ChartCard>
-
-      <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
-        <div className="mb-5">
+const GeneralDashboard = ({ comparativoProceso, resultadoContratacion, motivosRechazo, indicadores, textoPeriodo }) => {
+  const [barraSeleccionada, setBarraSeleccionada] = useState(null);
+  const [segmentoSeleccionado, setSegmentoSeleccionado] = useState(null);
+  const porcentajeAvance = indicadores.avanzan
+    ? (indicadores.enEstado24 * 100 / indicadores.avanzan).toFixed(2)
+    : '0.00';
+  const totalMotivos = motivosRechazo.reduce((total, item) => total + item.cantidad, 0);
+  const periodoLegible = textoPeriodo
+    .replace('Vista general: ', '')
+    .replace('Periodo consultado: ', '')
+    .replace('Período consultado: ', '')
+    .replace(/\.$/, '');
+  const explicaciones = {
+    AVANZARON: `En ${periodoLegible}, ${indicadores.avanzan} procesos llegaron a Contratación. Son el 100% de los procesos que estamos analizando.`,
+    CONTRATADO: `De los ${indicadores.avanzan} procesos que avanzaron, ${indicadores.contratados} terminaron contratados (${indicadores.porcentajeContratacion.toFixed(2)}%).`,
+    RECHAZADO: `De los ${indicadores.avanzan} procesos que avanzaron, ${indicadores.rechazados} fueron rechazados en Contratación (${indicadores.porcentajeRechazados.toFixed(2)}%).`,
+  };
+  const detallesSegmento = {
+    CONTRATADO: `${indicadores.contratados} procesos contratados (${indicadores.porcentajeContratacion.toFixed(2)}% del total que avanzó).`,
+    RECHAZADO: `${indicadores.rechazados} procesos rechazados (${indicadores.porcentajeRechazados.toFixed(2)}% del total que avanzó).`,
+    'AVANZA A CONTRATACION': `${indicadores.enEstado24} procesos continúan en avance (${porcentajeAvance}% del total). Corresponden al estado 24, no a un estado nuevo.`,
+  };
+  return (
+    <>
+      <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <ChartCard title="Resultados de Contratación" subtitle="Compare los procesos. Seleccione una barra para entender su resultado.">
+          <div className="h-[300px] md:h-[330px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={comparativoProceso} margin={{ top: 20, right: 15, left: -12, bottom: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="nombre" tick={{ fontSize: 12 }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                <Tooltip formatter={(value, name, props) => [`${value} procesos (${Number(props?.payload?.porcentaje ?? 0).toFixed(2)}%)`, 'Resultado']} />
+                <Bar dataKey="cantidad" radius={[8, 8, 0, 0]} maxBarSize={76}
+                  onClick={(entry) => setBarraSeleccionada(entry?.tipo || entry?.payload?.tipo || null)}
+                  cursor="pointer">
+                  {comparativoProceso.map((item) => <Cell key={item.tipo} fill={item.color} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="mt-2 text-xs leading-5 text-gray-600">
+            {`En ${periodoLegible}, ${indicadores.avanzan} procesos avanzaron a Contratación; ${indicadores.contratados} fueron contratados y ${indicadores.rechazados} fueron rechazados.`}
+          </p>
+          {barraSeleccionada && (
+            <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3" aria-live="polite">
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm leading-5 text-gray-700">{explicaciones[barraSeleccionada]}</p>
+                <button type="button" onClick={() => setBarraSeleccionada(null)} aria-label="Cerrar explicación de la barra" className="shrink-0 rounded-md px-2 text-gray-500 hover:bg-gray-200">×</button>
+              </div>
+            </div>
+          )}
+        </ChartCard>
+        <ChartCard title="¿Qué pasó con los procesos que avanzaron?" subtitle="Los tres resultados distribuyen el 100% de los procesos que avanzaron.">
+          <div className="h-[300px] md:h-[330px]">
+            {resultadoContratacion.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={resultadoContratacion} dataKey="cantidad" nameKey="estado" cx="50%" cy="45%"
+                    innerRadius={60} outerRadius={105} paddingAngle={resultadoContratacion.length > 1 ? 2 : 0}
+                    label={({ porcentaje }) => `${Number(porcentaje).toFixed(2)}%`}
+                    onClick={(entry) => setSegmentoSeleccionado(entry?.tipo || entry?.payload?.tipo || null)}
+                    cursor="pointer">
+                    {resultadoContratacion.map((item) => <Cell key={item.tipo} fill={item.color} />)}
+                  </Pie>
+                  <Tooltip formatter={(value, name, props) => [`${value} procesos`, props?.payload?.estado || name]} />
+                  <Legend verticalAlign="bottom" height={55} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : <EmptyChartMessage message="No hay avances registrados para el período seleccionado." />}
+          </div>
+          <p className="mt-2 text-xs leading-5 text-gray-600">
+            <span className="font-semibold text-emerald-700">Verde:</span> {indicadores.contratados} contratados ({indicadores.porcentajeContratacion.toFixed(2)}%).{' '}
+            <span className="font-semibold text-amber-700">Naranja:</span> {indicadores.enEstado24} continúan en avance ({porcentajeAvance}%).{' '}
+            <span className="font-semibold text-red-700">Rojo:</span> {indicadores.rechazados} rechazados ({indicadores.porcentajeRechazados.toFixed(2)}%).
+          </p>
+          {segmentoSeleccionado && detallesSegmento[segmentoSeleccionado] && (
+            <div className="mt-3 flex items-start justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3" aria-live="polite">
+              <p className="text-sm leading-5 text-gray-700">{detallesSegmento[segmentoSeleccionado]}</p>
+              <button type="button" onClick={() => setSegmentoSeleccionado(null)} aria-label="Cerrar explicación del segmento" className="shrink-0 rounded-md px-2 text-gray-500 hover:bg-gray-200">×</button>
+            </div>
+          )}
+        </ChartCard>
+      </section>
+      <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <ChartCard title="Motivos de rechazo" subtitle="Razones de los procesos rechazados en Contratación. Los porcentajes se calculan solo sobre los rechazos.">
+          <div className="min-h-[300px] md:min-h-[340px] py-4">
+            {motivosRechazo.length ? (
+              <div className="space-y-5">
+                <p className="text-sm text-gray-600">{totalMotivos} {totalMotivos === 1 ? 'rechazo registrado' : 'rechazos registrados'} en el período consultado.</p>
+                {motivosRechazo.map((item, index) => {
+                  const porcentaje = totalMotivos ? item.cantidad * 100 / totalMotivos : 0;
+                  return (
+                    <div key={`${item.motivo}-${index}`} className="space-y-2">
+                      <div className="flex items-start justify-between gap-4 text-sm">
+                        <span className="font-semibold text-gray-800 break-words">{item.motivo}</span>
+                        <span className="shrink-0 font-bold text-gray-700">{item.cantidad} {item.cantidad === 1 ? 'proceso' : 'procesos'} · {porcentaje.toFixed(2)}%</span>
+                      </div>
+                      <div className="h-3 w-full overflow-hidden rounded-full bg-gray-100" role="img" aria-label={`${item.motivo}: ${item.cantidad} procesos, ${porcentaje.toFixed(2)}% de los rechazos`}>
+                        <div className="h-full rounded-full bg-red-600 transition-all" style={{ width: `${porcentaje}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+                <p className="rounded-xl bg-gray-50 p-3 text-xs leading-5 text-gray-600">El porcentaje de cada motivo se calcula sobre los {totalMotivos} {totalMotivos === 1 ? 'rechazo' : 'rechazos'}, no sobre los {indicadores.avanzan} procesos que avanzaron a Contratación.</p>
+              </div>
+            ) : <div className="flex min-h-[280px] items-center justify-center"><EmptyChartMessage message="No hay rechazos de Contratación en el período consultado." /></div>}
+          </div>
+        </ChartCard>
+        <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-xl">
           <h2 className="text-xl font-bold text-gray-800">Resumen ejecutivo</h2>
-          <p className="text-sm text-gray-500">Lectura rápida de los indicadores mostrados en el tablero.</p>
+          <p className="mt-1 text-sm text-gray-500">{textoPeriodo} Los resultados se calculan sobre los procesos que avanzaron a Contratación en ese período.</p>
+          <div className="mt-5 space-y-3">
+            {comparativoProceso.map((item) => (
+              <div key={item.tipo} className="flex w-full items-center justify-between rounded-xl border border-gray-200 px-4 py-3 text-left">
+                <span className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />{item.nombre}
+                </span>
+                <span className="text-sm font-black text-gray-900">{item.cantidad} · {item.porcentaje.toFixed(2)}%</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+            <p className="mb-1 font-bold">Resultado del período</p>
+            <p>
+              {indicadores.avanzan === 0
+                ? 'No se registraron procesos que avanzaran a Contratación durante el período consultado.'
+                : `Durante el período consultado, ${indicadores.avanzan} ${indicadores.avanzan === 1 ? 'proceso avanzó' : 'procesos avanzaron'} a Contratación. ${indicadores.contratados} ${indicadores.contratados === 1 ? 'finalizó' : 'finalizaron'} como ${indicadores.contratados === 1 ? 'contratado' : 'contratados'}, con una efectividad del ${indicadores.porcentajeContratacion.toFixed(2)} %. ${indicadores.rechazados === 0 ? 'No se registraron rechazos' : `${indicadores.rechazados} ${indicadores.rechazados === 1 ? 'proceso fue rechazado' : 'procesos fueron rechazados'} (${indicadores.porcentajeRechazados.toFixed(2)} %)`} y ${indicadores.enEstado24 === 0 ? 'ningún proceso continúa en avance.' : `${indicadores.enEstado24} ${indicadores.enEstado24 === 1 ? 'proceso continúa' : 'procesos continúan'} en avance (${porcentajeAvance} %).`}`}
+            </p>
+          </div>
         </div>
-
-        <div className="space-y-3">
-          <ExecutiveRow label="Registrados por Selección" value={indicadores.registrados} color="bg-blue-600" />
-          <ExecutiveRow label="Avanzan a Contratación" value={indicadores.avanzan} color="bg-amber-500" />
-          <ExecutiveRow label="Pendientes de Contratación" value={indicadores.pendientes} color="bg-sky-600" />
-          <ExecutiveRow label="Contratados" value={indicadores.contratados} color="bg-emerald-600" />
-          <ExecutiveRow label="Rechazados" value={indicadores.rechazados} color="bg-red-600" />
-          <ExecutiveRow label="Porcentaje de contratación" value={`${indicadores.porcentajeContratacion}%`} color="bg-violet-600" />
-        </div>
-      </div>
-    </section>
-  </>
-);
+      </section>
+    </>
+  );
+};
 
 const GestionMensualContratacion = ({
   periodo,
@@ -2022,7 +1992,7 @@ const IndividualDashboard = ({ data }) => {
         ]
         : []),
     ]
-    : eventosOriginales;
+    : eventosOriginales.filter((evento) => Boolean(evento?.completado));
 
   const tituloPendiente = !avanzo
     ? 'Pendiente de avanzar a Contratación'
@@ -2244,7 +2214,7 @@ const ChartCard = ({ title, subtitle, children }) => (
       <h2 className="text-xl font-bold text-gray-800">{title}</h2>
       <p className="text-sm text-gray-500">{subtitle}</p>
     </div>
-    <div className="w-full h-[380px] md:h-[420px]">{children}</div>
+    <div className="w-full min-h-[380px] md:min-h-[420px]">{children}</div>
   </div>
 );
 
