@@ -60,7 +60,7 @@ const getLogoBase64 = async (logo) => {
   "";
 
 
-const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = null }) => {
+const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, idEmpresaContratante, existingData = null }) => {
   const [loadingPrefill, setLoadingPrefill] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -441,7 +441,7 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
     });
   };
 
-  const generarYAdjuntarPdfEntrevista = async (idRegistro) => {
+  const generarYAdjuntarPdfEntrevista = async (idRegistro, fechaUltimoGuardado = null) => {
     const experienciasValidas = Array.isArray(aspirante?.experienciaLaboral)
       ? aspirante.experienciaLaboral.slice(0, 2)
       : [];
@@ -485,9 +485,17 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
       }
     }
 
+    const empresaEntrevista = Number(
+      idEmpresaContratante ?? aspirante?.IdEmpresaContratante ?? aspirante?.idEmpresaContratante
+    );
+    if (![1, 2].includes(empresaEntrevista)) {
+      throw new Error('No se identificó la empresa contratante (ALP o Mantener Ingeniería) para generar la entrevista.');
+    }
+    const logoEntrevista = await getLogoBase64(empresaEntrevista === 2 ? 'LOGO2' : 'LOGO1');
+
     const campos = {
-      LOGO: await getLogoBase64('LOGO1'),
-      LOGO2: await getLogoBase64('LOGO2'),
+      LOGO: logoEntrevista,
+      LOGO2: logoEntrevista,
       NOMBRES: (formData?.nombre || '').toUpperCase(),
       DOCUMENTO: formData?.identificacion || '',
       BARRIO: (formData?.barrio || '').toUpperCase(),
@@ -567,7 +575,25 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
 
     console.log('Campos PDF entrevista:', campos);
 
-    const responsePdf = await DescargarDocumentoPdf(campos, 'entrevista');
+    const idVinculacionLaboralOriginal = getIdVinculacionLaboral();
+    const idVinculacionLaboral = Number.isInteger(Number(idVinculacionLaboralOriginal)) &&
+      Number(idVinculacionLaboralOriginal) > 0 ? Number(idVinculacionLaboralOriginal) : null;
+
+    // En Selección puede existir RQ activa y empresa confirmada antes de contratar.
+    // La API de generación de PDF deberá aceptar este contexto sin vínculo laboral.
+    if (fechaUltimoGuardado) {
+      campos.FECHA_ULTIMO_GUARDADO = String(fechaUltimoGuardado);
+    }
+    const responsePdf = await DescargarDocumentoPdf(
+      campos, 'entrevista', idVinculacionLaboral,
+      { IdRegistroPersonal: Number(idRegistro), IdEmpresaContratante: empresaEntrevista }
+    );
+    if (responsePdf && typeof responsePdf.ok === 'boolean' && !responsePdf.ok) {
+      const errorRespuesta = await responsePdf.json().catch(() => ({}));
+      const detalleError = errorRespuesta?.detail ?? errorRespuesta?.error ?? errorRespuesta?.message;
+      throw new Error(typeof detalleError === 'string'
+        ? detalleError : `No fue posible generar el PDF (HTTP ${responsePdf.status}).`);
+    }
     console.log('PDF entrevista - responsePdf:', responsePdf);
 
     let pdf_base64 = '';
@@ -583,8 +609,6 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
     if (!pdf_base64) {
       throw new Error('No fue posible generar el PDF de la entrevista.');
     }
-
-    const idVinculacionLaboral = getIdVinculacionLaboral();
 
     const payloadDocumento = {
       idRegistroPersonal: Number(idRegistro),
@@ -620,7 +644,7 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
       const errorDetalle =
         uploadResult?.detail ||
         'No fue posible adjuntar automáticamente la entrevista en documentos de seguridad.';
-      throw new Error(errorDetalle);
+      throw new Error(typeof errorDetalle === 'string' ? errorDetalle : JSON.stringify(errorDetalle));
     }
 
     return true;
@@ -673,10 +697,14 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
           duration: 4000,
         });
 
+        // Un mismo instante para el PDF que se adjunta y la tabla del historial.
+        // Prioriza siempre el timestamp confirmado por el servicio de guardado.
+        const fechaRespuesta = data?.FechaActualizacion || data?.fechaActualizacion ||
+          data?.FechaCreacion || data?.fechaCreacion || new Date().toISOString();
         let errorPdfAdjunto = '';
 
         try {
-          await generarYAdjuntarPdfEntrevista(idRegistro);
+          await generarYAdjuntarPdfEntrevista(idRegistro, fechaRespuesta);
         } catch (errorAdjunto) {
           console.error('Error generando o adjuntando PDF de entrevista:', errorAdjunto);
           errorPdfAdjunto =
@@ -685,22 +713,27 @@ const EntrevistaModal = ({ isOpen, onClose, onSave, aspirante, existingData = nu
         }
 
         if (typeof onSave === 'function') {
+          // La hora debe corresponder al GUARDADO, no a la descarga del PDF.
+          // Se prioriza la fecha devuelta por la API; el instante local solo
+          // actualiza la visualización inmediata cuando el POST no la devuelve.
           onSave({
+            ...formData,
             ...(idVinculacionLaboral
               ? { IdVinculacionLaboral: Number(idVinculacionLaboral) }
               : {}),
-            FechaCreacion: formData.fechaActualizacion || new Date().toISOString().split('T')[0],
+            FechaCreacion: data?.FechaCreacion || data?.fechaCreacion || fechaRespuesta,
+            FechaActualizacion: fechaRespuesta,
             ConceptoFinalSeleccion: formData.conceptoFinalPruebaSeleccion || '',
             EntrevistadorPor: formData.entrevistadoPor || '',
             Fortalezas: formData.fortalezas || '',
             AreasDeMejora: formData.areasDeMejora || '',
-            ObservacionesFinales: formData.observacionesFinales || '',
-            ...formData
+            ObservacionesFinales: formData.observacionesFinales || ''
           });
         }
 
         if (errorPdfAdjunto) {
           setErrorMsg(errorPdfAdjunto);
+          return;
         }
       }
       onClose();

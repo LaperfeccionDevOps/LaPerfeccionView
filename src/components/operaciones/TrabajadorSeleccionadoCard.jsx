@@ -78,6 +78,14 @@ const TrabajadorSeleccionadoCard = ({
     trabajador?.nombreCliente ||
     trabajador?.NombreCliente;
 
+  const empresaContratante =
+    trabajador?.NombreEmpresa ||
+    trabajador?.nombreEmpresa ||
+    trabajador?.EmpresaContratante ||
+    trabajador?.empresaContratante ||
+    trabajador?.EmpresaNombre ||
+    trabajador?.empresaNombre;
+
 
   const estado =
     trabajador?.Estado ||
@@ -105,6 +113,10 @@ const TrabajadorSeleccionadoCard = ({
     {
       label: 'Cliente',
       value: obtenerValor(cliente),
+    },
+    {
+      label: 'Empresa contratante',
+      value: obtenerValor(empresaContratante),
     },
     {
       label: 'Fecha de ingreso',

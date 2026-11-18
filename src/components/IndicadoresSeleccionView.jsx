@@ -137,6 +137,9 @@ const IndicadoresSeleccionView = () => {
   const [dataRotacion, setDataRotacion] = useState(null);
   const [loadingRotacion, setLoadingRotacion] = useState(true);
   const [errorRotacion, setErrorRotacion] = useState('');
+  const [rqCobertura, setRqCobertura] = useState([]);
+  const [rqLoading, setRqLoading] = useState(true);
+  const [rqError, setRqError] = useState('');
 
   const [anioSeleccionado, setAnioSeleccionado] = useState('');
   const [mesSeleccionado, setMesSeleccionado] = useState('');
@@ -243,6 +246,28 @@ const IndicadoresSeleccionView = () => {
 
   useEffect(() => {
     cargarIndicadores();
+  }, []);
+
+  useEffect(() => {
+    let activo = true;
+    const consultarCobertura = async () => {
+      setRqLoading(true);
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) throw new Error('Inicia sesión para consultar las RQ.');
+        const response = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL}/seleccion/rq/indicadores/cobertura`,
+          { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } },
+        );
+        if (!response.ok) throw new Error(`No fue posible consultar las RQ (HTTP ${response.status}).`);
+        const payload = await response.json();
+        if (activo) { setRqCobertura(Array.isArray(payload.data) ? payload.data : []); setRqError(''); }
+      } catch (error) {
+        if (activo) { setRqCobertura([]); setRqError(error.message); }
+      } finally { if (activo) setRqLoading(false); }
+    };
+    consultarCobertura();
+    return () => { activo = false; };
   }, []);
 
   const aplicarFiltros = () => {
@@ -1306,6 +1331,13 @@ const IndicadoresSeleccionView = () => {
         )}
       </ChartCard>
 
+      <KpiCoberturaRQ
+        registros={rqCobertura}
+        loading={rqLoading}
+        error={rqError}
+        filtros={filtrosAplicados}
+      />
+
       <section className="overflow-hidden rounded-3xl border border-sky-200 bg-white shadow-xl">
         <div className="border-b border-sky-100 bg-gradient-to-r from-sky-50 via-white to-indigo-50 px-5 py-6 md:px-7">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -1542,6 +1574,259 @@ const IndicadoresSeleccionView = () => {
   );
 };
 
+
+
+// Normaliza fechas reales de recepción sin asignar fechas ficticias a RQ antiguas.
+const normalizarFechaRecepcionRQ = (rq) => {
+  const valor = rq?.FechaRecibidoSeleccion ?? rq?.fechaRecibidoSeleccion
+    ?? rq?.FechaRecepcionSeleccion ?? rq?.fechaRecepcionSeleccion ?? null;
+  if (valor == null || String(valor).trim() === '') return '';
+  const texto = String(valor).trim();
+  const iso = texto.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s]|$)/);
+  const latino = texto.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})(?:\s|$)/);
+  const partes = iso ? [Number(iso[1]), Number(iso[2]), Number(iso[3])]
+    : latino ? [Number(latino[3]), Number(latino[2]), Number(latino[1])] : null;
+  if (!partes) return '';
+  const [anio, mes, dia] = partes;
+  const fecha = new Date(Date.UTC(anio, mes - 1, dia));
+  if (fecha.getUTCFullYear() !== anio || fecha.getUTCMonth() !== mes - 1 || fecha.getUTCDate() !== dia) return '';
+  return `${anio}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+};
+
+// KPI 1: datos reales de RQ, sin modificar el KPI 2 ni el dashboard anterior.
+const KpiCoberturaRQ = ({ registros, loading, error, filtros }) => {
+  const [tipo, setTipo] = useState('');
+  const [estado, setEstado] = useState('');
+  const [buscar, setBuscar] = useState('');
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
+  const [seleccion, setSeleccion] = useState(null);
+  const fechasSinRegistrar = useMemo(() => registros.filter((rq) => !normalizarFechaRecepcionRQ(rq)).length, [registros]);
+  const fechasValidas = useMemo(() => registros
+    .map(normalizarFechaRecepcionRQ).filter(Boolean).sort(), [registros]);
+  const rangoInvalido = Boolean(fechaDesde && fechaHasta && fechaDesde > fechaHasta);
+  const hayFiltroFecha = Boolean(fechaDesde || fechaHasta || filtros.anio || filtros.mes);
+  const etiquetaRango = [
+    fechaDesde ? `Desde ${fechaDesde.split('-').reverse().join('/')}` : null,
+    fechaHasta ? `Hasta ${fechaHasta.split('-').reverse().join('/')}` : null,
+  ].filter(Boolean).join(' · ');
+  const datos = useMemo(() => registros.filter((rq) => {
+    if (rangoInvalido) return false;
+    const fecha = normalizarFechaRecepcionRQ(rq);
+    if (filtros.anio && fecha.slice(0, 4) !== filtros.anio) return false;
+    if (filtros.mes && Number(fecha.slice(5, 7)) !== Number(filtros.mes)) return false;
+    if (fechaDesde && (!fecha || fecha < fechaDesde)) return false;
+    if (fechaHasta && (!fecha || fecha > fechaHasta)) return false;
+    if (tipo && rq.TipificacionSeleccion !== tipo) return false;
+    if (estado && rq.EstadoBandeja !== estado) return false;
+    const q = buscar.trim().toLowerCase();
+    return !q || [rq.CodigoRQ, rq.NombreCliente, rq.NombreCargo, rq.TipificacionSeleccion]
+      .some((v) => String(v || '').toLowerCase().includes(q));
+  }), [registros, filtros, tipo, estado, buscar, fechaDesde, fechaHasta, rangoInvalido]);
+  const seleccionVisible = datos.find((rq) => rq.IdRQOperaciones === seleccion?.IdRQOperaciones) || null;
+  const limpiarFiltrosRQ = () => {
+    setTipo(''); setEstado(''); setBuscar(''); setFechaDesde(''); setFechaHasta('');
+    setFiltroPendientes('TODAS'); setSeleccion(null);
+  };
+  const resumen = useMemo(() => {
+    const cubiertas = datos.flatMap((rq) => (rq.Candidatos || [])
+      .filter((c) => c.CuentaComoCubierto && Number.isFinite(Number(c.DiasGestion)) && c.DiasGestion !== null)
+      .slice(0, Math.max(0, Number(rq.CantidadSolicitada || 0)))
+      .map((c) => ({ ...c, meta: Number(rq.DiasMaximosGestion), tipo: rq.TipificacionSeleccion })));
+    const evaluables = cubiertas.filter((c) => Number.isFinite(c.meta) && c.meta > 0);
+    const totalDias = cubiertas.reduce((sum, c) => sum + Number(c.DiasGestion), 0);
+    return {
+      rq: datos.length,
+      solicitadas: datos.reduce((sum, rq) => sum + Number(rq.CantidadSolicitada || 0), 0),
+      cubiertas: datos.reduce((sum, rq) => sum + Number(rq.CantidadContratados || 0), 0),
+      pendientes: datos.reduce((sum, rq) => sum + Number(rq.CantidadPendientes || 0), 0),
+      promedio: cubiertas.length ? (totalDias / cubiertas.length).toFixed(1) : null,
+      cumplimiento: evaluables.length ? Math.round(100 * evaluables.filter((c) => Number(c.DiasGestion) <= c.meta).length / evaluables.length) : null,
+      evaluables: evaluables.length,
+    };
+  }, [datos]);
+  // Seguimiento exclusivamente de cupos pendientes; sin alterar el KPI de coberturas.
+  // Una RQ sin meta se clasifica aparte, nunca como vencida ni como cumplida.
+  const seguimientoPendientes = useMemo(() => {
+    const detalle = datos.filter((rq) => Number(rq.CantidadPendientes || 0) > 0).map((rq) => {
+      const cupos = Math.max(0, Number(rq.CantidadPendientes || 0));
+      const meta = rq.DiasMaximosGestion == null || rq.DiasMaximosGestion === ''
+        ? null : Number(rq.DiasMaximosGestion);
+      const dias = rq.DiasGestionRQ == null || rq.DiasGestionRQ === ''
+        ? null : Number(rq.DiasGestionRQ);
+      const clasificacion = !Number.isFinite(meta) || meta <= 0 || !Number.isFinite(dias)
+        ? 'SIN_META'
+        : dias > meta ? 'VENCIDA' : 'EN_PLAZO';
+      return { ...rq, cuposPendientes: cupos, clasificacionPendiente: clasificacion };
+    });
+    const contar = (clase) => detalle.filter((rq) => rq.clasificacionPendiente === clase)
+      .reduce((total, rq) => total + rq.cuposPendientes, 0);
+    return {
+      detalle,
+      enPlazo: contar('EN_PLAZO'),
+      vencidas: contar('VENCIDA'),
+      sinMeta: contar('SIN_META'),
+    };
+  }, [datos]);
+  const [filtroPendientes, setFiltroPendientes] = useState('TODAS');
+  const pendientesVisibles = seguimientoPendientes.detalle.filter((rq) =>
+    filtroPendientes === 'TODAS' || rq.clasificacionPendiente === filtroPendientes);
+  const categorias = useMemo(() => [...new Set(registros.map((rq) => rq.TipificacionSeleccion).filter(Boolean))].sort(), [registros]);
+  const grupos = useMemo(() => categorias.map((nombre) => {
+    const grupo = datos.filter((rq) => rq.TipificacionSeleccion === nombre);
+    const cubiertos = grupo.flatMap((rq) => (rq.Candidatos || []).filter((c) => c.CuentaComoCubierto && c.DiasGestion != null));
+    const metas = [...new Set(grupo.filter((rq) => Number(rq.CantidadContratados || 0) > 0).map((rq) => Number(rq.DiasMaximosGestion)).filter((m) => Number.isFinite(m) && m > 0))];
+    const meta = metas.length === 1 ? metas[0] : null;
+    return { nombre, cantidad: cubiertos.length, meta, metasVariables: metas.length > 1, promedio: cubiertos.length ? cubiertos.reduce((a, c) => a + Number(c.DiasGestion), 0) / cubiertos.length : null };
+  }), [datos, categorias]);
+  const format = (n) => Number(n).toLocaleString('es-CO');
+  return (
+    <section className="overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-xl">
+      <div className="border-b border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-teal-50 px-5 py-6 md:px-7">
+        <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black uppercase tracking-wide text-emerald-800">KPI 1 · Cobertura de vacantes</span>
+        <h2 className="mt-3 text-xl font-black text-slate-900">Tiempo de entrega y cumplimiento de RQ</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-600">Mide cuánto tarda Selección en cubrir cada vacante desde la recepción efectiva de la RQ hasta la contratación. Días hábiles de lunes a viernes, sin festivos. Las vacantes pendientes se informan por separado.</p>
+      </div>
+      <div className="space-y-5 p-5 md:p-7">
+        {loading ? <p className="text-sm text-slate-500">Consultando coberturas de RQ...</p> : error ? (
+          <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{error} Los indicadores actuales de Selección siguen disponibles. Verifica que el endpoint nuevo esté publicado en el backend QA y que tu rol tenga acceso.</div>
+        ) : <>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <label className="text-xs font-bold text-slate-600">Tipificación
+              <select aria-label="Filtrar por tipificación" className="mt-1 w-full rounded-xl border border-slate-200 bg-white p-2 text-sm" value={tipo} onChange={(e) => setTipo(e.target.value)}><option value="">Todas las tipificaciones</option>{categorias.map((v) => <option key={v}>{v}</option>)}</select>
+            </label>
+            <label className="text-xs font-bold text-slate-600">Estado de RQ
+              <select aria-label="Filtrar por estado" className="mt-1 w-full rounded-xl border border-slate-200 bg-white p-2 text-sm" value={estado} onChange={(e) => setEstado(e.target.value)}><option value="">Todos los estados</option>{['ABIERTO','EN_PROCESO','CERRADO'].map((v) => <option key={v}>{v}</option>)}</select>
+            </label>
+            <label className="text-xs font-bold text-slate-600">Buscar RQ, cliente o cargo
+              <input className="mt-1 w-full rounded-xl border border-slate-200 bg-white p-2 text-sm" value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Ej. RQ-GTH-6" />
+            </label>
+          </div>
+          <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <label className="text-xs font-bold text-slate-600">RQ recibidas desde
+              <input type="date" value={fechaDesde} max={fechaHasta || undefined} onChange={(e) => { setFechaDesde(e.target.value); setSeleccion(null); }} className="mt-1 block rounded-lg border border-slate-300 bg-white p-2 text-sm" />
+            </label>
+            <label className="text-xs font-bold text-slate-600">RQ recibidas hasta
+              <input type="date" value={fechaHasta} min={fechaDesde || undefined} onChange={(e) => { setFechaHasta(e.target.value); setSeleccion(null); }} className="mt-1 block rounded-lg border border-slate-300 bg-white p-2 text-sm" />
+            </label>
+            <button type="button" onClick={limpiarFiltrosRQ} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100">Limpiar filtros de RQ</button>
+            <p className="text-xs text-slate-500">Fechas de recepción en Selección. Los filtros de año y mes del tablero también se respetan.</p>
+          </div>
+          <div role="status" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+            <span className="font-bold text-slate-800">Control del período:</span>{' '}
+            {rangoInvalido ? (
+              <span className="font-bold text-rose-700">La fecha inicial no puede superar la fecha final.</span>
+            ) : (
+              <>
+                {etiquetaRango || 'Sin rango de fechas manual'}
+                {' · '}{datos.length} de {registros.length} RQ visibles según todos los filtros.
+                {fechasValidas.length > 0 && (
+                  <> Fechas de recepción disponibles: {fechasValidas[0].split('-').reverse().join('/')}
+                    {' a '}{fechasValidas[fechasValidas.length - 1].split('-').reverse().join('/')}.</>
+                )}
+                {hayFiltroFecha && datos.length === 0 && (
+                  <span className="font-semibold text-amber-700"> No hay RQ con fecha de recepción dentro de este período y los demás filtros.</span>
+                )}
+              </>
+            )}
+          </div>
+          {fechasSinRegistrar > 0 && (fechaDesde || fechaHasta || filtros.anio || filtros.mes) && (
+            <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              {fechasSinRegistrar} RQ no tienen una fecha de recepción en Selección válida en la respuesta del servidor.
+              No se incluyen en filtros por fecha para evitar asignarles fechas inventadas. Si esperabas verlas,
+              hay que revisar el campo de fecha que devuelve el endpoint de cobertura en QA.
+            </p>
+          )}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+            {[
+              ['RQ recibidas', resumen.rq, 'Requisiciones del período'],
+              ['Vacantes solicitadas', resumen.solicitadas, 'Cupos pedidos en las RQ'],
+              ['Vacantes cubiertas', resumen.cubiertas, 'Contrataciones que cuentan como cobertura'],
+              ['Vacantes pendientes', resumen.pendientes, 'Cupos todavía sin cubrir'],
+              ['Promedio de cobertura', resumen.promedio === null ? 'Sin datos' : `${resumen.promedio} días`, 'Por vacante cubierta; días hábiles'],
+              ['Cumplimiento de meta', resumen.cumplimiento === null ? 'Sin datos' : `${resumen.cumplimiento}%`, `${resumen.evaluables} coberturas con meta evaluable`],
+            ].map(([titulo, valor, explicacion]) => <div key={titulo} title={explicacion} className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs font-bold text-slate-600">{titulo}</p><p className="mt-2 text-2xl font-black text-slate-900">{typeof valor === 'number' ? format(valor) : valor}</p><p className="mt-1 text-xs leading-5 text-slate-500">{explicacion}</p></div>)}
+          </div>
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 p-4">
+              <h3 className="font-black text-slate-900">Tiempo promedio frente a la meta</h3>
+              <p className="mt-1 text-xs text-slate-500">Cada barra representa los días promedio de las vacantes cubiertas. La línea vertical indica la meta de esa categoría.</p>
+              <div className="mt-4 space-y-4">
+                {grupos.filter((g) => g.cantidad > 0 && g.meta).length ? grupos.filter((g) => g.cantidad > 0 && g.meta).map((g) => {
+                  const escala = Math.max(g.meta, g.promedio, 1) * 1.15;
+                  return <button type="button" key={g.nombre} title={`${g.nombre}: ${g.cantidad} coberturas, promedio ${g.promedio.toFixed(1)} días, meta ${g.meta} días`} onClick={() => {setTipo(g.nombre); setSeleccion(null);}} className="block w-full rounded-xl p-2 text-left transition hover:bg-slate-50">
+                    <div className="mb-2 flex justify-between gap-2 text-xs"><span className="font-bold text-slate-700">{g.nombre}</span><span className="shrink-0 text-slate-600">{g.promedio.toFixed(1)} / {g.meta} días</span></div>
+                    <div className="relative h-3 rounded-full bg-slate-100"><div className={`h-3 rounded-full ${g.promedio <= g.meta ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${100 * g.promedio / escala}%` }} /><div className="absolute top-[-3px] h-5 w-0.5 bg-slate-800" style={{ left: `${100 * g.meta / escala}%` }} /></div>
+                    <p className="mt-1 text-[11px] text-slate-500">{g.cantidad} vacantes cubiertas · clic para filtrar</p>
+                  </button>;
+                }) : <p className="text-sm text-slate-500">No hay coberturas con una meta única para estos filtros. Si existen metas distintas en una categoría, consulta la meta individual de cada RQ en la trazabilidad.</p>}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 p-4">
+              <h3 className="font-black text-slate-900">Estado de las vacantes</h3>
+              <p className="mt-1 text-xs text-slate-500">Proporción de cupos cubiertos y pendientes; no representa cumplimiento de tiempos.</p>
+              <div className="mt-6 flex h-5 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={`${resumen.cubiertas} vacantes cubiertas y ${resumen.pendientes} pendientes`}>
+                <div className="bg-emerald-500" style={{ width: `${resumen.solicitadas ? 100 * Math.min(resumen.cubiertas, resumen.solicitadas) / resumen.solicitadas : 0}%` }} /><div className="bg-amber-400" style={{ width: `${resumen.solicitadas ? 100 * resumen.pendientes / resumen.solicitadas : 0}%` }} />
+              </div>
+              <div className="mt-4 flex flex-wrap gap-4 text-sm"><span><span className="mr-2 text-emerald-600">●</span>{resumen.cubiertas} cubiertas</span><span><span className="mr-2 text-amber-500">●</span>{resumen.pendientes} pendientes</span></div>
+              <p className="mt-5 text-xs leading-5 text-slate-500">La meta depende de la tipificación: básicos 5 días, especializados 10, administrativos y supervisores 15, directivos 20. Se utiliza el valor realmente configurado en cada RQ.</p>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 p-4 md:p-5">
+            <h3 className="font-black text-slate-900">Seguimiento de vacantes pendientes</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-500">Cupos aún sin cubrir, clasificados por días hábiles transcurridos frente a la meta de cada RQ. Las requisiciones sin meta quedan separadas y no se consideran vencidas.</p>
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {[
+                ['EN_PLAZO', 'Dentro del plazo', seguimientoPendientes.enPlazo],
+                ['VENCIDA', 'Vencidas', seguimientoPendientes.vencidas],
+                ['SIN_META', 'Sin meta definida', seguimientoPendientes.sinMeta],
+              ].map(([clave, titulo, cantidad]) => (
+                <button key={clave} type="button" onClick={() => setFiltroPendientes((actual) => actual === clave ? 'TODAS' : clave)}
+                  aria-pressed={filtroPendientes === clave}
+                  className={`rounded-xl border p-4 text-left transition hover:shadow-sm ${filtroPendientes === clave ? 'border-slate-700 ring-1 ring-slate-700' : 'border-slate-200'} bg-slate-50`}>
+                  <p className="text-xs font-bold text-slate-600">{titulo}</p>
+                  <p className="mt-2 text-2xl font-black text-slate-900">{format(cantidad)}</p>
+                  <p className="mt-1 text-xs text-slate-500">Cupos pendientes · clic para filtrar</p>
+                </button>
+              ))}
+            </div>
+            <div className="mt-4 flex h-4 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={`${seguimientoPendientes.enPlazo} cupos dentro del plazo, ${seguimientoPendientes.vencidas} vencidos y ${seguimientoPendientes.sinMeta} sin meta`}>
+              {[
+                [seguimientoPendientes.enPlazo, 'bg-emerald-500'],
+                [seguimientoPendientes.vencidas, 'bg-rose-500'],
+                [seguimientoPendientes.sinMeta, 'bg-amber-400'],
+              ].map(([cantidad, color], index) => <div key={index} className={color} style={{ width: `${resumen.pendientes ? cantidad * 100 / resumen.pendientes : 0}%` }} />)}
+            </div>
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <p className="text-xs text-slate-500">{filtroPendientes === 'TODAS' ? 'Todas las pendientes' : filtroPendientes === 'EN_PLAZO' ? 'Dentro del plazo' : filtroPendientes === 'VENCIDA' ? 'Vencidas' : 'Sin meta definida'} · {pendientesVisibles.length} RQ</p>
+              {filtroPendientes !== 'TODAS' && <button type="button" className="rounded-lg border border-slate-200 px-3 py-1 text-xs font-bold text-slate-700" onClick={() => setFiltroPendientes('TODAS')}>Ver todas</button>}
+            </div>
+            <div className="mt-2 max-h-64 overflow-auto rounded-xl border border-slate-200">
+              <table className="w-full min-w-[740px] text-left text-xs">
+                <thead className="sticky top-0 bg-slate-900 text-white"><tr>{['RQ', 'Cliente / cargo', 'Estado', 'Cupos pendientes', 'Días RQ', 'Meta', 'Seguimiento'].map((titulo) => <th key={titulo} className="p-3">{titulo}</th>)}</tr></thead>
+                <tbody>{pendientesVisibles.map((rq) => <tr key={rq.IdRQOperaciones} className="border-b border-slate-100">
+                  <td className="p-3 font-bold text-emerald-700">{rq.CodigoRQ || `ID ${rq.IdRQOperaciones}`}</td>
+                  <td className="p-3">{rq.NombreCliente || 'Sin cliente'}<div className="text-slate-500">{rq.NombreCargo || 'Sin cargo'}</div></td>
+                  <td className="p-3">{rq.EstadoBandeja || '—'}</td>
+                  <td className="p-3">{rq.cuposPendientes}</td>
+                  <td className="p-3">{rq.DiasGestionRQ ?? '—'}</td>
+                  <td className="p-3">{rq.DiasMaximosGestion ?? 'Sin meta'}</td>
+                  <td className="p-3 font-semibold">{rq.clasificacionPendiente === 'EN_PLAZO' ? 'Dentro del plazo' : rq.clasificacionPendiente === 'VENCIDA' ? 'Vencida' : 'Sin meta'}</td>
+                </tr>)}</tbody>
+              </table>
+              {!pendientesVisibles.length && <p className="p-4 text-sm text-slate-500">No hay vacantes pendientes para este filtro.</p>}
+            </div>
+          </div>
+          <div className="overflow-hidden rounded-2xl border border-slate-200">
+            <div className="border-b border-slate-200 p-4"><h3 className="font-black text-slate-900">Trazabilidad por requisición</h3><p className="mt-1 text-xs text-slate-500">Selecciona una RQ para consultar candidatos, fechas y días de gestión.</p></div>
+            <div className="max-h-80 overflow-auto"><table className="w-full min-w-[760px] text-left text-xs"><thead className="sticky top-0 bg-slate-900 text-white"><tr>{['RQ','Cliente / cargo','Estado','Solicitadas','Cubiertas','Pendientes','Meta','Días RQ'].map((h) => <th key={h} className="p-3">{h}</th>)}</tr></thead><tbody>{datos.map((rq) => <tr key={rq.IdRQOperaciones} onClick={() => setSeleccion(rq)} onKeyDown={(e) => { if (e.key === 'Enter') setSeleccion(rq); }} tabIndex={0} role="button" className="cursor-pointer border-b border-slate-100 hover:bg-emerald-50 focus:bg-emerald-50"><td className="p-3 font-bold text-emerald-700">{rq.CodigoRQ || `ID ${rq.IdRQOperaciones}`}</td><td className="p-3">{rq.NombreCliente || 'Sin cliente'}<div className="text-slate-500">{rq.NombreCargo || 'Sin cargo'}</div></td><td className="p-3">{rq.EstadoBandeja}</td><td className="p-3">{rq.CantidadSolicitada}</td><td className="p-3">{rq.CantidadContratados}</td><td className="p-3">{rq.CantidadPendientes}</td><td className="p-3">{rq.DiasMaximosGestion ?? 'Sin meta'}</td><td className="p-3">{rq.DiasGestionRQ ?? '—'}</td></tr>)}</tbody></table>{!datos.length && <p className="p-5 text-sm text-slate-500">No hay RQ para los filtros seleccionados.</p>}</div>
+          </div>
+          {seleccionVisible && <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="font-black text-slate-900">Detalle · {seleccionVisible.CodigoRQ || seleccionVisible.IdRQOperaciones}</h3><p className="mt-1 text-xs text-slate-600">Recibida: {normalizarFechaRecepcionRQ(seleccionVisible) || 'Sin fecha'} · Meta: {seleccionVisible.DiasMaximosGestion ?? 'Sin definir'} días hábiles</p></div><button type="button" onClick={() => setSeleccion(null)} className="rounded-lg bg-white px-3 py-1 text-xs font-bold text-slate-700">Cerrar</button></div><div className="mt-3 overflow-x-auto"><table className="w-full min-w-[600px] text-xs"><thead><tr>{['Candidato','Estado','Fecha contratado','Días gestión','KPI','Cuenta cobertura'].map((h) => <th key={h} className="p-2 text-left">{h}</th>)}</tr></thead><tbody>{(seleccionVisible.Candidatos || []).map((c) => <tr key={c.IdRQCandidato} className="border-t border-emerald-100"><td className="p-2">{c.NombreCompleto || c.IdRegistroPersonal}</td><td className="p-2">{c.EstadoProceso || '—'}</td><td className="p-2">{String(c.FechaContratado || '—').slice(0,10)}</td><td className="p-2">{c.DiasGestion ?? '—'}</td><td className="p-2 font-semibold">{c.KPI || '—'}</td><td className="p-2">{c.CuentaComoCubierto ? 'Sí' : 'No'}</td></tr>)}</tbody></table>{!(seleccionVisible.Candidatos || []).length && <p className="p-2 text-slate-500">Esta RQ no tiene candidatos vinculados.</p>}</div></div>}
+        </>}
+      </div>
+    </section>
+  );
+};
 
 const KpiContratadosRotacion = ({ total }) => (
   <div className="h-full rounded-2xl border border-sky-200 bg-sky-50 p-5 shadow-sm">

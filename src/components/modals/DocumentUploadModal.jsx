@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   getDocumentacionIngreso,
   getDocumentacionIngresoPorVinculacion,
+  getAspirantePorCiclos,
 } from '@/services/detalle_aspirante';
 import {
   obtenerDocumentoSeguridadBase64,
@@ -59,10 +60,15 @@ const DocumentUploadModal = ({
   esHistorico = false,
   numeroCiclo = null,
   estadoVinculacion = null,
+  codigoEmpresa = null,
+  nombreEmpresa = null,
   soloLectura = false,
 }) => {
   const [documentos, setDocumentos] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [generandoTratamientoDatos, setGenerandoTratamientoDatos] = useState(false);
+  // Evita dos generaciones simultáneas al abrir la misma carpeta (React StrictMode).
+  const sincronizacionesTratamiento73 = useRef(new Set());
   const [tab, setTab] = useState('ingreso');
 
   const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
@@ -74,6 +80,42 @@ const DocumentUploadModal = ({
   const esCarpetaBienestar = tipoCarpeta === 'bienestar';
   const esCarpetaHSE = tipoCarpeta === 'hse';
   const esCarpetaSaludOcupacional = tipoCarpeta === 'salud_ocupacional';
+
+  const empresaCodigo = String(
+    codigoEmpresa ||
+    aspirante?.CodigoEmpresa ||
+    aspirante?.codigoEmpresa ||
+    ''
+  ).trim().toUpperCase();
+
+  const empresaNombre = String(
+    nombreEmpresa ||
+    aspirante?.NombreEmpresa ||
+    aspirante?.nombreEmpresa ||
+    ''
+  ).trim();
+
+  const empresaVisible =
+    empresaCodigo === 'ALP'
+      ? {
+          codigo: 'ALP',
+          nombre: empresaNombre || 'Aseos La Perfección S.A.S.',
+          className: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+        }
+      : empresaCodigo === 'MI'
+        ? {
+            codigo: 'MI',
+            nombre: empresaNombre || 'Mantener Ingeniería',
+            className: 'bg-sky-100 text-sky-800 border-sky-200',
+          }
+        : {
+            codigo: 'SIN ASIGNAR',
+            nombre: empresaNombre || 'Sin empresa contratante asignada',
+            className: 'bg-gray-100 text-gray-600 border-gray-200',
+          };
+
+  const mostrarEmpresaCarpeta =
+    esCarpetaIngreso || esCarpetaActivos || esCarpetaRetiro;
 
   const obtenerIngresoParaCarpeta = (id) => {
     if (esCarpetaIngreso && idVinculacionLaboral) {
@@ -191,6 +233,7 @@ const tituloModal = esCarpetaActivos
 
  useEffect(() => {
   if (!aspirante) {
+    sincronizacionesTratamiento73.current.clear();
     setDocumentos([]);
     return;
   }
@@ -366,6 +409,14 @@ const tituloModal = esCarpetaActivos
         }
 
         setDocumentos(docs);
+
+        // QA: la carpeta solo consulta los documentos existentes. Como el PDF
+        // 73 antes podía generarse sin persistir, sincronizamos ÚNICAMENTE ese
+        // tipo al abrir la carpeta actual, sin tocar entrevistas, referencias,
+        // contratos ni expedientes históricos.
+        if (isOpen && esCarpetaIngreso && !esHistorico) {
+          void sincronizarTratamiento73EnCarpeta(id, docs);
+        }
       })
       .finally(() => setLoading(false));
 }, [
@@ -381,6 +432,7 @@ const tituloModal = esCarpetaActivos
   idVinculacionLaboral,
   esHistorico,
   numeroCiclo,
+  isOpen,
 ]);
 
   if (!aspirante) return null;
@@ -773,18 +825,16 @@ const descargarDocumentoRetiro = async (doc) => {
 };
   const getDocumentoBase64Tipo42 = () => {
     if (!Array.isArray(documentos)) return '';
-
-    const doc = documentos.find(
-      d => d && String(d.IdTipoDocumentacion) === '42' && d.DocumentoBase64
+    const firmas = documentos.filter(d =>
+      d && String(d.IdTipoDocumentacion) === '42' && (d.DocumentoBase64 || d.DocumentoCargado)
     );
-
+    // Si hay ciclo seleccionado, no tomar la firma de una vinculación diferente.
+    const doc = idVinculacionLaboral
+      ? firmas.find(d => String(d.IdVinculacionLaboral ?? d.IdVinculacionLaboralConsulta ?? '') === String(idVinculacionLaboral))
+      : (firmas.find(d => d?.OrigenCarpetaDigital === 'SEGURIDAD') || firmas[0]);
     if (!doc) return '';
-
-    const base64 = doc.DocumentoBase64 || '';
-
-    return base64.startsWith('data:image/png;base64,')
-      ? base64
-      : 'data:image/png;base64,' + base64;
+    const base64 = String(doc.DocumentoBase64 || doc.DocumentoCargado || '');
+    return base64.startsWith('data:') ? base64 : 'data:image/png;base64,' + base64;
   };
 
   const getLogoBase64 = async (logo) => {
@@ -811,7 +861,207 @@ const descargarDocumentoRetiro = async (doc) => {
     });
   };
 
+  // QA / documento 73: recuperar el PDF en Carpeta Digital cuando la firma
+  // (42) ya existe, pero la autorización no fue almacenada en Documentos.
+  // Solo para el ciclo actual; NO se reutiliza una firma de un reintegro anterior.
+  const sincronizarTratamiento73EnCarpeta = async (idRegistro, docsCargados) => {
+    if (!isOpen || !esCarpetaIngreso || esHistorico || !idRegistro) return;
+
+    const clave = String(idRegistro);
+    if (sincronizacionesTratamiento73.current.has(clave)) return;
+    sincronizacionesTratamiento73.current.add(clave);
+    let sincronizado = false;
+    try {
+
+    const docs = Array.isArray(docsCargados) ? docsCargados : [];
+    const tieneArchivo = (doc) => Boolean(
+      doc?.DocumentoBase64 || doc?.DocumentoCargado
+    );
+    const docs73 = docs.filter((doc) =>
+      String(doc?.IdTipoDocumentacion) === '73' && tieneArchivo(doc)
+    );
+
+    // Consultamos el ciclo en BD; no inferimos la empresa por el cliente comercial.
+    let ciclos;
+    try {
+      const respuesta = await getAspirantePorCiclos(idRegistro);
+      ciclos = respuesta?.data || respuesta || {};
+    } catch (error) {
+      console.warn('[CARPETA DIGITAL][73] No se pudo consultar el ciclo:', error);
+      return;
+    }
+
+    const vinculacion = ciclos?.vinculacionActual || null;
+    const idVinculacion = Number(vinculacion?.IdVinculacionLaboral || 0) || null;
+    const ciclo = Number(vinculacion?.NumeroCiclo || 0) || null;
+    const estado = String(vinculacion?.EstadoVinculacion || '').trim().toUpperCase();
+
+    // No crear documentos para un retiro, un histórico ni un reintegro.
+    // Para reintegros, la fecha y firma deben auditarse en su propio ciclo.
+    if (vinculacion && (!['ACTIVO', 'EN_PROCESO'].includes(estado) || ciclo !== 1)) {
+      return;
+    }
+    if (!vinculacion && Array.isArray(ciclos?.vinculacionesHistoricas) &&
+        ciclos.vinculacionesHistoricas.length > 0) {
+      return;
+    }
+
+    // Si ya existe el 73 del primer ciclo (incluido legado sin vinculación),
+    // la carpeta debe mostrarlo, nunca generar ni sobrescribir otro PDF.
+    const existe73 = docs73.some((doc) => {
+      const cicloDoc = doc?.IdVinculacionLaboral;
+      return idVinculacion
+        ? String(cicloDoc) === String(idVinculacion) || cicloDoc == null
+        : cicloDoc == null;
+    });
+    if (existe73) return;
+
+    const firmas = docs.filter((doc) =>
+      String(doc?.IdTipoDocumentacion) === '42' && tieneArchivo(doc)
+    );
+    let firma = idVinculacion
+      ? firmas.find((doc) => String(doc?.IdVinculacionLaboral) === String(idVinculacion))
+      : null;
+    // La firma 42 de un registro inicial puede ser legacy (ciclo NULL).
+    if (!firma) firma = firmas.find((doc) => doc?.IdVinculacionLaboral == null);
+
+    if (!firma) {
+      // La carpeta por ciclo puede no incluir la firma de registro legacy.
+      try {
+        const respuestaIngreso = await getDocumentacionIngreso(idRegistro);
+        const docsIngreso = Array.isArray(respuestaIngreso?.data)
+          ? respuestaIngreso.data
+          : [];
+        firma = docsIngreso.find((doc) =>
+          String(doc?.IdTipoDocumentacion) === '42' &&
+          doc?.IdVinculacionLaboral == null && tieneArchivo(doc)
+        );
+      } catch (error) {
+        console.warn('[CARPETA DIGITAL][73] Firma legacy no disponible:', error);
+      }
+    }
+    if (!firma) return;
+
+    // El registro inicial exige aceptación y firma antes de guardar.
+    // Se usa su fecha auditada de creación, NUNCA la expedición de cédula
+    // ni la fecha del momento en que alguien consulta la carpeta.
+    const fechaRegistro = String(
+      ciclos?.persona?.FechaCreacion || aspirante?.FechaCreacion ||
+      aspirante?.fechaCreacion || ''
+    );
+    const fechaISO = fechaRegistro.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!fechaISO) {
+      console.warn('[CARPETA DIGITAL][73] Sin fecha de registro verificable; no se genera.');
+      return;
+    }
+    const fechaFirma = `${fechaISO[3]}/${fechaISO[2]}/${fechaISO[1]}`;
+
+    const persona = ciclos?.persona || {};
+    const nombreCompleto = `${persona?.Nombres || aspirante?.nombres || aspirante?.Nombres || ''} ${persona?.Apellidos || aspirante?.apellidos || aspirante?.Apellidos || ''}`.trim();
+    const identificacion = String(
+      persona?.NumeroIdentificacion || aspirante?.cedula ||
+      aspirante?.NumeroIdentificacion || ''
+    ).trim();
+    if (!nombreCompleto || !identificacion) return;
+
+    const tipoRaw =
+      aspirante?.DescripcionTipoIdentificacion ||
+      aspirante?.tipoIdentificacion ||
+      aspirante?.TipoIdentificacion || '';
+    const tipoIdentificacion = typeof tipoRaw === 'object'
+      ? (tipoRaw?.Descripcion || tipoRaw?.Nombre || 'documento de identidad')
+      : (String(tipoRaw).trim() || 'documento de identidad');
+
+    const firmaRaw = String(firma.DocumentoBase64 || firma.DocumentoCargado || '');
+    const mimeFirma = String(firma.Formato || 'image/png');
+    const firmaDataUri = firmaRaw.startsWith('data:')
+      ? firmaRaw
+      : `data:${mimeFirma};base64,${firmaRaw}`;
+    const idNumero = Number(idRegistro);
+    if (!Number.isSafeInteger(idNumero) || idNumero <= 0) return;
+
+    try {
+      const campos = {
+        NOMBRES: nombreCompleto,
+        TIPO_IDENTIFICACION: tipoIdentificacion,
+        NUMERO_IDENTIFICACION: identificacion,
+        FECHA_FIRMA: fechaFirma,
+        FIRMA: firmaDataUri,
+        EMAIL: aspirante?.correo || aspirante?.email || aspirante?.Email || '',
+      };
+      // El backend valida y toma la empresa real de VinculacionLaboral o RQ.
+      const respuestaPDF = await DescargarDocumentoPdf(
+        campos, 'tratamiento_datos', idVinculacion,
+        { IdRegistroPersonal: idNumero }
+      );
+      if (respuestaPDF?.ok === false) {
+        const detalle = await respuestaPDF.json().catch(() => ({}));
+        throw new Error(detalle?.detail || `Error PDF HTTP ${respuestaPDF.status}`);
+      }
+      let pdfBase64 = respuestaPDF?.data?.pdf_base64 || respuestaPDF?.pdf_base64 || '';
+      if (!pdfBase64 && typeof respuestaPDF?.json === 'function') {
+        const json = await respuestaPDF.json();
+        pdfBase64 = json?.pdf_base64 || '';
+      }
+      pdfBase64 = String(pdfBase64).replace(/^data:[^,]*;base64,/i, '').replace(/\s/g, '');
+      if (!pdfBase64.startsWith('JVBERi0')) {
+        throw new Error('El generador no devolvió un PDF válido.');
+      }
+
+      const nombre = `Tratamiento_Datos_${idNumero}.pdf`;
+      const respuestaGuardado = await RegistrarDocumentosSeguridad({
+        idRegistroPersonal: idNumero,
+        ...(idVinculacion ? { idVinculacionLaboral: idVinculacion } : {}),
+        documentos_seguridad: [{
+          IdTipoDocumentacion: 73,
+          Nombre: nombre,
+          Formato: 'application/pdf',
+          DocumentoCargado: `data:application/pdf;base64,${pdfBase64}`,
+        }],
+      });
+      if (!respuestaGuardado?.ok) {
+        const detalle = await respuestaGuardado?.json().catch(() => ({}));
+        throw new Error(detalle?.detail || `No se pudo guardar el 73 (HTTP ${respuestaGuardado?.status || 'desconocido'}).`);
+      }
+
+      // El archivo se muestra solo DESPUÉS de que el backend confirma guardado.
+      const doc73 = {
+        IdTipoDocumentacion: 73,
+        Nombre: nombre,
+        Formato: 'application/pdf',
+        DocumentoBase64: `data:application/pdf;base64,${pdfBase64}`,
+        IdVinculacionLaboral: idVinculacion,
+        OrigenCarpetaDigital: 'SEGURIDAD',
+      };
+      setDocumentos((anteriores) => [
+        ...(Array.isArray(anteriores) ? anteriores : []).filter((doc) =>
+          String(doc?.IdTipoDocumentacion) !== '73' ||
+          (idVinculacion && doc?.IdVinculacionLaboral != null &&
+            String(doc.IdVinculacionLaboral) !== String(idVinculacion))
+        ),
+        doc73,
+      ]);
+      sincronizado = true;
+      toast({
+        title: 'Tratamiento de datos sincronizado',
+        description: 'El documento 73 quedó guardado y disponible en Carpeta Digital → Selección.',
+      });
+    } catch (error) {
+      console.error('[CARPETA DIGITAL][73] Error sincronizando PDF:', error);
+      toast({
+        title: 'No se pudo sincronizar el tratamiento de datos',
+        description: error?.message || 'Revise el generador PDF y el servicio de documentos en QA.',
+        variant: 'destructive',
+      });
+    }
+    } finally {
+      if (!sincronizado) sincronizacionesTratamiento73.current.delete(clave);
+    }
+  };
+
   const handleDescargarTratamientoDatos = async () => {
+    if (soloLectura || generandoTratamientoDatos) return;
+    setGenerandoTratamientoDatos(true);
     try {
       const firmaBase64 = getDocumentoBase64Tipo42();
 
@@ -838,8 +1088,22 @@ const descargarDocumentoRetiro = async (doc) => {
         EMAIL: aspirante?.email || '',
       };
 
+      const idVinculacionParaPdf = Number.isInteger(Number(idVinculacionLaboral)) &&
+        Number(idVinculacionLaboral) > 0 ? Number(idVinculacionLaboral) : null;
       let pdf_base64 = '';
-      const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos');
+      const response = await DescargarDocumentoPdf(
+        campos,
+        'tratamiento_datos',
+        idVinculacionParaPdf,
+        {
+          IdRegistroPersonal: Number(aspirante?.IdRegistroPersonal ?? aspirante?.idRegistroPersonal ?? aspirante?.id),
+          IdEmpresaContratante: aspirante?.IdEmpresaContratante ?? aspirante?.idEmpresaContratante ?? null,
+        }
+      );
+      if (response && typeof response.ok === 'boolean' && !response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(typeof error?.detail === 'string' ? error.detail : `Error del servicio PDF (${response.status}).`);
+      }
 
       if (response?.data?.pdf_base64) {
         pdf_base64 = response.data.pdf_base64;
@@ -859,18 +1123,63 @@ const descargarDocumentoRetiro = async (doc) => {
         return;
       }
 
-      descargarDocumento({
-        DocumentoBase64: 'data:application/pdf;base64,' + pdf_base64,
-        Nombre: 'Tratamiento_de_datos.pdf',
+      // QA: generar y descargar también debe guardar el PDF en Seguridad (tipo 73).
+      const pdfBase64 = String(pdf_base64).replace(/^data:[^,]*;base64,/i, '').replace(/\s/g, '');
+      if (!pdfBase64.startsWith('JVBERi0')) {
+        throw new Error('El servicio no devolvió un PDF válido.');
+      }
+      const idRegistroPersonal = Number(
+        aspirante?.IdRegistroPersonal ?? aspirante?.idRegistroPersonal ?? aspirante?.id ?? 0
+      );
+      if (!Number.isSafeInteger(idRegistroPersonal) || idRegistroPersonal <= 0) {
+        throw new Error('No se encontró el IdRegistroPersonal del trabajador.');
+      }
+
+      const documento = {
+        IdTipoDocumentacion: 73,
+        Nombre: `Tratamiento_Datos_${idRegistroPersonal}.pdf`,
+        DocumentoBase64: `data:application/pdf;base64,${pdfBase64}`,
         Formato: 'application/pdf',
+        OrigenCarpetaDigital: 'SEGURIDAD',
+        IdVinculacionLaboral: idVinculacionParaPdf,
+        IdVinculacionLaboralConsulta: idVinculacionParaPdf,
+      };
+      const payload = {
+        idRegistroPersonal,
+        ...(idVinculacionParaPdf ? { idVinculacionLaboral: idVinculacionParaPdf } : {}),
+        documentos_seguridad: [{
+          IdTipoDocumentacion: 73,
+          Nombre: documento.Nombre,
+          DocumentoCargado: documento.DocumentoBase64,
+          Formato: documento.Formato,
+        }],
+      };
+      const respuestaGuardado = await RegistrarDocumentosSeguridad(payload);
+      if (!respuestaGuardado?.ok) {
+        const errorApi = await respuestaGuardado?.json().catch(() => ({}));
+        throw new Error(errorApi?.detail || `No se pudo guardar el documento 73 (HTTP ${respuestaGuardado?.status || 'desconocido'}).`);
+      }
+
+      setDocumentos((prev) => [
+        ...(Array.isArray(prev) ? prev : []).filter(
+          (doc) => String(doc?.IdTipoDocumentacion) !== '73'
+        ),
+        documento,
+      ]);
+      descargarDocumento(documento);
+      toast({
+        title: 'Tratamiento de datos adjuntado',
+        description: 'El documento 73 quedó guardado en Selección y se descargó.',
       });
     } catch (error) {
-      console.error('Error al descargar tratamiento de datos:', error);
+      console.error('Error generando o adjuntando tratamiento de datos:', error);
       toast({
-        title: 'Error al generar el documento',
-        description: 'No fue posible descargar el tratamiento de datos.',
+        title: 'No se pudo adjuntar el tratamiento de datos',
+        description: error?.message || 'Revise el servicio de documentos de seguridad en QA.',
         variant: 'destructive',
       });
+    } finally {
+      setGenerandoTratamientoDatos(false);
     }
   };
 
@@ -2208,15 +2517,15 @@ const renderCarpetaSaludOcupacional = () => (
           className={
             esCarpetaOperaciones
               ? 'w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] max-h-[calc(100vh-1rem)] overflow-hidden rounded-2xl border-0 p-0 shadow-2xl sm:max-w-[850px] sm:rounded-3xl'
-              : 'rounded-3xl border-0 p-0 shadow-2xl sm:max-w-[850px]'
+              : 'left-2 right-2 top-1/2 w-auto min-w-0 max-w-none -translate-y-1/2 translate-x-0 max-h-[calc(100dvh-1rem)] overflow-y-auto overflow-x-hidden rounded-2xl border-0 p-0 shadow-2xl sm:left-1/2 sm:right-auto sm:w-full sm:max-w-[850px] sm:-translate-x-1/2 sm:max-h-[90vh] sm:rounded-3xl'
           }
         >
-        <div className="rounded-t-3xl bg-gradient-to-br from-yellow-50 via-white to-emerald-50 px-0 pt-0 pb-0">
+        <div className="min-w-0 w-full overflow-x-hidden rounded-t-3xl bg-gradient-to-br from-yellow-50 via-white to-emerald-50 px-0 pt-0 pb-0">
           <div
               className={
                 esCarpetaOperaciones
                   ? 'border-b border-emerald-100 px-4 pb-3 pt-5 sm:px-8 sm:pb-4 sm:pt-8'
-                  : 'border-b border-emerald-100 px-8 pb-4 pt-8'
+                  : 'min-w-0 border-b border-emerald-100 px-3 pb-3 pt-5 sm:px-8 sm:pb-4 sm:pt-8'
               }
             >
             <DialogHeader>
@@ -2224,25 +2533,25 @@ const renderCarpetaSaludOcupacional = () => (
                 className={
                   esCarpetaOperaciones
                     ? 'flex min-w-0 items-center gap-3 break-words pr-6 text-xl font-extrabold leading-tight text-emerald-700 drop-shadow-sm sm:gap-4 sm:text-3xl'
-                    : 'flex items-center gap-4 text-3xl font-extrabold text-emerald-700 drop-shadow-sm'
+                    : 'flex w-full min-w-0 items-start gap-2 break-words pr-6 text-lg font-extrabold leading-tight text-emerald-700 drop-shadow-sm sm:items-center sm:gap-4 sm:pr-0 sm:text-3xl'
                 }
               >
                 <Folder
                   className={
                     esCarpetaOperaciones
                       ? `h-7 w-7 shrink-0 sm:h-10 sm:w-10 ${colorIcono}`
-                      : `h-10 w-10 ${colorIcono}`
+                      : `h-7 w-7 shrink-0 sm:h-10 sm:w-10 ${colorIcono}`
                   }
                 />
-                <span className="min-w-0 break-words">{tituloModal}</span>
-                {esCarpetaRetiro && documentosParaIndicadores.length > 0 && indicadorPendientes(pendientesRetiro)}
+                 <span className="min-w-0 flex-1 whitespace-normal break-words">{tituloModal}</span>
+                 {esCarpetaRetiro && documentosParaIndicadores.length > 0 && indicadorPendientes(pendientesRetiro)}
               </DialogTitle>
 
               <DialogDescription
                   className={
                     esCarpetaOperaciones
                       ? 'mt-2 break-words pr-4 text-sm leading-relaxed text-gray-600 sm:text-lg'
-                      : 'mt-2 text-lg text-gray-600'
+                      : 'mt-2 min-w-0 whitespace-normal break-words text-sm leading-relaxed text-gray-600 sm:text-lg'
                   }
                 >
                 Gestiona la documentación para{' '}
@@ -2250,6 +2559,22 @@ const renderCarpetaSaludOcupacional = () => (
                   {aspirante.nombres} {aspirante.apellidos}
                 </span>.
               </DialogDescription>
+
+              {mostrarEmpresaCarpeta && (
+                <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 sm:px-4">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Empresa contratante
+                  </span>
+                  <span
+                    className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${empresaVisible.className}`}
+                  >
+                    {empresaVisible.codigo}
+                  </span>
+                  <span className="min-w-0 break-words text-sm font-semibold text-gray-800">
+                    {empresaVisible.nombre}
+                  </span>
+                </div>
+              )}
 
               {(idVinculacionLaboral || esHistorico) && esCarpetaIngreso && (
                 <div
@@ -2285,17 +2610,17 @@ const renderCarpetaSaludOcupacional = () => (
             </DialogHeader>
 
             {esCarpetaIngreso && (
-              <Tabs value={tab} onValueChange={setTab} className="w-full mt-6">
-                <TabsList className="flex gap-2 mb-2 bg-emerald-50 rounded-xl p-1 border border-emerald-100 shadow-sm">
-                  <TabsTrigger value="ingreso" className="rounded-lg px-6 py-2 text-base font-semibold data-[state=active]:bg-yellow-400 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-yellow-500 data-[state=active]:border">
+              <Tabs value={tab} onValueChange={setTab} className="mt-4 w-full min-w-0 sm:mt-6">
+                <TabsList className="mb-2 grid h-auto w-full min-w-0 grid-cols-1 gap-1 rounded-xl border border-emerald-100 bg-emerald-50 p-1 shadow-sm sm:flex sm:justify-start sm:gap-2">
+                  <TabsTrigger value="ingreso" className="min-w-0 whitespace-normal rounded-lg px-2 py-2 text-xs font-semibold sm:shrink-0 sm:px-6 sm:text-base data-[state=active]:bg-yellow-400 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-yellow-500 data-[state=active]:border">
                     Documentos de Aspirante {indicadorPendientes(pendientesIngreso)}
                   </TabsTrigger>
 
-                  <TabsTrigger value="seguridad" className="rounded-lg px-6 py-2 text-base font-semibold data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-orange-600 data-[state=active]:border">
+                  <TabsTrigger value="seguridad" className="min-w-0 whitespace-normal rounded-lg px-2 py-2 text-xs font-semibold sm:shrink-0 sm:px-6 sm:text-base data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-orange-600 data-[state=active]:border">
                     Documentos de Selección {indicadorPendientes(pendientesSeleccion)}
                   </TabsTrigger>
 
-                  <TabsTrigger value="contratacion" className="rounded-lg px-6 py-2 text-base font-semibold data-[state=active]:bg-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-emerald-600 data-[state=active]:border">
+                  <TabsTrigger value="contratacion" className="min-w-0 whitespace-normal rounded-lg px-2 py-2 text-xs font-semibold sm:shrink-0 sm:px-6 sm:text-base data-[state=active]:bg-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:border-emerald-600 data-[state=active]:border">
                     Documentos de Contratación {indicadorPendientes(pendientesContratacion)}
                   </TabsTrigger>
                 </TabsList>
@@ -2307,7 +2632,7 @@ const renderCarpetaSaludOcupacional = () => (
               className={
                 esCarpetaOperaciones
                   ? 'min-w-0 overflow-hidden px-3 pb-2 pt-2 sm:px-8'
-                  : 'px-8 pb-2 pt-2'
+                  : 'w-full min-w-0 overflow-x-hidden px-3 pb-2 pt-2 sm:px-8'
               }
             >
             {esCarpetaActivos && renderCarpetaActivos()}
@@ -2559,9 +2884,13 @@ const renderCarpetaSaludOcupacional = () => (
                         documentosFirma42[0] ||
                         null;
 
-                      const doc = docDirecto || docFirma42 || null;
-                      const hasFile = !!doc;
+                                      // La firma digital (42) no es el documento de tratamiento (73).
                       const esTratamientoDatos = String(req.id) === '73';
+                      const doc = docDirecto;
+                      const hasFile = esTratamientoDatos
+                        ? !!(docDirecto?.DocumentoBase64 || docDirecto?.DocumentoCargado)
+                        : !!docDirecto;
+                      const puedeGenerarTratamiento = esTratamientoDatos && !hasFile && !!docFirma42;
 
                       return (
                         <div key={req.id} className="border-2 border-orange-200 rounded-2xl p-6 bg-white/90 shadow-lg flex flex-col justify-between h-full group w-full hover:shadow-2xl transition-shadow duration-200">
@@ -2573,7 +2902,7 @@ const renderCarpetaSaludOcupacional = () => (
 
                             <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-4 border shadow-sm ${hasFile ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-red-100 text-red-700 border-red-300'}`}>
                               {hasFile ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                              {hasFile ? 'Adjuntado' : 'Falta adjuntar'}
+                              {hasFile ? 'Adjuntado' : puedeGenerarTratamiento ? 'Pendiente de generar' : 'Falta adjuntar'}
                             </div>
                           </div>
 
@@ -2599,32 +2928,36 @@ const renderCarpetaSaludOcupacional = () => (
                               </div>
                             )}
 
-                            {hasFile && (
+                            {(hasFile || (!soloLectura && puedeGenerarTratamiento)) && (
                               <div className="flex flex-col gap-2 w-full">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-blue-700 border-blue-300 hover:bg-blue-100 px-3 h-auto w-full font-semibold"
-                                  onClick={() => verDocumento(doc)}
-                                >
-                                  <Eye className="w-4 h-4 mr-2" /> Ver
-                                </Button>
+                                {hasFile && (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-blue-700 border-blue-300 hover:bg-blue-100 px-3 h-auto w-full font-semibold"
+                                    onClick={() => verDocumento(doc)}
+                                  >
+                                    <Eye className="w-4 h-4 mr-2" /> Ver
+                                  </Button>
+                                )}
 
                                 <Button
                                   type="button"
                                   variant="outline"
                                   size="sm"
                                   className="text-emerald-700 border-emerald-300 hover:bg-emerald-100 px-3 h-auto w-full font-semibold"
+                                  disabled={puedeGenerarTratamiento && generandoTratamientoDatos}
                                   onClick={() =>
-                                    soloLectura
-                                      ? descargarDocumento(doc)
-                                      : esTratamientoDatos
-                                        ? handleDescargarTratamientoDatos()
-                                        : descargarDocumento(doc)
+                                    puedeGenerarTratamiento
+                                      ? handleDescargarTratamientoDatos()
+                                      : descargarDocumento(doc)
                                   }
                                 >
-                                  <Download className="w-4 h-4 mr-2" /> Descargar
+                                  <Download className="w-4 h-4 mr-2" />
+                                  {puedeGenerarTratamiento
+                                    ? (generandoTratamientoDatos ? 'Generando y adjuntando...' : 'Generar, adjuntar y descargar')
+                                    : 'Descargar'}
                                 </Button>
 
                                 {!soloLectura && !esTratamientoDatos && (
@@ -2826,7 +3159,7 @@ const renderCarpetaSaludOcupacional = () => (
             className={
               esCarpetaOperaciones
                 ? 'flex shrink-0 justify-end rounded-b-2xl border-t border-emerald-100 bg-gradient-to-r from-emerald-50 to-yellow-50 px-3 py-3 sm:rounded-b-3xl sm:px-8 sm:py-4'
-                : 'flex justify-end rounded-b-3xl border-t border-emerald-100 bg-gradient-to-r from-emerald-50 to-yellow-50 px-8 py-4'
+                : 'flex justify-end rounded-b-2xl border-t border-emerald-100 bg-gradient-to-r from-emerald-50 to-yellow-50 px-3 py-3 sm:rounded-b-3xl sm:px-8 sm:py-4'
             }
           >
           <Button
@@ -2835,7 +3168,7 @@ const renderCarpetaSaludOcupacional = () => (
             className={
             esCarpetaOperaciones
               ? 'min-h-11 w-full rounded-xl border-emerald-300 bg-white px-6 py-2 text-base font-semibold text-emerald-700 shadow-sm hover:bg-emerald-50 sm:w-auto sm:px-8 sm:text-lg'
-              : 'rounded-xl border-emerald-300 bg-white px-8 py-2 text-lg font-semibold text-emerald-700 shadow-sm hover:bg-emerald-50'
+              : 'min-h-11 w-full rounded-xl border-emerald-300 bg-white px-6 py-2 text-base font-semibold text-emerald-700 shadow-sm hover:bg-emerald-50 sm:w-auto sm:px-8 sm:text-lg'
           }
           >
             Cerrar

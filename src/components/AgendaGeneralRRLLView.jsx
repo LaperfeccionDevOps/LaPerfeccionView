@@ -1361,9 +1361,20 @@ function CitaAgenda({
 
         <div className="min-w-0">
           <div className="grid min-w-0 grid-cols-1 gap-2 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-start">
-            <p className="min-w-0 text-base font-bold leading-5 text-slate-900 [overflow-wrap:normal] [word-break:normal]">
-              {evento?.NombreCompleto || "Trabajador sin nombre"}
-            </p>
+            <div className="min-w-0">
+              <p className="min-w-0 text-base font-bold leading-5 text-slate-900 [overflow-wrap:normal] [word-break:normal]">
+                {evento?.NombreCompleto || "Trabajador sin nombre"}
+              </p>
+              <p className="mt-1 text-xs font-semibold text-slate-500">
+                Empresa:{" "}
+                <span className="font-bold text-slate-800">
+                  {evento?.NombreEmpresa ||
+                    evento?.Empresa ||
+                    evento?.NombreCliente ||
+                    "—"}
+                </span>
+              </p>
+            </div>
 
             <span
               className={`inline-flex w-fit shrink-0 items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${estilo.badge}`}

@@ -20,6 +20,78 @@ import { getAspirantePorCiclos } from '@/services/detalle_aspirante';
 import { getEstadoInfo } from '@/utils/statusUtils';
 import { cn } from '@/lib/utils';
 
+// QA: misma configuración de API utilizada en Contratación.
+// Estas consultas son exclusivamente de lectura.
+const API_BASE_URL = (
+  import.meta?.env?.VITE_API_BASE_URL ||
+  import.meta?.env?.VITE_API_URL ||
+  (window.location.hostname === 'localhost'
+    ? 'http://localhost:8000'
+    : 'https://api.laperfeccion.app')
+).replace(/\/+$/, '');
+
+const API_PREFIX = API_BASE_URL.endsWith('/api')
+  ? API_BASE_URL
+  : `${API_BASE_URL}/api`;
+
+const buildAuthHeaders = () => {
+  const token =
+    localStorage.getItem('access_token') ||
+    localStorage.getItem('accessToken') ||
+    localStorage.getItem('token') ||
+    '';
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+// Empresa real del trabajador. No confundir cliente comercial con empleador.
+// Se acepta el código, el identificador de catálogo o el nombre inequívoco.
+const normalizarEmpresaContratante = (origen) => {
+  if (!origen || typeof origen !== 'object') return null;
+
+  const idRaw =
+    origen.IdEmpresaContratante ??
+    origen.idEmpresaContratante ??
+    origen.id_empresa_contratante ??
+    null;
+  const id = idRaw === null || idRaw === '' ? null : Number(idRaw);
+
+  const codigoOriginal = String(
+    origen.EmpresaContratanteCodigo ??
+    origen.empresaContratanteCodigo ??
+    origen.CodigoEmpresaContratante ??
+    origen.codigoEmpresaContratante ??
+    origen.CodigoEmpresa ??
+    origen.codigoEmpresa ??
+    ''
+  ).trim().toUpperCase();
+
+  const nombreOriginal = String(
+    origen.EmpresaContratanteNombre ??
+    origen.empresaContratanteNombre ??
+    origen.NombreEmpresaContratante ??
+    origen.nombreEmpresaContratante ??
+    origen.NombreEmpresa ??
+    origen.nombreEmpresa ??
+    ''
+  ).trim();
+
+  let codigo = codigoOriginal;
+  if (codigo !== 'ALP' && codigo !== 'MI') {
+    if (id === 1) codigo = 'ALP';
+    else if (id === 2) codigo = 'MI';
+    else if (/^aseos\s+la\s+perfecci[oó]n\b/i.test(nombreOriginal)) codigo = 'ALP';
+    else if (/^mantener\s+ingenier[ií]a\b/i.test(nombreOriginal)) codigo = 'MI';
+  }
+
+  if (codigo !== 'ALP' && codigo !== 'MI') return null;
+
+  return {
+    CodigoEmpresa: codigo,
+    NombreEmpresa: nombreOriginal ||
+      (codigo === 'MI' ? 'Mantener Ingeniería' : 'Aseos La Perfección S.A.S.'),
+  };
+};
+
 const documentosIngreso = [
   { id: 3, label: 'Hoja de vida' },
   { id: 4, label: 'Cedula' },
@@ -149,6 +221,7 @@ const ArchivosView = () => {
     permisosUsuario.includes('BIENESTAR_DOCUMENTACION');
 
   const isOperaciones = user?.role === 'Operaciones';
+  const isSuperAdmin = user?.role === 'Super Administrador';
 
   const isBienestar =
     user?.role === 'Bienestar' ||
@@ -172,9 +245,12 @@ const ArchivosView = () => {
     esHistorico: false,
     numeroCiclo: null,
     estadoVinculacion: null,
+    codigoEmpresa: null,
+    nombreEmpresa: null,
   });
 
   const [ciclosPorAspirante, setCiclosPorAspirante] = useState({});
+  const [empresasPorRQ, setEmpresasPorRQ] = useState({});
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
@@ -233,12 +309,25 @@ const ArchivosView = () => {
     return id ? ciclosPorAspirante[String(id)] || null : null;
   };
 
+  // Prioridad: vinculación actual > empresa del listado > RQ activa inequívoca.
+  // No se altera la empresa de una vinculación histórica ni se escribe en BD.
+  const obtenerEmpresaTrabajador = (aspirante) => {
+    const vinculacionActual = obtenerCiclosTrabajador(aspirante)?.vinculacionActual;
+    const id = obtenerIdRegistroPersonal(aspirante);
+    return (
+      normalizarEmpresaContratante(vinculacionActual) ||
+      normalizarEmpresaContratante(aspirante) ||
+      (id ? empresasPorRQ[String(id)] || null : null)
+    );
+  };
+
   const openDocumentosTrabajador = (
     aspirante,
     carpeta = 'ingreso',
     opciones = {}
   ) => {
     const isDemo = false;
+    const empresa = obtenerEmpresaTrabajador(aspirante);
 
     setModalState({
       isOpen: true,
@@ -249,6 +338,18 @@ const ArchivosView = () => {
       esHistorico: Boolean(opciones?.esHistorico),
       numeroCiclo: opciones?.numeroCiclo || null,
       estadoVinculacion: opciones?.estadoVinculacion || null,
+      codigoEmpresa:
+        opciones?.codigoEmpresa ??
+        empresa?.CodigoEmpresa ??
+        aspirante?.CodigoEmpresa ??
+        aspirante?.codigoEmpresa ??
+        null,
+      nombreEmpresa:
+        opciones?.nombreEmpresa ??
+        empresa?.NombreEmpresa ??
+        aspirante?.NombreEmpresa ??
+        aspirante?.nombreEmpresa ??
+        null,
     });
   };
 
@@ -262,6 +363,8 @@ const ArchivosView = () => {
       esHistorico: false,
       numeroCiclo: null,
       estadoVinculacion: null,
+      codigoEmpresa: null,
+      nombreEmpresa: null,
     });
   };
 
@@ -397,6 +500,55 @@ const ArchivosView = () => {
   const currentItems = sortedData.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(sortedData.length / itemsPerPage);
 
+  // Complemento QA para contratados sin VinculacionLaboral (ej. Stefania).
+  // Consulta agrupada de RQ: no elige empresa si hay varias RQ activas.
+  const claveIdsSinEmpresa = [...new Set(
+    currentItems
+      .filter((aspirante) => !normalizarEmpresaContratante(aspirante))
+      .map(obtenerIdRegistroPersonal)
+      .filter((id) => id !== null && id !== undefined && String(id).trim() !== '')
+      .map(String)
+  )].sort().join(',');
+
+  useEffect(() => {
+    if (!claveIdsSinEmpresa) return;
+
+    let cancelado = false;
+    const consultarEmpresasRQ = async () => {
+      try {
+        const respuesta = await fetch(
+          `${API_PREFIX}/seleccion/rq/candidatos/empresas-contratantes`,
+          { method: 'GET', headers: buildAuthHeaders() }
+        );
+        if (!respuesta.ok) {
+          // El backend puede restringir esta consulta por rol; no afecta carpetas.
+          if (respuesta.status !== 403) {
+            console.warn('[CARPETA DIGITAL] No fue posible consultar empresas RQ:', respuesta.status);
+          }
+          return;
+        }
+
+        const json = await respuesta.json();
+        const empresas = {};
+        for (const [id, dato] of Object.entries(json?.data ?? {})) {
+          const empresa = normalizarEmpresaContratante(dato);
+          if (empresa) empresas[id] = empresa;
+        }
+        if (!cancelado) {
+          setEmpresasPorRQ((anteriores) => ({ ...anteriores, ...empresas }));
+        }
+        if (json?.conflictos?.length) {
+          console.warn('[CARPETA DIGITAL] RQ ambiguas; empresa no inferida:', json.conflictos);
+        }
+      } catch (error) {
+        console.warn('[CARPETA DIGITAL] Consulta de empresas RQ no disponible:', error);
+      }
+    };
+
+    consultarEmpresasRQ();
+    return () => { cancelado = true; };
+  }, [claveIdsSinEmpresa]);
+
   useEffect(() => {
     if (
       isOperaciones ||
@@ -493,6 +645,54 @@ const ArchivosView = () => {
     aspirante?.Cargo ||
     'No asignado';
 
+  const getEmpresaInfo = (origen) => {
+    const empresaNormalizada = normalizarEmpresaContratante(origen);
+    const codigo = empresaNormalizada?.CodigoEmpresa || '';
+    const nombre = empresaNormalizada?.NombreEmpresa || '';
+
+    if (codigo === 'ALP') {
+      return {
+        codigo: 'ALP',
+        nombre: nombre || 'Aseos La Perfección S.A.S.',
+        className: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+      };
+    }
+
+    if (codigo === 'MI') {
+      return {
+        codigo: 'MI',
+        nombre: nombre || 'Mantener Ingeniería',
+        className: 'bg-sky-100 text-sky-800 border-sky-200',
+      };
+    }
+
+    return {
+      codigo: 'SIN ASIGNAR',
+      nombre: nombre || 'Sin empresa contratante asignada',
+      className: 'bg-gray-100 text-gray-600 border-gray-200',
+    };
+  };
+
+  const renderEmpresa = (origen) => {
+    const empresa = getEmpresaInfo(origen);
+
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <span
+          className={cn(
+            'inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide',
+            empresa.className
+          )}
+        >
+          {empresa.codigo}
+        </span>
+        <span className="max-w-[190px] text-xs leading-tight text-gray-500">
+          {empresa.nombre}
+        </span>
+      </div>
+    );
+  };
+
   const SortIcon = ({ columnKey }) => {
     if (sortConfig.key !== columnKey) {
       return <ArrowUpDown className="w-4 h-4 ml-2 text-gray-500 opacity-50" />;
@@ -516,23 +716,23 @@ const ArchivosView = () => {
       animate={{ opacity: 1, y: 0 }}
       className={cn(
         'space-y-6',
-        isOperaciones && 'w-full max-w-full min-w-0 overflow-x-hidden'
+        (isOperaciones || isSuperAdmin) && 'w-full max-w-full min-w-0 overflow-x-hidden'
       )}
     >
       <div
         className={cn(
           'bg-white rounded-2xl shadow-xl border-t-4 border-emerald-600',
-          isOperaciones ? 'w-full max-w-full min-w-0 overflow-hidden p-4 sm:p-6 lg:p-8' : 'p-8'
+          (isOperaciones || isSuperAdmin) ? 'w-full max-w-full min-w-0 overflow-hidden p-4 sm:p-6 lg:p-8' : 'p-8'
         )}
       >
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="shrink-0 w-12 h-12 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
               <FolderOpen className="w-6 h-6 text-white" />
             </div>
 
-            <div>
-            <h1 className="text-2xl font-bold text-gray-800">
+            <div className="min-w-0">
+            <h1 className="break-words text-2xl font-bold text-gray-800">
                 {isOperaciones
                   ? 'Gestión de Operaciones'
                   : isBienestar
@@ -559,7 +759,7 @@ const ArchivosView = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row w-full md:w-auto gap-3">
-            <div className="relative flex-1">
+            <div className="relative min-w-0 flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
 
               <Input
@@ -663,16 +863,122 @@ const ArchivosView = () => {
           </div>
         )}
 
+        {isSuperAdmin && (
+          <div className="space-y-3 md:hidden">
+            {currentItems.length > 0 ? (
+              currentItems.map((aspirante) => {
+                const ciclos = obtenerCiclosTrabajador(aspirante);
+                const vinculacionActual = ciclos?.vinculacionActual || null;
+                const vinculacionesHistoricas = Array.isArray(ciclos?.vinculacionesHistoricas)
+                  ? ciclos.vinculacionesHistoricas
+                  : [];
+
+                return (
+                  <article key={aspirante.id} className="min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                    <h2 className="break-words text-base font-bold text-gray-900">
+                      {getNombreCompleto(aspirante) || 'SIN NOMBRE'}
+                    </h2>
+                    <p className="mt-1 break-all text-xs text-gray-500">
+                      {(aspirante.correo || 'SIN CORREO').toUpperCase()}
+                    </p>
+                    <div className="mt-3">{renderEmpresa(obtenerEmpresaTrabajador(aspirante) || aspirante)}</div>
+                    <div className="mt-3 grid grid-cols-1 gap-2 text-sm">
+                      <div className="min-w-0 rounded-xl bg-gray-50 p-3">
+                        <p className="text-xs font-semibold text-gray-500">Identificación</p>
+                        <p className="break-words font-medium">{getIdentificacion(aspirante)}</p>
+                      </div>
+                      <div className="min-w-0 rounded-xl bg-gray-50 p-3">
+                        <p className="text-xs font-semibold text-gray-500">Cargo</p>
+                        <p className="break-words font-medium">{getCargo(aspirante)}</p>
+                      </div>
+                      <div className="min-w-0 rounded-xl bg-gray-50 p-3">
+                        <p className="text-xs font-semibold text-gray-500">Estado</p>
+                        <p className="break-words font-medium">{getEstadoInfo(aspirante.estado).label}</p>
+                      </div>
+                    </div>
+                    <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-gray-500">Carpeta digital</p>
+                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      <button type="button" className="min-h-11 rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800"
+                        onClick={() => openDocumentosTrabajador(aspirante, 'ingreso', {
+                          idVinculacionLaboral: ciclos?.esReintegroActual
+                            ? vinculacionActual?.IdVinculacionLaboral || null : null,
+                          esHistorico: false,
+                          numeroCiclo: vinculacionActual?.NumeroCiclo || null,
+                          estadoVinculacion: vinculacionActual?.EstadoVinculacion || null,
+                        })}>
+                        Ingreso
+                      </button>
+                      <button type="button" className="min-h-11 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800"
+                        onClick={() => openDocumentosTrabajador(aspirante, 'activo')}>
+                        Activos
+                      </button>
+                      <button type="button" className="min-h-11 rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-800"
+                        onClick={() => openDocumentosTrabajador(aspirante, 'retiro')}>
+                        Retiro
+                      </button>
+                    </div>
+                    {vinculacionesHistoricas.map((vinculacion) => (
+                      <div key={`historico-movil-${aspirante.id}-${vinculacion.IdVinculacionLaboral}`}
+                        className="mt-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3">
+                        <p className="break-words text-xs font-semibold text-slate-700">
+                          Histórico laboral · Ciclo {vinculacion.NumeroCiclo || '-'} · {vinculacion.EstadoVinculacion || 'HISTÓRICO'}
+                        </p>
+                        <div className="mt-2">{renderEmpresa(vinculacion)}</div>
+                        <button type="button" className="mt-3 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
+                          onClick={() => openDocumentosTrabajador(aspirante, 'ingreso', {
+                            idVinculacionLaboral: vinculacion.IdVinculacionLaboral,
+                            esHistorico: true,
+                            numeroCiclo: vinculacion.NumeroCiclo || null,
+                            estadoVinculacion: vinculacion.EstadoVinculacion || null,
+                            codigoEmpresa: vinculacion.CodigoEmpresa || null,
+                            nombreEmpresa: vinculacion.NombreEmpresa || null,
+                          })}>
+                          Ver ingreso histórico
+                        </button>
+                      </div>
+                    ))}
+                  </article>
+                );
+              })
+            ) : (
+              <div className="rounded-2xl border border-gray-200 p-8 text-center text-gray-500">
+                <Search className="mx-auto mb-3 h-8 w-8" />
+                <p className="font-semibold">{searchTerm.trim() ? 'No se encontraron registros' : 'Busca un trabajador'}</p>
+                <p className="mt-2 text-sm">{searchTerm.trim()
+                  ? 'No se encontró ningún colaborador con ese criterio.'
+                  : 'Ingresa el nombre o número de identificación para consultar la carpeta digital.'}</p>
+              </div>
+            )}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between gap-2 rounded-xl bg-gray-50 p-3">
+                <span className="text-xs text-gray-500">
+                  {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, sortedData.length)} de {sortedData.length}
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="icon" onClick={() => paginate(currentPage - 1)} disabled={currentPage === 1} aria-label="Página anterior">
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={() => paginate(currentPage + 1)} disabled={currentPage === totalPages} aria-label="Página siguiente">
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div
           className={cn(
             'rounded-xl border border-gray-200 overflow-hidden shadow-sm',
-            isOperaciones && 'hidden md:block'
+            (isOperaciones || isSuperAdmin) && 'hidden md:block'
           )}
         >
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-gray-900 text-white">
+                  <th className="p-4 font-semibold">Empresa</th>
+
                   <th className="p-4 font-semibold cursor-pointer hover:bg-gray-800 transition-colors" onClick={() => handleSort('nombres')}>
                     <div className="flex items-center">
                       Colaborador <SortIcon columnKey="nombres" />
@@ -718,6 +1024,10 @@ const ArchivosView = () => {
                         )}
                         
                       >
+                        <td className="p-4 align-top">
+                          {renderEmpresa(obtenerEmpresaTrabajador(aspirante) || aspirante)}
+                        </td>
+
                         <td className="p-4">
                           <div className="font-medium text-gray-900 flex items-center gap-2">
                             {`${aspirante.nombres || ''} ${aspirante.apellidos || ''}`.toUpperCase()}
@@ -884,6 +1194,10 @@ const ArchivosView = () => {
                             animate={{ opacity: 1 }}
                             className="bg-slate-50/80 border-t border-dashed border-slate-300"
                           >
+                            <td className="p-4 align-top">
+                              {renderEmpresa(vinculacion)}
+                            </td>
+
                             <td className="p-4">
                               <div className="font-semibold text-slate-700">
                                 {`${aspirante.nombres || ''} ${aspirante.apellidos || ''}`.toUpperCase()}
@@ -924,6 +1238,10 @@ const ArchivosView = () => {
                                           vinculacion.NumeroCiclo || null,
                                         estadoVinculacion:
                                           vinculacion.EstadoVinculacion || null,
+                                        codigoEmpresa:
+                                          vinculacion.CodigoEmpresa || null,
+                                        nombreEmpresa:
+                                          vinculacion.NombreEmpresa || null,
                                       }
                                     )
                                   }
@@ -943,7 +1261,7 @@ const ArchivosView = () => {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="5" className="text-center py-16">
+                    <td colSpan="6" className="text-center py-16">
                       <div className="flex flex-col items-center text-gray-500">
                         <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                           <Search className="w-8 h-8 text-gray-400" />
@@ -1016,6 +1334,8 @@ const ArchivosView = () => {
         esHistorico={modalState.esHistorico}
         numeroCiclo={modalState.numeroCiclo}
         estadoVinculacion={modalState.estadoVinculacion}
+        codigoEmpresa={modalState.codigoEmpresa}
+        nombreEmpresa={modalState.nombreEmpresa}
         soloLectura={
           modalState.esHistorico ||
           modalState.carpeta === 'ingreso' ||

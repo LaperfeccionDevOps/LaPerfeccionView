@@ -181,11 +181,18 @@ const Sidebar = ({
           to: "/seleccion",
           label: "Selección",
           roles: ["Administrador", "Selección"],
-        },
-        {
-          to: "/indicadores-seleccion",
-          label: "Indicadores",
-          roles: ["Administrador", "Selección"],
+          children: [
+            {
+              to: "/seleccion/rq",
+              label: "RQ",
+              roles: ["Administrador", "Selección"],
+            },
+            {
+              to: "/indicadores-seleccion",
+              label: "Indicadores",
+              roles: ["Administrador", "Selección"],
+            },
+          ],
         },
         {
           to: "/contratacion",
@@ -230,10 +237,31 @@ const Sidebar = ({
           ],
         },
         {
+          to: "/operaciones/requisicion-personal",
+          label: "Requisición de personal",
+          roles: [
+            "Operaciones",
+            "Selección",
+            "Bienestar",
+            "HSE",
+            "Nómina",
+            "Nomina",
+          ],
+          permiso: "OPERACIONES_RETIROS",
+        },
+        {
           to: "/operaciones/retiros",
           label: "Retiros",
           roles: ["Operaciones"],
           permiso: "OPERACIONES_RETIROS",
+          children: [
+            {
+              to: "/operaciones/retiros/procesos-abiertos",
+              label: "Procesos abiertos",
+              roles: ["Operaciones"],
+              permiso: "OPERACIONES_RETIROS",
+            },
+          ],
         },
         {
           to: "/nomina-actualizacion-datos",
@@ -309,6 +337,16 @@ const Sidebar = ({
           ],
         },
         {
+          to: "/nomina-incapacidades",
+          label: "Incapacidades",
+          roles: [
+            "Administrador",
+            "Super Administrador",
+            "Nómina",
+            "Nomina",
+          ],
+        },
+        {
           to: "/indicadores-nomina",
           label: "Indicadores",
           roles: [
@@ -347,6 +385,10 @@ const Sidebar = ({
           label: "Selección",
           children: [
             {
+              to: "/seleccion/rq",
+              label: "RQ",
+            },
+            {
               to: "/indicadores-seleccion",
               label: "Indicadores",
             },
@@ -374,11 +416,21 @@ const Sidebar = ({
               },
             ]
           : []),
+        {
+          to: "/operaciones/requisicion-personal",
+          label: "Requisición de personal",
+        },
         ...(tienePermiso("OPERACIONES_RETIROS")
           ? [
               {
                 to: "/operaciones/retiros",
                 label: "Retiros",
+                children: [
+                  {
+                    to: "/operaciones/retiros/procesos-abiertos",
+                    label: "Procesos abiertos",
+                  },
+                ],
               },
             ]
           : []),
@@ -468,6 +520,10 @@ const Sidebar = ({
           label: "Selección",
           children: [
             {
+              to: "/seleccion/rq",
+              label: "RQ",
+            },
+            {
               to: "/indicadores-seleccion",
               label: "Indicadores",
             },
@@ -486,6 +542,11 @@ const Sidebar = ({
               label: "Carpeta Digital",
             },
           ],
+        },
+        // Requisición incorporada desde QA; los accesos de Operaciones ya figuran más abajo.
+        {
+          to: "/operaciones/requisicion-personal",
+          label: "Requisición de personal",
         },
         {
           to: "/relaciones-laborales",
@@ -512,6 +573,10 @@ const Sidebar = ({
             {
               to: "/nomina-retiros",
               label: "Retiros",
+            },
+            {
+              to: "/nomina-incapacidades",
+              label: "Incapacidades",
             },
             {
               to: "/indicadores-nomina",

@@ -29,6 +29,7 @@ import axios from 'axios';
 import { upsertObservacionNF } from "@/services/observacionesNucleoFamiliarService";
 import { upsertAsignacionCargoCliente } from "../../services/asignacionCargoClienteServiceApi";
 import { toast } from '@/components/ui/use-toast';
+import { useAuth } from '@/context/AuthContext';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -61,6 +62,8 @@ import { DatosSeleccion, ActualizarDatosSeleccion, getListaLugarNacimiento } fro
 import { cn, generarReferenciaLaboralHTML, generarEntrevistaHTML, descargarDocumentoPDF, generarTratamientoDatosHTML } from '@/lib/utils';
 import { DescargarDocumentoPdf } from '../../services/descargarDocumento';
 import { getAsignacionCargoCliente } from '../../services/asignacionCargoClienteServiceApi';
+import { listarClientes as listarClientesApi, crearCliente as crearClienteApi } from '../../services/clientesServiceApi';
+import { crearCargo as crearCargoApi } from '../../services/cargosServiceApi';
 import { GetObservacionesExperienciaLaboral } from "../../services/experiencia_laboral";
 
 
@@ -452,7 +455,40 @@ const MOTIVOS_CIERRE_PREDEFINIDOS = [
   'No supera prueba física',
 ];
 
+// Fecha de la entrevista: mostrar el último guardado real registrado por el backend.
+// Si el dato antiguo solo contiene la fecha, no inventamos la hora.
+const fechaUltimoGuardadoEntrevista = (entrevista) =>
+  entrevista?.FechaActualizacion || entrevista?.fechaActualizacion ||
+  entrevista?.FechaCreacion || entrevista?.fechaCreacion || null;
+
+const formatearFechaEntrevistaColombia = (valor) => {
+  if (!valor) return 'Fecha no registrada';
+  const texto = String(valor).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
+    const [anio, mes, dia] = texto.split('-');
+    return `${dia}/${mes}/${anio} · Hora no registrada`;
+  }
+  // PostgreSQL puede devolver un timestamp sin zona horaria.
+  // En ese caso se interpreta en la zona operativa de Colombia.
+  const normalizado = texto.replace(' ', 'T');
+  const conZona = /^\d{4}-\d{2}-\d{2}T/.test(normalizado) &&
+    !/(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalizado)
+      ? `${normalizado}-05:00`
+      : normalizado;
+  const fecha = new Date(conZona);
+  if (Number.isNaN(fecha.getTime())) return 'Fecha no disponible';
+  const dia = new Intl.DateTimeFormat('es-CO', {
+    timeZone: 'America/Bogota', day: '2-digit', month: '2-digit', year: 'numeric'
+  }).format(fecha);
+  const hora = new Intl.DateTimeFormat('es-CO', {
+    timeZone: 'America/Bogota', hour: 'numeric', minute: '2-digit', hour12: true
+  }).format(fecha);
+  return `${dia} · ${hora}`;
+};
+
 const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
+  const { user } = useAuth();
+  const esSuperAdmin = user?.role === 'Super Administrador';
   // Estado para loader al abrir modal
   const [loadingAspiranteDetalle, setLoadingAspiranteDetalle] = useState(false);
   const [listaCargo, setListaCargo] = useState([]);
@@ -550,6 +586,9 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   };
 
   const [formData, setFormData] = useState(initialFormData);
+  const [adjuntandoReferencias, setAdjuntandoReferencias] = useState(false);
+  const [adjuntandoTratamientoDatos, setAdjuntandoTratamientoDatos] = useState(false);
+  const tratamientoDatosEnProceso = useRef(false);
   const [observacionNucleoOriginal, setObservacionNucleoOriginal] = useState('');
   const [activeTab, setActiveTab] = useState('personal');
   const [lugarNacimiento, setLugarNacimiento] = useState([]);
@@ -558,11 +597,46 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   // Solo se activa visualmente cuando el backend confirma REINTEGRO.
   const [detalleCiclos, setDetalleCiclos] = useState(null);
 
+  // Empresa contratante del ciclo actual.
+  const [empresaContratanteActual, setEmpresaContratanteActual] = useState(null);
+  const [empresaContratanteSeleccionada, setEmpresaContratanteSeleccionada] = useState('');
+  const [empresaContratanteConfirmada, setEmpresaContratanteConfirmada] = useState(false);
+  const [guardandoEmpresaContratante, setGuardandoEmpresaContratante] = useState(false);
+
+  // Clientes: BD como fuente principal y catálogo actual como respaldo seguro.
+  const [listaClientes, setListaClientes] = useState(clientesALP);
+  const [crearClienteOpen, setCrearClienteOpen] = useState(false);
+  const [nuevoClienteNombre, setNuevoClienteNombre] = useState('');
+  const [creandoCliente, setCreandoCliente] = useState(false);
+
+  // Cargos: creación dinámica desde Selección.
+  const [crearCargoOpen, setCrearCargoOpen] = useState(false);
+  const [nuevoCargoNombre, setNuevoCargoNombre] = useState('');
+  const [creandoCargo, setCreandoCargo] = useState(false);
+
+  const cargarClientes = async () => {
+    try {
+      const data = await listarClientesApi();
+      const normalizados = (Array.isArray(data) ? data : [])
+        .map((cliente) => ({
+          id: Number(cliente.IdCliente),
+          name: String(cliente.Nombre || '').trim(),
+        }))
+        .filter((cliente) => cliente.id > 0 && cliente.name)
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+
+      if (normalizados.length > 0) setListaClientes(normalizados);
+    } catch (error) {
+      console.error('Error cargando clientes desde BD. Se conserva catálogo actual:', error);
+    }
+  };
+
   useEffect(() => {
     const fetchDropDownList = async () => {
       try {
         const response = await getListaCargo();
         setListaCargo(response.data || []);
+        await cargarClientes();
         const responseNacimiento = await getListaLugarNacimiento();
         setLugarNacimiento(
           (responseNacimiento.data || [])
@@ -582,6 +656,12 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
   // Solo resetea payloads temporales cuando abres o cambias aspirante
   useEffect(() => {
     if (!isOpen) return;
+
+    setEmpresaContratanteActual(null);
+    setEmpresaContratanteSeleccionada('');
+    setEmpresaContratanteConfirmada(false);
+    setGuardandoEmpresaContratante(false);
+
     console.log("IdNivelEducativo:", formData?.IdNivelEducativo);
   console.log("nivelAcademico:", formData?.nivelAcademico);
     localStorage.removeItem('estadoValidacionExperienciaLaboral_payload_1');
@@ -611,14 +691,72 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
            ciclosData = null;
          }
 
+         const vinculacionActualEmpresa = ciclosData?.vinculacionActual || null;
+         // QA: la empresa de la vinculación real prevalece siempre. Para el
+         // aspirante nuevo, consultar su RQ activa sin crear vinculaciones ficticias.
+         const idEmpresaVinculacion = Number(vinculacionActualEmpresa?.IdEmpresaContratante);
+         const idEmpresaDesdeLista = Number(
+           aspirante?.IdEmpresaContratante ?? aspirante?.idEmpresaContratante ??
+           aspirante?.vinculacionActual?.IdEmpresaContratante ?? 0
+         );
+         let empresaRQActiva = null;
+         if (![1, 2].includes(idEmpresaVinculacion) && ![1, 2].includes(idEmpresaDesdeLista)) {
+           const idRegistroRQ = aspirante?.IdRegistroPersonal ?? aspirante?.idRegistroPersonal ?? aspirante?.id;
+           if (idRegistroRQ && token) {
+             try {
+               const respuestaRQ = await axios.get(
+                 `${API_BASE}/seleccion/rq/candidatos/${encodeURIComponent(idRegistroRQ)}/empresa-contratante`,
+                 { headers: { ...authHeaders } }
+               );
+               const empresaCandidata = respuestaRQ?.data?.data;
+               if ([1, 2].includes(Number(empresaCandidata?.IdEmpresaContratante))) {
+                 empresaRQActiva = empresaCandidata;
+               }
+             } catch (error) {
+               // Sin RQ o sin permiso de consulta: conservar el flujo anterior.
+               console.warn('No se pudo consultar la empresa de la RQ activa:', error);
+             }
+           }
+         }
+         const idEmpresaActual = [1, 2].includes(idEmpresaVinculacion)
+           ? idEmpresaVinculacion
+           : [1, 2].includes(idEmpresaDesdeLista)
+             ? idEmpresaDesdeLista
+             : ([1, 2].includes(Number(empresaRQActiva?.IdEmpresaContratante))
+               ? Number(empresaRQActiva.IdEmpresaContratante) : null);
+         const empresaOrigen = [1, 2].includes(idEmpresaVinculacion)
+           ? vinculacionActualEmpresa
+           : [1, 2].includes(idEmpresaDesdeLista)
+             ? aspirante
+             : empresaRQActiva;
+
+         if ([1, 2].includes(Number(idEmpresaActual))) {
+           const idEmpresa = Number(idEmpresaActual);
+           setEmpresaContratanteActual({
+             IdEmpresaContratante: idEmpresa,
+             CodigoEmpresa: empresaOrigen?.CodigoEmpresa || empresaOrigen?.CodigoEmpresaContratante ||
+               (idEmpresa === 1 ? 'ALP' : 'MI'),
+             NombreEmpresa: empresaOrigen?.NombreEmpresa || empresaOrigen?.NombreEmpresaContratante ||
+               (idEmpresa === 1 ? 'Aseos La Perfección' : 'Mantener Ingeniería'),
+             LogoEmpresa: empresaOrigen?.LogoEmpresa || empresaOrigen?.Logo || '',
+           });
+           setEmpresaContratanteSeleccionada(String(idEmpresa));
+           setEmpresaContratanteConfirmada(true);
+         } else {
+           setEmpresaContratanteActual(null);
+           setEmpresaContratanteSeleccionada('');
+           setEmpresaContratanteConfirmada(false);
+         }
+
          const esReintegroActual = Boolean(
            ciclosData?.esReintegroActual &&
            ciclosData?.vinculacionActual?.IdVinculacionLaboral
          );
 
-         const idVinculacionActual = esReintegroActual
-           ? ciclosData.vinculacionActual.IdVinculacionLaboral
-           : null;
+         // La vinculación actual aplica tanto para procesos NUEVOS como para REINTEGROS.
+         // La separación visual por ciclos sigue siendo exclusiva del reintegro.
+         const idVinculacionActual =
+           ciclosData?.vinculacionActual?.IdVinculacionLaboral || null;
 
          // Documentos de ingreso:
          // - Aspirante normal: conserva el endpoint legado.
@@ -786,6 +924,8 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
             ...prev,
             IdRegistroPersonal: fila?.IdRegistroPersonal || '',
             IdVinculacionLaboral: idVinculacionActual || null,
+            IdEmpresaContratante: idEmpresaActual,
+            IdRQOperaciones: empresaRQActiva?.IdRQOperaciones ?? aspirante?.IdRQOperaciones ?? null,
             IdTipoIdentificacion: fila?.IdTipoIdentificacion ? String(fila.IdTipoIdentificacion) : '',
             DescripcionTipoIdentificacion: fila?.tipo_identificacion?.Descripcion || '',
             NumeroIdentificacion: fila?.NumeroIdentificacion || '',
@@ -1056,6 +1196,28 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
     });
   };
 
+// QA: nunca intentar descargar como PDF una respuesta HTTP fallida o vacía.
+const extraerPdfSeleccion = async (respuesta, nombreDocumento) => {
+  if (respuesta && typeof respuesta.ok === 'boolean' && !respuesta.ok) {
+    const error = await respuesta.json().catch(() => ({}));
+    const detalle = typeof error?.detail === 'string' ? error.detail : `HTTP ${respuesta.status}`;
+    throw new Error(`${nombreDocumento}: ${detalle}`);
+  }
+  const datos = respuesta && typeof respuesta.json === 'function'
+    ? await respuesta.json()
+    : (respuesta?.data || respuesta || {});
+  const base64 = datos?.pdf_base64;
+  if (!base64 || typeof base64 !== 'string') {
+    throw new Error(`${nombreDocumento}: el servidor no devolvió un PDF válido.`);
+  }
+  return base64;
+};
+
+const contextoPdfSeleccion = (idEmpresa = null) => ({
+  IdRegistroPersonal: Number(formData?.IdRegistroPersonal || aspirante?.IdRegistroPersonal || aspirante?.id || 0) || null,
+  IdEmpresaContratante: idEmpresa ?? empresaContratanteActual?.IdEmpresaContratante ?? formData?.IdEmpresaContratante ?? null,
+});
+
 const handleDescargarReferencia = async (ref) => {
   try {
     const validacion = Array.isArray(ref?.validaciones)
@@ -1121,20 +1283,11 @@ const handleDescargarReferencia = async (ref) => {
       IDENTIFICACION: formData?.cedula || '',
     };
 
-    let pdf_base64 = '';
-    const response = await DescargarDocumentoPdf(campos, 'referencias');
-
-    if (response && typeof response.json === 'function') {
-      const data = await response.json();
-      pdf_base64 = data.pdf_base64;
-    } else if (response && response.pdf_base64) {
-      pdf_base64 = response.pdf_base64;
-    }
-
-    if (!pdf_base64) {
-      console.error('No se recibió pdf_base64');
-      return;
-    }
+    // El cuarto parámetro prepara la empresa de RQ para el ajuste del servicio PDF.
+    const response = await DescargarDocumentoPdf(
+      campos, 'referencias', formData?.IdVinculacionLaboral ?? null, contextoPdfSeleccion()
+    );
+    const pdf_base64 = await extraerPdfSeleccion(response, 'Referencias laborales');
 
     const doc = {
       DocumentoBase64: 'data:application/pdf;base64,' + pdf_base64,
@@ -1143,47 +1296,142 @@ const handleDescargarReferencia = async (ref) => {
     descargarDocumento(doc);
   } catch (error) {
     console.error('Error al descargar referencia:', error);
+    toast({ title: 'No se pudo descargar la referencia', description: error.message, variant: 'destructive' });
   }
 };
-    const handleDescargarTratamientoDatos = async () => {
-    const campos = {
-      LOGO: await getLogoBase64('LOGO1'),
-      LOGO2: await getLogoBase64('LOGO2'),
-      NOMBRES: ((formData?.nombres || '') + ' ' + (formData?.apellidos || '')).trim(),
-      TIPO_IDENTIFICACION: formData?.DescripcionTipoIdentificacion || '',
-      NUMERO_IDENTIFICACION: formData?.cedula || '',
-      CIUDAD_EXPEDICION: formData?.lugarExpedicion || '',
-      FECHA_FIRMA: formData?.fechaExpedicion || '',
-      FIRMA: getDocumentoBase64Tipo42(),
-      EMAIL: formData?.email || '',
+    // QA: el documento 73 se guarda realmente en Seguridad al generarse.
+    // Descargar un PDF sin registrarlo no lo hace aparecer en Carpeta Digital.
+    const obtenerTratamientoDatosGuardado = () =>
+      Array.isArray(formData?.documentosSeguridad)
+        ? formData.documentosSeguridad.find((doc) =>
+            String(doc?.IdTipoDocumentacion) === '73' &&
+            Boolean(doc?.DocumentoBase64 || doc?.DocumentoCargado)
+          )
+        : null;
+
+    const generarPdfTratamientoDatos = async () => {
+      const firmaDigital = getDocumentoBase64Tipo42();
+      if (!firmaDigital) {
+        throw new Error('No se encontró la firma digital del aspirante (documento 42).');
+      }
+      const campos = {
+        LOGO: await getLogoBase64('LOGO1'),
+        LOGO2: await getLogoBase64('LOGO2'),
+        NOMBRES: `${formData?.nombres || ''} ${formData?.apellidos || ''}`.trim(),
+        TIPO_IDENTIFICACION: formData?.DescripcionTipoIdentificacion || '',
+        NUMERO_IDENTIFICACION: formData?.cedula || formData?.NumeroIdentificacion || '',
+        CIUDAD_EXPEDICION: formData?.lugarExpedicion || '',
+        FECHA_FIRMA: formData?.fechaExpedicion || '',
+        FIRMA: firmaDigital,
+        EMAIL: formData?.email || '',
+      };
+
+      const response = await DescargarDocumentoPdf(
+        campos, 'tratamiento_datos', formData?.IdVinculacionLaboral ?? null, contextoPdfSeleccion()
+      );
+      const pdf = await extraerPdfSeleccion(response, 'Tratamiento de datos');
+      const pdfBase64 = String(pdf).replace(/^data:[^,]*;base64,/i, '').replace(/\s/g, '');
+      if (!pdfBase64.startsWith('JVBERi0')) {
+        throw new Error('El servicio no devolvió un PDF válido para Tratamiento de Datos.');
+      }
+      return pdfBase64;
     };
 
-    let pdf_base64 = '';
-    const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos');
-    if (response && typeof response.json === 'function') {
-      const data = await response.json();
-      pdf_base64 = data.pdf_base64;
-    } else if (response && response.pdf_base64) {
-      pdf_base64 = response.pdf_base64;
-    }
-    const doc = { DocumentoBase64: 'data:application/pdf;base64,' + (pdf_base64 || '') };
-    descargarDocumento(doc);
-  };
+    const handleDescargarTratamientoDatos = async () => {
+      if (tratamientoDatosEnProceso.current) return;
 
-   const handleVerDocumentoSeguridad = (doc, isTratamientoDatos = false) => {
-   try {
-      if (isTratamientoDatos) {
-         handleDescargarTratamientoDatos();
-         return;
+      // Si ya está adjunto, reutilizar el documento guardado sin duplicarlo.
+      const existente = obtenerTratamientoDatosGuardado();
+      if (existente) {
+        descargarDocumento(existente);
+        return;
       }
 
-      if (!doc || !doc.DocumentoBase64) {
+      tratamientoDatosEnProceso.current = true;
+      setAdjuntandoTratamientoDatos(true);
+      try {
+        const idRegistroPersonal = Number(
+          formData?.IdRegistroPersonal || aspirante?.IdRegistroPersonal || aspirante?.id || 0
+        );
+        if (!Number.isSafeInteger(idRegistroPersonal) || idRegistroPersonal <= 0) {
+          throw new Error('No se encontró un IdRegistroPersonal válido.');
+        }
+
+        const pdfBase64 = await generarPdfTratamientoDatos();
+        const idVinculacion = Number(formData?.IdVinculacionLaboral || 0) || null;
+        const documento = {
+          IdTipoDocumentacion: 73,
+          Nombre: `Tratamiento_Datos_${idRegistroPersonal}.pdf`,
+          DocumentoBase64: `data:application/pdf;base64,${pdfBase64}`,
+          Formato: 'application/pdf',
+        };
+        const payload = {
+          idRegistroPersonal,
+          ...(idVinculacion ? { idVinculacionLaboral: idVinculacion } : {}),
+          documentos_seguridad: [{
+            IdTipoDocumentacion: 73,
+            Nombre: documento.Nombre,
+            DocumentoCargado: documento.DocumentoBase64,
+            Formato: documento.Formato,
+          }],
+        };
+        const respuesta = await RegistrarDocumentosSeguridad(payload);
+        if (!respuesta?.ok) {
+          const errorApi = await respuesta?.json().catch(() => ({}));
+          throw new Error(errorApi?.detail || `No se pudo adjuntar el documento 73 (HTTP ${respuesta?.status || 'desconocido'}).`);
+        }
+
+        // Actualizar la vista solamente después de que el backend confirme el guardado.
+        setFormData((prev) => ({
+          ...prev,
+          documentosSeguridad: [
+            ...(Array.isArray(prev.documentosSeguridad) ? prev.documentosSeguridad : [])
+              .filter((doc) => String(doc?.IdTipoDocumentacion) !== '73'),
+            documento,
+          ],
+        }));
+        try {
+          const respuestaDocs = detalleCiclos?.esReintegroActual && idVinculacion
+            ? await obtenerDocumentoSeguridadBase64PorVinculacion(idRegistroPersonal, idVinculacion)
+            : await getDocumentosSeguridad(idRegistroPersonal);
+          const documentosActualizados = respuestaDocs?.data;
+          if (Array.isArray(documentosActualizados) && documentosActualizados.some((doc) =>
+            String(doc?.IdTipoDocumentacion) === '73' &&
+            Boolean(doc?.DocumentoBase64 || doc?.DocumentoCargado)
+          )) {
+            setFormData((prev) => ({ ...prev, documentosSeguridad: documentosActualizados }));
+          }
+        } catch (errorConsulta) {
+          console.warn('Tratamiento 73 guardado; no fue posible refrescar Seguridad:', errorConsulta);
+        }
+
+        descargarDocumento(documento);
+        toast({
+          title: 'Tratamiento de datos adjuntado',
+          description: 'El PDF quedó guardado en Documentos de Selección y se descargó.',
+        });
+      } catch (error) {
+        console.error('Error generando o adjuntando tratamiento de datos:', error);
+        toast({
+          title: 'No se pudo adjuntar el tratamiento de datos',
+          description: error?.message || 'Revise el servicio de documentos de seguridad en QA.',
+          variant: 'destructive',
+        });
+      } finally {
+        tratamientoDatosEnProceso.current = false;
+        setAdjuntandoTratamientoDatos(false);
+      }
+    };
+
+   const handleVerDocumentoSeguridad = (doc) => {
+   try {
+      if (!doc || !(doc.DocumentoBase64 || doc.DocumentoCargado)) {
          alert('No se encontró el documento para visualizar.');
          return;
       }
 
       const formato = doc.Formato || 'application/pdf';
-      let base64 = doc.DocumentoBase64 || '';
+      let base64 = doc.DocumentoBase64 || doc.DocumentoCargado || '';
 
       if (base64.startsWith('data:')) {
          base64 = base64.split(',')[1];
@@ -1451,9 +1699,17 @@ if (experienciasValidas.length > 0) {
 }
 
 console.log('observacionExperiencia final:', observacionExperiencia);
+const idEmpresaEntrevista = Number(
+  empresaContratanteActual?.IdEmpresaContratante ?? formData?.IdEmpresaContratante
+);
+if (![1, 2].includes(idEmpresaEntrevista)) {
+  toast({ title: 'Empresa contratante no identificada', description: 'No se puede generar la entrevista sin confirmar si corresponde a ALP o Mantener Ingeniería.', variant: 'destructive' });
+  return;
+}
+const logoEntrevista = await getLogoBase64(idEmpresaEntrevista === 2 ? 'LOGO2' : 'LOGO1');
 const campos = {
-  LOGO: await getLogoBase64('LOGO1'),
-  LOGO2: await getLogoBase64('LOGO2'),
+  LOGO: logoEntrevista,
+  LOGO2: logoEntrevista,
   NOMBRES: ((formData?.nombres || '').toUpperCase() + ' ' + (formData?.apellidos || '').toUpperCase()).trim(),
   DOCUMENTO: formData?.cedula || '',
   BARRIO: (formData?.datosAdicionales?.[0]?.Barrio || '').toUpperCase(),
@@ -1493,22 +1749,35 @@ const campos = {
   OBSERVACIONES: (entrevistaBase?.ObservacionesFinales || '').toUpperCase()
 };
 
-    let pdf_base64 = '';
+// El sello del PDF toma el mismo último guardado que aparece en la tabla
+// de entrevistas; no se obtiene de la fecha/hora de descarga.
+const entrevistaEnHistorial = (formData?.entrevistas || []).find(
+  (item) => String(item?.IdEntrevista ?? item?.IdEntrevistaCandidato ?? '') ===
+    String(entrevistaBase?.IdEntrevista ?? entrevistaBase?.IdEntrevistaCandidato ?? '')
+) || entrevistaBase;
+const fechaDelHistorial = fechaUltimoGuardadoEntrevista(entrevistaEnHistorial);
+if (fechaDelHistorial) {
+  campos.FECHA_ULTIMO_GUARDADO = String(fechaDelHistorial);
+}
+
 console.log('=== VALIDACION FINAL PDF ENTREVISTA ===');
 console.log('experienciasValidas:', experienciasValidas);
 console.log('observacionExperiencia final:', observacionExperiencia);
 console.log('campos.EXPERIENCIA:', campos?.EXPERIENCIA);
 console.log('campos completos:', campos);
 
-    const response = await DescargarDocumentoPdf(campos, 'entrevista');
-    if (response && typeof response.json === 'function') {
-      const data = await response.json();
-      pdf_base64 = data.pdf_base64;
-    } else if (response && response.pdf_base64) {
-      pdf_base64 = response.pdf_base64;
+    try {
+      const response = await DescargarDocumentoPdf(
+        campos, 'entrevista', formData?.IdVinculacionLaboral ?? null,
+        contextoPdfSeleccion(idEmpresaEntrevista)
+      );
+      const pdf_base64 = await extraerPdfSeleccion(response, 'Entrevista de selección');
+      descargarDocumento({ DocumentoBase64: 'data:application/pdf;base64,' + pdf_base64,
+        Nombre: 'Entrevista_Seleccion.pdf', Formato: 'application/pdf' });
+    } catch (error) {
+      console.error('Error descargando entrevista:', error);
+      toast({ title: 'No se pudo descargar la entrevista', description: error.message, variant: 'destructive' });
     }
-    const doc = { DocumentoBase64: 'data:application/pdf;base64,' + (pdf_base64 || '') };
-    descargarDocumento(doc);
   };
 
   // =========================
@@ -1882,10 +2151,144 @@ console.log('campos completos:', campos);
   }
 };
 
+  const handleCrearCargo = async () => {
+    const nombre = nuevoCargoNombre.trim().replace(/\s+/g, ' ');
+
+    if (!nombre) {
+      toast({
+        title: 'Campo requerido',
+        description: 'Debe escribir el nombre del cargo.',
+        className: 'bg-white border-2 border-red-500 text-slate-900 shadow-xl',
+      });
+      return;
+    }
+
+    setCreandoCargo(true);
+
+    try {
+      const nuevo = await crearCargoApi({
+        NombreCargo: nombre,
+        UsuarioActualizacion: localStorage.getItem('usuario') || 'TALENTO_SELECCION',
+      });
+
+      const cargoCreado = {
+        IdCargo: Number(nuevo.IdCargo),
+        NombreCargo: String(nuevo.NombreCargo || nombre).trim(),
+        IdTipoCargo: nuevo.IdTipoCargo ?? null,
+        Activo: nuevo.Activo ?? true,
+        UsuarioActualizacion: nuevo.UsuarioActualizacion ?? null,
+      };
+
+      // Actualiza el catálogo local y conserva el orden alfabético.
+      setListaCargo((prev) => {
+        const actuales = Array.isArray(prev) ? prev : [];
+        const sinDuplicar = actuales.filter(
+          (cargo) => Number(cargo.IdCargo) !== cargoCreado.IdCargo
+        );
+
+        return [...sinDuplicar, cargoCreado].sort((a, b) =>
+          String(a?.NombreCargo || '').localeCompare(
+            String(b?.NombreCargo || ''),
+            'es',
+            { sensitivity: 'base' }
+          )
+        );
+      });
+
+      // Deja seleccionado automáticamente el cargo recién creado.
+      setFormData((prev) => ({
+        ...prev,
+        asignacionCargo: {
+          ...(prev.asignacionCargo || {}),
+          IdCargo: cargoCreado.IdCargo,
+        },
+      }));
+
+      setNuevoCargoNombre('');
+      setCrearCargoOpen(false);
+
+      toast({
+        title: 'Cargo creado',
+        description: `El cargo ${cargoCreado.NombreCargo} fue creado y seleccionado.`,
+        className: 'bg-white border-2 border-emerald-500 text-slate-900 shadow-xl',
+      });
+    } catch (error) {
+      const esDuplicado = error?.status === 409;
+
+      toast({
+        title: esDuplicado
+          ? 'Cargo existente'
+          : 'No fue posible crear el cargo',
+        description:
+          error?.detail ||
+          error?.message ||
+          'Intente nuevamente.',
+        className: esDuplicado
+          ? 'bg-white border-2 border-amber-500 text-slate-900 shadow-xl'
+          : 'bg-white border-2 border-red-500 text-slate-900 shadow-xl',
+      });
+
+      // En duplicado NO se cierra el modal para permitir corregir el nombre.
+    } finally {
+      setCreandoCargo(false);
+    }
+  };
+
   const [clienteQuery, setClienteQuery] = useState('');
-  const clientesFiltrados = clientesALP.filter((c) =>
+  const clientesFiltrados = listaClientes.filter((c) =>
     c.name.toLowerCase().includes(clienteQuery.toLowerCase().trim())
   );
+
+  const handleCrearCliente = async () => {
+    const nombre = nuevoClienteNombre.trim().replace(/\s+/g, ' ');
+    if (!nombre) {
+      toast({ title: 'Campo requerido', description: 'Debe escribir el nombre del cliente.', variant: 'destructive' });
+      return;
+    }
+
+    setCreandoCliente(true);
+    try {
+      const nuevo = await crearClienteApi({
+        Nombre: nombre,
+        CreadoPor: localStorage.getItem('usuario') || 'sistema',
+      });
+
+      const clienteCreado = { id: Number(nuevo.IdCliente), name: String(nuevo.Nombre || nombre).trim() };
+      setListaClientes((prev) => {
+        const sinDuplicar = prev.filter((c) => Number(c.id) !== clienteCreado.id);
+        return [...sinDuplicar, clienteCreado].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+      });
+      setFormData((prev) => ({
+        ...prev,
+        asignacionCargo: { ...(prev.asignacionCargo || {}), IdCliente: clienteCreado.id },
+      }));
+      setClienteQuery('');
+      setNuevoClienteNombre('');
+      setCrearClienteOpen(false);
+      toast({
+        title: 'Cliente creado',
+        description: `El cliente ${clienteCreado.name} fue creado y seleccionado.`,
+        className: 'bg-white border-2 border-emerald-500 text-slate-900 shadow-xl',
+      });
+    } catch (error) {
+      const esDuplicado = error?.status === 409;
+
+      toast({
+        title: esDuplicado
+          ? 'Cliente existente'
+          : 'No fue posible crear el cliente',
+        description:
+          error?.detail ||
+          error?.message ||
+          'Intente nuevamente.',
+        className: esDuplicado
+          ? 'bg-white border-2 border-amber-500 text-slate-900 shadow-xl'
+          : 'bg-white border-2 border-red-500 text-slate-900 shadow-xl',
+      });
+    } finally {
+      setCreandoCliente(false);
+    }
+  };
 
   // Helper states for dynamic lists
   const [newFamiliar, setNewFamiliar] = useState({
@@ -2044,6 +2447,70 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
     }
   }, [aspirante, isOpen]);
 
+  const handleConfirmarEmpresaContratante = async () => {
+    if (!aspirante?.id || !empresaContratanteSeleccionada) {
+      toast({
+        title: 'Empresa contratante obligatoria',
+        description: 'Selecciona Aseos La Perfección o Mantener Ingeniería para continuar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setGuardandoEmpresaContratante(true);
+
+      const response = await axios.post(
+        `${API_BASE}/aspirantes/${aspirante.id}/empresa-contratante`,
+        {
+          IdEmpresaContratante: Number(empresaContratanteSeleccionada),
+          UsuarioActualizacion: localStorage.getItem('usuario') || null,
+        },
+        { headers: { ...authHeaders } }
+      );
+
+      const data = response?.data || {};
+      setEmpresaContratanteActual({
+        IdEmpresaContratante: Number(data?.IdEmpresaContratante),
+        CodigoEmpresa: data?.CodigoEmpresa || '',
+        NombreEmpresa: data?.NombreEmpresa || '',
+        LogoEmpresa: data?.LogoEmpresa || '',
+      });
+      setEmpresaContratanteSeleccionada(String(data?.IdEmpresaContratante));
+      setEmpresaContratanteConfirmada(true);
+
+      setFormData(prev => ({
+        ...prev,
+        IdVinculacionLaboral: data?.IdVinculacionLaboral ?? prev?.IdVinculacionLaboral ?? null,
+        IdEmpresaContratante: data?.IdEmpresaContratante ?? prev?.IdEmpresaContratante ?? null,
+      }));
+
+      try {
+        const responseCiclos = await getAspirantePorCiclos(aspirante.id);
+        const ciclosActualizados = responseCiclos?.data || null;
+        if (ciclosActualizados?.esReintegroActual) {
+          setDetalleCiclos(ciclosActualizados);
+        }
+      } catch (error) {
+        console.error('Empresa asignada; no fue posible refrescar ciclos:', error);
+      }
+
+      toast({
+        title: 'Empresa contratante asignada',
+        description: `${data?.CodigoEmpresa || ''} ${data?.NombreEmpresa || ''}`.trim(),
+      });
+    } catch (error) {
+      console.error('Error asignando empresa contratante:', error);
+      toast({
+        title: 'No fue posible asignar la empresa',
+        description: error?.response?.data?.detail || 'Ocurrió un error al guardar la empresa contratante.',
+        variant: 'destructive',
+      });
+    } finally {
+      setGuardandoEmpresaContratante(false);
+    }
+  };
+
   if (loadingAspiranteDetalle) {
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -2191,89 +2658,115 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
   }
 };
 
-   // Construye el payload para documentos de seguridad y lo muestra en consola
+   // QA: guardar documentos de Selección y generar el 73 únicamente si falta.
    const handleEnviarDocumentosSeguridad = async (docsSeguridad) => {
       setLoadingAspiranteDetalle(true);
-      const idRegistroPersonal = aspirante?.id || formData?.IdRegistroPersonal;
-
-      // Generar PDF de tratamiento de datos y agregarlo al listado
-      // Solo si no existe ya en docsSeguridad
-      const yaTieneTratamiento = docsSeguridad.some(doc => String(doc.IdTipoDocumentacion) === '73');
-      let docsSeguridadFinal = [...docsSeguridad];
-      if (!yaTieneTratamiento) {
-         // Construir los campos necesarios para la plantilla
-         const campos = {
-            LOGO: await getLogoBase64('LOGO1'),
-            LOGO2: await getLogoBase64('LOGO2'),
-            NOMBRES: formData?.nombres + ' ' + formData?.apellidos || '',
-            TIPO_IDENTIFICACION: formData.DescripcionTipoIdentificacion || '',
-            NUMERO_IDENTIFICACION: formData?.cedula || '',
-            CIUDAD_EXPEDICION: formData?.lugarExpedicion || '',
-            FECHA_FIRMA: formData?.fechaExpedicion || '',
-            FIRMA: getDocumentoBase64Tipo42 && typeof getDocumentoBase64Tipo42 === 'function' ? getDocumentoBase64Tipo42() : '',
-            EMAIL: formData?.email || '',
-         };
-         let pdf_base64 = '';
-         try {
-            const response = await DescargarDocumentoPdf(campos, 'tratamiento_datos');
-            if (response?.data?.pdf_base64) {
-               pdf_base64 = response.data.pdf_base64;
-            } else if (response?.pdf_base64) {
-               pdf_base64 = response.pdf_base64;
-            } else if (response && typeof response.json === 'function') {
-               const data = await response.json();
-               pdf_base64 = data?.pdf_base64 || '';
-            }
-         } catch (e) {
-            console.error('Error generando tratamiento de datos:', e);
-            pdf_base64 = '';
+      try {
+         const idRegistroPersonal = Number(
+            formData?.IdRegistroPersonal || aspirante?.IdRegistroPersonal || aspirante?.id || 0
+         );
+         if (!Number.isSafeInteger(idRegistroPersonal) || idRegistroPersonal <= 0) {
+            throw new Error('No se encontró un IdRegistroPersonal válido.');
          }
-         if (!pdf_base64) {
-            toast({
-               title: 'No se pudo adjuntar el tratamiento de datos',
-               description: 'Verifique la firma digital y el servicio de generación del PDF. No se guardarán documentos incompletos.',
-               variant: 'destructive',
-            });
-            setLoadingAspiranteDetalle(false);
+
+         // No reenviar entradas vacías; no confundir una tarjeta con un archivo real.
+         const docsSeguridadFinal = (Array.isArray(docsSeguridad) ? docsSeguridad : [])
+            .filter((doc) => Boolean(doc?.DocumentoBase64 || doc?.DocumentoCargado));
+         const yaTieneTratamiento = Boolean(obtenerTratamientoDatosGuardado()) ||
+            docsSeguridadFinal.some((doc) => String(doc.IdTipoDocumentacion) === '73');
+         let errorTratamiento = null;
+
+         if (!yaTieneTratamiento) {
+            try {
+               const pdfBase64 = await generarPdfTratamientoDatos();
+               docsSeguridadFinal.push({
+                  IdTipoDocumentacion: 73,
+                  Nombre: `Tratamiento_Datos_${idRegistroPersonal}.pdf`,
+                  DocumentoBase64: `data:application/pdf;base64,${pdfBase64}`,
+                  Formato: 'application/pdf',
+               });
+            } catch (error) {
+               errorTratamiento = error;
+               console.warn('No se pudo generar Tratamiento de Datos (73):', error);
+            }
+         }
+
+         if (docsSeguridadFinal.length === 0) {
+            if (errorTratamiento) throw errorTratamiento;
+            toast({ title: 'No hay documentos nuevos para guardar' });
             return;
          }
-         if (pdf_base64) {
-            docsSeguridadFinal.push({
-               IdTipoDocumentacion: 73,
-               Nombre: 'Tratamiento de datos',
-               DocumentoBase64: 'data:application/pdf;base64,' + pdf_base64,
-               Formato: 'application/pdf',
-            });
+
+         // El backend QA identifica el ciclo incluso en una contratación NUEVA.
+         // No guardar el 73 como legado cuando la vinculación actual ya existe.
+         const idVinculacionLaboralActual = Number(
+            formData?.IdVinculacionLaboral ||
+            detalleCiclos?.vinculacionActual?.IdVinculacionLaboral || 0
+         ) || null;
+         const payload = {
+            idRegistroPersonal,
+            ...(idVinculacionLaboralActual
+               ? { idVinculacionLaboral: idVinculacionLaboralActual }
+               : {}),
+            documentos_seguridad: docsSeguridadFinal.map((doc) => ({
+               IdTipoDocumentacion: doc.IdTipoDocumentacion,
+               Nombre: doc.Nombre,
+               DocumentoCargado: doc.DocumentoBase64 || doc.DocumentoCargado,
+               Formato: doc.Formato || 'application/pdf',
+            })),
+         };
+         const respuesta = await RegistrarDocumentosSeguridad(payload);
+         if (!respuesta?.ok) {
+            const errorApi = await respuesta?.json().catch(() => ({}));
+            throw new Error(errorApi?.detail || `Error al guardar documentos de Selección (HTTP ${respuesta?.status || 'desconocido'}).`);
          }
-      }
 
-      const idVinculacionLaboralActual =
-         detalleCiclos?.esReintegroActual
-           ? detalleCiclos?.vinculacionActual?.IdVinculacionLaboral || null
-           : null;
+         const tratamientoGuardadoAhora = docsSeguridadFinal.find(
+            (doc) => String(doc.IdTipoDocumentacion) === '73'
+         );
+         if (tratamientoGuardadoAhora) {
+            setFormData((prev) => ({
+               ...prev,
+               documentosSeguridad: [
+                  ...(Array.isArray(prev.documentosSeguridad) ? prev.documentosSeguridad : [])
+                     .filter((doc) => String(doc?.IdTipoDocumentacion) !== '73'),
+                  tratamientoGuardadoAhora,
+               ],
+            }));
+         }
 
-      const payload = {
-         idRegistroPersonal,
-         ...(idVinculacionLaboralActual
-           ? { idVinculacionLaboral: idVinculacionLaboralActual }
-           : {}),
-         documentos_seguridad: docsSeguridadFinal.map(doc => ({
-            IdTipoDocumentacion: doc.IdTipoDocumentacion,
-            Nombre: doc.Nombre,
-            DocumentoCargado: doc.DocumentoBase64 || doc.DocumentoCargado,
-            Formato: doc.Formato || 'application/pdf',
-         }))
-      };
-      const res = await RegistrarDocumentosSeguridad(payload);
-      if (res && res.status === 201) {
-         alert('Documentos de seguridad registrados correctamente.');
-         setLoadingAspiranteDetalle(false);
-      } else {
-         alert('Error al registrar documentos de seguridad.');
+         try {
+            const respDocs = idVinculacionLaboralActual
+               ? await obtenerDocumentoSeguridadBase64PorVinculacion(
+                   idRegistroPersonal, idVinculacionLaboralActual
+                 )
+               : await getDocumentosSeguridad(idRegistroPersonal);
+            if (Array.isArray(respDocs?.data)) {
+               setFormData((prev) => ({ ...prev, documentosSeguridad: respDocs.data }));
+            }
+         } catch (errorConsulta) {
+            console.warn('Documentos guardados; no se pudo refrescar Seguridad:', errorConsulta);
+         }
+
+         if (errorTratamiento) {
+            toast({
+               title: 'Documentos guardados, excepto Tratamiento de Datos',
+               description: errorTratamiento.message || 'No fue posible generar el documento 73.',
+               variant: 'destructive',
+            });
+         } else {
+            toast({ title: 'Documentos de Selección guardados correctamente' });
+         }
+      } catch (error) {
+         console.error('Error al guardar documentos de Selección:', error);
+         toast({
+            title: 'No se pudieron guardar los documentos de Selección',
+            description: error?.message || 'Revise la respuesta del backend de QA.',
+            variant: 'destructive',
+         });
+      } finally {
          setLoadingAspiranteDetalle(false);
       }
-      setLoadingAspiranteDetalle(false);
-      // Aquí puedes hacer el fetch/post a la API usando 'payload'
    };
 
 
@@ -2453,6 +2946,115 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
       setIsAddingRefLab(false);
    };
 
+
+  // Adjunto del consolidado 68, reutilizable tras guardar una validación
+  // y mediante el botón de reintento para referencias ya registradas.
+  // No modifica las experiencias ni crea nuevas validaciones laborales.
+  const adjuntarPdfConsolidadoReferencias = async () => {
+    const idRegistroPersonal = Number(
+      formData?.IdRegistroPersonal || aspirante?.IdRegistroPersonal || aspirante?.id || 0
+    );
+    if (!Number.isSafeInteger(idRegistroPersonal) || idRegistroPersonal <= 0) {
+      throw new Error('No se encontró un IdRegistroPersonal válido.');
+    }
+
+    const respPdf = await GenerarPdfConsolidadoReferencias(idRegistroPersonal);
+    const cuerpoPdf = await respPdf.text();
+    let dataPdf = {};
+    try {
+      dataPdf = JSON.parse(cuerpoPdf);
+    } catch (_) {
+      // Si el servidor responde HTML o texto en vez de JSON, se informará.
+    }
+
+    if (!respPdf.ok) {
+      const detalle = typeof dataPdf?.detail === 'string'
+        ? dataPdf.detail
+        : (dataPdf?.error || dataPdf?.mensaje || `HTTP ${respPdf.status}`);
+      throw new Error(`No se pudo generar el PDF consolidado: ${detalle}`);
+    }
+
+    // El servicio devuelve un Response; no debe exigirse "ok: true" dentro
+    // del JSON si el backend ya respondió exitosamente y envió el PDF.
+    if (dataPdf?.ok === false) {
+      throw new Error(dataPdf?.mensaje || dataPdf?.error || 'El backend no pudo generar el consolidado.');
+    }
+    const pdfRespuesta = dataPdf?.pdf_base64 ?? dataPdf?.data?.pdf_base64;
+    if (typeof pdfRespuesta !== 'string' || !pdfRespuesta.trim()) {
+      throw new Error('El consolidado no devolvió pdf_base64. Revisar /generar-consolidado en QA.');
+    }
+    const pdfBase64 = pdfRespuesta
+      .replace(/^data:[^,]*;base64,/, '')
+      .replace(/\s/g, '');
+    if (!pdfBase64.startsWith('JVBERi0')) {
+      throw new Error('La respuesta del consolidado no parece un archivo PDF válido.');
+    }
+
+    // Mantener la separación que ya usa el formulario para reintegros.
+    const idVinculacionLaboralActual = detalleCiclos?.esReintegroActual
+      ? (detalleCiclos?.vinculacionActual?.IdVinculacionLaboral || null)
+      : null;
+
+    const payloadDocumento = {
+      idRegistroPersonal,
+      ...(idVinculacionLaboralActual
+        ? { idVinculacionLaboral: idVinculacionLaboralActual }
+        : {}),
+      documentos_seguridad: [{
+        IdTipoDocumentacion: 68,
+        DocumentoCargado: `data:application/pdf;base64,${pdfBase64}`,
+        Formato: 'application/pdf',
+        Nombre: `Confirmacion_Referencias_${idRegistroPersonal}.pdf`,
+      }],
+    };
+
+    const respuestaUpload = await RegistrarDocumentosSeguridad(payloadDocumento);
+    if (!respuestaUpload?.ok) {
+      const cuerpoError = await respuestaUpload?.json().catch(() => ({}));
+      const detalle = typeof cuerpoError?.detail === 'string'
+        ? cuerpoError.detail
+        : (cuerpoError?.error || `HTTP ${respuestaUpload?.status ?? 'sin respuesta'}`);
+      throw new Error(`No se pudo adjuntar el PDF de referencias: ${detalle}`);
+    }
+
+    // El upload ya fue confirmado; un fallo al refrescar la vista no debe
+    // presentarse como si el documento no se hubiera guardado.
+    try {
+      const respDocsSeguridad = idVinculacionLaboralActual
+        ? await obtenerDocumentoSeguridadBase64PorVinculacion(
+            idRegistroPersonal, idVinculacionLaboralActual
+          )
+        : await getDocumentosSeguridad(idRegistroPersonal);
+      setFormData(prev => ({
+        ...prev,
+        documentosSeguridad: respDocsSeguridad?.data || [],
+      }));
+    } catch (errorConsulta) {
+      console.warn('Documento 68 guardado; no fue posible refrescar Seguridad:', errorConsulta);
+    }
+  };
+
+  const reintentarAdjuntoReferencias = async () => {
+    if (adjuntandoReferencias) return;
+    setAdjuntandoReferencias(true);
+    try {
+      await adjuntarPdfConsolidadoReferencias();
+      toast({
+        title: 'Referencias adjuntadas',
+        description: 'El PDF consolidado de referencias quedó guardado en Documentos de Seguridad.',
+      });
+    } catch (error) {
+      console.error('[Selección] Error reintentando adjunto 68:', error);
+      toast({
+        title: 'No se pudo adjuntar el consolidado de referencias',
+        description: error?.message || 'Revise la respuesta del generador de consolidado en QA.',
+        variant: 'destructive',
+      });
+    } finally {
+      setAdjuntandoReferencias(false);
+    }
+  };
+
    const addRefLaboral = async () => {
       if (selectedRefLabIdx === null || selectedRefLabIdx === undefined) {
          // No cerrar ni limpiar, solo salir
@@ -2489,83 +3091,47 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
          ComentariosDelReferenciado: comentariosReferenciador || '',
       };
 
-    const response = await ValidarExperienciaLaboral(payload);
-await ActualizarEstadoValidacionExperienciaLaboral(payload);
-
-if (response && response.status === 201) {
-  try {
-    const idRegistroPersonal =
-      formData?.IdRegistroPersonal ||
-      aspirante?.id ||
-      aspirante?.IdRegistroPersonal ||
-      null;
-
-    if (idRegistroPersonal) {
-      const respPdf = await GenerarPdfConsolidadoReferencias(idRegistroPersonal);
-      const dataPdf = await respPdf.json();
-
-      if (dataPdf?.ok && dataPdf?.pdf_base64) {
-        const idVinculacionLaboralActual =
-          detalleCiclos?.esReintegroActual
-            ? detalleCiclos?.vinculacionActual?.IdVinculacionLaboral || null
-            : null;
-
-        const payloadDocumento = {
-          idRegistroPersonal: Number(idRegistroPersonal),
-          ...(idVinculacionLaboralActual
-            ? { idVinculacionLaboral: idVinculacionLaboralActual }
-            : {}),
-          documentos_seguridad: [
-            {
-              IdTipoDocumentacion: 68,
-              DocumentoCargado: dataPdf.pdf_base64.startsWith('data:application/pdf;base64,')
-                ? dataPdf.pdf_base64
-                : `data:application/pdf;base64,${dataPdf.pdf_base64}`,
-              Formato: 'application/pdf',
-              Nombre: `Confirmacion_Referencias_${idRegistroPersonal}.pdf`,
-            },
-          ],
-        };
-
-        const responseUpload = await RegistrarDocumentosSeguridad(payloadDocumento);
-
-        if (!responseUpload.ok) {
-          const txt = await responseUpload.text();
-          console.error('Error adjuntando consolidado de referencias:', txt);
-        } else {
-          const respDocsSeguridad = idVinculacionLaboralActual
-            ? await obtenerDocumentoSeguridadBase64PorVinculacion(
-                idRegistroPersonal,
-                idVinculacionLaboralActual
-              )
-            : await getDocumentosSeguridad(idRegistroPersonal);
-
-          const documentosSeguridadActualizados = respDocsSeguridad?.data || [];
-
-          setFormData(prev => ({
-            ...prev,
-            documentosSeguridad: documentosSeguridadActualizados,
-          }));
-        }
-      } else {
-        console.warn('No se generó PDF consolidado de referencias:', dataPdf);
+    // Primero registrar la validación; el PDF es una operación independiente.
+    // Acepta cualquier estado HTTP exitoso (200, 201, etc.).
+    try {
+      const response = await ValidarExperienciaLaboral(payload);
+      if (!response?.ok) {
+        const errorApi = await response?.json().catch(() => ({}));
+        const detalle = typeof errorApi?.detail === 'string'
+          ? errorApi.detail
+          : (errorApi?.error || `HTTP ${response?.status ?? 'sin respuesta'}`);
+        throw new Error(`No se guardó la validación laboral: ${detalle}`);
       }
-    }
-  } catch (error) {
-    console.error('Error generando o adjuntando consolidado de referencias:', error);
-  }
 
-  setIsAddingRefLab(false);
-  setNombreContacto('');
-  setIndexValidacionExperiencia(null);
-  alert('Referencia laboral validada correctamente.');
-} else {
-  setIsAddingRefLab(false);
-  setNombreContacto('');
-  setIndexValidacionExperiencia(null);
-  alert('Error al validar la referencia laboral.');
-}
-      // No limpiar ni cerrar el modal ni los campos, para mantener los datos visibles
+      await ActualizarEstadoValidacionExperienciaLaboral(payload);
+      setIsAddingRefLab(false);
+      setNombreContacto('');
+      setIndexValidacionExperiencia(null);
+
+      // La validación ya quedó guardada. Si falla el adjunto 68, informar
+      // sin volver a registrar ni duplicar esta validación.
+      try {
+        await adjuntarPdfConsolidadoReferencias();
+        toast({
+          title: 'Referencia validada',
+          description: 'El PDF consolidado de referencias quedó adjunto en Documentos de Seguridad.',
+        });
+      } catch (errorAdjunto) {
+        console.error('[Selección] Validación guardada; documento 68 pendiente:', errorAdjunto);
+        toast({
+          title: 'Referencia guardada, consolidado pendiente',
+          description: errorAdjunto?.message || 'No se pudo adjuntar el PDF consolidado. Puede reintentarlo desde Referencias.',
+          variant: 'destructive',
+        });
+      }
+    } catch (errorValidacion) {
+      console.error('[Selección] Error validando referencia laboral:', errorValidacion);
+      toast({
+        title: 'No se pudo guardar la validación laboral',
+        description: errorValidacion?.message || 'Revise el servicio de validación.',
+        variant: 'destructive',
+      });
+    }
    };
 
    const ActualizarEstadoValidacionExperienciaLaboral = async (payload) => {
@@ -2896,26 +3462,72 @@ if (response && response.status === 201) {
   };
 
   const descargarDocumento = (doc) => {
-   if (!doc?.DocumentoBase64) return;
-      let prefix = '';
-      if (doc.Formato === 'image/png') {
-         prefix = doc && doc.Formato === 'image/png'
-      ? 'data:image/png;base64,'
-      : '';
-      } else if (doc.Formato === 'application/pdf') {
-         prefix = doc && doc.Formato === 'application/pdf'
-         ? 'data:application/pdf;base64,'
-         : '';
+    try {
+      if (!doc?.DocumentoBase64) {
+        console.error('No se recibió contenido para descargar el documento.');
+        return;
+      }
+
+      const contenidoOriginal = String(doc.DocumentoBase64).trim();
+
+      // El backend puede entregar Base64 puro o una data URI completa.
+      // Se normaliza antes de crear el archivo para evitar prefijos duplicados
+      // y PDFs que Adobe interpreta como dañados.
+      const tieneDataUri = contenidoOriginal.startsWith('data:');
+      const mimeDesdeDataUri = tieneDataUri
+        ? (contenidoOriginal.match(/^data:([^;,]+)[;,]/i)?.[1] || '')
+        : '';
+
+      const mimeType =
+        mimeDesdeDataUri ||
+        doc?.Formato ||
+        'application/pdf';
+
+      const base64Limpio = tieneDataUri
+        ? contenidoOriginal.substring(contenidoOriginal.indexOf(',') + 1)
+        : contenidoOriginal;
+
+      if (!base64Limpio) {
+        console.error('El documento no contiene Base64 válido.');
+        return;
+      }
+
+      const byteCharacters = atob(base64Limpio);
+      const byteNumbers = new Uint8Array(byteCharacters.length);
+
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+
+      const blob = new Blob([byteNumbers], { type: mimeType });
+      const blobUrl = URL.createObjectURL(blob);
+
+      const extension = mimeType === 'application/pdf'
+        ? '.pdf'
+        : mimeType === 'image/png'
+          ? '.png'
+          : '';
+
+      let nombreArchivo = String(doc?.Nombre || 'documento').trim() || 'documento';
+      if (extension && !nombreArchivo.toLowerCase().endsWith(extension)) {
+        nombreArchivo += extension;
       }
 
       const link = document.createElement('a');
-      link.href = `${prefix}${doc.DocumentoBase64}`;
-      link.download = doc.Nombre || 'documento';
+      link.href = blobUrl;
+      link.download = nombreArchivo;
 
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-   };
+
+      // Se libera la URL temporal después de iniciar la descarga.
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    } catch (error) {
+      console.error('Error al descargar documento:', error);
+      alert('No fue posible descargar el documento.');
+    }
+  };
 
   const handelObservacionesExperienciaLaboral = async () => {
   setSavingDatosProceso(true);
@@ -3017,6 +3629,9 @@ if (response && response.status === 201) {
 
   if (!formData) return null;
 
+  // QA: permitir consultar y entrevistar aspirantes sin empresa contratante.
+  // La empresa se asignará al vincular el candidato a una RQ, no al abrir su ficha.
+
   const getFondoLabelFromAny = (raw) => {
   if (raw == null) return "";
 
@@ -3065,23 +3680,32 @@ if (response && response.status === 201) {
   return (
     <>
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0 overflow-hidden bg-gray-50">
-        <DialogHeader className="px-6 py-4 bg-white border-b border-gray-200 shrink-0">
+      <DialogContent className={cn("max-w-5xl h-[90vh] flex flex-col p-0 overflow-hidden bg-gray-50", esSuperAdmin && "max-md:!w-[calc(100vw-16px)] max-md:!max-w-none max-md:!h-[calc(100dvh-16px)] max-md:!max-h-none max-md:!p-0")}>
+        <DialogHeader className={cn("px-6 py-4 bg-white border-b border-gray-200 shrink-0", esSuperAdmin && "max-md:px-4 max-md:py-3 max-md:pr-10")}>
           <div className="flex items-center justify-between">
              <div>
-                <DialogTitle className="text-xl font-bold text-gray-800">Detalle del Candidato</DialogTitle>
+                <div className="flex items-center gap-3">
+                  <DialogTitle className="text-xl font-bold text-gray-800">Detalle del Candidato</DialogTitle>
+                  {empresaContratanteActual?.IdEmpresaContratante && (
+                    <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                      {empresaContratanteActual?.CodigoEmpresa ||
+                        (Number(empresaContratanteActual?.IdEmpresaContratante) === 1 ? 'ALP' : 'MI')}
+                    </span>
+                  )}
+                </div>
                 <DialogDescription className="text-sm text-gray-500">
                    Gestiona la información completa de {formData.nombres} {formData.apellidos}
+                   {empresaContratanteActual?.NombreEmpresa ? ` · ${empresaContratanteActual.NombreEmpresa}` : ''}
                 </DialogDescription>
              </div>
           </div>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-hidden flex">
-           <Tabs value={activeTab} onValueChange={setActiveTab} orientation="vertical" className="flex-1 flex h-full min-h-0">
+        <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex">
+           <Tabs value={activeTab} onValueChange={setActiveTab} orientation="vertical" className={cn("flex-1 flex h-full min-h-0 min-w-0", esSuperAdmin && "max-md:flex-col")}>
               {/* Sidebar Navigation for Tabs */}
-              <div className="w-64 bg-white border-r border-gray-200 h-full overflow-y-auto shrink-0 py-2">
-                 <TabsList className="flex flex-col h-auto w-full bg-transparent space-y-1 p-2">
+              <div className={cn("w-64 bg-white border-r border-gray-200 h-full overflow-y-auto shrink-0 py-2", esSuperAdmin && "max-md:w-full max-md:h-auto max-md:overflow-x-auto max-md:overflow-y-hidden max-md:border-r-0 max-md:border-b max-md:py-1")}>
+                 <TabsList className={cn("flex flex-col h-auto w-full bg-transparent space-y-1 p-2", esSuperAdmin && "max-md:flex-row max-md:w-max max-md:min-w-full max-md:space-y-0 max-md:gap-1 max-md:p-2")}>
                     {[
                        { id: 'personal', label: 'Datos Personales', icon: User },
                        { id: 'familiar', label: 'Núcleo Familiar', icon: Users },
@@ -3096,7 +3720,7 @@ if (response && response.status === 201) {
                        <TabsTrigger 
                           key={tab.id} 
                           value={tab.id} 
-                          className="w-full justify-start px-3 py-2.5 text-sm font-medium text-gray-600 data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700 data-[state=active]:border-r-4 data-[state=active]:border-emerald-600 rounded-none transition-all"
+                          className={cn("w-full justify-start px-3 py-2.5 text-sm font-medium text-gray-600 data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700 data-[state=active]:border-r-4 data-[state=active]:border-emerald-600 rounded-none transition-all", esSuperAdmin && "max-md:w-auto max-md:shrink-0 max-md:whitespace-nowrap max-md:rounded-lg max-md:px-3 max-md:py-2 max-md:data-[state=active]:border-r-0 max-md:data-[state=active]:border-b-2")}
                        >
                           <tab.icon className="w-4 h-4 mr-3" />
                           {tab.label}
@@ -3106,8 +3730,22 @@ if (response && response.status === 201) {
               </div>
 
               {/* Content Area */}
-              <div className="aspirante-detail-scroll flex-1 h-full min-h-0 overflow-y-scroll bg-gray-50/50">
+              <div className={cn("aspirante-detail-scroll flex-1 h-full min-h-0 overflow-y-scroll bg-gray-50/50", esSuperAdmin && "aspirante-superadmin-mobile max-md:min-w-0 max-md:w-full max-md:overflow-x-hidden")}>
                   <style>{`
+                    @media (max-width: 767px) {
+                      .aspirante-superadmin-mobile .bg-white.p-6.rounded-xl {
+                        padding: 0.875rem;
+                        min-width: 0;
+                      }
+                      .aspirante-superadmin-mobile input,
+                      .aspirante-superadmin-mobile textarea,
+                      .aspirante-superadmin-mobile select {
+                        max-width: 100%;
+                      }
+                      .aspirante-superadmin-mobile table {
+                        max-width: none;
+                      }
+                    }
                     .aspirante-detail-scroll {
                       scrollbar-width: auto;
                       scrollbar-color: #6b7280 #f3f4f6;
@@ -3132,7 +3770,7 @@ if (response && response.status === 201) {
                       background: #4b5563;
                     }
                   `}</style>
-                 <div className="p-6 max-w-4xl mx-auto pb-20">
+                 <div className={cn("p-6 max-w-4xl mx-auto pb-20", esSuperAdmin && "max-md:w-full max-md:min-w-0 max-md:p-3 max-md:pb-20")}>
                     {/* 2. Datos Personales */}
                     <TabsContent value="personal" className="mt-0 space-y-6">
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
@@ -3879,6 +4517,30 @@ if (response && response.status === 201) {
                                  Validación {indexValidacionExperiencia} Contacto {nombreContacto}
                               </div>
                           </div>
+                          {/* Recuperación de adjuntos sin volver a validar la experiencia. */}
+                          {Array.isArray(formData?.experienciaLaboral) &&
+                            formData.experienciaLaboral.some(ref =>
+                              Array.isArray(ref?.validaciones)
+                                ? ref.validaciones.length > 0
+                                : Boolean(ref?.validaciones)
+                            ) && (
+                              <div className="mb-4 flex justify-end">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={reintentarAdjuntoReferencias}
+                                  disabled={adjuntandoReferencias}
+                                >
+                                  {adjuntandoReferencias
+                                    ? 'Preparando consolidado...'
+                                    : formData?.documentosSeguridad?.some(doc =>
+                                        String(doc?.IdTipoDocumentacion) === '68'
+                                      )
+                                      ? 'Actualizar PDF de referencias'
+                                      : 'Adjuntar referencias a Seguridad'}
+                                </Button>
+                              </div>
+                            )}
                           {isAddingRefLab && (
                              <div className="bg-gray-50 p-4 rounded-lg mb-4 border border-emerald-200">
                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -4950,7 +5612,9 @@ if (response && response.status === 201) {
                                           const foundDoc = Array.isArray(formData.documentosSeguridad)
                                           ? formData.documentosSeguridad.find(d => String(d.IdTipoDocumentacion) === String(seguridadDoc.id))
                                           : null;
-                                          let hasFile = !!foundDoc;
+                                          const hasFile = isTratamientoDatos
+                                            ? !!(foundDoc?.DocumentoBase64 || foundDoc?.DocumentoCargado)
+                                            : !!foundDoc;
                                           let accept = '.pdf,image/*';
                                           return (
                                              <div key={seguridadDoc.id} className="border border-gray-200 rounded-xl p-5 bg-white shadow-sm flex flex-col justify-between h-full group w-full max-w-xs min-w-[220px] flex-1">
@@ -4958,10 +5622,22 @@ if (response && response.status === 201) {
                                                    <h4 className="font-semibold text-gray-800 mb-3 text-sm leading-tight min-h-[40px]">{seguridadDoc.label}</h4>
                                                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium mb-4 border ${hasFile ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-600 border-red-100'}`}> 
                                                       {hasFile ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />} 
-                                                      {hasFile ? 'Adjuntado' : 'Falta adjuntar'}
+                                                      {hasFile ? 'Adjuntado' : (isTratamientoDatos ? 'Pendiente de generar' : 'Falta adjuntar')}
                                                    </div>
                                                 </div>
                                                 <div className="space-y-3">
+                                                   {!hasFile && isTratamientoDatos && (
+                                                      <Button
+                                                         type="button"
+                                                         variant="outline"
+                                                         size="sm"
+                                                         className="text-emerald-700 border-emerald-200 hover:bg-emerald-50 w-full"
+                                                         disabled={adjuntandoTratamientoDatos}
+                                                         onClick={() => handleDescargarTratamientoDatos()}
+                                                      >
+                                                         {adjuntandoTratamientoDatos ? 'Generando y adjuntando...' : 'Generar, adjuntar y descargar'}
+                                                      </Button>
+                                                   )}
                                                    {!hasFile && !isTratamientoDatos && (
                                                       <div className="flex gap-2">
                                                          <div className="relative flex-1">
@@ -4988,7 +5664,7 @@ if (response && response.status === 201) {
                                                          variant="outline" 
                                                          size="sm"
                                                          className="text-sky-600 border-sky-200 hover:bg-sky-50 px-3 h-auto w-full"
-                                                         onClick={() => handleVerDocumentoSeguridad(foundDoc, isTratamientoDatos)}
+                                                         onClick={() => handleVerDocumentoSeguridad(foundDoc)}
                                                       >
                                                          Ver
                                                       </Button>
@@ -4999,11 +5675,7 @@ if (response && response.status === 201) {
                                                          size="sm"
                                                          className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 px-3 h-auto w-full"
                                                          onClick={() => {
-                                                            if (isTratamientoDatos) {
-                                                               handleDescargarTratamientoDatos();
-                                                            } else {
-                                                               descargarDocumento(foundDoc);
-                                                            }
+                                                            descargarDocumento(foundDoc);
                                                          }}
                                                       >
                                                          Descargar
@@ -5023,7 +5695,7 @@ if (response && response.status === 201) {
                                                    </div>
 )}
                                                    <p className="text-xs text-gray-400 truncate h-4">
-                                                      {hasFile && foundDoc && !isTratamientoDatos ? foundDoc.Nombre : (isTratamientoDatos ? 'Generado automáticamente' : 'Sin archivo')}
+                                                      {hasFile && foundDoc ? foundDoc.Nombre : (isTratamientoDatos ? 'Pendiente de generar' : 'Sin archivo')}
                                                    </p>
                                                 </div>
                                              </div>
@@ -5050,7 +5722,22 @@ if (response && response.status === 201) {
 
                                  {/* CARGO */}
                                  <div className="space-y-2 min-w-0">
-                                    <Label>Cargo</Label>
+                                    <div className="flex items-center justify-between gap-2">
+                                       <Label>Cargo</Label>
+                                       <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 px-2 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                                          onClick={() => {
+                                             setNuevoCargoNombre('');
+                                             setCrearCargoOpen(true);
+                                          }}
+                                       >
+                                          <Plus className="h-4 w-4 mr-1" />
+                                          Crear cargo
+                                       </Button>
+                                    </div>
 
                                     <Select
                                        disabled={!puedeModificarAsignacionDesdeSeleccion}
@@ -5136,7 +5823,22 @@ if (response && response.status === 201) {
 
                                  {/* CLIENTE */}
                                  <div className="space-y-2 min-w-0">
-                                    <Label>Cliente</Label>
+                                    <div className="flex items-center justify-between gap-2">
+                                       <Label>Cliente</Label>
+                                       <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 px-2 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                                          onClick={() => {
+                                             setNuevoClienteNombre('');
+                                             setCrearClienteOpen(true);
+                                          }}
+                                       >
+                                          <Plus className="h-4 w-4 mr-1" />
+                                          Crear cliente
+                                       </Button>
+                                    </div>
 
                                     <Select
                                        disabled={!puedeModificarAsignacionDesdeSeleccion}
@@ -5230,9 +5932,7 @@ if (response && response.status === 201) {
                            {/* </details> */}
 
                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                         {/* 8. Entrevista */}
-                           <TabsContent value="entrevista" className="mt-0 space-y-6">
-                           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                         {/* Gestión de Entrevista: después de asignación cargo/cliente */}
                               <h3 className="text-lg font-bold text-gray-800 mb-6 border-b pb-2">
                                  Gestión de Entrevista
                               </h3>
@@ -5258,7 +5958,7 @@ if (response && response.status === 201) {
                                  <Table>
                                     <TableHeader>
                                        <TableRow className="bg-gray-50">
-                                       <TableHead>FECHA</TableHead>
+                                       <TableHead>ÚLTIMO GUARDADO (COLOMBIA)</TableHead>
                                        <TableHead>CONCEPTO SELECCIÓN</TableHead>
                                        <TableHead>ENTREVISTADOR</TableHead>
                                        <TableHead className="text-right">ACCIONES</TableHead>
@@ -5269,7 +5969,7 @@ if (response && response.status === 201) {
                                        {formData?.entrevistas && formData.entrevistas.length > 0 ? (
                                        formData.entrevistas.map((ent, idx) => (
                                           <TableRow key={idx}>
-                                             <TableCell>{ent.FechaCreacion}</TableCell>
+                                             <TableCell className="text-sm whitespace-nowrap">{formatearFechaEntrevistaColombia(fechaUltimoGuardadoEntrevista(ent))}</TableCell>
                                              <TableCell>
                                              <span
                                                 className={cn(
@@ -5333,8 +6033,7 @@ if (response && response.status === 201) {
                               >
                                  Descargar entrevista
                               </Button>
-                           </div>
-                           </TabsContent>
+                       </div>
 
                            {/* CONTENEDOR: Estado del proceso general y motivo de cierre */}
                            {puedeModificarEstadoDesdeSeleccion && (
@@ -5445,7 +6144,6 @@ if (response && response.status === 201) {
                               </div>
                            </div>
                            )}
-                       </div>
                     </TabsContent>
                  </div>
               </div>
@@ -5469,6 +6167,110 @@ if (response && response.status === 201) {
         </DialogHeader>
         <DialogFooter>
           <Button type="button" onClick={() => setAlertaEntrevistaObligatoria(false)} className="bg-emerald-600 font-semibold text-white hover:bg-emerald-700" style={{ color: "#ffffff" }}>Entendido</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* Modal Crear Cargo */}
+    <Dialog
+      open={crearCargoOpen}
+      onOpenChange={(open) => {
+        if (creandoCargo) return;
+        setCrearCargoOpen(open);
+        if (!open) setNuevoCargoNombre('');
+      }}
+    >
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Crear cargo</DialogTitle>
+          <DialogDescription>
+            Registre el nombre del nuevo cargo. Al crearlo quedará seleccionado automáticamente.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-2 py-2">
+          <Label htmlFor="nuevo-cargo-nombre">Nombre del cargo</Label>
+          <Input
+            id="nuevo-cargo-nombre"
+            value={nuevoCargoNombre}
+            onChange={(e) => setNuevoCargoNombre(e.target.value)}
+            placeholder="Ej: AUXILIAR ADMINISTRATIVO"
+            maxLength={150}
+            disabled={creandoCargo}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !creandoCargo) {
+                e.preventDefault();
+                handleCrearCargo();
+              }
+            }}
+          />
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={creandoCargo}
+            onClick={() => {
+              setCrearCargoOpen(false);
+              setNuevoCargoNombre('');
+            }}
+          >
+            Cancelar
+          </Button>
+
+          <Button
+            type="button"
+            className="bg-emerald-600 text-white hover:bg-emerald-700"
+            disabled={creandoCargo || !nuevoCargoNombre.trim()}
+            onClick={handleCrearCargo}
+          >
+            {creandoCargo ? 'Creando...' : 'Crear cargo'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* Modal Crear Cliente */}
+    <Dialog
+      open={crearClienteOpen}
+      onOpenChange={(open) => {
+        if (creandoCliente) return;
+        setCrearClienteOpen(open);
+        if (!open) setNuevoClienteNombre('');
+      }}
+    >
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Crear cliente</DialogTitle>
+          <DialogDescription>
+            Registre el nombre del nuevo cliente. Al crearlo quedará seleccionado automáticamente.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <Label htmlFor="nuevo-cliente-nombre">Nombre del cliente</Label>
+          <Input
+            id="nuevo-cliente-nombre"
+            value={nuevoClienteNombre}
+            onChange={(e) => setNuevoClienteNombre(e.target.value)}
+            placeholder="Ej: Nombre del cliente - servicio"
+            maxLength={250}
+            disabled={creandoCliente}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !creandoCliente) {
+                e.preventDefault();
+                handleCrearCliente();
+              }
+            }}
+          />
+        </div>
+        <DialogFooter className="gap-2">
+          <Button type="button" variant="outline" disabled={creandoCliente} onClick={() => { setCrearClienteOpen(false); setNuevoClienteNombre(''); }}>
+            Cancelar
+          </Button>
+          <Button type="button" className="bg-emerald-600 text-white hover:bg-emerald-700" disabled={creandoCliente || !nuevoClienteNombre.trim()} onClick={handleCrearCliente}>
+            {creandoCliente ? 'Creando...' : 'Crear cliente'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -5526,6 +6328,7 @@ if (response && response.status === 201) {
         onClose={() => setEntrevistaModalOpen(false)} 
         onSave={handleSaveEntrevista} 
         aspirante={formData}
+        idEmpresaContratante={empresaContratanteActual?.IdEmpresaContratante ?? formData?.IdEmpresaContratante}
         existingData={selectedEntrevista}
     />
     </>

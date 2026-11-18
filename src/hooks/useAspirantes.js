@@ -70,6 +70,49 @@ const mapApiAspiranteToFront = (item) => {
    idVinculacionLaboral: idVinculacionLaboral,
    vinculacionActual,
   tuvoContratacion,
+  // Empresa contratante del ciclo laboral actual.
+  // Se conservan nombres PascalCase y camelCase para compatibilidad.
+  IdEmpresaContratante:
+    item.IdEmpresaContratante ??
+    item.idEmpresaContratante ??
+    vinculacionActual?.IdEmpresaContratante ??
+    null,
+  idEmpresaContratante:
+    item.IdEmpresaContratante ??
+    item.idEmpresaContratante ??
+    vinculacionActual?.IdEmpresaContratante ??
+    null,
+  CodigoEmpresa:
+    item.CodigoEmpresa ??
+    item.codigoEmpresa ??
+    vinculacionActual?.CodigoEmpresa ??
+    '',
+  codigoEmpresa:
+    item.CodigoEmpresa ??
+    item.codigoEmpresa ??
+    vinculacionActual?.CodigoEmpresa ??
+    '',
+  NombreEmpresa:
+    item.NombreEmpresa ??
+    item.nombreEmpresa ??
+    vinculacionActual?.NombreEmpresa ??
+    '',
+  nombreEmpresa:
+    item.NombreEmpresa ??
+    item.nombreEmpresa ??
+    vinculacionActual?.NombreEmpresa ??
+    '',
+  LogoEmpresa:
+    item.LogoEmpresa ??
+    item.logoEmpresa ??
+    vinculacionActual?.LogoEmpresa ??
+    '',
+  logoEmpresa:
+    item.LogoEmpresa ??
+    item.logoEmpresa ??
+    vinculacionActual?.LogoEmpresa ??
+    '',
+
   nombres: item.Nombres ?? item.nombres ?? '',
   apellidos: item.Apellidos ?? item.apellidos ?? '',
   cedula: item.NumeroIdentificacion ?? item.cedula ?? '',
