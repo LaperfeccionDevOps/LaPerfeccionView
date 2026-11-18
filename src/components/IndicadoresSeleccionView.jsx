@@ -2,13 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   BarChart3, Users, Filter, RotateCcw, CalendarDays,
-  ListChecks, AlertTriangle
+  ListChecks, AlertTriangle, X, Info, ChevronRight
 } from 'lucide-react';
 import {
   Tooltip,
   ResponsiveContainer,
   LineChart,
   Line,
+  BarChart,
+  Bar,
+  Legend,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -132,6 +135,10 @@ const formatearFechaColombia = (value) => {
 
 const IndicadoresSeleccionView = () => {
   const [data, setData] = useState(null);
+  const [detalleIndicador, setDetalleIndicador] = useState(null);
+  const [detalleMesGrafica, setDetalleMesGrafica] = useState(null);
+  const [detalleMesRotacion, setDetalleMesRotacion] = useState(null);
+  const [detalleRangoRotacion, setDetalleRangoRotacion] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const [dataRotacion, setDataRotacion] = useState(null);
@@ -767,7 +774,6 @@ const IndicadoresSeleccionView = () => {
       || [];
 
     return motivos
-      .filter((item) => item.cantidad > 0)
       .map((item, index) => ({
         ...item,
         color: motivoColors[index % motivoColors.length],
@@ -848,6 +854,9 @@ const IndicadoresSeleccionView = () => {
   }, [data, filtrosAplicados.anio]);
 
   const tarjetas = data?.tarjetas || {};
+  const abrirDetalle = (titulo, cantidad, descripcion, extras = []) => {
+    setDetalleIndicador({ titulo, cantidad, descripcion, extras });
+  };
 
   const totalRegistrados =
     tarjetas?.registrados?.cantidad
@@ -871,6 +880,19 @@ const IndicadoresSeleccionView = () => {
     ?? data?.porcentajes?.avanzan_contratacion
     ?? data?.porcentaje_avanza_contratacion
     ?? 0;
+
+  // Misma cohorte del dashboard de Selección; no mezclar con la cohorte de rotación.
+  const estadoContratado = (data?.estados || []).find(
+    (item) => String(item.estado || '').trim().toUpperCase() === 'CONTRATADO',
+  );
+  const totalContratados =
+    tarjetas?.contratados?.cantidad
+    ?? estadoContratado?.cantidad
+    ?? 0;
+  const porcentajeContratados =
+    tarjetas?.contratados?.porcentaje
+    ?? estadoContratado?.porcentaje
+    ?? (totalRegistrados > 0 ? (Number(totalContratados) / Number(totalRegistrados)) * 100 : 0);
 
   const totalRechazados =
     tarjetas?.rechazados_seleccion?.cantidad
@@ -1045,18 +1067,31 @@ const IndicadoresSeleccionView = () => {
     );
   }, [dataRotacion, filtrosAplicados.anio]);
 
-  const seleccionarMesDesdeGrafica = (item) => {
-    if (!item?.anio || !item?.numero_mes) return;
+  // Periodo realmente representado por las contrataciones de la serie, no por la fecha del equipo.
+  const periodoIngresosRotacion = useMemo(() => {
+    const conIngresos = serieMensualRotacion.filter((item) => item.total_contratados > 0);
+    if (!conIngresos.length) return 'Sin ingresos en el período consultado';
+    const ordenados = [...conIngresos].sort((a, b) => (a.anio - b.anio) || (a.numero_mes - b.numero_mes));
+    const nombre = (item) => `${meses.find((mes) => Number(mes.value) === item.numero_mes)?.label || item.numero_mes} de ${item.anio}`;
+    const primero = ordenados[0];
+    const ultimo = ordenados[ordenados.length - 1];
+    return primero.anio === ultimo.anio && primero.numero_mes === ultimo.numero_mes
+      ? nombre(primero)
+      : `${nombre(primero)} – ${nombre(ultimo)}`;
+  }, [serieMensualRotacion]);
 
-    const anio = String(item.anio);
-    const mes = String(item.numero_mes);
+  const abrirDetalleMesGrafica = (item) => {
+    const registro = item?.payload || item;
+    const anio = Number(registro?.anio);
+    const numeroMes = Number(registro?.numero_mes);
+    if (!Number.isInteger(anio) || !Number.isInteger(numeroMes) || numeroMes < 1 || numeroMes > 12) return;
+    setDetalleMesGrafica({ anio, numero_mes: numeroMes });
+  };
 
-    setAnioSeleccionado(anio);
-    setMesSeleccionado(mes);
-
-    const filtros = { anio, mes };
-    setFiltrosAplicados(filtros);
-    cargarIndicadores(filtros);
+  const abrirDetalleMesRotacion = (item) => {
+    const registro = item?.payload || item;
+    if (!registro || !Number.isInteger(Number(registro.anio)) || !Number.isInteger(Number(registro.numero_mes))) return;
+    setDetalleMesRotacion({ ...registro });
   };
 
   const textoPeriodo =
@@ -1151,26 +1186,33 @@ const IndicadoresSeleccionView = () => {
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <KpiPrincipal
           title="Total personal registrado"
           value={totalRegistrados}
           percentage={porcentajeRegistrados}
-          subtitle="Universo del aplicativo para el periodo consultado."
+          subtitle="Personas registradas en el período seleccionado."
         />
 
         <KpiPrincipal
           title="Total personal avanza a contratación"
           value={totalAvanzan}
           percentage={porcentajeAvanzan}
-          subtitle="Personas que finalizaron Selección y avanzaron a Contratación."
+          subtitle="Personas que avanzaron de Selección a Contratación."
+        />
+
+        <KpiPrincipal
+          title="Total personal contratado"
+          value={totalContratados}
+          percentage={porcentajeContratados}
+          subtitle="Personal clasificado como contratado en el período seleccionado."
         />
 
         <KpiPrincipal
           title="Total personal rechazado en Selección"
           value={totalRechazados}
           percentage={porcentajeRechazados}
-          subtitle="Rechazos ocurridos exclusivamente dentro de Selección."
+          subtitle="Rechazos atribuibles a Selección."
         />
       </div>
 
@@ -1187,6 +1229,7 @@ const IndicadoresSeleccionView = () => {
           ]}
           colorResolver={(row) => row.color || getEstadoColor(row.estado)}
           emptyText="No hay estados registrados para el periodo seleccionado."
+          onRowClick={(row) => abrirDetalle(row.estado, row.cantidad, "Cantidad reportada para este estado o resultado de Selección. El desglose nominal todavía no está disponible en la respuesta actual del servidor.", [{ label: "Participación reportada", value: `${formatearPorcentaje(row.porcentaje)}%` }])}
         />
 
         <DataTable
@@ -1201,110 +1244,54 @@ const IndicadoresSeleccionView = () => {
           ]}
           colorResolver={(row) => row.color}
           emptyText="No hay motivos de rechazo de Selección para el periodo seleccionado."
+          onRowClick={(row) => abrirDetalle(row.motivo, row.cantidad, "Personas asociadas a este motivo de rechazo según el indicador de Selección. El detalle nominal requiere un endpoint de consulta adicional.", [{ label: "Participación reportada", value: `${formatearPorcentaje(row.porcentaje)}%` }])}
         />
       </div>
 
-      <ChartCard
-        title="Comportamiento mensual de Selección"
-        subtitle="Comparativo mensual de personal registrado, personal que avanza a Contratación y rechazados de Selección. Selecciona un mes de la gráfica para consultar su detalle."
-        icon={BarChart3}
-        heightClass="h-[420px]"
-      >
-        {serieMensualGrafica.length > 0 ? (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={serieMensualGrafica}
-              margin={{ top: 20, right: 30, left: 0, bottom: 15 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis
-                dataKey="etiquetaGrafica"
-                tick={{ fontSize: 12, fontWeight: 700, fill: '#475569' }}
-                axisLine={{ stroke: '#cbd5e1' }}
-                tickLine={false}
-              />
-              <YAxis
-                allowDecimals={false}
-                tick={{ fontSize: 12, fill: '#64748b' }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                cursor={{ stroke: '#94a3b8', strokeDasharray: '4 4' }}
-                content={<TooltipMensualSeleccion />}
-              />
-              <Line
-                type="monotone"
-                dataKey="registrados"
-                name="Personal registrado"
-                stroke="#0f766e"
-                strokeWidth={3}
-                dot={(props) => (
-                  <PuntoMensualSeleccion
-                    {...props}
-                    color="#0f766e"
-                    onSelect={seleccionarMesDesdeGrafica}
-                  />
-                )}
-                activeDot={(props) => (
-                  <PuntoMensualSeleccion
-                    {...props}
-                    color="#0f766e"
-                    onSelect={seleccionarMesDesdeGrafica}
-                    active
-                  />
-                )}
-              />
-              <Line
-                type="monotone"
-                dataKey="avanzan_contratacion"
-                name="Avanza a contratación"
-                stroke="#2563eb"
-                strokeWidth={3}
-                dot={(props) => (
-                  <PuntoMensualSeleccion
-                    {...props}
-                    color="#2563eb"
-                    onSelect={seleccionarMesDesdeGrafica}
-                  />
-                )}
-                activeDot={(props) => (
-                  <PuntoMensualSeleccion
-                    {...props}
-                    color="#2563eb"
-                    onSelect={seleccionarMesDesdeGrafica}
-                    active
-                  />
-                )}
-              />
-              <Line
-                type="monotone"
-                dataKey="rechazados_seleccion"
-                name="Rechazados en Selección"
-                stroke="#dc2626"
-                strokeWidth={3}
-                dot={(props) => (
-                  <PuntoMensualSeleccion
-                    {...props}
-                    color="#dc2626"
-                    onSelect={seleccionarMesDesdeGrafica}
-                  />
-                )}
-                activeDot={(props) => (
-                  <PuntoMensualSeleccion
-                    {...props}
-                    color="#dc2626"
-                    onSelect={seleccionarMesDesdeGrafica}
-                    active
-                  />
-                )}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        ) : (
-          <EmptyChartMessage message="No hay información mensual disponible para construir la gráfica." />
-        )}
-      </ChartCard>
+       <ChartCard
+         title="Comportamiento mensual de Selección"
+         subtitle="Compara los procesos de cada mes. Pasa el mouse sobre las barras para ver el resumen y haz clic en cualquier barra o mes para abrir su detalle."
+         icon={BarChart3}
+         heightClass="h-[420px]"
+       >
+         {serieMensualGrafica.length > 0 ? (
+           <ResponsiveContainer width="100%" height="100%">
+             <BarChart
+               data={serieMensualGrafica}
+               margin={{ top: 18, right: 22, left: 0, bottom: 12 }}
+               onClick={(event) => {
+                 const item = event?.activePayload?.[0]?.payload
+                   || serieMensualGrafica[event?.activeTooltipIndex];
+                 abrirDetalleMesGrafica(item);
+               }}
+             >
+               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+               <XAxis dataKey="etiquetaGrafica" tick={(props) => {
+                 const item = serieMensualGrafica[props.index];
+                 return (
+                   <text x={props.x} y={props.y + 12} textAnchor="middle" fontSize={12} fontWeight={700}
+                     fill="#475569" style={{ cursor: 'pointer' }} role="button" tabIndex={0}
+                     onClick={() => abrirDetalleMesGrafica(item)}
+                     onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); abrirDetalleMesGrafica(item); } }}>
+                     {props.payload?.value}
+                   </text>
+                 );
+               }} tickLine={false} axisLine={{ stroke: '#cbd5e1' }} />
+               <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
+               <Tooltip cursor={{ fill: '#f1f5f9' }} content={<TooltipMensualSeleccion />} />
+               <Legend wrapperStyle={{ fontSize: 12, fontWeight: 600 }} />
+               <Bar dataKey="registrados" name="Registrados" fill="#0f766e" radius={[4, 4, 0, 0]} maxBarSize={24} cursor="pointer" onClick={(item) => abrirDetalleMesGrafica(item)} />
+               {serieMensualGrafica.some((item) => item.contratados !== null && item.contratados !== undefined) && (
+                 <Bar dataKey="contratados" name="Contratados" fill="#059669" radius={[4, 4, 0, 0]} maxBarSize={24} cursor="pointer" onClick={(item) => abrirDetalleMesGrafica(item)} />
+               )}
+               <Bar dataKey="avanzan_contratacion" name="Avanzan a Contratación" fill="#2563eb" radius={[4, 4, 0, 0]} maxBarSize={24} cursor="pointer" onClick={(item) => abrirDetalleMesGrafica(item)} />
+               <Bar dataKey="rechazados_seleccion" name="Rechazados" fill="#dc2626" radius={[4, 4, 0, 0]} maxBarSize={24} cursor="pointer" onClick={(item) => abrirDetalleMesGrafica(item)} />
+             </BarChart>
+           </ResponsiveContainer>
+         ) : (
+           <EmptyChartMessage message="No hay información mensual disponible para construir la gráfica." />
+         )}
+       </ChartCard>
 
       <section className="overflow-hidden rounded-3xl border border-sky-200 bg-white shadow-xl">
         <div className="border-b border-sky-100 bg-gradient-to-r from-sky-50 via-white to-indigo-50 px-5 py-6 md:px-7">
@@ -1312,7 +1299,7 @@ const IndicadoresSeleccionView = () => {
             <div>
               <div className="flex flex-wrap items-center gap-3">
                 <span className="inline-flex rounded-full border border-sky-200 bg-sky-100 px-3 py-1 text-xs font-black uppercase tracking-wide text-sky-800">
-                  KPI 2 · Efectividad
+                  KPI 2 · Permanencia del personal
                 </span>
                 <span className="text-xs font-bold text-gray-500">
                   Cohorte por fecha de ingreso
@@ -1320,13 +1307,12 @@ const IndicadoresSeleccionView = () => {
               </div>
 
               <h2 className="mt-3 text-2xl font-black text-gray-900">
-                Tasa de rotación del nuevo personal
+                Ingresos y retiros del personal
               </h2>
 
               <p className="mt-2 max-w-4xl text-sm leading-6 text-gray-600">
-                Mide la permanencia inicial del personal nuevo contratado y los retiros
-                ocurridos dentro de los primeros 7, 15, 30 y 60 días. Cada tasa usa
-                únicamente las personas que ya pueden ser evaluadas para ese corte.
+                Consulte cuántas personas ingresaron y cuántas tienen retiros registrados según sus días de permanencia.
+                Use los filtros generales de año y mes para actualizar las cantidades, la gráfica y los nombres.
               </p>
             </div>
 
@@ -1350,171 +1336,108 @@ const IndicadoresSeleccionView = () => {
             </div>
           ) : dataRotacion ? (
             <>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-                <KpiContratadosRotacion
-                  total={totalContratadosRotacion}
-                />
-
-                {cortesRotacion.map((corte) => (
-                  <KpiCorteRotacion
-                    key={corte.key}
-                    corte={corte}
-                  />
-                ))}
-              </div>
-
-              <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-4">
-                <p className="text-xs leading-5 text-gray-600">
-                  <span className="font-black text-gray-800">Cómo leer este KPI:</span>{' '}
-                  “Retiros” es el numerador y “Evaluables” es el grupo que ya tuvo
-                  oportunidad real de alcanzar el corte. Cuando todavía no existe población
-                  evaluable, se muestra “Pendiente de maduración” y no se presenta 0 %.
-                </p>
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-100 bg-sky-50/50 px-4 py-3">
+                  <p className="text-sm font-semibold text-slate-700">Resultados del período: <span className="text-sky-800">{textoPeriodo === 'Vista general' ? periodoIngresosRotacion : textoPeriodo}</span></p>
+                  <p className="text-xs text-slate-500">Cambie el año y el mes en los filtros superiores y pulse Filtrar.</p>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+                    <p className="text-xs font-black uppercase tracking-wide text-emerald-800">Personas contratadas</p>
+                    <p className="mt-2 text-4xl font-black text-emerald-900">{totalContratadosRotacion}</p>
+                    <p className="mt-2 text-xs text-emerald-800">Según su fecha de ingreso</p>
+                  </div>
+                  {[
+                    { clave: 'retiro_0_7', titulo: '0 a 7 días', tono: 'rose' },
+                    { clave: 'retiro_8_15', titulo: '8 a 15 días', tono: 'amber' },
+                    { clave: 'retiro_16_30', titulo: '16 a 30 días', tono: 'violet' },
+                    { clave: 'retiro_31_60', titulo: '31 a 60 días', tono: 'blue' },
+                    { clave: 'retiro_mas_60', titulo: 'Más de 60 días', tono: 'slate' },
+                    { clave: 'sin_retiro_registrado', titulo: 'Sin retiro finalizado', tono: 'emerald' },
+                    { clave: 'fechas_inconsistentes', titulo: 'Fechas por revisar', tono: 'amber' },
+                  ].map(({ clave, titulo }) => {
+                    const cantidad = Number(dataRotacion?.rangos_exclusivos?.[clave] ?? 0);
+                    const personas = dataRotacion?.detalles_rangos?.[clave] || [];
+                    return (
+                      <button
+                        key={clave}
+                        type="button"
+                        onClick={() => setDetalleRangoRotacion({ label: titulo, value: cantidad, personas })}
+                        className="rounded-2xl border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:border-emerald-400 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600"
+                      >
+                        <p className="text-xs font-bold text-slate-600">{titulo}</p>
+                        <p className="mt-2 text-3xl font-black text-slate-900">{cantidad}</p>
+                        <p className="mt-2 text-xs font-bold text-emerald-700">Ver trabajadores →</p>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs leading-5 text-slate-500">Cada trabajador aparece en un solo rango de permanencia. Los retiros registrados para fechas futuras deben verificarse antes de considerarlos ocurridos.</p>
               </div>
 
               <ChartCard
-                title="Evolución mensual de la rotación del nuevo personal"
-                subtitle="Tasas acumuladas por cohorte de ingreso. Las líneas se interrumpen cuando el corte aún no ha madurado. Selecciona un punto para consultar ese mes."
+                title="¿Cuántas personas ingresaron cada mes?"
+                subtitle={`Ingresos por mes según fecha de contratación. Período con ingresos: ${periodoIngresosRotacion}. Pasa el mouse para consultar la rotación y haz clic en una barra para ver el detalle del mes.`}
                 icon={BarChart3}
                 heightClass="h-[430px]"
               >
                 {serieMensualRotacion.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
+                    <BarChart
                       data={serieMensualRotacion}
                       margin={{ top: 20, right: 30, left: 0, bottom: 15 }}
+                      onClick={(event) => {
+                        const item = event?.activePayload?.[0]?.payload
+                          || serieMensualRotacion[event?.activeTooltipIndex];
+                        if (item) abrirDetalleMesRotacion(item);
+                      }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
                       <XAxis
                         dataKey="etiquetaGrafica"
                         tick={{ fontSize: 12, fontWeight: 700, fill: '#475569' }}
                         axisLine={{ stroke: '#cbd5e1' }}
                         tickLine={false}
                       />
-                      <YAxis
-                        domain={[0, 100]}
-                        allowDecimals={false}
-                        tickFormatter={(value) => `${value}%`}
-                        tick={{ fontSize: 12, fill: '#64748b' }}
-                        axisLine={false}
-                        tickLine={false}
+                      <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                      <Tooltip cursor={{ fill: '#f1f5f9' }} content={<TooltipMensualRotacion />} />
+                      <Bar
+                        dataKey="total_contratados"
+                        name="Personas contratadas"
+                        fill="#0f766e"
+                        radius={[5, 5, 0, 0]}
+                        maxBarSize={42}
+                        cursor="pointer"
                       />
-                      <Tooltip
-                        cursor={{ stroke: '#94a3b8', strokeDasharray: '4 4' }}
-                        content={<TooltipMensualRotacion />}
-                      />
-
-                      <Line
-                        type="monotone"
-                        dataKey="tasa_hasta_7"
-                        name="Hasta 7 días"
-                        stroke="#dc2626"
-                        strokeWidth={3}
-                        connectNulls={false}
-                        dot={(props) => (
-                          <PuntoMensualRotacion
-                            {...props}
-                            color="#dc2626"
-                            onSelect={seleccionarMesDesdeGrafica}
-                          />
-                        )}
-                        activeDot={(props) => (
-                          <PuntoMensualRotacion
-                            {...props}
-                            color="#dc2626"
-                            onSelect={seleccionarMesDesdeGrafica}
-                            active
-                          />
-                        )}
-                      />
-
-                      <Line
-                        type="monotone"
-                        dataKey="tasa_hasta_15"
-                        name="Hasta 15 días"
-                        stroke="#ea580c"
-                        strokeWidth={3}
-                        connectNulls={false}
-                        dot={(props) => (
-                          <PuntoMensualRotacion
-                            {...props}
-                            color="#ea580c"
-                            onSelect={seleccionarMesDesdeGrafica}
-                          />
-                        )}
-                        activeDot={(props) => (
-                          <PuntoMensualRotacion
-                            {...props}
-                            color="#ea580c"
-                            onSelect={seleccionarMesDesdeGrafica}
-                            active
-                          />
-                        )}
-                      />
-
-                      <Line
-                        type="monotone"
-                        dataKey="tasa_hasta_30"
-                        name="Hasta 30 días"
-                        stroke="#7c3aed"
-                        strokeWidth={3}
-                        connectNulls={false}
-                        dot={(props) => (
-                          <PuntoMensualRotacion
-                            {...props}
-                            color="#7c3aed"
-                            onSelect={seleccionarMesDesdeGrafica}
-                          />
-                        )}
-                        activeDot={(props) => (
-                          <PuntoMensualRotacion
-                            {...props}
-                            color="#7c3aed"
-                            onSelect={seleccionarMesDesdeGrafica}
-                            active
-                          />
-                        )}
-                      />
-
-                      <Line
-                        type="monotone"
-                        dataKey="tasa_hasta_60"
-                        name="Hasta 60 días"
-                        stroke="#2563eb"
-                        strokeWidth={3}
-                        connectNulls={false}
-                        dot={(props) => (
-                          <PuntoMensualRotacion
-                            {...props}
-                            color="#2563eb"
-                            onSelect={seleccionarMesDesdeGrafica}
-                          />
-                        )}
-                        activeDot={(props) => (
-                          <PuntoMensualRotacion
-                            {...props}
-                            color="#2563eb"
-                            onSelect={seleccionarMesDesdeGrafica}
-                            active
-                          />
-                        )}
-                      />
-                    </LineChart>
+                    </BarChart>
                   </ResponsiveContainer>
                 ) : (
                   <EmptyChartMessage message="No hay información mensual disponible para construir el KPI 2." />
                 )}
               </ChartCard>
 
-              <ResumenRangosRotacion
-                rangos={dataRotacion?.rangos_exclusivos}
-              />
             </>
           ) : (
             <EmptyChartMessage message="No hay información disponible para el KPI 2." />
           )}
         </div>
       </section>
+
+       {detalleRangoRotacion && (
+         <DetalleRangoRotacionModal detalle={detalleRangoRotacion} periodo={textoPeriodo} onClose={() => setDetalleRangoRotacion(null)} />
+       )}
+
+       {detalleMesRotacion && (
+         <DetalleMesRotacionModal item={detalleMesRotacion} onClose={() => setDetalleMesRotacion(null)} />
+       )}
+
+       {detalleMesGrafica && (
+         <DetalleMesSeleccionModal periodo={detalleMesGrafica} onClose={() => setDetalleMesGrafica(null)} />
+       )}
+
+       {detalleIndicador && (
+        <DetalleIndicadorModal detalle={detalleIndicador} onClose={() => setDetalleIndicador(null)} periodo={textoPeriodo} />
+      )}
 
       {periodoMensualSeleccionado && (
         <GestionMensualSeleccion
@@ -1543,8 +1466,8 @@ const IndicadoresSeleccionView = () => {
 };
 
 
-const KpiContratadosRotacion = ({ total }) => (
-  <div className="h-full rounded-2xl border border-sky-200 bg-sky-50 p-5 shadow-sm">
+const KpiContratadosRotacion = ({ total, periodo, onClick }) => (
+  <button type="button" onClick={onClick} className="h-full w-full text-left rounded-2xl border border-sky-200 bg-sky-50 p-5 shadow-sm hover:shadow-md focus-visible:ring-2 focus-visible:ring-emerald-600">
     <div className="flex items-start justify-between gap-3">
       <div>
         <p className="text-xs font-black uppercase tracking-wide text-sky-700">
@@ -1552,7 +1475,10 @@ const KpiContratadosRotacion = ({ total }) => (
         </p>
         <p className="mt-3 text-4xl font-black text-gray-900">{total}</p>
         <p className="mt-2 text-xs leading-5 text-gray-500">
-          Universo contratado del periodo según fecha real de ingreso.
+          Según fecha real de ingreso.
+        </p>
+        <p className="mt-2 text-xs font-bold leading-5 text-sky-800">
+          {periodo}
         </p>
       </div>
 
@@ -1560,15 +1486,15 @@ const KpiContratadosRotacion = ({ total }) => (
         <Users className="h-6 w-6 text-sky-700" />
       </div>
     </div>
-  </div>
+  </button>
 );
 
 
-const KpiCorteRotacion = ({ corte }) => {
+const KpiCorteRotacion = ({ corte, onClick }) => {
   const pendiente = corte?.tasa === null || corte?.estado === 'PENDIENTE_MADURACION';
 
   return (
-    <div className="h-full rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+    <button type="button" onClick={onClick} className="h-full w-full text-left rounded-2xl border border-gray-200 bg-white p-5 shadow-sm hover:border-emerald-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-emerald-600">
       <div className="flex items-center gap-2">
         <span
           className="h-3 w-3 shrink-0 rounded-full"
@@ -1603,20 +1529,20 @@ const KpiCorteRotacion = ({ corte }) => {
           </p>
         </>
       )}
-    </div>
+    </button>
   );
 };
 
 
-const ResumenRangosRotacion = ({ rangos = {} }) => {
+const ResumenRangosRotacion = ({ rangos = {}, onSelect }) => {
   const filas = [
-    { label: 'Retiro entre 0 y 7 días', value: rangos?.retiro_0_7 || 0 },
-    { label: 'Retiro entre 8 y 15 días', value: rangos?.retiro_8_15 || 0 },
-    { label: 'Retiro entre 16 y 30 días', value: rangos?.retiro_16_30 || 0 },
-    { label: 'Retiro entre 31 y 60 días', value: rangos?.retiro_31_60 || 0 },
-    { label: 'Retiro después de 60 días', value: rangos?.retiro_mas_60 || 0 },
-    { label: 'Sin retiro registrado', value: rangos?.sin_retiro_registrado || 0 },
-    { label: 'Fechas inconsistentes', value: rangos?.fechas_inconsistentes || 0 },
+    { label: 'Retiro entre 0 y 7 días', value: rangos?.retiro_0_7 || 0, clave: 'retiro_0_7' },
+    { label: 'Retiro entre 8 y 15 días', value: rangos?.retiro_8_15 || 0, clave: 'retiro_8_15' },
+    { label: 'Retiro entre 16 y 30 días', value: rangos?.retiro_16_30 || 0, clave: 'retiro_16_30' },
+    { label: 'Retiro entre 31 y 60 días', value: rangos?.retiro_31_60 || 0, clave: 'retiro_31_60' },
+    { label: 'Retiro después de 60 días', value: rangos?.retiro_mas_60 || 0, clave: 'retiro_mas_60' },
+    { label: 'Sin retiro finalizado', value: rangos?.sin_retiro_registrado || 0, clave: 'sin_retiro_registrado' },
+    { label: 'Fechas inconsistentes', value: rangos?.fechas_inconsistentes || 0, clave: 'fechas_inconsistentes' },
   ];
 
   return (
@@ -1636,7 +1562,9 @@ const ResumenRangosRotacion = ({ rangos = {} }) => {
           const esInconsistente = item.label === 'Fechas inconsistentes';
 
           return (
-            <div
+            <button
+              type="button"
+              onClick={() => onSelect?.(item)}
               key={item.label}
               className={
                 esInconsistente
@@ -1662,7 +1590,7 @@ const ResumenRangosRotacion = ({ rangos = {} }) => {
               >
                 {item.value}
               </p>
-            </div>
+            </button>
           );
         })}
       </div>
@@ -1719,87 +1647,83 @@ const PuntoMensualRotacion = ({
 };
 
 
+// Cache temporal de los resúmenes mensuales: el tooltip usa el mismo endpoint
+// y las mismas categorías que el modal, sin recalcular retiros en el navegador.
+const cacheResumenRotacionMes = new Map();
+
 const TooltipMensualRotacion = ({ active, payload }) => {
-  if (!active || !payload?.length) return null;
+  const item = payload?.[0]?.payload;
+  const anio = Number(item?.anio);
+  const mes = Number(item?.numero_mes);
+  const clave = Number.isInteger(anio) && Number.isInteger(mes) ? `${anio}-${mes}` : '';
+  const [resumen, setResumen] = useState(null);
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState(false);
 
-  const item = payload[0]?.payload || {};
+  useEffect(() => {
+    if (!active || !clave) return undefined;
+    const almacenado = cacheResumenRotacionMes.get(clave);
+    if (almacenado) {
+      setResumen(almacenado);
+      setCargando(false);
+      setError(false);
+      return undefined;
+    }
 
-  const filas = [
-    {
-      label: 'Hasta 7 días',
-      tasa: item.tasa_hasta_7,
-      retiros: item.retiros_hasta_7,
-      evaluables: item.evaluables_7,
-      className: 'text-red-700',
-    },
-    {
-      label: 'Hasta 15 días',
-      tasa: item.tasa_hasta_15,
-      retiros: item.retiros_hasta_15,
-      evaluables: item.evaluables_15,
-      className: 'text-orange-700',
-    },
-    {
-      label: 'Hasta 30 días',
-      tasa: item.tasa_hasta_30,
-      retiros: item.retiros_hasta_30,
-      evaluables: item.evaluables_30,
-      className: 'text-violet-700',
-    },
-    {
-      label: 'Hasta 60 días',
-      tasa: item.tasa_hasta_60,
-      retiros: item.retiros_hasta_60,
-      evaluables: item.evaluables_60,
-      className: 'text-blue-700',
-    },
-  ];
+    const controller = new AbortController();
+    setResumen(null);
+    setCargando(true);
+    setError(false);
+    const params = new URLSearchParams({ anio: String(anio), mes: String(mes) });
+    fetch(`${import.meta.env.VITE_API_BASE_URL}/datos-seleccion/dashboard-indicadores-rotacion-nuevo-personal?${params}`, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((resultado) => {
+        if (!controller.signal.aborted) {
+          cacheResumenRotacionMes.set(clave, resultado);
+          setResumen(resultado);
+        }
+      })
+      .catch((err) => { if (err.name !== 'AbortError') setError(true); })
+      .finally(() => { if (!controller.signal.aborted) setCargando(false); });
+    return () => controller.abort();
+  }, [active, clave, anio, mes]);
+
+  if (!active || !item) return null;
+
+  const cantidades = resumen?.rangos_exclusivos || {};
+  const retiros = ['retiro_0_7', 'retiro_8_15', 'retiro_16_30', 'retiro_31_60', 'retiro_mas_60']
+    .reduce((total, rango) => total + Number(cantidades[rango] || 0), 0);
+  const sinRetiro = Number(cantidades.sin_retiro_registrado || 0);
+  const porRevisar = Number(cantidades.fechas_inconsistentes || 0);
+  const total = Number(resumen?.total_contratados ?? item.total_contratados ?? 0);
 
   return (
-    <div className="min-w-[290px] rounded-2xl border border-gray-200 bg-white p-4 shadow-xl">
-      <p className="text-sm font-black text-gray-900">
-        {item.etiqueta || 'Periodo'}
-      </p>
-
-      <p className="mt-1 text-xs text-gray-500">
-        Nuevos contratados: <span className="font-black">{item.total_contratados || 0}</span>
-      </p>
-
-      <div className="mt-3 space-y-3">
-        {filas.map((fila) => {
-          const pendiente = fila.tasa === null || fila.tasa === undefined;
-
-          return (
-            <div key={fila.label} className="border-t border-gray-100 pt-2 first:border-0 first:pt-0">
-              <div className="flex items-center justify-between gap-4">
-                <span className={`text-sm font-bold ${fila.className}`}>
-                  {fila.label}
-                </span>
-
-                <span className={`text-sm font-black ${fila.className}`}>
-                  {pendiente
-                    ? 'Pendiente'
-                    : `${formatearPorcentaje(fila.tasa)}%`}
-                </span>
-              </div>
-
-              <p className="mt-1 text-xs text-gray-500">
-                {pendiente
-                  ? 'Sin población evaluable todavía.'
-                  : `${fila.retiros || 0} retiros / ${fila.evaluables || 0} evaluables`}
-              </p>
-            </div>
-          );
-        })}
+    <div className="min-w-[270px] rounded-2xl border border-gray-200 bg-white p-4 shadow-xl">
+      <p className="text-sm font-black text-gray-900">{item.etiqueta || 'Periodo'}</p>
+      <div className="mt-3 flex items-center justify-between gap-5 text-sm">
+        <span className="font-semibold text-gray-600">Personas contratadas</span>
+        <span className="font-black text-emerald-700">{total}</span>
       </div>
-
-      <p className="mt-3 text-xs font-semibold text-sky-700">
-        Haz clic en un punto disponible para consultar este mes.
+      {resumen ? (
+        <div className="mt-2 space-y-2 border-t border-gray-100 pt-2">
+          <div className="flex justify-between gap-5 text-sm"><span className="text-gray-600">Con retiro registrado</span><strong className="text-red-700">{retiros}</strong></div>
+          <div className="flex justify-between gap-5 text-sm"><span className="text-gray-600">Sin retiro finalizado</span><strong className="text-emerald-700">{sinRetiro}</strong></div>
+          {porRevisar > 0 && <div className="flex justify-between gap-5 text-sm"><span className="text-gray-600">Fechas por revisar</span><strong className="text-amber-700">{porRevisar}</strong></div>}
+        </div>
+      ) : (
+        <p className="mt-2 text-xs text-gray-500">
+          {cargando ? 'Consultando ingresos y retiros del mes...' : error ? 'No fue posible cargar el resumen. Abra el detalle del mes.' : 'Consultando resumen mensual...'}
+        </p>
+      )}
+      <p className="mt-3 border-t border-gray-100 pt-2 text-xs font-semibold text-sky-700">
+        Haz clic en la barra para ver los trabajadores y los días de permanencia.
       </p>
     </div>
   );
 };
-
 
 const GestionMensualSeleccion = ({
   periodo,
@@ -2340,8 +2264,35 @@ const GestionMensualSeleccion = ({
 
 
 
+
+// Vista de detalle informativo: no inventa registros nominales que el endpoint no entrega.
+const DetalleIndicadorModal = ({ detalle, onClose, periodo }) => {
+  useEffect(() => {
+    const cerrarEscape = (event) => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', cerrarEscape);
+    return () => window.removeEventListener('keydown', cerrarEscape);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div role="dialog" aria-modal="true" aria-label={detalle.titulo} className="w-full max-w-xl max-h-[85vh] overflow-y-auto rounded-3xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-gray-100 p-6">
+          <div><p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Detalle del indicador · {periodo}</p><h2 className="mt-2 text-xl font-black text-gray-900">{detalle.titulo}</h2></div>
+          <button type="button" onClick={onClose} aria-label="Cerrar detalle" className="rounded-xl p-2 text-gray-600 hover:bg-gray-100"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="space-y-4 p-6">
+          <div className="rounded-2xl bg-emerald-50 p-5"><p className="text-xs font-bold text-emerald-800">Cantidad reportada</p><p className="mt-1 text-4xl font-black text-gray-900">{detalle.cantidad ?? 'Sin dato'}</p></div>
+          <p className="text-sm leading-6 text-gray-700">{detalle.descripcion}</p>
+          {detalle.extras?.length > 0 && <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">{detalle.extras.map((extra) => <div key={extra.label} className="rounded-xl border border-gray-200 p-3"><p className="text-xs text-gray-500">{extra.label}</p><p className="mt-1 font-bold text-gray-900">{extra.value}</p></div>)}</div>}
+          <div className="flex gap-2 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900"><Info className="h-5 w-5 shrink-0" /><span>Esta ventana muestra datos agregados reales recibidos del servidor. Para listar personas, identificaciones, clientes y fechas individuales es necesario habilitar una consulta de detalle en el backend; no se muestran datos inventados.</span></div>
+          <button type="button" onClick={onClose} className="w-full rounded-xl bg-gray-900 px-4 py-3 font-bold text-white hover:bg-gray-800">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const KpiPrincipal = ({ title, value, percentage, subtitle }) => (
-  <div className="h-full bg-white rounded-3xl shadow-xl border border-gray-100 p-6">
+  <div className="h-full w-full text-left bg-white rounded-3xl shadow-xl border border-gray-100 p-6">
     <div className="flex items-start justify-between gap-4">
       <div className="min-w-0">
         <p className="text-sm font-bold text-gray-500">{title}</p>
@@ -2450,7 +2401,7 @@ const DetailPanel = ({ title, item, nameKey, colorKey, empty }) => (
   </motion.div>
 );
 
-const DataTable = ({ title, subtitle, icon: Icon, rows, columns, colorResolver, emptyText = 'No hay datos.' }) => (
+const DataTable = ({ title, subtitle, icon: Icon, rows, columns, colorResolver, emptyText = 'No hay datos.', onRowClick }) => (
   <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-6">
     <div className="flex items-center gap-3 mb-5">
       <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
@@ -2482,7 +2433,7 @@ const DataTable = ({ title, subtitle, icon: Icon, rows, columns, colorResolver, 
         <tbody className="divide-y divide-gray-100">
           {rows?.length > 0 ? (
             rows.map((row, index) => (
-              <tr key={index} className="hover:bg-emerald-50/40 transition">
+              <tr key={index} onClick={() => onRowClick?.(row)} tabIndex={onRowClick ? 0 : undefined} onKeyDown={(event) => { if (onRowClick && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onRowClick(row); } }} className={`hover:bg-emerald-50/40 transition ${onRowClick ? "cursor-pointer focus:outline-2 focus:outline-emerald-500" : ""}`}>
                 {columns.map((col, colIndex) => (
                   <td
                     key={col.key}
@@ -2561,33 +2512,158 @@ const PuntoMensualSeleccion = ({
 
 const TooltipMensualSeleccion = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
-
   const item = payload[0]?.payload || {};
+  return (
+    <div className="min-w-[210px] rounded-xl border border-gray-200 bg-white p-3 shadow-xl text-sm">
+      <p className="font-black text-gray-900">{item.etiqueta || 'Periodo'}</p>
+      <p className="mt-2 text-gray-700">Registrados: <strong>{item.registrados || 0}</strong></p>
+      {item.contratados != null && <p className="text-emerald-700">Contratados: <strong>{item.contratados}</strong></p>}
+      <p className="text-blue-700">Avanzan: <strong>{item.avanzan_contratacion || 0}</strong></p>
+      <p className="text-red-700">Rechazados: <strong>{item.rechazados_seleccion || 0}</strong></p>
+      <p className="mt-2 border-t pt-2 text-xs text-gray-500">Clic para ver el detalle mensual</p>
+    </div>
+  );
+};
+
+const DetalleMesRotacionModal = ({ item, onClose }) => {
+  const [detalle, setDetalle] = useState(null);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
+  const [rangoAbierto, setRangoAbierto] = useState(null);
+  const nombreMes = meses.find((m) => Number(m.value) === Number(item.numero_mes))?.label || `Mes ${item.numero_mes}`;
+  useEffect(() => {
+    const controller = new AbortController();
+    const cerrarEscape = (event) => { if (event.key === 'Escape' && !rangoAbierto) onClose(); };
+    window.addEventListener('keydown', cerrarEscape);
+    (async () => {
+      try {
+        setCargando(true);
+        const params = new URLSearchParams({ anio: String(item.anio), mes: String(item.numero_mes) });
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/datos-seleccion/dashboard-indicadores-rotacion-nuevo-personal?${params}`, { signal: controller.signal });
+        if (!response.ok) throw new Error(`No se pudo consultar el detalle mensual (HTTP ${response.status}).`);
+        const json = await response.json();
+        if (!controller.signal.aborted) setDetalle(json);
+      } catch (e) { if (e.name !== 'AbortError') setError(e.message || 'Error consultando el detalle.'); }
+      finally { if (!controller.signal.aborted) setCargando(false); }
+    })();
+    return () => { controller.abort(); window.removeEventListener('keydown', cerrarEscape); };
+  }, [item.anio, item.numero_mes]);
+
+  const rangos = [
+    { clave: 'retiro_0_7', label: '0 a 7 días', color: 'text-red-700', bg: 'bg-red-50' },
+    { clave: 'retiro_8_15', label: '8 a 15 días', color: 'text-orange-700', bg: 'bg-orange-50' },
+    { clave: 'retiro_16_30', label: '16 a 30 días', color: 'text-violet-700', bg: 'bg-violet-50' },
+    { clave: 'retiro_31_60', label: '31 a 60 días', color: 'text-blue-700', bg: 'bg-blue-50' },
+    { clave: 'retiro_mas_60', label: 'Más de 60 días', color: 'text-gray-700', bg: 'bg-gray-50' },
+    { clave: 'sin_retiro_registrado', label: 'Sin retiro finalizado', color: 'text-emerald-700', bg: 'bg-emerald-50' },
+    { clave: 'fechas_inconsistentes', label: 'Fechas por revisar', color: 'text-amber-700', bg: 'bg-amber-50' },
+  ];
+  const cantidades = detalle?.rangos_exclusivos || {};
+  const total = Number(detalle?.total_contratados ?? item.total_contratados ?? 0);
+  const conRetiro = rangos.slice(0, 5).reduce((s, r) => s + Number(cantidades[r.clave] || 0), 0);
+  const abrir = (r) => setRangoAbierto({ ...r, value: Number(cantidades[r.clave] || 0), personas: detalle?.detalles_rangos?.[r.clave] || [] });
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 p-3 md:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div role="dialog" aria-modal="true" aria-label={`Ingresos y retiros de ${nombreMes} de ${item.anio}`} className="flex w-full max-w-4xl max-h-[92vh] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between border-b border-gray-200 bg-gray-50 px-5 py-5 md:px-7">
+          <div><p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Ingresos y retiros · Detalle mensual</p><h2 className="mt-1 text-2xl font-black text-gray-900">{nombreMes} de {item.anio}</h2><p className="mt-1 text-sm text-gray-500">Personal que ingresó en este mes. Seleccione cualquier cantidad para consultar los nombres.</p></div>
+          <button type="button" onClick={onClose} aria-label="Cerrar" className="rounded-lg p-2 text-gray-600 hover:bg-gray-200"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="overflow-y-auto space-y-5 p-5 md:p-7">
+          {cargando && <p className="py-8 text-center text-gray-500">Consultando trabajadores del mes...</p>}
+          {error && <p className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
+          {detalle && !cargando && <>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5"><p className="text-sm font-semibold text-emerald-800">Personas contratadas</p><p className="mt-1 text-4xl font-black text-emerald-800">{total}</p><p className="mt-1 text-xs text-emerald-800">Con fecha de ingreso en {nombreMes.toLowerCase()}</p></div>
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-5"><p className="text-sm font-semibold text-red-800">Con retiro registrado</p><p className="mt-1 text-4xl font-black text-red-800">{conRetiro}</p><p className="mt-1 text-xs text-red-800">Según último día laborado registrado</p></div>
+            </div>
+            <div><h3 className="mb-3 text-sm font-black text-gray-900">¿Después de cuántos días se retiraron?</h3><div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              {rangos.map((r) => <button key={r.clave} type="button" onClick={() => abrir(r)} className={`rounded-2xl border border-gray-200 ${r.bg} p-4 text-left transition hover:border-emerald-500 hover:shadow-md focus-visible:outline-emerald-600`}><p className={`text-3xl font-black ${r.color}`}>{Number(cantidades[r.clave] || 0)}</p><p className="mt-2 text-sm font-bold text-gray-800">{r.label}</p><p className="mt-2 text-xs font-semibold text-emerald-700">Ver trabajadores →</p></button>)}
+            </div></div>
+            <p className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs leading-5 text-gray-600">Cada trabajador aparece en un solo grupo. Los números son retiros registrados, no tasas ni porcentajes. Las fechas futuras o inconsistentes deben validarse antes de considerarlas retiros confirmados.</p>
+          </>}
+        </div>
+        <div className="border-t border-gray-100 px-5 py-3 text-right"><button type="button" onClick={onClose} className="rounded-xl bg-gray-900 px-5 py-2 text-sm font-bold text-white hover:bg-gray-800">Cerrar</button></div>
+      </div>
+      {rangoAbierto && <div className="fixed inset-0 z-[120]"><DetalleRangoRotacionModal detalle={rangoAbierto} periodo={`${nombreMes} de ${item.anio}`} onClose={() => setRangoAbierto(null)} /></div>}
+    </div>
+  );
+};
+
+const DetalleMesSeleccionModal = ({ periodo, onClose }) => {
+  const [detalle, setDetalle] = useState(null);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
+  const [busqueda, setBusqueda] = useState('');
+  const nombreMes = meses.find((m) => Number(m.value) === Number(periodo.numero_mes))?.label || `Mes ${periodo.numero_mes}`;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const cerrarEscape = (event) => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', cerrarEscape);
+    const consultar = async () => {
+      setCargando(true);
+      setError('');
+      try {
+        const params = new URLSearchParams({ anio: String(periodo.anio), mes: String(periodo.numero_mes) });
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/datos-seleccion/dashboard-indicadores?${params}`, { signal: controller.signal });
+        if (!response.ok) throw new Error(`No fue posible consultar el mes (HTTP ${response.status}).`);
+        setDetalle(await response.json());
+      } catch (e) {
+        if (e.name !== 'AbortError') setError(e.message || 'No fue posible consultar el detalle.');
+      } finally {
+        if (!controller.signal.aborted) setCargando(false);
+      }
+    };
+    consultar();
+    return () => { controller.abort(); window.removeEventListener('keydown', cerrarEscape); };
+  }, [periodo.anio, periodo.numero_mes]);
+
+  const tarjetas = detalle?.tarjetas || {};
+  const total = Number(tarjetas.registrados?.cantidad ?? detalle?.total ?? 0);
+  const estados = detalle?.estados || [];
+  const contratado = Number(tarjetas.contratados?.cantidad ?? estados.find((e) => String(e.estado).toUpperCase() === 'CONTRATADO')?.cantidad ?? 0);
+  const avanzan = Number(tarjetas.avanzan_contratacion?.cantidad ?? detalle?.avanza_contratacion ?? 0);
+  const rechazados = Number(tarjetas.rechazados_seleccion?.cantidad ?? detalle?.rechazados_seleccion ?? 0);
+  const motivos = detalle?.motivos_rechazo_generales_con_datos || detalle?.motivos_rechazo_con_datos || [];
+  const filtrados = estados.filter((e) => String(e.estado || '').toLowerCase().includes(busqueda.toLowerCase()));
+  const porcentaje = (cantidad) => total ? `${((Number(cantidad) / total) * 100).toFixed(1)}%` : '0%';
 
   return (
-    <div className="min-w-[230px] rounded-2xl border border-gray-200 bg-white p-4 shadow-xl">
-      <p className="text-sm font-black text-gray-900">
-        {item.etiqueta || 'Periodo'}
-      </p>
-      <p className="mt-1 text-xs text-gray-500">
-        Haz clic en el punto para consultar este mes.
-      </p>
-
-      <div className="mt-3 space-y-2 text-sm">
-        <div className="flex items-center justify-between gap-5">
-          <span className="font-semibold text-gray-600">Registrados</span>
-          <span className="font-black text-gray-900">{item.registrados || 0}</span>
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 p-3 md:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div role="dialog" aria-modal="true" aria-label={`Detalle de ${nombreMes} ${periodo.anio}`} className="flex w-full max-w-5xl max-h-[92vh] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-gray-200 bg-gray-50 px-5 py-5 md:px-7">
+          <div><p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Indicadores de Selección · Detalle mensual</p><h2 className="mt-1 text-2xl font-black text-gray-900">{nombreMes} de {periodo.anio}</h2><p className="mt-1 text-sm text-gray-500">Procesos de Selección registrados durante el mes, incluidos reintegros confirmados.</p></div>
+          <button type="button" onClick={onClose} aria-label="Cerrar detalle" className="rounded-xl p-2 hover:bg-gray-200"><X className="h-5 w-5" /></button>
         </div>
-
-        <div className="flex items-center justify-between gap-5">
-          <span className="font-semibold text-blue-700">Avanza a contratación</span>
-          <span className="font-black text-blue-700">{item.avanzan_contratacion || 0}</span>
+        <div className="overflow-y-auto p-5 md:p-7 space-y-6">
+          {cargando && <p className="py-10 text-center text-gray-500">Consultando información del mes...</p>}
+          {error && <p className="rounded-xl bg-red-50 p-4 text-red-700">{error}</p>}
+          {detalle && !cargando && (
+            <>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {[{ label: 'Registrados', n: total, color: 'text-teal-700' }, { label: 'Contratados', n: contratado, color: 'text-emerald-700' }, { label: 'Avanzan a contratación', n: avanzan, color: 'text-blue-700' }, { label: 'Rechazados', n: rechazados, color: 'text-red-700' }].map((item) => (
+                  <div key={item.label} className="rounded-2xl border border-gray-200 p-4"><p className="text-xs font-semibold text-gray-500">{item.label}</p><p className={`mt-2 text-3xl font-black ${item.color}`}>{item.n}</p><p className="text-xs text-gray-500">{porcentaje(item.n)} del total</p></div>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                <div className="rounded-2xl border border-gray-200 p-4">
+                  <h3 className="font-black text-gray-900">Distribución por estado</h3>
+                  <input type="search" value={busqueda} onChange={(event) => setBusqueda(event.target.value)} placeholder="Buscar estado..." className="mt-3 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                  <div className="mt-3 max-h-72 overflow-y-auto space-y-3">
+                    {filtrados.map((e, i) => <div key={`${e.estado}-${i}`}><div className="flex justify-between gap-2 text-sm"><span className="font-medium text-gray-700">{e.estado}</span><strong>{e.cantidad} · {porcentaje(e.cantidad)}</strong></div><div className="mt-1 h-2 rounded-full bg-gray-100"><div className="h-2 rounded-full bg-emerald-600" style={{ width: `${total ? Math.min(100, Number(e.cantidad) / total * 100) : 0}%` }} /></div></div>)}
+                    {!filtrados.length && <p className="text-sm text-gray-500">No hay estados para mostrar.</p>}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-gray-200 p-4">
+                  <h3 className="font-black text-gray-900">Motivos de rechazo</h3>
+                  <div className="mt-3 space-y-3">{motivos.length ? motivos.map((m, i) => <div key={`${m.motivo}-${i}`} className="flex justify-between gap-3 border-b border-gray-100 pb-2 text-sm"><span className="text-gray-700">{m.motivo}</span><strong>{m.cantidad}</strong></div>) : <p className="text-sm text-gray-500">No se registraron motivos de rechazo en este mes.</p>}</div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
-
-        <div className="flex items-center justify-between gap-5">
-          <span className="font-semibold text-red-700">Rechazados Selección</span>
-          <span className="font-black text-red-700">{item.rechazados_seleccion || 0}</span>
-        </div>
+        <div className="border-t border-gray-100 px-5 py-3 text-right"><button type="button" onClick={onClose} className="rounded-xl bg-gray-900 px-5 py-2 text-sm font-bold text-white hover:bg-gray-800">Cerrar</button></div>
       </div>
     </div>
   );
@@ -2601,3 +2677,52 @@ const EmptyChartMessage = ({ message }) => (
 );
 
 export default IndicadoresSeleccionView;
+
+const DetalleRangoRotacionModal = ({ detalle, periodo, onClose }) => {
+  const [busqueda, setBusqueda] = useState('');
+  const personas = Array.isArray(detalle?.personas) ? detalle.personas : [];
+  const visibles = personas.filter((persona) =>
+    `${persona.nombre_completo || ''} ${persona.numero_identificacion || ''}`
+      .toLocaleLowerCase('es-CO').includes(busqueda.trim().toLocaleLowerCase('es-CO')),
+  );
+  const fecha = (valor) => valor ? String(valor).slice(0, 10).split('-').reverse().join('/') : 'No registrada';
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-label={detalle.label} className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-start justify-between border-b border-gray-200 p-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">KPI 2 · Detalle de permanencia</p>
+            <h2 className="mt-1 text-xl font-bold text-gray-900">{detalle.label}</h2>
+            <p className="mt-1 text-sm text-gray-500">{periodo} · {detalle.value} registro{detalle.value === 1 ? '' : 's'}</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Cerrar" className="rounded-lg border px-3 py-1.5 text-sm font-semibold text-gray-600 hover:bg-gray-100">Cerrar ×</button>
+        </div>
+        <div className="border-b border-gray-100 p-4">
+          <input value={busqueda} onChange={(event) => setBusqueda(event.target.value)} placeholder="Buscar por nombre o identificación" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-teal-600" />
+        </div>
+        <div className="overflow-auto p-4">
+          {visibles.length ? (
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="bg-gray-50 text-xs uppercase text-gray-600"><tr>
+                <th className="p-3">Trabajador</th><th className="p-3">Identificación</th>
+                <th className="p-3">Ingreso</th><th className="p-3">Último día laborado</th>
+                <th className="p-3">Días</th><th className="p-3">Vinculación / ciclo</th>
+              </tr></thead>
+              <tbody className="divide-y divide-gray-100">{visibles.map((p, index) => (
+                <tr key={`${p.id_registro_personal}-${index}`} className="hover:bg-gray-50">
+                  <td className="p-3 font-semibold text-gray-900">{p.nombre_completo || 'Sin nombre'}</td>
+                  <td className="p-3">{p.numero_identificacion || '—'}</td>
+                  <td className="p-3">{fecha(p.fecha_ingreso)}</td>
+                  <td className="p-3">{fecha(p.fecha_retiro)}</td>
+                  <td className="p-3 font-semibold">{p.dias_permanencia ?? '—'}</td>
+                  <td className="p-3">{p.tipo_vinculacion || 'Sin ciclo registrado'}{p.numero_ciclo ? ` · Ciclo ${p.numero_ciclo}` : ''}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          ) : <p className="py-8 text-center text-sm text-gray-500">{personas.length ? 'No hay coincidencias con la búsqueda.' : 'No hay trabajadores en este rango para el período seleccionado.'}</p>}
+        </div>
+        <p className="border-t border-gray-100 px-5 py-3 text-xs text-gray-500">El mes corresponde a la fecha de ingreso. Las fechas de retiro provienen del Paz y Salvo de Operaciones.</p>
+      </div>
+    </div>
+  );
+};
