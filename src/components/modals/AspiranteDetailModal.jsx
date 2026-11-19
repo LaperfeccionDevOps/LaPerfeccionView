@@ -96,6 +96,9 @@ const documentosSeguridad = [
   { id: 73, label: 'Tratamiento de datos' }
 ];
 
+const IDS_SEGURIDAD_OPCIONALES = new Set([58, 61, 60, 15]);
+const documentosSeguridadObligatorios = documentosSeguridad.filter(d => !IDS_SEGURIDAD_OPCIONALES.has(d.id) && ![67, 68].includes(d.id));
+
 export const estadoProceso = [
   { id: 18, label: 'Nuevo' },
   { id: 19, label: 'Entrevista' },
@@ -928,6 +931,8 @@ const AspiranteDetailModal = ({ isOpen, onClose, aspirante, onSave }) => {
    const pendientesIngresoSeleccion = requisitosObligatorios.filter(
       (req) => !existeDocumentoIndicador(docsIngresoIndicador, req.id)
    ).length;
+   // El indicador cuenta TODOS los documentos sin adjuntar, incluidos los opcionales.
+   // La obligatoriedad para avanzar a Contratación se valida por separado.
    const pendientesSeguridadSeleccion = documentosSeguridad.filter(
       (req) => !existeDocumentoIndicador(docsSeguridadIndicador, req.id) &&
          !(String(req.id) === '73' && existeDocumentoIndicador(docsIngresoIndicador, 42))
@@ -1821,6 +1826,66 @@ console.log('campos completos:', campos);
       }
     }
 
+    // QA: verificar el documento 68 persistido antes de solicitar el estado 24.
+    if (estadoInt === 24) {
+      try {
+        const idVinculacion = detalleCiclos?.esReintegroActual
+          ? detalleCiclos?.vinculacionActual?.IdVinculacionLaboral
+          : null;
+        const respuestaDocumentos = idVinculacion
+          ? await obtenerDocumentoSeguridadBase64PorVinculacion(formData.idRegistroPersonal, idVinculacion)
+          : await getDocumentosSeguridad(formData.idRegistroPersonal);
+        const documentosGuardados = Array.isArray(respuestaDocumentos?.data)
+          ? respuestaDocumentos.data : [];
+        const referenciaAdjunta = documentosGuardados.some(doc =>
+          Number(doc.IdTipoDocumentacion) === 68 &&
+          Boolean(doc.DocumentoCargado || doc.DocumentoBase64 || doc.IdDocumento)
+        );
+        if (!referenciaAdjunta) {
+          setAlertaReferenciacionObligatoria(true);
+          return;
+        }
+      } catch (error) {
+        toast({
+          title: 'No fue posible verificar la referenciación laboral',
+          description: 'Intente nuevamente. El estado no se ha modificado.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    // QA: documentos obligatorios de Seguridad, excluyendo entrevista y referencias
+    // (ya validadas arriba) y los tres tipos expresamente opcionales.
+    if (estadoInt === 24) {
+      try {
+        const idVinculacion = detalleCiclos?.esReintegroActual
+          ? detalleCiclos?.vinculacionActual?.IdVinculacionLaboral : null;
+        const respuesta = idVinculacion
+          ? await obtenerDocumentoSeguridadBase64PorVinculacion(formData.idRegistroPersonal, idVinculacion)
+          : await getDocumentosSeguridad(formData.idRegistroPersonal);
+        const guardados = Array.isArray(respuesta?.data) ? respuesta.data : [];
+        const idsGuardados = new Set(guardados.filter(d =>
+          Boolean(d.DocumentoCargado || d.DocumentoBase64 || d.IdDocumento)
+        ).map(d => Number(d.IdTipoDocumentacion)));
+        // Compatibilidad existente: tratamiento de datos puede estar representado por firma digital (42).
+        const ingreso = Array.isArray(formData?.documentos) ? formData.documentos : [];
+        const tieneFirma = ingreso.some(d => Number(d.IdTipoDocumentacion) === 42 &&
+          Boolean(d.DocumentoCargado || d.DocumentoBase64 || d.IdDocumento));
+        const faltantes = documentosSeguridadObligatorios.filter(d =>
+          !idsGuardados.has(d.id) && !(d.id === 73 && tieneFirma)
+        );
+        if (faltantes.length) {
+          setDocumentosSeguridadFaltantes(faltantes.map(d => d.label));
+          return;
+        }
+      } catch (error) {
+        toast({title: 'No fue posible verificar los documentos de Seguridad',
+          description: 'Intente nuevamente. El estado no se ha modificado.', variant: 'destructive'});
+        return;
+      }
+    }
+
     const response = await ActualizarEstadoProcesoService(
       formData.idRegistroPersonal,
       estadoInt,
@@ -1868,6 +1933,14 @@ console.log('campos completos:', campos);
     }
   } catch (error) {
     const detalleError = String(error?.response?.data?.detail || error?.message || '');
+    if (detalleError.includes('documentos obligatorios de Seguridad')) {
+      setDocumentosSeguridadFaltantes(detalleError.split('Documentos pendientes:')[1]?.trim().split(';').map(s => s.trim()).filter(Boolean) || ['Revise los documentos de Seguridad']);
+      return;
+    }
+    if (detalleError.includes('confirmación de referencias laborales')) {
+      setAlertaReferenciacionObligatoria(true);
+      return;
+    }
     if (detalleError.includes('entrevista de Selección')) {
       setAlertaEntrevistaObligatoria(true);
       return;
@@ -1953,6 +2026,8 @@ const soloNumeros = (valor) => valor.replace(/[^0-9]/g, '');
   // Entrevista Modal State
   const [entrevistaModalOpen, setEntrevistaModalOpen] = useState(false);
   const [alertaEntrevistaObligatoria, setAlertaEntrevistaObligatoria] = useState(false);
+  const [alertaReferenciacionObligatoria, setAlertaReferenciacionObligatoria] = useState(false);
+  const [documentosSeguridadFaltantes, setDocumentosSeguridadFaltantes] = useState([]);
   const [selectedEntrevista, setSelectedEntrevista] = useState(null);
 
   // ✅ (CAMBIO) Estados para el Select "Estado del Proceso General"
@@ -4958,7 +5033,7 @@ if (response && response.status === 201) {
                                                    <h4 className="font-semibold text-gray-800 mb-3 text-sm leading-tight min-h-[40px]">{seguridadDoc.label}</h4>
                                                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium mb-4 border ${hasFile ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-600 border-red-100'}`}> 
                                                       {hasFile ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />} 
-                                                      {hasFile ? 'Adjuntado' : 'Falta adjuntar'}
+                                                      {hasFile ? 'Adjuntado' : IDS_SEGURIDAD_OPCIONALES.has(seguridadDoc.id) ? 'Opcional' : 'Falta adjuntar'}
                                                    </div>
                                                 </div>
                                                 <div className="space-y-3">
@@ -5470,6 +5545,40 @@ if (response && response.status === 201) {
         <DialogFooter>
           <Button type="button" onClick={() => setAlertaEntrevistaObligatoria(false)} className="bg-emerald-600 font-semibold text-white hover:bg-emerald-700" style={{ color: "#ffffff" }}>Entendido</Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog open={alertaReferenciacionObligatoria} onOpenChange={setAlertaReferenciacionObligatoria}>
+      <DialogContent className="max-w-lg rounded-2xl border-2 border-red-200 p-7 shadow-2xl" style={{ backgroundColor: "#ffffff", color: "#111827", opacity: 1 }}>
+        <DialogHeader>
+          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-red-100">
+            <AlertCircle className="h-8 w-8 text-red-600" />
+          </div>
+          <DialogTitle className="text-xl font-bold" style={{ color: "#b91c1c" }}>No es posible avanzar a Contratación</DialogTitle>
+          <DialogDescription className="pt-3 text-base font-medium leading-7" style={{ color: "#1f2937", opacity: 1 }}>
+            Este aspirante aún no tiene adjunta la confirmación de referencias laborales en los documentos de Seguridad de Selección para su proceso actual.
+            Realice y guarde la referenciación antes de avanzar al estado 24 — Avanza a Contratación.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button type="button" onClick={() => setAlertaReferenciacionObligatoria(false)} className="bg-emerald-600 font-semibold text-white hover:bg-emerald-700" style={{ color: "#ffffff" }}>Entendido</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog open={documentosSeguridadFaltantes.length > 0} onOpenChange={(open) => {if (!open) setDocumentosSeguridadFaltantes([]);}}>
+      <DialogContent className="max-w-lg rounded-2xl border-2 border-red-200 p-7 shadow-2xl" style={{backgroundColor:'#ffffff', color:'#111827'}}>
+        <DialogHeader>
+          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-red-100"><AlertCircle className="h-8 w-8 text-red-600" /></div>
+          <DialogTitle className="text-xl font-bold" style={{color:'#b91c1c'}}>No es posible avanzar a Contratación</DialogTitle>
+          <DialogDescription className="pt-3 text-base font-medium leading-7" style={{color:'#1f2937'}}>
+            Este aspirante tiene documentos obligatorios pendientes en Seguridad de Selección. Adjunte los siguientes documentos antes de avanzar al estado 24:
+          </DialogDescription>
+        </DialogHeader>
+        <ul className="list-disc pl-6 text-sm text-gray-800 max-h-52 overflow-y-auto">
+          {documentosSeguridadFaltantes.map((nombre, i) => <li key={i}>{nombre}</li>)}
+        </ul>
+        <DialogFooter><Button type="button" onClick={() => setDocumentosSeguridadFaltantes([])} className="bg-emerald-600 text-white hover:bg-emerald-700">Entendido</Button></DialogFooter>
       </DialogContent>
     </Dialog>
 

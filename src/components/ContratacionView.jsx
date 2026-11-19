@@ -27,7 +27,9 @@ import {
   Landmark,
   Shield,
   FileSignature,
-  FileSpreadsheet
+  FileSpreadsheet,
+  AlertCircle,
+  X
 } from 'lucide-react';
 
 import { useNavigate } from 'react-router-dom';
@@ -954,6 +956,9 @@ const ContratacionView = () => {
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
 
+  // Alerta exclusiva de documentos obligatorios: arriba y centrada.
+  const [alertaDocumentosContratacion, setAlertaDocumentosContratacion] = useState(null);
+
   // ✅ VISUAL: Modal No Contratado (solo UI por ahora)
   const [ncModal, setNcModal] = useState({ isOpen: false, aspirante: null });
   const [ncObservacion, setNcObservacion] = useState('');
@@ -1056,11 +1061,28 @@ const ContratacionView = () => {
         // refresca tabla desde backend
         if (typeof loadAspirantes === 'function') loadAspirantes();
       } else {
-        toast({
-          title: '❌ Error al actualizar',
-          description: resp?.data?.detail || 'No se pudo marcar como contratado.',
-          variant: 'destructive',
-        });
+        const detalle = resp?.data?.detail;
+        const faltantes = Array.isArray(detalle?.documentosFaltantes)
+          ? detalle.documentosFaltantes
+          : [];
+        const descripcion = faltantes.length
+          ? `${detalle.mensaje} Faltan (${faltantes.length}): ${faltantes.map((doc) => doc.nombre).join(', ')}.`
+          : typeof detalle === 'string'
+            ? detalle
+            : detalle?.mensaje || 'No se pudo marcar como contratado.';
+
+        if (faltantes.length) {
+          setAlertaDocumentosContratacion({
+            mensaje: detalle?.mensaje || 'No se puede marcar como contratado.',
+            faltantes: faltantes.map((doc) => doc.nombre),
+          });
+        } else {
+          toast({
+            title: '❌ Error al actualizar',
+            description: descripcion,
+            variant: 'destructive',
+          });
+        }
       }
     };
   // ------------------------------
@@ -1973,6 +1995,43 @@ const currentIdsKey = currentItems
 
   return (
     <>
+      {alertaDocumentosContratacion && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/25 px-4 py-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setAlertaDocumentosContratacion(null); }}>
+          <div role="alertdialog" aria-modal="true" aria-labelledby="titulo-documentos-pendientes" aria-describedby="descripcion-documentos-pendientes" className="w-full max-w-[590px] max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50">
+                <AlertCircle className="h-5 w-5 text-amber-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 id="titulo-documentos-pendientes" className="text-base font-semibold text-slate-800">Documentación pendiente</h2>
+                <p className="mt-0.5 text-xs text-slate-500">Validación de contratación</p>
+              </div>
+              <button type="button" onClick={() => setAlertaDocumentosContratacion(null)} aria-label="Cerrar alerta" className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4 px-5 py-4 sm:px-6">
+              <p id="descripcion-documentos-pendientes" className="text-sm leading-6 text-slate-600">
+                No es posible marcar al aspirante como contratado. Hay <span className="font-semibold text-slate-800">{alertaDocumentosContratacion.faltantes.length} documentos obligatorios</span> pendientes de adjuntar.
+              </p>
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-600">Documentos por completar</p>
+                <ul className="grid grid-cols-1 gap-x-5 gap-y-2 sm:grid-cols-2">
+                  {alertaDocumentosContratacion.faltantes.map((nombre, indice) => (
+                    <li key={`${indice}-${nombre}`} className="flex items-start gap-2 text-xs leading-5 text-slate-700">
+                      <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                      <span>{nombre}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <div className="flex justify-end border-t border-slate-100 px-5 py-3 sm:px-6">
+              <button type="button" onClick={() => setAlertaDocumentosContratacion(null)} className="rounded-lg bg-emerald-700 px-5 py-2 text-sm font-medium text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">Entendido</button>
+            </div>
+          </div>
+        </div>
+      )}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
         <div className="bg-white rounded-2xl shadow-xl p-8 border-t-4 border-emerald-600">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
