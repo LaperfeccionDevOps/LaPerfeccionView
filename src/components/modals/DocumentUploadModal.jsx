@@ -1654,7 +1654,7 @@ const eliminarDocumentoActivoFront = async (idDocumento) => {
               </div>
 
               <div className="space-y-3">
-              {!['91', '90'].includes(String(grupo.IdTipoDocumentacion)) && (
+              {!['91', '90', '36'].includes(String(grupo.IdTipoDocumentacion)) && (
                   <div className="relative">
                     <input
                       type="file"
@@ -1714,7 +1714,7 @@ const eliminarDocumentoActivoFront = async (idDocumento) => {
                           <Download className="w-4 h-4" />
                         </button>
 
-                      {!['91', '90'].includes(String(grupo.IdTipoDocumentacion)) && (
+                      {!['91', '90', '36'].includes(String(grupo.IdTipoDocumentacion)) && (
                           <button
                             type="button"
                             title="Eliminar"
