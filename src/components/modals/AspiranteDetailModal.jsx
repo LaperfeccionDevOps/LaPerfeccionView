@@ -142,6 +142,7 @@ const clientesALP = [
    { id: 222, name: "Bel Medicina SAS S Cl 110 9 25 CS 601 1701 Aseo general y especializado" },
    { id: 212, name: "Bel Medicina SAS S Cl 110 9 25 CS 601 1701 Salud" },
    { id: 26, name: "Caja De Compensación Familiar Cafam S Ak 68 64 45 Piscinas" },
+   { id: 241, name: "Cantik Colombia SAS S Cajica Km 7 via Chia - Cajica C.E. San Roque To E OF 508 salud" },
    { id: 221, name: "CENTRO COMERCIAL Y DE NEGOCIOS ANDINO PH CR 11 82-71 MANTENIMIENTO DE CUBIERTAS" },
    { id: 27, name: "Centro aud. y quirúrgico del country S Cl 97 23 37 PISO 10 Mantenimiento General" },
    { id: 28, name: "Centro aud. y quirúrgico del country S Cl 97 23-37 PISO 10 Salud" },
