@@ -1,6 +1,7 @@
 import React from "react";
 import { Moon, Sun, SunMoon } from "lucide-react";
 
+import { TURNOS } from "@/components/contabilidad/LineaAsignacion";
 import { cn } from "@/lib/utils";
 
 // "06:00:00" -> "06:00"
@@ -23,9 +24,18 @@ export const textoHorario = (h) => {
   return `${hora(h.hora_inicio)} – ${hora(h.hora_fin)}${extra ? ` (${extra})` : ""}`;
 };
 
-// Diurno sin horas nocturnas; nocturno cuando casi todo el turno lo es
-// (las nocturnas no descuentan descansos, por eso se compara con margen).
+// "3 operario(s)" o, con dedicación parcial, "0,3 operario(s) equivalente(s) (1 persona(s))".
+export const textoOperarios = (a) =>
+  a.total_personas === undefined || Number(a.total_operarios) === Number(a.total_personas)
+    ? `${Number(a.total_operarios).toLocaleString("es-CO")} operario(s)`
+    : `${Number(a.total_operarios).toLocaleString("es-CO")} operario(s) equivalente(s) (${a.total_personas} persona(s))`;
+
+// Líneas con tipo de turno; las registradas antes se clasifican por sus horas
+// (diurno sin nocturnas, nocturno cuando casi todo el turno lo es).
 const tipoHorario = (l) => {
+  if (TURNOS[l.tipo_turno]) {
+    return TURNOS[l.tipo_turno];
+  }
   if (!Number(l.horas_nocturnas_semana)) {
     return { nombre: "Diurno", icono: Sun, clase: "bg-sky-50 text-sky-700" };
   }
@@ -43,7 +53,10 @@ const numero = (valor) => Number(valor).toLocaleString("es-CO", { maximumFractio
  * dominical de todos los operarios con su porcentaje legal vigente.
  */
 const TablaAsignacion = ({ lineas, parametro }) => {
-  const total = (campo) => lineas.reduce((suma, l) => suma + l.cantidad_operarios * Number(l[campo]), 0);
+  // Operarios equivalentes (personas × dedicación) × horas por operario.
+  const equivalentes = (l) => Number(l.operarios_equivalentes ?? l.cantidad_operarios);
+  const total = (campo) => lineas.reduce((suma, l) => suma + equivalentes(l) * Number(l[campo]), 0);
+  const hayParcial = lineas.some((l) => Number(l.dedicacion ?? 1) < 1);
   const nocturnas = total("horas_nocturnas_semana");
   const dominicales = total("horas_dominicales_semana");
   const nocturnasDominicales = total("horas_nocturnas_dominicales_semana");
@@ -56,9 +69,13 @@ const TablaAsignacion = ({ lineas, parametro }) => {
             <tr>
               <th className="px-3 py-3">Cargo</th>
               <th className="px-3 py-3 text-right">Operarios</th>
+              {hayParcial && (
+                <th className="px-3 py-3 text-right" title="Parte del tiempo de cada operario (base 24 días hábiles al mes)">
+                  Dedicación
+                </th>
+              )}
               <th className="px-3 py-3">Días</th>
-              <th className="px-3 py-3">Horario</th>
-              <th className="px-3 py-3">Tipo</th>
+              <th className="px-3 py-3">Turno</th>
               <th className="px-3 py-3 text-right">H/semana</th>
               <th className="px-3 py-3 text-right">Nocturnas</th>
               <th className="px-3 py-3 text-right">Dominicales</th>
@@ -74,6 +91,14 @@ const TablaAsignacion = ({ lineas, parametro }) => {
                 <tr key={l.id_detalle} className="align-top">
                   <td className="px-3 py-3 text-gray-800">{l.cargo}</td>
                   <td className="px-3 py-3 text-right font-semibold text-gray-800">{l.cantidad_operarios}</td>
+                  {hayParcial && (
+                    <td className="px-3 py-3 text-right text-gray-700">
+                      <p>{Number(l.dedicacion ?? 1).toLocaleString("es-CO", { maximumFractionDigits: 4 })}</p>
+                      {Number(l.dedicacion ?? 1) < 1 && (
+                        <p className="whitespace-nowrap text-xs text-gray-500">= {numero(equivalentes(l))} equiv.</p>
+                      )}
+                    </td>
+                  )}
                   <td className="px-3 py-3 text-gray-700">
                     <p>{l.modalidad}</p>
                     {l.descansa_dia_entre_semana && (
@@ -81,16 +106,30 @@ const TablaAsignacion = ({ lineas, parametro }) => {
                     )}
                   </td>
                   <td className="px-3 py-3 text-gray-700">
-                    <p>{textoHorario(l.horario_general)}</p>
-                    {l.horario_sabado && (
-                      <p className="text-xs text-gray-500">Sábado: {textoHorario(l.horario_sabado)}</p>
-                    )}
-                  </td>
-                  <td className="px-3 py-3">
                     <span className={cn("inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold", tipo.clase)}>
                       <Icono className="h-3.5 w-3.5" />
                       {tipo.nombre}
                     </span>
+                    {l.tipo_turno ? (
+                      <p className="mt-1 text-xs text-gray-500">
+                        {numero(l.horas_dia)} h por día
+                        {l.resumen_salidas
+                          ? ` · ${l.resumen_salidas}`
+                          : l.hora_inicio_turno && ` · ${l.hora_inicio_turno} a ${l.hora_fin_turno}`}
+                      </p>
+                    ) : null}
+                    {l.tipo_turno && l.hora_inicio_domingo ? (
+                      <p className="text-xs text-gray-500">
+                        Domingo: {l.hora_inicio_domingo} a {l.hora_fin_domingo}
+                      </p>
+                    ) : (
+                      l.horario_general && (
+                        <p className="mt-1 text-xs text-gray-500">
+                          Horario anterior: {textoHorario(l.horario_general)}
+                          {l.horario_sabado && `; sábado ${textoHorario(l.horario_sabado)}`}
+                        </p>
+                      )
+                    )}
                   </td>
                   <td className="px-3 py-3 text-right text-gray-700">{numero(l.horas_semana)}</td>
                   <td className="px-3 py-3 text-right text-gray-700">{numero(l.horas_nocturnas_semana)}</td>
@@ -103,8 +142,9 @@ const TablaAsignacion = ({ lineas, parametro }) => {
         </table>
       </div>
       <p className="text-xs text-gray-500">
-        Horas por operario y por semana. Los descansos se descuentan de la franja donde caen (diurna,
-        nocturna o dominical). Las nocturnas dominicales ya están incluidas en las nocturnas y en las dominicales.
+        Horas por operario y por semana, repartidas por igual entre los días trabajados. Las nocturnas
+        dominicales ya están incluidas en las nocturnas y en las dominicales.
+        {hayParcial && " Los totales de recargo usan los operarios equivalentes (operarios × dedicación)."}
       </p>
 
       {parametro && (
@@ -113,7 +153,7 @@ const TablaAsignacion = ({ lineas, parametro }) => {
             <p className="text-xs font-bold uppercase text-indigo-800">Recargo nocturno</p>
             <p className="text-lg font-bold text-indigo-900">{numero(nocturnas)} h/semana</p>
             <p className="text-xs text-indigo-700">
-              Todos los operarios · {numero(parametro.porcentaje_recargo_nocturno)} % entre las{" "}
+              Todos los operarios{hayParcial && " (equivalentes)"} · {numero(parametro.porcentaje_recargo_nocturno)} % entre las{" "}
               {hora(parametro.hora_inicio_nocturna)} y las {hora(parametro.hora_fin_nocturna)}
             </p>
           </div>
@@ -121,7 +161,7 @@ const TablaAsignacion = ({ lineas, parametro }) => {
             <p className="text-xs font-bold uppercase text-amber-800">Recargo dominical</p>
             <p className="text-lg font-bold text-amber-900">{numero(dominicales)} h/semana</p>
             <p className="text-xs text-amber-700">
-              Todos los operarios · {numero(parametro.porcentaje_recargo_dominical)} % (festivos aparte)
+              Todos los operarios{hayParcial && " (equivalentes)"} · {numero(parametro.porcentaje_recargo_dominical)} % (festivos aparte)
             </p>
           </div>
           <div className="rounded-2xl bg-fuchsia-50 px-4 py-3">

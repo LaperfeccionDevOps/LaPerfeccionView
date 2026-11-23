@@ -20,6 +20,9 @@ const normalizar = (valor) =>
  * `listaEnLinea`: la lista se abre dentro de la página (empuja el contenido) y
  * más alta, en lugar de flotar encima; útil en formularios con listas largas.
  * Al abrirse, la página se desplaza lo necesario para que la lista se vea.
+ * `sugeridas`: ids que se muestran primero bajo `tituloSugeridas`; las demás
+ *   quedan detrás de "Ver todas" (al escribir se busca en todas). Sin
+ *   sugeridas, la lista es la de siempre.
  */
 const FiltroBuscable = ({
   id,
@@ -31,9 +34,13 @@ const FiltroBuscable = ({
   disabled = false,
   listaEnLinea = false,
   compacto = false,
+  sugeridas = null,
+  tituloSugeridas = "Sugeridas",
+  textoVerTodas = "Ver todas las opciones",
 }) => {
   const [abierto, setAbierto] = useState(false);
   const [texto, setTexto] = useState("");
+  const [verTodas, setVerTodas] = useState(false);
   const contenedorRef = useRef(null);
   const listaRef = useRef(null);
 
@@ -68,11 +75,45 @@ const FiltroBuscable = ({
     );
   }, [opciones, texto]);
 
+  // Sugeridas primero (solo las que están entre las opciones) y luego las demás.
+  const idsSugeridas = useMemo(() => new Set((sugeridas || []).map(String)), [sugeridas]);
+  const listaSugeridas = filtradas.filter((o) => idsSugeridas.has(String(o.id)));
+  const conSugeridas = opciones.some((o) => idsSugeridas.has(String(o.id)));
+  const otras = conSugeridas ? filtradas.filter((o) => !idsSugeridas.has(String(o.id))) : filtradas;
+  // Sin escribir, las demás se ven al pedirlo; al buscar se busca en todas.
+  const mostrarOtras = !conSugeridas || verTodas || Boolean(normalizar(texto));
+
+  useEffect(() => {
+    if (!abierto) {
+      setVerTodas(false);
+    }
+  }, [abierto]);
+
   const elegir = (opcion) => {
     onChange(opcion ? String(opcion.id) : "");
     setTexto("");
     setAbierto(false);
   };
+
+  const renglon = (opcion) => (
+    <li key={opcion.id}>
+      <button
+        type="button"
+        onClick={() => elegir(opcion)}
+        className={cn(
+          "w-full px-3 py-2 text-left hover:bg-emerald-50",
+          String(opcion.id) === String(valor) && "bg-emerald-50"
+        )}
+      >
+        <span className="block text-sm text-gray-800">{opcion.etiqueta}</span>
+        {opcion.detalle && <span className="block text-xs text-gray-500">{opcion.detalle}</span>}
+      </button>
+    </li>
+  );
+
+  const titulo = (contenido) => (
+    <li className="px-3 pb-1 pt-2 text-[11px] font-bold uppercase tracking-wide text-emerald-700">{contenido}</li>
+  );
 
   return (
     <div ref={contenedorRef} className="relative space-y-1">
@@ -172,23 +213,34 @@ const FiltroBuscable = ({
             <li className="px-3 py-2 text-sm text-gray-400">Sin coincidencias.</li>
           )}
 
-          {filtradas.map((opcion) => (
-            <li key={opcion.id}>
+          {conSugeridas && listaSugeridas.length > 0 && (
+            <>
+              {titulo(tituloSugeridas)}
+              {listaSugeridas.map(renglon)}
+            </>
+          )}
+
+          {conSugeridas && !mostrarOtras && otras.length > 0 && (
+            <li className="border-t border-gray-100">
               <button
                 type="button"
-                onClick={() => elegir(opcion)}
-                className={cn(
-                  "w-full px-3 py-2 text-left hover:bg-emerald-50",
-                  String(opcion.id) === String(valor) && "bg-emerald-50"
-                )}
+                onClick={() => setVerTodas(true)}
+                className="w-full px-3 py-2 text-left text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
               >
-                <span className="block text-sm text-gray-800">{opcion.etiqueta}</span>
-                {opcion.detalle && (
-                  <span className="block text-xs text-gray-500">{opcion.detalle}</span>
-                )}
+                {textoVerTodas} ({opciones.length}) ▾
               </button>
             </li>
-          ))}
+          )}
+
+          {mostrarOtras && otras.length > 0 && (
+            <>
+              {conSugeridas && (
+                <li className="border-t border-gray-100" aria-hidden="true" />
+              )}
+              {conSugeridas && titulo("Otras opciones")}
+              {otras.map(renglon)}
+            </>
+          )}
         </ul>
       )}
     </div>

@@ -2,8 +2,7 @@ import React, { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, History, Loader2, PencilLine, StopCircle, Users } from "lucide-react";
 
 import FormularioAsignacion, { hoyISO } from "@/components/contabilidad/FormularioAsignacion";
-import { HORARIO_VACIO } from "@/components/contabilidad/LineaAsignacion";
-import TablaAsignacion from "@/components/contabilidad/TablaAsignacion";
+import TablaAsignacion, { textoOperarios } from "@/components/contabilidad/TablaAsignacion";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,37 +20,23 @@ import {
 
 // "2026-10-30" -> "30/10/2026" (sin zona horaria, para no correr el día).
 const formatearFecha = (valor) => (valor ? valor.split("-").reverse().join("/") : "—");
-// "06:00:00" -> "06:00"
-const hora = (valor) => (valor || "").slice(0, 5);
-
-// Línea guardada -> línea del formulario, para partir de la vigente.
-const aFormulario = (l) => {
-  const horario = (h) =>
-    h
-      ? {
-          inicio: hora(h.hora_inicio),
-          fin: hora(h.hora_fin),
-          desayuno: h.minutos_desayuno,
-          almuerzo: h.minutos_almuerzo,
-          cena: h.minutos_cena,
-          horaDesayuno: hora(h.hora_desayuno),
-          horaAlmuerzo: hora(h.hora_almuerzo),
-          horaCena: hora(h.hora_cena),
-        }
-      : { ...HORARIO_VACIO };
-
-  return {
-    clave: crypto.randomUUID(),
-    idCargo: String(l.id_cargo),
-    cantidad: l.cantidad_operarios,
-    modalidad: l.codigo_modalidad,
-    general: horario(l.horario_general),
-    sabadoDistinto: Boolean(l.horario_sabado),
-    sabado: horario(l.horario_sabado),
-    descansaEntreSemana: l.descansa_dia_entre_semana,
-    observacion: l.observacion || "",
-  };
-};
+// Línea guardada -> línea del formulario, para partir de la vigente. Las
+// líneas registradas antes de los tipos de turno quedan sin turno elegido.
+const aFormulario = (l) => ({
+  clave: crypto.randomUUID(),
+  idCargo: String(l.id_cargo),
+  cantidad: l.cantidad_operarios,
+  dedicacion: Number(l.dedicacion ?? 1),
+  modalidad: l.codigo_modalidad,
+  tipoTurno: l.tipo_turno || "",
+  horaFin: l.hora_fin_turno || "",
+  descansaEntreSemana: l.descansa_dia_entre_semana,
+  domingoDistinto: Boolean(l.hora_fin_domingo),
+  horaFinDomingo: l.hora_fin_domingo || "",
+  salidaPorDia: Boolean(l.salidas_por_dia),
+  salidasDia: l.salidas_por_dia || {},
+  observacion: l.observacion || "",
+});
 
 /**
  * Asignación de operarios de un centro de costo: la vigente con sus líneas,
@@ -154,8 +139,11 @@ const AsignacionCentroCostoDialog = ({ idCentro, onClose }) => {
                   <FormularioAsignacion
                     idCentro={idCentro}
                     catalogos={catalogos}
+                    cen4={datos.centro.cen4}
+                    cen5={datos.centro.cen5}
                     lineasIniciales={vigente?.lineas.map(aFormulario)}
                     fechaMinima={vigente?.fecha_desde}
+                    fechaMaxima={datos.centro.fecha_inicio_proyecto}
                     onGuardado={(respuesta) => {
                       setDatos(respuesta);
                       setEditando(false);
@@ -177,7 +165,7 @@ const AsignacionCentroCostoDialog = ({ idCentro, onClose }) => {
                     <div>
                       <h3 className="flex items-center gap-2 font-semibold text-gray-800">
                         <Users className="h-4 w-4" />
-                        Asignación vigente: {vigente.total_operarios} operario(s)
+                        Asignación vigente: {textoOperarios(vigente)}
                       </h3>
                       <p className="text-sm text-gray-500">
                         Desde el {formatearFecha(vigente.fecha_desde)} · registrada por {vigente.creado_por}
@@ -260,7 +248,7 @@ const AsignacionCentroCostoDialog = ({ idCentro, onClose }) => {
                       <li key={a.id_asignacion} className="rounded-2xl border border-gray-100 px-4 py-3 text-sm">
                         <p className="text-gray-800">
                           Del {formatearFecha(a.fecha_desde)} al {formatearFecha(a.fecha_hasta)} ·{" "}
-                          <span className="font-semibold">{a.total_operarios} operario(s)</span>
+                          <span className="font-semibold">{textoOperarios(a)}</span>
                         </p>
                         <p className="text-xs text-gray-500">
                           Registrada por {a.creado_por}

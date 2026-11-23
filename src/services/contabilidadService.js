@@ -158,12 +158,59 @@ export const cambiarEstadoCentroCosto = async (idCentro, accion, { fecha, motivo
   return procesarRespuesta(response);
 };
 
+// Excel de centros de costo con su asignación vigente. `estado`: ABIERTO,
+// CERRADO o null (todos); `idProyectos`: vacío = todos los clientes.
+export const exportarCentrosCosto = async ({ estado, idProyectos }) => {
+  const parametros = new URLSearchParams();
+  if (estado) {
+    parametros.append("estado", estado);
+  }
+  (idProyectos || []).forEach((id) => parametros.append("id_proyecto", id));
+
+  const response = await fetch(getApiUrl(`${RUTA}/exportar?${parametros.toString()}`), {
+    headers: construirHeaders(),
+  });
+
+  if (!response.ok) {
+    // Los errores llegan en JSON; procesarRespuesta da el mensaje.
+    await procesarRespuesta(response);
+  }
+
+  const fecha = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date());
+  return { blob: await response.blob(), nombre: `centros_costo_${fecha}.xlsx` };
+};
+
+// Ajusta la fecha de inicio (proyección) y la de fin (opcional) del proyecto.
+export const ajustarFechasProyecto = async (idCentro, { fechaInicio, fechaFin, motivo }) => {
+  const response = await fetch(getApiUrl(`${RUTA}/${idCentro}/fechas-proyecto`), {
+    method: "POST",
+    headers: construirHeaders(),
+    body: JSON.stringify({
+      fecha_inicio_proyecto: fechaInicio,
+      fecha_fin_proyecto: fechaFin || null,
+      motivo,
+    }),
+  });
+
+  return procesarRespuesta(response);
+};
+
 // ─── Asignación de operarios ───
 const RUTA_ASIGNACIONES = "/contabilidad/asignaciones";
 
 // Modalidades de días, cargos activos y parámetros legales vigentes.
 export const obtenerCatalogosAsignacion = async () => {
   const response = await fetch(getApiUrl(`${RUTA_ASIGNACIONES}/catalogos`), {
+    headers: construirHeaders(),
+  });
+
+  return procesarRespuesta(response);
+};
+
+// Cargos sugeridos de la combinación CEN4 + CEN5: { ids } (vacía si no hay).
+export const obtenerCargosSugeridos = async (cen4, cen5) => {
+  const parametros = new URLSearchParams({ cen4, cen5 });
+  const response = await fetch(getApiUrl(`${RUTA_ASIGNACIONES}/cargos-sugeridos?${parametros}`), {
     headers: construirHeaders(),
   });
 

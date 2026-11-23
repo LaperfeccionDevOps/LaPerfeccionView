@@ -1,10 +1,17 @@
 import React, { useState } from "react";
 import { Loader2, Plus, Save } from "lucide-react";
 
-import LineaAsignacion, { horarioApi, lineaVacia } from "@/components/contabilidad/LineaAsignacion";
+import LineaAsignacion, {
+  equivalentesLinea,
+  lineaVacia,
+  turnoApi,
+  useCargosSugeridos,
+} from "@/components/contabilidad/LineaAsignacion";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import { guardarAsignacionCentro } from "@/services/contabilidadService";
+
+const numero = (valor) => Number(valor).toLocaleString("es-CO", { maximumFractionDigits: 2 });
 
 // Fecha de hoy en Bogotá como "AAAA-MM-DD".
 export const hoyISO = () =>
@@ -14,9 +21,24 @@ export const hoyISO = () =>
  * Formulario de una asignación: fecha desde, observación y líneas de
  * operarios. Al guardar reemplaza a la vigente (la API la finaliza).
  * `lineasIniciales` permite partir de la asignación vigente para cambiarla.
+ * `fechaMaxima`: hoy, o el inicio del proyecto si el centro está por iniciar.
+ * `cen4` y `cen5` (línea y servicio del centro) dan los cargos sugeridos.
  */
-const FormularioAsignacion = ({ idCentro, catalogos, lineasIniciales, fechaMinima, onGuardado, onCancelar }) => {
-  const [fechaDesde, setFechaDesde] = useState(hoyISO);
+const FormularioAsignacion = ({
+  idCentro,
+  catalogos,
+  cen4,
+  cen5,
+  lineasIniciales,
+  fechaMinima,
+  fechaMaxima,
+  onGuardado,
+  onCancelar,
+}) => {
+  const cargosSugeridos = useCargosSugeridos(cen4, cen5);
+  const maxima = fechaMaxima && fechaMaxima > hoyISO() ? fechaMaxima : hoyISO();
+  // Un centro por iniciar arranca desde la fecha de inicio del proyecto.
+  const [fechaDesde, setFechaDesde] = useState(maxima);
   const [observacion, setObservacion] = useState("");
   const [lineas, setLineas] = useState(() =>
     lineasIniciales?.length ? lineasIniciales : [lineaVacia()]
@@ -26,8 +48,27 @@ const FormularioAsignacion = ({ idCentro, catalogos, lineasIniciales, fechaMinim
   const [guardando, setGuardando] = useState(false);
 
   const todasValidas = lineas.every((l) => resultados[l.clave]?.valido);
-  const fechaValida = fechaDesde && fechaDesde <= hoyISO() && (!fechaMinima || fechaDesde >= fechaMinima);
-  const totalOperarios = lineas.reduce((suma, l) => suma + (Number(l.cantidad) || 0), 0);
+  const fechaValida = fechaDesde && fechaDesde <= maxima && (!fechaMinima || fechaDesde >= fechaMinima);
+  // Operarios equivalentes (personas × dedicación) y número de personas.
+  const totalOperarios = Math.round(lineas.reduce((suma, l) => suma + equivalentesLinea(l), 0) * 100) / 100;
+  const totalPersonas = lineas.reduce((suma, l) => suma + (Number(l.cantidad) || 0), 0);
+  const textoTotal =
+    totalOperarios === totalPersonas
+      ? `${totalPersonas} operario(s)`
+      : `${numero(totalOperarios)} operario(s) equivalente(s) (${totalPersonas} persona(s))`;
+
+  // Por qué no se puede guardar (la fecha primero, luego la primera línea incompleta).
+  const fechaTexto = (valor) => valor.split("-").reverse().join("/");
+  const indiceIncompleta = lineas.findIndex((l) => !resultados[l.clave]?.valido);
+  const motivoBloqueo = !fechaDesde
+    ? "Indica desde qué fecha rige la asignación."
+    : fechaDesde > maxima
+      ? `"Rige desde" no puede ser posterior al ${fechaTexto(maxima)}.`
+      : fechaMinima && fechaDesde < fechaMinima
+        ? `"Rige desde" no puede ser anterior a la asignación vigente (${fechaTexto(fechaMinima)}).`
+        : indiceIncompleta >= 0
+          ? `Línea ${indiceIncompleta + 1}: ${resultados[lineas[indiceIncompleta].clave]?.falta || "complétala"}.`
+          : null;
 
   const actualizarLinea = (clave, nueva) =>
     setLineas((actuales) => actuales.map((l) => (l.clave === clave ? nueva : l)));
@@ -44,24 +85,16 @@ const FormularioAsignacion = ({ idCentro, catalogos, lineasIniciales, fechaMinim
       const respuesta = await guardarAsignacionCentro(idCentro, {
         fecha_desde: fechaDesde,
         observacion: observacion.trim() || null,
-        lineas: lineas.map((l) => {
-          const modalidad = catalogos.modalidades.find((m) => m.codigo === l.modalidad);
-          const usaSabado = l.sabadoDistinto && modalidad?.dias_semana.includes(6);
-          const incluyeDomingo = modalidad?.dias_semana.includes(7);
-
-          return {
-            id_cargo: Number(l.idCargo),
-            cantidad_operarios: Number(l.cantidad),
-            codigo_modalidad: l.modalidad,
-            horario_general: horarioApi(l.general),
-            horario_sabado: usaSabado ? horarioApi(l.sabado) : null,
-            descansa_dia_entre_semana: Boolean(incluyeDomingo && l.descansaEntreSemana),
-            observacion: l.observacion?.trim() || null,
-          };
-        }),
+        lineas: lineas.map((l) => ({
+          id_cargo: Number(l.idCargo),
+          cantidad_operarios: Number(l.cantidad),
+          dedicacion: Number(l.dedicacion),
+          ...turnoApi(l, catalogos.modalidades.find((m) => m.codigo === l.modalidad)),
+          observacion: l.observacion?.trim() || null,
+        })),
       });
 
-      toast({ title: "Asignación guardada", description: `${totalOperarios} operario(s) desde ${fechaDesde.split("-").reverse().join("/")}.` });
+      toast({ title: "Asignación guardada", description: `${textoTotal} desde ${fechaDesde.split("-").reverse().join("/")}.` });
       onGuardado(respuesta);
     } catch (error) {
       toast({ title: "No se pudo guardar la asignación", description: error.message, variant: "destructive" });
@@ -82,7 +115,7 @@ const FormularioAsignacion = ({ idCentro, catalogos, lineasIniciales, fechaMinim
             type="date"
             value={fechaDesde}
             min={fechaMinima || undefined}
-            max={hoyISO()}
+            max={maxima}
             onChange={(e) => setFechaDesde(e.target.value)}
             className="h-10 w-full rounded-full border border-gray-200 bg-white px-4 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
           />
@@ -109,6 +142,7 @@ const FormularioAsignacion = ({ idCentro, catalogos, lineasIniciales, fechaMinim
           numero={indice + 1}
           linea={linea}
           catalogos={catalogos}
+          cargosSugeridos={cargosSugeridos}
           onChange={(nueva) => actualizarLinea(linea.clave, nueva)}
           onQuitar={lineas.length > 1 ? () => quitarLinea(linea.clave) : null}
           onResultado={(clave, resultado) => setResultados((actuales) => ({ ...actuales, [clave]: resultado }))}
@@ -123,14 +157,14 @@ const FormularioAsignacion = ({ idCentro, catalogos, lineasIniciales, fechaMinim
         className="w-full rounded-full border-dashed sm:w-auto"
       >
         <Plus className="mr-2 h-4 w-4" />
-        Agregar tipo de operario u horario
+        Agregar tipo de operario o turno
       </Button>
 
       <div className="flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-gray-600">
+        <p className={todasValidas && fechaValida ? "text-sm text-gray-600" : "text-sm font-medium text-amber-700"}>
           {todasValidas && fechaValida
-            ? `${totalOperarios} operario(s) en ${lineas.length} línea(s).`
-            : "Completa cargo, número de operarios y horario de cada línea (máximo legal de horas por semana)."}
+            ? `${textoTotal} en ${lineas.length} línea(s).`
+            : motivoBloqueo || "Completa cargo, número de operarios, días y turno de cada línea."}
         </p>
         <div className="grid grid-cols-1 gap-2 sm:flex">
           {onCancelar && (

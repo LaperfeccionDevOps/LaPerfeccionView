@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { History, Loader2, Lock, Unlock, Users } from "lucide-react";
+import { AlertTriangle, CalendarClock, CalendarRange, History, Loader2, Lock, Unlock, Users } from "lucide-react";
 
-import TablaAsignacion from "@/components/contabilidad/TablaAsignacion";
+import EtapaCentroCosto, { descripcionEtapa, formatearFecha } from "@/components/contabilidad/EtapaCentroCosto";
+import TablaAsignacion, { textoOperarios } from "@/components/contabilidad/TablaAsignacion";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,6 +14,7 @@ import {
 import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import {
+  ajustarFechasProyecto,
   cambiarEstadoCentroCosto,
   obtenerAsignacionCentro,
   obtenerCentroCosto,
@@ -29,15 +31,6 @@ const ACCIONES = {
 const hoyISO = () =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date());
 
-// "2026-10-30" -> "30/10/2026" (sin zona horaria, para no correr el día).
-const formatearFecha = (valor) => {
-  if (!valor) {
-    return null;
-  }
-
-  const [anio, mes, dia] = valor.split("-");
-  return `${dia}/${mes}/${anio}`;
-};
 
 const formatearFechaHora = (valor) =>
   new Date(valor).toLocaleString("es-CO", {
@@ -57,7 +50,8 @@ const Dato = ({ etiqueta, children }) => (
 /**
  * Detalle de un centro de costo: datos e historial. Por defecto es solo de
  * consulta; con `permitirCambioEstado` muestra además cerrar o reabrir (con
- * fecha efectiva y motivo obligatorio), pensado para Modificar.
+ * fecha efectiva y motivo obligatorio) y el ajuste de las fechas del
+ * proyecto, pensado para Modificar.
  */
 const DetalleCentroCostoDialog = ({
   idCentro,
@@ -73,6 +67,10 @@ const DetalleCentroCostoDialog = ({
   const [fecha, setFecha] = useState(hoyISO);
   const [motivo, setMotivo] = useState("");
   const [intento, setIntento] = useState(false);
+  // Ajuste de las fechas del proyecto (solo en Modificar).
+  const [fechas, setFechas] = useState({ inicio: "", fin: "", motivo: "" });
+  const [intentoFechas, setIntentoFechas] = useState(false);
+  const [guardandoFechas, setGuardandoFechas] = useState(false);
 
   useEffect(() => {
     if (!idCentro) {
@@ -86,8 +84,17 @@ const DetalleCentroCostoDialog = ({
     setIntento(false);
     setCargando(true);
 
+    setIntentoFechas(false);
+
     obtenerCentroCosto(idCentro)
-      .then(setCentro)
+      .then((datos) => {
+        setCentro(datos);
+        setFechas({
+          inicio: datos.fecha_inicio_proyecto || "",
+          fin: datos.fecha_fin_proyecto || "",
+          motivo: "",
+        });
+      })
       .catch((error) =>
         toast({
           title: "No se pudo cargar el centro de costo",
@@ -148,6 +155,51 @@ const DetalleCentroCostoDialog = ({
     }
   };
 
+  const fechasInvalidas = fechas.fin && fechas.inicio && fechas.fin < fechas.inicio;
+  const fechasSinCambio =
+    centro &&
+    fechas.inicio === (centro.fecha_inicio_proyecto || "") &&
+    fechas.fin === (centro.fecha_fin_proyecto || "");
+
+  const handleAjustarFechas = async () => {
+    setIntentoFechas(true);
+
+    if (!fechas.inicio || !fechas.motivo.trim() || fechasInvalidas) {
+      toast({
+        title: "Revisa las fechas",
+        description: fechasInvalidas
+          ? "La fecha de finalización no puede ser anterior a la de inicio."
+          : "Indica la fecha de inicio y el motivo del ajuste.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setGuardandoFechas(true);
+
+    try {
+      const actualizado = await ajustarFechasProyecto(idCentro, {
+        fechaInicio: fechas.inicio,
+        fechaFin: fechas.fin,
+        motivo: fechas.motivo.trim(),
+      });
+
+      setCentro(actualizado);
+      setFechas((prev) => ({ ...prev, motivo: "" }));
+      setIntentoFechas(false);
+      onCambio(actualizado);
+      toast({ title: "Fechas del proyecto ajustadas", description: descripcionEtapa(actualizado) });
+    } catch (error) {
+      toast({
+        title: "No se pudieron ajustar las fechas",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setGuardandoFechas(false);
+    }
+  };
+
   return (
     <Dialog open={Boolean(idCentro)} onOpenChange={(open) => !open && onClose()}>
       {/* Fondo explícito: el tema del proyecto no define "bg-background".
@@ -183,19 +235,25 @@ const DetalleCentroCostoDialog = ({
             <div className="space-y-6">
               <div className="grid grid-cols-1 gap-4 rounded-xl bg-gray-50 p-4 sm:grid-cols-2 lg:grid-cols-3">
                 <Dato etiqueta="Proyecto (CEN 1)">{centro.proyecto} ({centro.codigo_proyecto})</Dato>
+                {centro.codigo_socio_negocio && (
+                  <Dato etiqueta="Código socio de negocio">{centro.codigo_socio_negocio}</Dato>
+                )}
                 <Dato etiqueta="Departamento (CEN 2)">{centro.departamento}</Dato>
                 <Dato etiqueta="Sede (CEN 3)">{centro.sede} ({centro.codigo_sede})</Dato>
                 <Dato etiqueta="Línea de negocio (CEN 4)">{centro.linea}</Dato>
                 <Dato etiqueta="Servicio asociado (CEN 5)">{centro.servicio}</Dato>
                 <Dato etiqueta="Estado">
-                  <span
-                    className={cn(
-                      "rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                      abierto ? "bg-emerald-100 text-emerald-800" : "bg-gray-200 text-gray-700"
-                    )}
-                  >
-                    {abierto ? "Abierto" : "Cerrado"}
-                  </span>
+                  <EtapaCentroCosto centro={centro} className="py-0.5" />
+                </Dato>
+                <Dato etiqueta="Inicio del proyecto">
+                  {formatearFecha(centro.fecha_inicio_proyecto) || (
+                    <span className="text-gray-500">Sin fecha registrada</span>
+                  )}
+                </Dato>
+                <Dato etiqueta="Fin del proyecto">
+                  {formatearFecha(centro.fecha_fin_proyecto) || (
+                    <span className="text-gray-500">Sin fecha pactada</span>
+                  )}
                 </Dato>
                 <Dato etiqueta="Apertura vigente">{formatearFecha(centro.fecha_apertura)}</Dato>
                 <Dato etiqueta="Cierre">
@@ -203,6 +261,23 @@ const DetalleCentroCostoDialog = ({
                     (abierto ? null : <span className="text-gray-500">Sin fecha registrada</span>)}
                 </Dato>
               </div>
+
+              {centro.etapa === "POR_INICIAR" && (
+                <p className="flex items-start gap-2 rounded-xl bg-sky-50 px-4 py-3 text-sm text-sky-800">
+                  <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" />
+                  Por iniciar: el proyecto inicia el {formatearFecha(centro.fecha_inicio_proyecto)}. El
+                  centro está abierto, así que ya se puede usar para asignar operarios, dotación, etc.
+                </p>
+              )}
+
+              {centro.etapa === "FIN_VENCIDO" && (
+                <p className="flex items-start gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  La fecha de fin del proyecto ({formatearFecha(centro.fecha_fin_proyecto)}) ya pasó y el
+                  centro sigue abierto. Si el proyecto terminó, Contabilidad debe cerrarlo en Modificar; si
+                  se prorrogó, ajusta la fecha de fin.
+                </p>
+              )}
 
               {centro.pendiente_revision && (
                 <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -217,7 +292,7 @@ const DetalleCentroCostoDialog = ({
                   <h3 className="flex items-center gap-2 font-semibold text-gray-800">
                     <Users className="h-4 w-4" />
                     {asignacion.vigente
-                      ? `Operarios asignados: ${asignacion.vigente.total_operarios}`
+                      ? `Operarios asignados: ${textoOperarios(asignacion.vigente)}`
                       : "Operarios asignados"}
                   </h3>
                   {asignacion.vigente ? (
@@ -235,6 +310,91 @@ const DetalleCentroCostoDialog = ({
                       {asignacion.anteriores.length > 0 && ` (${asignacion.anteriores.length} anterior(es) en Asignar)`}.
                     </p>
                   )}
+                </div>
+              )}
+
+              {/* Ajustar las fechas del proyecto */}
+              {permitirCambioEstado && (
+                <div className="space-y-3 rounded-2xl border border-gray-100 p-4">
+                  <h3 className="flex items-center gap-2 font-semibold text-gray-800">
+                    <CalendarRange className="h-4 w-4" />
+                    Ajustar fechas del proyecto
+                  </h3>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-[10.5rem_10.5rem_minmax(0,1fr)]">
+                    <div className="space-y-1">
+                      <label htmlFor="ajusteInicio" className="text-xs font-semibold uppercase text-gray-500">
+                        Inicio *
+                      </label>
+                      <input
+                        id="ajusteInicio"
+                        type="date"
+                        value={fechas.inicio}
+                        onChange={(e) => setFechas((prev) => ({ ...prev, inicio: e.target.value }))}
+                        disabled={guardandoFechas}
+                        className={cn(
+                          "h-10 w-full rounded-full border px-4 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100",
+                          intentoFechas && !fechas.inicio ? "border-red-300" : "border-gray-200"
+                        )}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label htmlFor="ajusteFin" className="text-xs font-semibold uppercase text-gray-500">
+                        Fin (opcional)
+                      </label>
+                      <input
+                        id="ajusteFin"
+                        type="date"
+                        value={fechas.fin}
+                        min={fechas.inicio || undefined}
+                        onChange={(e) => setFechas((prev) => ({ ...prev, fin: e.target.value }))}
+                        disabled={guardandoFechas}
+                        className={cn(
+                          "h-10 w-full rounded-full border px-4 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100",
+                          fechasInvalidas ? "border-red-300" : "border-gray-200"
+                        )}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label htmlFor="ajusteMotivo" className="text-xs font-semibold uppercase text-gray-500">
+                        Motivo *
+                      </label>
+                      <input
+                        id="ajusteMotivo"
+                        type="text"
+                        maxLength={500}
+                        value={fechas.motivo}
+                        placeholder="Ej.: el cliente aplazó el inicio"
+                        onChange={(e) => setFechas((prev) => ({ ...prev, motivo: e.target.value }))}
+                        disabled={guardandoFechas}
+                        className={cn(
+                          "h-10 w-full rounded-full border px-4 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100",
+                          intentoFechas && !fechas.motivo.trim() ? "border-red-300" : "border-gray-200"
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs text-gray-500">
+                      {fechasInvalidas
+                        ? "La fecha de fin no puede ser anterior a la de inicio."
+                        : "Deja el fin vacío si aún no hay fecha pactada. El cambio queda en el historial."}
+                    </p>
+                    <Button
+                      type="button"
+                      onClick={handleAjustarFechas}
+                      disabled={guardandoFechas || fechasSinCambio}
+                      className="h-10 gap-2 rounded-full bg-emerald-600 px-5 text-white hover:bg-emerald-700"
+                    >
+                      {guardandoFechas ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CalendarRange className="h-4 w-4" />
+                      )}
+                      Guardar fechas
+                    </Button>
+                  </div>
                 </div>
               )}
 

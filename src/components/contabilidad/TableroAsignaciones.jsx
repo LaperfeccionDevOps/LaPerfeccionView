@@ -1,7 +1,7 @@
 import React from "react";
 import { Building2, CalendarDays, Moon, MoonStar, Users } from "lucide-react";
 
-const numero = (valor) => Number(valor || 0).toLocaleString("es-CO", { maximumFractionDigits: 1 });
+const numero = (valor) => Number(valor || 0).toLocaleString("es-CO", { maximumFractionDigits: 2 });
 
 // Indicador compacto: ícono pequeño, etiqueta en una línea y el valor con su
 // detalle al lado. `titulo` explica el indicador al pasar el mouse. También lo
@@ -38,7 +38,7 @@ const TableroAsignaciones = ({ asignacion }) => {
           etiqueta="Operarios"
           valor={numero(asignacion.operarios)}
           detalle={`en ${numero(asignacion.centros_con_asignacion)} centro(s)`}
-          titulo="Operarios de las asignaciones vigentes de los centros filtrados"
+          titulo="Operarios equivalentes (personas × dedicación) de las asignaciones vigentes de los centros filtrados"
           clase="bg-emerald-100 text-emerald-700"
         />
         <Indicador

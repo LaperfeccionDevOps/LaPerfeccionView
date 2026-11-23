@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Building, Loader2, Plus } from "lucide-react";
 
 import CampoTexto from "@/components/contabilidad/CampoTexto";
-import FiltroBuscable from "@/components/contabilidad/FiltroBuscable";
+import ListaSedes, { sedeAbierta } from "@/components/contabilidad/ListaSedes";
 import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { listarSedesProyecto, validarCodigoSede } from "@/services/contabilidadService";
@@ -93,13 +93,15 @@ const PasoSedeCentroCosto = ({ idProyecto, codigoProyecto, cen2, nombreDepartame
   const enDepartamento = (sedes || []).filter((s) => s.departamentos.includes(cen2));
   const deOtros = (sedes || []).filter((s) => !s.departamentos.includes(cen2));
 
-  const opcionesSede = useMemo(
+  // Sedes visibles: las del departamento (y las de otros si se piden), con
+  // búsqueda y filtro por estado; primero las abiertas.
+  const visibles = verOtrosDepartamentos ? [...enDepartamento, ...deOtros] : enDepartamento;
+  const abiertas = visibles.filter(sedeAbierta).length;
+  const tarjetasSede = useMemo(
     () =>
-      (verOtrosDepartamentos ? [...enDepartamento, ...deOtros] : enDepartamento).map((s) => ({
-        id: s.id,
-        etiqueta: `${s.codigo} · ${s.descripcion}`,
+      visibles.map((s) => ({
+        ...s,
         detalle: `${s.departamentos.join(", ") || "Sin centros"} · ${s.centros} centro(s), ${s.abiertos} abierto(s)`,
-        busqueda: s.codigo,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [sedes, cen2, verOtrosDepartamentos]
@@ -227,8 +229,16 @@ const PasoSedeCentroCosto = ({ idProyecto, codigoProyecto, cen2, nombreDepartame
         <div className="space-y-3">
           <p className="text-sm text-gray-500">
             {enDepartamento.length > 0
-              ? `${enDepartamento.length} sede(s) de ${codigoProyecto} con centros en ${nombreDepartamento} (${cen2}).`
-              : `${codigoProyecto} no tiene sedes con centros en ${nombreDepartamento} (${cen2}).`}
+              ? `${enDepartamento.length} sede(s) de ${codigoProyecto} con centros en ${nombreDepartamento} (${cen2})`
+              : `${codigoProyecto} no tiene sedes con centros en ${nombreDepartamento} (${cen2})`}
+            {visibles.length > 0 && (
+              <>
+                {verOtrosDepartamentos ? `; con las de otros departamentos, ${visibles.length}` : ""}:{" "}
+                <span className="font-semibold text-emerald-700">{abiertas} abierta(s)</span> y{" "}
+                <span className="font-semibold text-gray-600">{visibles.length - abiertas} cerrada(s)</span>
+              </>
+            )}
+            .
           </p>
 
           {deOtros.length > 0 && (
@@ -246,16 +256,9 @@ const PasoSedeCentroCosto = ({ idProyecto, codigoProyecto, cen2, nombreDepartame
             </label>
           )}
 
-          <FiltroBuscable
-            id="crearSede"
-            label="Buscar sede"
-            opciones={opcionesSede}
-            valor={idSede}
-            onChange={setIdSede}
-            placeholder="Sin seleccionar"
-            disabled={opcionesSede.length === 0}
-            listaEnLinea
-          />
+          {visibles.length > 0 && (
+            <ListaSedes id="crearSede" sedes={tarjetasSede} valor={idSede} onChange={setIdSede} />
+          )}
 
           {sedeDeOtroDepartamento && (
             <p className="flex items-start gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">

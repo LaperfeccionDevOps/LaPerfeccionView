@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  CalendarClock,
   Calculator,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Eye,
+  FileSpreadsheet,
   Loader2,
   Lock,
   PencilLine,
@@ -18,6 +20,8 @@ import {
 
 import AsignacionCentroCostoDialog from "@/components/contabilidad/AsignacionCentroCostoDialog";
 import DetalleCentroCostoDialog from "@/components/contabilidad/DetalleCentroCostoDialog";
+import EtapaCentroCosto from "@/components/contabilidad/EtapaCentroCosto";
+import ExportarCentrosCostoDialog from "@/components/contabilidad/ExportarCentrosCostoDialog";
 import EncabezadoCentrosCosto from "@/components/contabilidad/EncabezadoCentrosCosto";
 import FiltroBuscable from "@/components/contabilidad/FiltroBuscable";
 import TableroAsignaciones, { Indicador } from "@/components/contabilidad/TableroAsignaciones";
@@ -40,11 +44,6 @@ const FILTROS_INICIALES = {
   estado: "",
   pendienteRevision: "",
   texto: "",
-};
-
-const ESTADOS = {
-  ABIERTO: "bg-emerald-100 text-emerald-800",
-  CERRADO: "bg-gray-100 text-gray-700",
 };
 
 // La flecha del navegador se oculta (appearance-none) y se dibuja la misma de
@@ -101,6 +100,8 @@ const MODOS = {
     permitirCambioEstado: false,
     // Tablero de operarios asignados sobre la tabla.
     tablero: true,
+    // Descarga en Excel con las asignaciones vigentes.
+    exportar: true,
   },
   modificar: {
     descripcion:
@@ -111,7 +112,7 @@ const MODOS = {
   },
   asignar: {
     descripcion:
-      "Busca con los filtros el centro de costo y usa Asignar para registrar sus operarios, días y horarios.",
+      "Busca con los filtros el centro de costo y usa Asignar para registrar sus operarios, días y turnos.",
     boton: "Asignar",
     icono: UserPlus,
     permitirCambioEstado: false,
@@ -132,6 +133,8 @@ const CentrosCostoView = ({ modo = "consultar" }) => {
   const filtrosIniciales = { ...FILTROS_INICIALES, estado: configuracion.estadoInicial || "" };
   const [catalogos, setCatalogos] = useState(null);
   const [filtros, setFiltros] = useState(filtrosIniciales);
+  // Ventana de descarga en Excel (solo Consultar).
+  const [exportando, setExportando] = useState(false);
   // La búsqueda libre se aplica unos instantes después de dejar de escribir.
   const [textoAplicado, setTextoAplicado] = useState("");
   const [pagina, setPagina] = useState(1);
@@ -341,6 +344,9 @@ const CentrosCostoView = ({ modo = "consultar" }) => {
           >
             <option value="">Ninguno</option>
             <option value="ABIERTO">Abiertos{textoCantidad("estados", "ABIERTO")}</option>
+            <option value="POR_INICIAR">Abiertos · por iniciar{textoCantidad("estados", "POR_INICIAR")}</option>
+            <option value="EN_EJECUCION">Abiertos · en ejecución{textoCantidad("estados", "EN_EJECUCION")}</option>
+            <option value="FIN_VENCIDO">Abiertos · fin vencido{textoCantidad("estados", "FIN_VENCIDO")}</option>
             <option value="CERRADO">Cerrados{textoCantidad("estados", "CERRADO")}</option>
           </SelectFiltro>
 
@@ -393,17 +399,65 @@ const CentrosCostoView = ({ modo = "consultar" }) => {
             <RotateCcw className="h-4 w-4" />
             Limpiar filtros
           </Button>
+
+          {configuracion.exportar && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setExportando(true)}
+              className="h-9 gap-2 rounded-full border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Descargar Excel
+            </Button>
+          )}
         </div>
       </EncabezadoCentrosCosto>
+
+      {exportando && (
+        <ExportarCentrosCostoDialog
+          abierto
+          onClose={() => setExportando(false)}
+          proyectos={catalogos?.proyectos}
+          estadoInicial={filtros.estado}
+          idProyectoInicial={filtros.idProyecto}
+        />
+      )}
 
       {/* Resumen del resultado filtrado y, en Consultar, el tablero de operarios. */}
       <div className="space-y-2">
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
           <Indicador etiqueta="Centros de costo" valor={resultado?.resumen.total} icono={Calculator} clase="bg-emerald-50 text-emerald-700" />
-          <Indicador etiqueta="Abiertos" valor={resultado?.resumen.abiertos} claseValor="text-emerald-700" icono={Unlock} clase="bg-emerald-100 text-emerald-700" />
+          <Indicador
+            etiqueta="Abiertos"
+            valor={resultado?.resumen.abiertos}
+            detalle={resultado?.resumen.por_iniciar ? `${resultado.resumen.por_iniciar} por iniciar` : undefined}
+            titulo="Incluye los que están por iniciar (abiertos con la fecha de inicio del proyecto en el futuro)."
+            claseValor="text-emerald-700"
+            icono={Unlock}
+            clase="bg-emerald-100 text-emerald-700"
+          />
           <Indicador etiqueta="Cerrados" valor={resultado?.resumen.cerrados} claseValor="text-gray-600" icono={Lock} clase="bg-gray-100 text-gray-600" />
           <Indicador etiqueta="Pendientes de revisión" valor={resultado?.resumen.pendientes_revision} claseValor="text-amber-600" icono={AlertTriangle} clase="bg-amber-100 text-amber-600" />
         </div>
+
+        {/* Aviso: abiertos con la fecha de fin del proyecto ya pasada. */}
+        {resultado?.resumen.fin_vencido > 0 && filtros.estado !== "FIN_VENCIDO" && (
+          <div className="flex flex-col gap-2 rounded-2xl bg-amber-50 px-4 py-2.5 text-sm text-amber-800 shadow-md sm:flex-row sm:items-center sm:justify-between">
+            <p className="flex items-start gap-2">
+              <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" />
+              {resultado.resumen.fin_vencido} centro(s) abierto(s) con la fecha de fin del proyecto vencida.
+              Revisa si se deben cerrar o ajustar la fecha.
+            </p>
+            <button
+              type="button"
+              onClick={() => cambiarFiltro("estado", "FIN_VENCIDO")}
+              className="shrink-0 rounded-full border border-amber-300 bg-white px-3 py-1 text-xs font-semibold hover:bg-amber-100"
+            >
+              Ver cuáles
+            </button>
+          </div>
+        )}
 
         {configuracion.tablero && <TableroAsignaciones asignacion={resultado?.resumen.asignacion} />}
       </div>
@@ -472,12 +526,14 @@ const CentrosCostoView = ({ modo = "consultar" }) => {
                       <td className="px-3 py-3 text-gray-700">{c.linea}</td>
                       <td className="px-3 py-3 text-gray-700">{c.servicio}</td>
                       <td className="px-3 py-3">
-                        <span className={cn("whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold", ESTADOS[c.estado])}>
-                          {c.estado === "ABIERTO" ? "Abierto" : "Cerrado"}
-                        </span>
+                        <EtapaCentroCosto centro={c} />
                       </td>
                       <td className="px-3 py-3 text-right font-semibold text-gray-800">
-                        {c.operarios || <span className="font-normal text-gray-400">—</span>}
+                        {Number(c.operarios) ? (
+                          Number(c.operarios).toLocaleString("es-CO")
+                        ) : (
+                          <span className="font-normal text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="px-3 py-3 text-right">
                         <Button

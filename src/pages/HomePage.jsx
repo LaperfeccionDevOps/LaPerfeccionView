@@ -55,6 +55,15 @@ const HomePage = () => {
     }
   };
 
+  // Contabilidad tiene tablas y formularios anchos: al hacer clic en su
+  // contenido el menú se reduce a íconos (se vuelve a abrir con su botón).
+  const esContabilidad = location.pathname.startsWith('/contabilidad');
+  const reducirMenuEnContabilidad = () => {
+    if (esContabilidad && !isMobile && isSidebarOpen) {
+      setIsSidebarOpen(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen w-full max-w-full overflow-x-hidden bg-gray-50">
       {isMobile && isSidebarOpen && (
@@ -86,6 +95,7 @@ const HomePage = () => {
       )}
 
       <main
+        onPointerDownCapture={reducirMenuEnContabilidad}
         className={cn(
           'min-w-0 flex-1 transition-all duration-300 ease-in-out',
           isMobile
