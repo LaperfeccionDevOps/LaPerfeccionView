@@ -51,6 +51,10 @@ import PQRFGeneralView from "@/components/PQRFGeneralView";
 import PQRFPublicaPage from "@/pages/PQRFPublicaPage";
 import AdministracionSNCView from "@/components/AdministracionSNCView";
 import AdministracionPQRFView from "@/components/AdministracionPQRFView";
+import CentrosCostoView from "@/pages/CentrosCostoView";
+import CrearCentroCostoView from "@/pages/CrearCentroCostoView";
+import ModificarCentroCostoView from "@/pages/ModificarCentroCostoView";
+import AsignarCentroCostoView from "@/pages/AsignarCentroCostoView";
 
 
 // Los administrativos sin permisos operativos pueden navegar a Gestión SNC y PQRF.
@@ -273,6 +277,7 @@ const BienestarPermissionRoute = ({
 
 // Protección visual de las vistas generales; FastAPI también valida los permisos.
 const GeneralPermissionRoute = ({ children, permission }) => {
+
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
 
@@ -285,6 +290,26 @@ const GeneralPermissionRoute = ({ children, permission }) => {
   }
   return children;
 };
+
+// Contabilidad: protección visual por rol; la API también valida el acceso.
+const ContabilidadRoute = ({ children }) => {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+
+  const role = String(user.role || "").trim();
+  const rolesPermitidos = [
+    "Contabilidad",
+    "Administrador",
+    "Super Administrador",
+    "Desarrollador",
+  ];
+
+  if (!rolesPermitidos.includes(role)) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+};
+
 
 // Las acciones administrativas se restringen al rol Super Administrador.
 const SoloSuperAdminRoute = ({ children }) => {
@@ -562,6 +587,45 @@ function App() {
           />
 
           <Route path="salidas-no-conformes/administracion" element={<SoloSuperAdminRoute><AdministracionSNCView /></SoloSuperAdminRoute>} />
+
+
+          {/* CONTABILIDAD */}
+          <Route
+            path="contabilidad/centros-costo"
+            element={
+              <ContabilidadRoute>
+                <CentrosCostoView />
+              </ContabilidadRoute>
+            }
+          />
+
+          <Route
+            path="contabilidad/centros-costo/crear"
+            element={
+              <ContabilidadRoute>
+                <CrearCentroCostoView />
+              </ContabilidadRoute>
+            }
+          />
+
+          <Route
+            path="contabilidad/centros-costo/modificar"
+            element={
+              <ContabilidadRoute>
+                <ModificarCentroCostoView />
+              </ContabilidadRoute>
+            }
+          />
+
+          <Route
+            path="contabilidad/centros-costo/asignar"
+            element={
+              <ContabilidadRoute>
+                <AsignarCentroCostoView />
+              </ContabilidadRoute>
+            }
+          />
+
 
           <Route
             path="admin/crear-usuario"

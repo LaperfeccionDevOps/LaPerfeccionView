@@ -13,7 +13,10 @@ const HomePage = () => {
   const esVistaGeneralAncha = ['/salidas-no-conformes/general', '/pqrf/general'].includes(location.pathname);
 
   const isOperaciones = user?.role === 'Operaciones';
+  const esContabilidad = location.pathname.startsWith('/contabilidad');
+  const menuMovilEspecial = isOperaciones || esContabilidad;
 
+  // Mantener el estado inicial original para los modulos existentes.
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === 'undefined') {
@@ -29,41 +32,43 @@ const HomePage = () => {
 
       setIsMobile(mobile);
 
-      /*
-       * Solo Operaciones:
-       * en celular el menú inicia cerrado;
-       * en computador conserva el comportamiento normal.
-       */
-      if (isOperaciones && mobile) {
+      // El menu movil especial solo aplica a Operaciones y Contabilidad.
+      if (menuMovilEspecial && mobile) {
         setIsSidebarOpen(false);
       }
     };
 
     actualizarPantalla();
-
     window.addEventListener('resize', actualizarPantalla);
 
     return () => {
       window.removeEventListener('resize', actualizarPantalla);
     };
-  }, [isOperaciones]);
+  }, [menuMovilEspecial]);
 
   const toggleSidebar = () => {
     setIsSidebarOpen((estadoActual) => !estadoActual);
   };
 
   const closeMobileSidebar = () => {
-    if (isOperaciones && isMobile) {
+    if (menuMovilEspecial && isMobile) {
+      setIsSidebarOpen(false);
+    }
+  };
+
+  // Ajuste exclusivo de Contabilidad: liberar espacio para sus tablas y formularios.
+  const reducirMenuEnContabilidad = () => {
+    if (esContabilidad && !isMobile && isSidebarOpen) {
       setIsSidebarOpen(false);
     }
   };
 
   return (
     <div className="flex min-h-screen w-full max-w-full overflow-x-hidden bg-gray-50">
-      {isOperaciones && isMobile && isSidebarOpen && (
+      {menuMovilEspecial && isMobile && isSidebarOpen && (
         <button
           type="button"
-          aria-label="Cerrar menú de Operaciones"
+          aria-label={isOperaciones ? 'Cerrar menú de Operaciones' : 'Cerrar menú de Contabilidad'}
           onClick={closeMobileSidebar}
           className="fixed inset-0 z-20 bg-black/45"
         />
@@ -75,12 +80,12 @@ const HomePage = () => {
         closeMobileSidebar={closeMobileSidebar}
       />
 
-      {isOperaciones && isMobile && !isSidebarOpen && (
+      {menuMovilEspecial && isMobile && !isSidebarOpen && (
         <Button
           type="button"
           size="icon"
           onClick={toggleSidebar}
-          aria-label="Abrir menú de Operaciones"
+          aria-label={isOperaciones ? 'Abrir menú de Operaciones' : 'Abrir menú de Contabilidad'}
           title="Abrir menú"
           className="fixed left-3 top-3 z-20 h-11 w-11 rounded-xl bg-emerald-900 text-white shadow-lg hover:bg-emerald-800"
         >
@@ -89,10 +94,10 @@ const HomePage = () => {
       )}
 
       <main
+        onPointerDownCapture={esContabilidad ? reducirMenuEnContabilidad : undefined}
         className={cn(
           'min-w-0 flex-1 transition-all duration-300 ease-in-out',
-
-          isOperaciones
+          menuMovilEspecial
             ? isMobile
               ? 'ml-0 w-full max-w-full overflow-x-hidden px-3 pb-4 pt-16 sm:px-4'
               : isSidebarOpen
@@ -107,7 +112,7 @@ const HomePage = () => {
           className={cn(
             'mx-auto w-full min-w-0',
             esVistaGeneralAncha ? 'max-w-none' : 'max-w-7xl',
-            isOperaciones && 'overflow-x-hidden'
+            menuMovilEspecial && isMobile && 'overflow-x-hidden'
           )}
         >
           <Outlet />
