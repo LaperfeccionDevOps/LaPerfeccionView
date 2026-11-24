@@ -23,11 +23,14 @@ const MODOS = [
  * `onChange({ codigo, nombre, nuevo } | null)` informa el servicio listo.
  *
  * El padre lo monta con una `key` por línea para reiniciarlo al cambiarla.
+ * `codigoInicial`: servicio que viene elegido (al duplicar un centro); si no
+ * se usa con la línea, se muestran todos para que aparezca en la lista.
  */
-const PasoServicioCentroCosto = ({ servicios, cen4, nombreLinea, onChange }) => {
+const PasoServicioCentroCosto = ({ servicios, cen4, nombreLinea, onChange, codigoInicial = null }) => {
+  const inicial = servicios.find((s) => s.codigo === codigoInicial);
   const [modo, setModo] = useState("lista");
-  const [idServicio, setIdServicio] = useState("");
-  const [verTodos, setVerTodos] = useState(false);
+  const [idServicio, setIdServicio] = useState(() => String(inicial?.id || ""));
+  const [verTodos, setVerTodos] = useState(() => Boolean(inicial && !inicial.lineas?.[cen4]));
   const [servicioNuevo, setServicioNuevo] = useState(SERVICIO_NUEVO_INICIAL);
 
   const conLinea = useMemo(

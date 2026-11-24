@@ -3,6 +3,7 @@ import { Loader2, Plus, Users } from "lucide-react";
 
 import LineaAsignacion, {
   equivalentesLinea,
+  extrasApi,
   lineaVacia,
   turnoApi,
   useCargosSugeridos,
@@ -65,6 +66,7 @@ const AsignacionInicialCentroCosto = ({ habilitado, cen4, cen5, onChange }) => {
               cantidad_operarios: Number(l.cantidad),
               dedicacion: Number(l.dedicacion),
               ...turnoApi(l, catalogos.modalidades.find((m) => m.codigo === l.modalidad)),
+              ...extrasApi(l),
             }))
           : [],
     });

@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   Building2,
   CalendarClock,
   CheckCircle2,
+  Copy,
   Eye,
   FilePlus2,
   Loader2,
@@ -121,8 +122,9 @@ const CODIFICACION = [
  * `origen` ("cliente" | "sede") indica desde dónde se arma; `onCambiarOrigen`
  * y `onReiniciar` vuelven a montar el formulario vacío.
  */
-const FormularioCrearCentroCosto = ({ origen, onCambiarOrigen, onReiniciar }) => {
-  const desdeSede = origen === "sede";
+const FormularioCrearCentroCosto = ({ origen, onCambiarOrigen, onReiniciar, duplicar = null }) => {
+  // Al duplicar (`duplicar` de duplicarCentroCosto.js) se arma siempre desde la sede.
+  const desdeSede = origen === "sede" || Boolean(duplicar);
   // Codificación que trae la sede elegida en "Desde sede" ({ cen1, cen2, cen3, lineas }).
   const [datosSede, setDatosSede] = useState(null);
   const [catalogos, setCatalogos] = useState(null);
@@ -634,6 +636,30 @@ const FormularioCrearCentroCosto = ({ origen, onCambiarOrigen, onReiniciar }) =>
         </div>
       </EncabezadoCentrosCosto>
 
+      {duplicar ? (
+        <section className="flex w-full min-w-0 flex-col gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-xl sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <div className="flex min-w-0 items-start gap-3">
+            <Copy className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold text-gray-800">Duplicar centro de costo</h2>
+              <p className="break-all font-mono text-sm font-bold text-emerald-800">{duplicar.codigo}</p>
+              <p className="mt-1 text-sm text-gray-600">
+                Se mantienen el cliente (CEN 1) y la sede (CEN 3). Ajusta el departamento (CEN 2), la
+                línea (CEN 4) o el servicio (CEN 5): la combinación debe ser distinta. No se copian las
+                fechas, la observación ni la asignación de operarios.
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onCambiarOrigen("cliente")}
+            className="shrink-0 rounded-full bg-white"
+          >
+            Empezar en blanco
+          </Button>
+        </section>
+      ) : (
       <section className="w-full min-w-0 rounded-2xl bg-white p-4 shadow-xl sm:p-6">
         <h2 className="text-lg font-bold text-gray-800">¿Desde dónde quieres crear?</h2>
 
@@ -665,6 +691,7 @@ const FormularioCrearCentroCosto = ({ origen, onCambiarOrigen, onReiniciar }) =>
           ))}
         </div>
       </section>
+      )}
 
       {desdeSede ? (
         <section className="w-full min-w-0 rounded-2xl bg-white p-4 shadow-xl sm:p-6">
@@ -676,7 +703,7 @@ const FormularioCrearCentroCosto = ({ origen, onCambiarOrigen, onReiniciar }) =>
               Cargando sedes...
             </div>
           ) : (
-            <PasoDesdeSedeCentroCosto catalogos={catalogos} onChange={setDatosSede} />
+            <PasoDesdeSedeCentroCosto catalogos={catalogos} onChange={setDatosSede} duplicar={duplicar} />
           )}
         </section>
       ) : (
@@ -1007,6 +1034,7 @@ const FormularioCrearCentroCosto = ({ origen, onCambiarOrigen, onReiniciar }) =>
             codigoSede={cen3}
             lineasSede={lineasSede}
             onChange={setLineaElegida}
+            codigoInicial={duplicar?.cen4}
           />
         )}
       </section>
@@ -1028,6 +1056,7 @@ const FormularioCrearCentroCosto = ({ origen, onCambiarOrigen, onReiniciar }) =>
             cen4={cen4}
             nombreLinea={lineaElegida?.nombre}
             onChange={setServicioElegido}
+            codigoInicial={duplicar?.cen5}
           />
         )}
 
@@ -1167,19 +1196,48 @@ const FormularioCrearCentroCosto = ({ origen, onCambiarOrigen, onReiniciar }) =>
 
 // Al crear otro centro se vuelve a montar el formulario: queda vacío y recarga
 // los catálogos (que ya incluyen lo que se acaba de registrar).
+// Al llegar con "Duplicar" (state.duplicar) el formulario arranca desde la
+// sede con la codificación del centro de origen; al cambiar de origen o crear
+// otro se descarta y se limpia del historial (para que no vuelva al recargar).
 const CrearCentroCostoView = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const duplicarRecibido = location.state?.duplicar || null;
   const [formulario, setFormulario] = useState(0);
-  const [origen, setOrigen] = useState("cliente");
+  const [origen, setOrigen] = useState(duplicarRecibido ? "sede" : "cliente");
+  const [duplicar, setDuplicar] = useState(duplicarRecibido);
+
+  // Otro "Duplicar" estando ya en Crear (p. ej. con atrás/adelante).
+  useEffect(() => {
+    if (duplicarRecibido && duplicarRecibido.codigo !== duplicar?.codigo) {
+      setDuplicar(duplicarRecibido);
+      setOrigen("sede");
+      setFormulario((n) => n + 1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [duplicarRecibido?.codigo]);
+
+  const descartarDuplicado = () => {
+    setDuplicar(null);
+    if (location.state?.duplicar) {
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  };
 
   return (
     <FormularioCrearCentroCosto
       key={formulario}
       origen={origen}
+      duplicar={duplicar}
       onCambiarOrigen={(valor) => {
+        descartarDuplicado();
         setOrigen(valor);
         setFormulario((n) => n + 1);
       }}
-      onReiniciar={() => setFormulario((n) => n + 1)}
+      onReiniciar={() => {
+        descartarDuplicado();
+        setFormulario((n) => n + 1);
+      }}
     />
   );
 };

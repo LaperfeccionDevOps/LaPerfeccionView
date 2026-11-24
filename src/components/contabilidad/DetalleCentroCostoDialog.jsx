@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { AlertTriangle, CalendarClock, CalendarRange, History, Loader2, Lock, Unlock, Users } from "lucide-react";
 
+import BotonDuplicar from "@/components/contabilidad/BotonDuplicar";
 import EtapaCentroCosto, { descripcionEtapa, formatearFecha } from "@/components/contabilidad/EtapaCentroCosto";
 import TablaAsignacion, { textoOperarios } from "@/components/contabilidad/TablaAsignacion";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,8 @@ const DetalleCentroCostoDialog = ({
   idCentro,
   onClose,
   onCambio = () => {},
+  // Abre Crear con la codificación de este centro (recibe el código).
+  onDuplicar,
   permitirCambioEstado = false,
 }) => {
   const [centro, setCentro] = useState(null);
@@ -213,9 +216,14 @@ const DetalleCentroCostoDialog = ({
           </DialogTitle>
           <DialogDescription asChild>
             <div className="space-y-0.5">
-              <p className="break-all font-mono text-sm font-bold text-emerald-800">
-                {centro?.codigo || "Cargando..."}
-              </p>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <p className="break-all font-mono text-sm font-bold text-emerald-800">
+                  {centro?.codigo || "Cargando..."}
+                </p>
+                {centro && onDuplicar && (
+                  <BotonDuplicar onClick={() => onDuplicar(centro.codigo)} />
+                )}
+              </div>
               {centro && (
                 <p className="text-sm text-gray-500">
                   {centro.cliente} · NIT {centro.nit}

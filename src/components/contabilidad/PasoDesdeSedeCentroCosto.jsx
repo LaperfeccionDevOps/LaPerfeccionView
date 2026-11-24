@@ -22,9 +22,17 @@ const Dato = ({ etiqueta, valor, codigo }) => (
  * ninguno) se elige cuál usar.
  * `onChange({ cen1, cen2, cen3, lineas } | null)` informa la codificación
  * lista y las líneas que ya tiene la sede ({ código: centros }).
+ *
+ * `duplicar` ({ cen2, cen3, ... } de duplicarCentroCosto.js): la sede queda
+ * fija (CEN 1 y CEN 3), el CEN 2 del original viene elegido y se puede
+ * cambiar por cualquier otro (casos con conflicto de departamento).
  */
-const PasoDesdeSedeCentroCosto = ({ catalogos, onChange }) => {
-  const [idSede, setIdSede] = useState("");
+const PasoDesdeSedeCentroCosto = ({ catalogos, onChange, duplicar = null }) => {
+  const [idSede, setIdSede] = useState(() =>
+    duplicar
+      ? String((catalogos?.sedes || []).find((s) => s.codigo === duplicar.cen3)?.id || "")
+      : ""
+  );
   // Detalle de la sede elegida (departamentos y líneas); null mientras carga.
   const [detalle, setDetalle] = useState(null);
   const [codigoDepartamento, setCodigoDepartamento] = useState("");
@@ -76,8 +84,11 @@ const PasoDesdeSedeCentroCosto = ({ catalogos, onChange }) => {
           abiertos: 0,
         };
         setDetalle(encontrada);
-        // Con un solo departamento queda elegido de una vez.
-        if (encontrada.departamentos.length === 1) {
+        // Al duplicar viene elegido el del original; si no, con un solo
+        // departamento queda elegido de una vez.
+        if (duplicar && departamentos.some((d) => d.codigo === duplicar.cen2)) {
+          setCodigoDepartamento(duplicar.cen2);
+        } else if (encontrada.departamentos.length === 1) {
           setCodigoDepartamento(encontrada.departamentos[0]);
         }
       })
@@ -99,12 +110,26 @@ const PasoDesdeSedeCentroCosto = ({ catalogos, onChange }) => {
   }, [idSede]);
 
   // Departamentos para elegir: los de la sede; si no tiene centros, todos.
+  // Al duplicar, todos: primero los que ya tiene la sede.
   const candidatos = detalle
-    ? detalle.departamentos.length > 0
-      ? departamentos.filter((d) => detalle.departamentos.includes(d.codigo))
-      : departamentos
+    ? duplicar
+      ? [
+          ...departamentos.filter((d) => detalle.departamentos.includes(d.codigo)),
+          ...departamentos.filter((d) => !detalle.departamentos.includes(d.codigo)),
+        ]
+      : detalle.departamentos.length > 0
+        ? departamentos.filter((d) => detalle.departamentos.includes(d.codigo))
+        : departamentos
     : [];
   const departamento = departamentos.find((d) => d.codigo === codigoDepartamento);
+  // Al duplicar con un CEN 2 donde la sede no tiene centros (o con varios), la
+  // API deja el nuevo centro pendiente de revisión.
+  const quedaraEnRevision = Boolean(
+    duplicar &&
+      departamento &&
+      detalle &&
+      detalle.departamentos.some((codigoOtro) => codigoOtro !== departamento.codigo)
+  );
 
   const listo = Boolean(sede && proyecto && detalle && departamento);
 
@@ -120,25 +145,36 @@ const PasoDesdeSedeCentroCosto = ({ catalogos, onChange }) => {
 
   return (
     <div className="mt-3 space-y-4">
-      <p className="text-sm text-gray-500">
-        {tarjetasSede.length} sede(s) registradas:{" "}
-        <span className="font-semibold text-emerald-700">
-          {tarjetasSede.filter((s) => s.abiertos > 0).length} abierta(s)
-        </span>{" "}
-        y{" "}
-        <span className="font-semibold text-gray-600">
-          {tarjetasSede.filter((s) => s.abiertos === 0).length} cerrada(s)
-        </span>
-        .
-      </p>
+      {duplicar ? (
+        !sede && (
+          <p className="flex items-start gap-2 rounded-2xl bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            No se encontró la sede {duplicar.cen3} del centro que se quiere duplicar.
+          </p>
+        )
+      ) : (
+        <>
+          <p className="text-sm text-gray-500">
+            {tarjetasSede.length} sede(s) registradas:{" "}
+            <span className="font-semibold text-emerald-700">
+              {tarjetasSede.filter((s) => s.abiertos > 0).length} abierta(s)
+            </span>{" "}
+            y{" "}
+            <span className="font-semibold text-gray-600">
+              {tarjetasSede.filter((s) => s.abiertos === 0).length} cerrada(s)
+            </span>
+            .
+          </p>
 
-      <ListaSedes
-        id="crearDesdeSede"
-        sedes={tarjetasSede}
-        valor={idSede}
-        onChange={setIdSede}
-        placeholder="Buscar por código, descripción, cliente o proyecto"
-      />
+          <ListaSedes
+            id="crearDesdeSede"
+            sedes={tarjetasSede}
+            valor={idSede}
+            onChange={setIdSede}
+            placeholder="Buscar por código, descripción, cliente o proyecto"
+          />
+        </>
+      )}
 
       {sede && !detalle && (
         <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -168,7 +204,12 @@ const PasoDesdeSedeCentroCosto = ({ catalogos, onChange }) => {
           {candidatos.length > 1 && (
             <div className="space-y-2">
               <p className="flex items-start gap-2 text-sm text-gray-600">
-                {detalle.departamentos.length > 1 ? (
+                {duplicar ? (
+                  <>
+                    El centro original es del departamento {duplicar.cen2}. Puedes dejarlo o cambiarlo
+                    (por ejemplo, si el CEN 2 tiene conflicto); primero aparecen los que ya usa la sede.
+                  </>
+                ) : detalle.departamentos.length > 1 ? (
                   <>
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                     La sede tiene centros en {detalle.departamentos.length} departamentos; elige en cuál
@@ -204,6 +245,13 @@ const PasoDesdeSedeCentroCosto = ({ catalogos, onChange }) => {
                   );
                 })}
               </div>
+              {quedaraEnRevision && (
+                <p className="flex items-start gap-2 text-sm text-amber-700">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  La sede ya tiene centros en otro departamento; el nuevo centro quedará pendiente de
+                  revisión para que Contabilidad confirme el CEN 2 correcto.
+                </p>
+              )}
             </div>
           )}
         </>

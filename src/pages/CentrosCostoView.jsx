@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CalendarClock,
@@ -6,6 +6,8 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Copy,
+  Eye,
   FileSpreadsheet,
   Loader2,
   Lock,
@@ -19,7 +21,9 @@ import {
 
 import AsignacionCentroCostoDialog from "@/components/contabilidad/AsignacionCentroCostoDialog";
 import DetalleCentroCostoDialog from "@/components/contabilidad/DetalleCentroCostoDialog";
+import { useDuplicarCentro } from "@/components/contabilidad/duplicarCentroCosto";
 import EtapaCentroCosto from "@/components/contabilidad/EtapaCentroCosto";
+import MenuContextualCentro from "@/components/contabilidad/MenuContextualCentro";
 import ExportarCentrosCostoDialog from "@/components/contabilidad/ExportarCentrosCostoDialog";
 import EncabezadoCentrosCosto from "@/components/contabilidad/EncabezadoCentrosCosto";
 import FiltroBuscable from "@/components/contabilidad/FiltroBuscable";
@@ -93,7 +97,7 @@ const SelectFiltro = ({ id, label, valor, onChange, children }) => (
 const MODOS = {
   consultar: {
     descripcion:
-      "Consulta de los centros de costo por cliente, servicio y línea de negocio. Haz clic en una fila para ver su detalle, con las fechas de apertura y cierre.",
+      "Consulta de los centros de costo por cliente, servicio y línea de negocio. Haz clic en una fila para ver su detalle, con las fechas de apertura y cierre; con clic derecho puedes duplicarlo.",
     // Sin botón: la fila completa abre el detalle.
     boton: null,
     icono: null,
@@ -105,14 +109,14 @@ const MODOS = {
   },
   modificar: {
     descripcion:
-      "Busca con los filtros el centro de costo y usa Modificar para cerrarlo o reabrirlo.",
+      "Busca con los filtros el centro de costo y usa Modificar para cerrarlo o reabrirlo; con clic derecho puedes duplicarlo.",
     boton: "Modificar",
     icono: PencilLine,
     permitirCambioEstado: true,
   },
   asignar: {
     descripcion:
-      "Busca con los filtros el centro de costo y usa Asignar para registrar sus operarios, días y turnos.",
+      "Busca con los filtros el centro de costo y usa Asignar para registrar sus operarios, días y turnos; con clic derecho puedes duplicarlo.",
     boton: "Asignar",
     icono: UserPlus,
     permitirCambioEstado: false,
@@ -143,6 +147,22 @@ const CentrosCostoView = ({ modo = "consultar" }) => {
   // Centro abierto en el detalle y contador para recargar tras cerrar/reabrir.
   const [idDetalle, setIdDetalle] = useState(null);
   const [recarga, setRecarga] = useState(0);
+  // Menú del clic derecho sobre una fila: { x, y, centro } o null.
+  const [menu, setMenu] = useState(null);
+  const cerrarMenu = useCallback(() => setMenu(null), []);
+  const duplicar = useDuplicarCentro();
+
+  // Clic derecho (o tecla de menú / Shift+F10 sobre la fila con el foco).
+  const abrirMenu = (e, centro) => {
+    e.preventDefault();
+    const fila = e.currentTarget.getBoundingClientRect();
+    const conTeclado = e.clientX === 0 && e.clientY === 0;
+    setMenu({
+      x: conTeclado ? fila.left + 24 : e.clientX,
+      y: conTeclado ? fila.top + fila.height / 2 : e.clientY,
+      centro,
+    });
+  };
 
   useEffect(() => {
     obtenerFiltrosCentrosCosto()
@@ -510,6 +530,7 @@ const CentrosCostoView = ({ modo = "consultar" }) => {
                           setIdDetalle(c.id_centro_costo_contable);
                         }
                       }}
+                      onContextMenu={(e) => abrirMenu(e, c)}
                       className="group cursor-pointer align-top outline-none hover:bg-emerald-50/60 focus-visible:bg-emerald-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-300"
                     >
                       <td className="whitespace-nowrap px-3 py-3 font-mono text-xs text-gray-700">
@@ -615,13 +636,37 @@ const CentrosCostoView = ({ modo = "consultar" }) => {
         )}
       </section>
 
+      <MenuContextualCentro
+        posicion={menu}
+        titulo={menu?.centro.codigo}
+        onClose={cerrarMenu}
+        opciones={[
+          {
+            // La acción de la pestaña: ver detalle, modificar o asignar.
+            etiqueta: configuracion.boton || "Ver detalle",
+            icono: IconoBoton || Eye,
+            onClick: () => setIdDetalle(menu.centro.id_centro_costo_contable),
+          },
+          {
+            etiqueta: "Duplicar",
+            icono: Copy,
+            onClick: () => duplicar(menu.centro.codigo),
+          },
+        ]}
+      />
+
       {configuracion.asignacion ? (
-        <AsignacionCentroCostoDialog idCentro={idDetalle} onClose={() => setIdDetalle(null)} />
+        <AsignacionCentroCostoDialog
+          idCentro={idDetalle}
+          onClose={() => setIdDetalle(null)}
+          onDuplicar={duplicar}
+        />
       ) : (
         <DetalleCentroCostoDialog
           idCentro={idDetalle}
           onClose={() => setIdDetalle(null)}
           onCambio={() => setRecarga((n) => n + 1)}
+          onDuplicar={duplicar}
           permitirCambioEstado={configuracion.permitirCambioEstado}
         />
       )}
