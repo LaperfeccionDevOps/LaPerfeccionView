@@ -1,7 +1,7 @@
 import React from "react";
 import { Moon, Sun, SunMoon } from "lucide-react";
 
-import { TURNOS } from "@/components/contabilidad/LineaAsignacion";
+import { TIPOS_EXTRA, TURNOS } from "@/components/contabilidad/LineaAsignacion";
 import { cn } from "@/lib/utils";
 
 // "06:00:00" -> "06:00"
@@ -57,9 +57,15 @@ const TablaAsignacion = ({ lineas, parametro }) => {
   const equivalentes = (l) => Number(l.operarios_equivalentes ?? l.cantidad_operarios);
   const total = (campo) => lineas.reduce((suma, l) => suma + equivalentes(l) * Number(l[campo]), 0);
   const hayParcial = lineas.some((l) => Number(l.dedicacion ?? 1) < 1);
+  // Las horas de cada línea son las de un operario en este centro (turno × dedicación).
+  const dedicacionDe = (l) => Number(l.dedicacion ?? 1);
   const nocturnas = total("horas_nocturnas_semana");
   const dominicales = total("horas_dominicales_semana");
   const nocturnasDominicales = total("horas_nocturnas_dominicales_semana");
+  // Horas extras (por operario a tiempo completo; se muestran × dedicación).
+  const extrasDe = (l) => TIPOS_EXTRA.filter(({ campo }) => Number(l[campo]) > 0);
+  const hayExtras = lineas.some((l) => extrasDe(l).length > 0);
+  const totalesExtra = TIPOS_EXTRA.map((t) => ({ ...t, horas: total(t.campo) })).filter((t) => t.horas > 0);
 
   return (
     <div className="space-y-3">
@@ -80,6 +86,11 @@ const TablaAsignacion = ({ lineas, parametro }) => {
               <th className="px-3 py-3 text-right">Nocturnas</th>
               <th className="px-3 py-3 text-right">Dominicales</th>
               <th className="px-3 py-3 text-right" title="Domingo en franja nocturna">Noct. dominicales</th>
+              {hayExtras && (
+                <th className="px-3 py-3" title="Horas extras por operario y semana (HED diurnas, HEN nocturnas, HEDF / HENF dominicales o festivas)">
+                  Horas extras
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -131,10 +142,31 @@ const TablaAsignacion = ({ lineas, parametro }) => {
                       )
                     )}
                   </td>
-                  <td className="px-3 py-3 text-right text-gray-700">{numero(l.horas_semana)}</td>
-                  <td className="px-3 py-3 text-right text-gray-700">{numero(l.horas_nocturnas_semana)}</td>
-                  <td className="px-3 py-3 text-right text-gray-700">{numero(l.horas_dominicales_semana)}</td>
-                  <td className="px-3 py-3 text-right text-gray-700">{numero(l.horas_nocturnas_dominicales_semana)}</td>
+                  <td className="px-3 py-3 text-right text-gray-700">{numero(l.horas_semana * dedicacionDe(l))}</td>
+                  <td className="px-3 py-3 text-right text-gray-700">{numero(l.horas_nocturnas_semana * dedicacionDe(l))}</td>
+                  <td className="px-3 py-3 text-right text-gray-700">{numero(l.horas_dominicales_semana * dedicacionDe(l))}</td>
+                  <td className="px-3 py-3 text-right text-gray-700">
+                    {numero(l.horas_nocturnas_dominicales_semana * dedicacionDe(l))}
+                  </td>
+                  {hayExtras && (
+                    <td className="px-3 py-3 text-gray-700">
+                      {extrasDe(l).length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {extrasDe(l).map(({ campo, abreviatura, nombre }) => (
+                            <span
+                              key={campo}
+                              title={nombre}
+                              className="whitespace-nowrap rounded-full bg-orange-50 px-2 py-0.5 text-xs font-semibold text-orange-700"
+                            >
+                              {numero(Number(l[campo]) * dedicacionDe(l))} h {abreviatura}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -144,8 +176,28 @@ const TablaAsignacion = ({ lineas, parametro }) => {
       <p className="text-xs text-gray-500">
         Horas por operario y por semana, repartidas por igual entre los días trabajados. Las nocturnas
         dominicales ya están incluidas en las nocturnas y en las dominicales.
-        {hayParcial && " Los totales de recargo usan los operarios equivalentes (operarios × dedicación)."}
+        {hayParcial &&
+          " Con dedicación parcial, las horas de la línea son las del turno por la dedicación (0,4 → 40 %), y los totales de recargo usan los operarios equivalentes (operarios × dedicación)."}
+        {hayExtras &&
+          " Horas extras: HED diurnas, HEN nocturnas, HEDF diurnas dominicales o festivas y HENF nocturnas dominicales o festivas."}
       </p>
+
+      {parametro && totalesExtra.length > 0 && (
+        <div className="rounded-2xl bg-orange-50 px-4 py-3">
+          <p className="text-xs font-bold uppercase text-orange-800">Horas extras</p>
+          <div className="mt-1 flex flex-wrap gap-x-6 gap-y-1">
+            {totalesExtra.map(({ campo, abreviatura, nombre, horas }) => (
+              <p key={campo} className="text-sm text-orange-900" title={nombre}>
+                <span className="text-lg font-bold">{numero(horas)} h/semana</span>{" "}
+                <span className="text-xs text-orange-700">
+                  {abreviatura} · {nombre.toLowerCase()}
+                </span>
+              </p>
+            ))}
+          </div>
+          <p className="text-xs text-orange-700">Todos los operarios{hayParcial && " (equivalentes)"}</p>
+        </div>
+      )}
 
       {parametro && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

@@ -33,17 +33,67 @@ export const TURNOS = {
 const textoHora = (minutos) =>
   `${String(Math.floor(minutos / 60)).padStart(2, "0")}:${String(minutos % 60).padStart(2, "0")}`;
 
-// Las salidas se eligen cada 10 minutos.
-const INTERVALO = 10;
+// Las salidas se eligen cada 5 minutos (p. ej. 19:15).
+const INTERVALO = 5;
 
 // Salida general de la tarde: de 19:00 a 24:00.
-const SALIDAS_TARDE = Array.from({ length: 31 }, (_, i) => textoHora(19 * 60 + i * INTERVALO));
+const SALIDAS_TARDE = Array.from({ length: (5 * 60) / INTERVALO + 1 }, (_, i) => textoHora(19 * 60 + i * INTERVALO));
 
 // Salida del domingo cuando termina a otra hora: hasta las 24:00, sin empezar el sábado.
 const salidasDia = (minutosDia) =>
-  Array.from({ length: 144 }, (_, i) => (i + 1) * INTERVALO)
+  Array.from({ length: (24 * 60) / INTERVALO }, (_, i) => (i + 1) * INTERVALO)
     .filter((m) => m >= minutosDia)
     .map(textoHora);
+
+// Horas extras por operario y semana, de cada tipo que aplique. Se registran a
+// tiempo completo y se ajustan con la dedicación, como los recargos.
+export const TIPOS_EXTRA = [
+  { clave: "diurnas", campo: "horas_extra_diurnas", abreviatura: "HED", nombre: "Extra diurna" },
+  { clave: "nocturnas", campo: "horas_extra_nocturnas", abreviatura: "HEN", nombre: "Extra nocturna" },
+  { clave: "diurnasFestivas", campo: "horas_extra_diurnas_festivas", abreviatura: "HEDF", nombre: "Extra diurna dominical o festiva" },
+  { clave: "nocturnasFestivas", campo: "horas_extra_nocturnas_festivas", abreviatura: "HENF", nombre: "Extra nocturna dominical o festiva" },
+];
+// Tope legal por operario y semana, sumando los cuatro tipos (Ley 2101 de 2021).
+export const HORAS_EXTRA_MAXIMAS = 12;
+
+// Horas de cada tipo (0 = no aplica), en el formato de la API.
+export const extrasApi = (linea) =>
+  Object.fromEntries(
+    TIPOS_EXTRA.map(({ clave, campo }) => [
+      campo,
+      linea.tieneExtras && linea.extras?.[clave] !== undefined ? Number(linea.extras[clave]) || 0 : 0,
+    ])
+  );
+
+// Línea guardada -> { tieneExtras, extras } del formulario (solo los tipos con horas).
+export const extrasDesdeApi = (l) => {
+  const extras = Object.fromEntries(
+    TIPOS_EXTRA.filter(({ campo }) => Number(l[campo]) > 0).map(({ clave, campo }) => [clave, String(Number(l[campo]))])
+  );
+  return { tieneExtras: Object.keys(extras).length > 0, extras };
+};
+
+// Qué le falta a las horas extras de la línea (null si están bien o no tiene).
+const faltaExtras = (linea) => {
+  if (!linea.tieneExtras) {
+    return null;
+  }
+  const elegidas = TIPOS_EXTRA.filter(({ clave }) => linea.extras?.[clave] !== undefined);
+  if (elegidas.length === 0) {
+    return "elige qué horas extras aplican o marca que no tiene";
+  }
+  const mal = elegidas.find(({ clave }) => {
+    const n = Number(linea.extras[clave]);
+    return linea.extras[clave] === "" || !Number.isFinite(n) || n <= 0 || Math.round(n * 100) !== n * 100;
+  });
+  if (mal) {
+    return `indica las horas ${mal.nombre.toLowerCase()} por operario (mayor que 0, hasta dos decimales)`;
+  }
+  const total = elegidas.reduce((suma, { clave }) => suma + Number(linea.extras[clave]), 0);
+  return total > HORAS_EXTRA_MAXIMAS
+    ? `las horas extras suman ${total.toLocaleString("es-CO")} h por semana; el máximo legal es ${HORAS_EXTRA_MAXIMAS} por operario`
+    : null;
+};
 
 export const NOMBRES_DIA = { 1: "Lun", 2: "Mar", 3: "Mié", 4: "Jue", 5: "Vie", 6: "Sáb", 7: "Dom" };
 
@@ -83,6 +133,10 @@ export const lineaVacia = () => ({
   // estén usan la salida general).
   salidaPorDia: false,
   salidasDia: {},
+  // Horas extras: si tiene y, de cada tipo que aplique, las horas por operario
+  // y semana ({ diurnas: "2", nocturnasFestivas: "1" }).
+  tieneExtras: false,
+  extras: {},
   observacion: "",
 });
 
@@ -206,7 +260,14 @@ const LineaAsignacion = ({ numero: numeroLinea, linea, catalogos, cargosSugerido
   const dedicacionOk = dedicacionValida(linea.dedicacion);
   const dedicacion = Number(linea.dedicacion);
   const parcial = dedicacionOk && dedicacion < 1;
-  const valido = Boolean(linea.idCargo && Number(linea.cantidad) >= 1 && dedicacionOk && calculo && !calculo.supera_maximo);
+  // Los recargos que se muestran son los de cada operario en este centro:
+  // los del turno por la dedicación (0,4 → 40 % de las horas).
+  const factor = parcial ? dedicacion : 1;
+  const errorExtras = faltaExtras(linea);
+  const valido = Boolean(
+    linea.idCargo && Number(linea.cantidad) >= 1 && dedicacionOk && calculo && !calculo.supera_maximo && !errorExtras
+  );
+  const extrasLinea = extrasApi(linea);
 
   // Qué le falta a la línea, para decirlo junto al botón de guardar.
   const falta = !linea.idCargo
@@ -223,6 +284,8 @@ const LineaAsignacion = ({ numero: numeroLinea, linea, catalogos, cargosSugerido
             ? "indica la hora en que termina el domingo"
             : diaSinSalida
               ? `indica la salida del ${NOMBRES_DIA[diaSinSalida[0]]} (entre las 19:00 y las 24:00)`
+            : errorExtras
+              ? errorExtras
             : error
               ? error
               : calculo?.supera_maximo
@@ -511,6 +574,102 @@ const LineaAsignacion = ({ numero: numeroLinea, linea, catalogos, cargosSugerido
         </div>
       )}
 
+      <div className="space-y-2 rounded-2xl bg-orange-50/60 p-3">
+        <p className="text-xs font-bold uppercase text-gray-700">¿Los operarios de esta línea hacen horas extras?</p>
+        <div className="flex flex-wrap gap-2">
+          {[
+            [false, "No"],
+            [true, "Sí, tiene horas extras"],
+          ].map(([valor, texto]) => (
+            <button
+              key={texto}
+              type="button"
+              onClick={() => onChange({ ...linea, tieneExtras: valor, extras: {} })}
+              aria-pressed={Boolean(linea.tieneExtras) === valor}
+              className={cn(
+                "rounded-full border px-4 py-2 text-sm font-semibold transition-colors",
+                Boolean(linea.tieneExtras) === valor
+                  ? "border-emerald-500 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-100"
+                  : "border-gray-200 bg-white text-gray-600 hover:border-emerald-300"
+              )}
+            >
+              {texto}
+            </button>
+          ))}
+        </div>
+
+        {linea.tieneExtras && (
+          <>
+            <p className="px-1 text-xs text-gray-600">
+              Marca las que aplican e indica las horas por operario a la semana
+              {parcial ? " a tiempo completo (se ajustan con la dedicación)" : ""}. Máximo {HORAS_EXTRA_MAXIMAS} h
+              por semana entre todas.
+            </p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {TIPOS_EXTRA.map(({ clave, abreviatura, nombre }) => {
+                const aplica = linea.extras?.[clave] !== undefined;
+                const id = `extra-${clave}-${linea.clave}`;
+
+                return (
+                  <div
+                    key={clave}
+                    className={cn(
+                      "flex items-center gap-3 rounded-2xl border bg-white px-3 py-2",
+                      aplica ? "border-emerald-400" : "border-gray-200"
+                    )}
+                  >
+                    <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={aplica}
+                        onChange={(e) => {
+                          const extras = { ...linea.extras };
+                          if (e.target.checked) {
+                            extras[clave] = "";
+                          } else {
+                            delete extras[clave];
+                          }
+                          cambiar("extras", extras);
+                        }}
+                        className="h-4 w-4 shrink-0 accent-emerald-600"
+                      />
+                      <span className="min-w-0">
+                        <span className="font-semibold">{nombre}</span>{" "}
+                        <span className="font-mono text-xs text-gray-500">({abreviatura})</span>
+                      </span>
+                    </label>
+                    {aplica && (
+                      <div className="flex shrink-0 items-center gap-1">
+                        <input
+                          id={id}
+                          type="number"
+                          min={0.01}
+                          max={HORAS_EXTRA_MAXIMAS}
+                          step="any"
+                          value={linea.extras[clave]}
+                          aria-label={`Horas ${nombre.toLowerCase()} por operario a la semana`}
+                          onChange={(e) => cambiar("extras", { ...linea.extras, [clave]: e.target.value })}
+                          className="h-9 w-20 rounded-full border-2 border-gray-500 px-3 text-right text-sm font-semibold text-gray-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200"
+                        />
+                        <label htmlFor={id} className="text-xs text-gray-500">
+                          h/sem
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {errorExtras && (
+              <p className="flex items-start gap-2 px-1 text-xs text-red-600">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {errorExtras[0].toUpperCase() + errorExtras.slice(1)}.
+              </p>
+            )}
+          </>
+        )}
+      </div>
+
       <div className="flex min-h-[2rem] flex-wrap items-center gap-2 text-sm">
         {calculando ? (
           <span className="flex items-center gap-2 text-gray-500">
@@ -545,8 +704,11 @@ const LineaAsignacion = ({ numero: numeroLinea, linea, catalogos, cargosSugerido
               {calculo.hora_inicio_turno && !porDia && ` · de ${calculo.hora_inicio_turno} a ${calculo.hora_fin_turno}`}
               {porDia && " · salida según el día"}
             </span>
-            <span className="rounded-full bg-indigo-50 px-3 py-1 text-indigo-700">
-              {numero(calculo.horas_nocturnas_semana)} h nocturnas
+            <span
+              title={parcial ? `Turno completo: ${numero(calculo.horas_nocturnas_semana)} h × dedicación ${numero4(dedicacion)}` : undefined}
+              className="rounded-full bg-indigo-50 px-3 py-1 text-indigo-700"
+            >
+              {numero(calculo.horas_nocturnas_semana * factor)} h nocturnas
             </span>
             {calculo.hora_inicio_domingo && (
               <span className="rounded-full bg-gray-100 px-3 py-1 text-gray-700">
@@ -554,14 +716,28 @@ const LineaAsignacion = ({ numero: numeroLinea, linea, catalogos, cargosSugerido
               </span>
             )}
             <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
-              {numero(calculo.horas_dominicales_semana - calculo.horas_nocturnas_dominicales_semana)} h dominicales diurnas
+              {numero((calculo.horas_dominicales_semana - calculo.horas_nocturnas_dominicales_semana) * factor)} h dominicales diurnas
             </span>
             <span
               title="Domingo en franja nocturna: lleva el recargo nocturno y el dominical (ya incluidas en las nocturnas)."
               className="rounded-full bg-fuchsia-50 px-3 py-1 text-fuchsia-700"
             >
-              {numero(calculo.horas_nocturnas_dominicales_semana)} h nocturnas dominicales
+              {numero(calculo.horas_nocturnas_dominicales_semana * factor)} h nocturnas dominicales
             </span>
+            {!errorExtras &&
+              TIPOS_EXTRA.filter(({ campo }) => extrasLinea[campo] > 0).map(({ campo, abreviatura, nombre }) => (
+                <span
+                  key={campo}
+                  title={
+                    parcial
+                      ? `${nombre}: ${numero(extrasLinea[campo])} h a tiempo completo × dedicación ${numero4(dedicacion)}`
+                      : nombre
+                  }
+                  className="rounded-full bg-orange-50 px-3 py-1 text-orange-700"
+                >
+                  {numero(extrasLinea[campo] * factor)} h {nombre.toLowerCase()} ({abreviatura})
+                </span>
+              ))}
           </>
         ) : (
           <span className="text-gray-500">

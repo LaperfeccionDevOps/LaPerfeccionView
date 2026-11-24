@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, History, Loader2, PencilLine, StopCircle, Users } from "lucide-react";
 
+import BotonDuplicar from "@/components/contabilidad/BotonDuplicar";
 import FormularioAsignacion, { hoyISO } from "@/components/contabilidad/FormularioAsignacion";
+import { extrasDesdeApi } from "@/components/contabilidad/LineaAsignacion";
 import TablaAsignacion, { textoOperarios } from "@/components/contabilidad/TablaAsignacion";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +37,7 @@ const aFormulario = (l) => ({
   horaFinDomingo: l.hora_fin_domingo || "",
   salidaPorDia: Boolean(l.salidas_por_dia),
   salidasDia: l.salidas_por_dia || {},
+  ...extrasDesdeApi(l),
   observacion: l.observacion || "",
 });
 
@@ -43,7 +46,8 @@ const aFormulario = (l) => ({
  * las anteriores y el formulario para registrar una nueva (que reemplaza a la
  * vigente) o finalizarla. Un centro cerrado solo se consulta.
  */
-const AsignacionCentroCostoDialog = ({ idCentro, onClose }) => {
+// `onDuplicar(codigo)` abre Crear con la codificación de este centro.
+const AsignacionCentroCostoDialog = ({ idCentro, onClose, onDuplicar }) => {
   const [datos, setDatos] = useState(null);
   const [catalogos, setCatalogos] = useState(null);
   const [editando, setEditando] = useState(false);
@@ -100,12 +104,17 @@ const AsignacionCentroCostoDialog = ({ idCentro, onClose }) => {
       {/* Igual que el detalle: fondo explícito, bordes redondeados y desplazamiento interno. */}
       <DialogContent className="flex max-h-[90vh] w-[calc(100vw-2rem)] max-w-5xl flex-col gap-0 overflow-hidden rounded-3xl border-t-4 border-emerald-600 bg-white p-0 sm:rounded-3xl">
         <DialogHeader className="border-b border-gray-100 px-6 pb-3 pt-6 pr-12 text-left">
-          <DialogTitle className="text-lg font-bold text-gray-800">Asignación de operarios</DialogTitle>
+          <DialogTitle className="text-lg font-bold text-gray-800">Asignación de personal</DialogTitle>
           <DialogDescription asChild>
             <div className="space-y-0.5">
-              <p className="break-all font-mono text-sm font-bold text-emerald-800">
-                {datos?.centro.codigo || "Cargando..."}
-              </p>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <p className="break-all font-mono text-sm font-bold text-emerald-800">
+                  {datos?.centro.codigo || "Cargando..."}
+                </p>
+                {datos && onDuplicar && (
+                  <BotonDuplicar onClick={() => onDuplicar(datos.centro.codigo)} />
+                )}
+              </div>
               {datos && (
                 <p className="text-sm text-gray-500">
                   {datos.centro.cliente} · {datos.centro.sede}

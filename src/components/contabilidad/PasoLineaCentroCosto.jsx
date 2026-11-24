@@ -16,9 +16,12 @@ const FORMATO_LINEA = { patron: /^[0-9]{2}[A-Z]+$/, ejemplo: "12ASXX" };
  * o se registra una nueva (código y nombre). `lineasSede` ({ código: centros })
  * marca las líneas que ya tiene la sede elegida; es null para una sede nueva.
  * `onChange({ codigo, nombre, nueva } | null)` informa la línea lista.
+ * `codigoInicial`: línea que viene elegida (al duplicar un centro).
  */
-const PasoLineaCentroCosto = ({ lineas, codigoSede, lineasSede, onChange }) => {
-  const [seleccion, setSeleccion] = useState("");
+const PasoLineaCentroCosto = ({ lineas, codigoSede, lineasSede, onChange, codigoInicial = null }) => {
+  const [seleccion, setSeleccion] = useState(() =>
+    String(lineas.find((l) => l.codigo === codigoInicial)?.id || "")
+  );
   const [lineaNueva, setLineaNueva] = useState(LINEA_NUEVA_INICIAL);
 
   const usadas = lineasSede ? Object.keys(lineasSede).length : 0;
