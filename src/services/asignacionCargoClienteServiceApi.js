@@ -95,3 +95,15 @@ export async function listarClientes(token = "") {
   }
   return res.json();
 }
+
+// Catálogo dinámico de Selección; no modifica los servicios anteriores.
+export async function listarCatalogoClientesSeleccion(token = "") {
+  const res = await fetch(getApiUrl("/asignacion-cargo-cliente/catalogo/clientes"), {
+    method: "GET",
+    headers: buildHeaders(token),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  if (!Array.isArray(data)) throw new Error("Catálogo de clientes inválido");
+  return data;
+}

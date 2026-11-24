@@ -60,7 +60,7 @@ import { ActualizarFormacionEducacion } from '../../services/formacion';
 import { DatosSeleccion, ActualizarDatosSeleccion, getListaLugarNacimiento } from '../../services/aspirante';
 import { cn, generarReferenciaLaboralHTML, generarEntrevistaHTML, descargarDocumentoPDF, generarTratamientoDatosHTML } from '@/lib/utils';
 import { DescargarDocumentoPdf } from '../../services/descargarDocumento';
-import { getAsignacionCargoCliente } from '../../services/asignacionCargoClienteServiceApi';
+import { getAsignacionCargoCliente, listarCatalogoClientesSeleccion } from '../../services/asignacionCargoClienteServiceApi';
 import { GetObservacionesExperienciaLaboral } from "../../services/experiencia_laboral";
 
 
@@ -110,250 +110,6 @@ export const estadoProceso = [
   { id: 26, label: 'Referenciación' },
   { id: 27, label: 'Desiste del Proceso' },
   { id: 28, label: 'Rechazado' },
-];
-
-// ✅ Lista de clientes (Aseo) - cargada desde el Excel
-const clientesALP = [
-   { id: 1, name: "alp s cl 4 bis 53c-50 calidad y riesgos" },
-   { id: 2, name: "ALP S Cl 4 Bis 53c-50 Compensación y Beneficios" },
-   { id: 3, name: "ALP S Cl 4 Bis 53c-50 Compras - Abastecimiento Operaciones" },
-   { id: 4, name: "ALP S Cl 4 Bis 53c-50 Compras y Abastecimiento" },
-   { id: 5, name: "ALP S Cl 4 Bis 53c-50 Dir. Admon - Finan" },
-   { id: 6, name: "ALP S Cl 4 Bis 53c-50 Dirección Comercial" },
-   { id: 7, name: "ALP S Cl 4 Bis 53c-50 Dirección Operaciones" },
-   { id: 8, name: "ALP S Cl 4 Bis 53c-50 Gerencia" },
-   { id: 9, name: "ALP S Cl 4 Bis 53c-50 HSEQ" },
-   { id: 10, name: "ALP S Cl 4 Bis 53c-50 Incapacidades Permanentes" },
-   { id: 11, name: "ALP S Cl 4 Bis 53c-50 Licencias De Maternidad" },
-   { id: 12, name: "ALP S Cl 4 Bis 53c-50 M/miento - Infraestructura" },
-   { id: 13, name: "ALP S Cl 4 Bis 53c-50 M/miento de Fachadas" },
-   { id: 14, name: "ALP S Cl 4 Bis 53c-50 Operaciones  Campo" },
-   { id: 15, name: "ALP S Cl 4 Bis 53c-50 Operaciones HSEQ" },
-   { id: 16, name: "ALP S Cl 4 Bis 53c-50 Socios" },
-   { id: 17, name: "ALP S Cl 4 Bis 53c-50 Supernumerarios" },
-   { id: 18, name: "ALP S Cl 4 Bis 53c-50 Talento Humano" },
-   { id: 19, name: "Asistir Salud S Alamos - Asistrir Salud" },
-   { id: 20, name: "Asistir Salud S Candelaria Salud" },
-   { id: 21, name: "Asistir Salud S Cl 64g 90a-40 Salud" },
-   { id: 22, name: "Asistir Salud S Mosquera Cra 5 E 10 25 Salud" },
-   { id: 23, name: "Asistir Salud S Quiroga Salud" },
-   { id: 24, name: "Asistir Salud S Soacha Salud" },
-   { id: 25, name: "Asociación Aconiño S Cl 127 B 45 28 Salud" },
-   { id: 222, name: "Bel Medicina SAS S Cl 110 9 25 CS 601 1701 Aseo general y especializado" },
-   { id: 212, name: "Bel Medicina SAS S Cl 110 9 25 CS 601 1701 Salud" },
-   { id: 26, name: "Caja De Compensación Familiar Cafam S Ak 68 64 45 Piscinas" },
-   { id: 241, name: "Cantik Colombia SAS S Cajica Km 7 via Chia - Cajica C.E. San Roque To E OF 508 salud" },
-   { id: 221, name: "CENTRO COMERCIAL Y DE NEGOCIOS ANDINO PH CR 11 82-71 MANTENIMIENTO DE CUBIERTAS" },
-   { id: 27, name: "Centro aud. y quirúrgico del country S Cl 97 23 37 PISO 10 Mantenimiento General" },
-   { id: 28, name: "Centro aud. y quirúrgico del country S Cl 97 23-37 PISO 10 Salud" },
-   { id: 29, name: "Centro Enfermedades Digestivas Cl 97 23-37 Cons 315 Supernumerarios" },
-   { id: 30, name: "Centro Medico Dalí S Cl 97 23-37 Mantenimiento General" },
-   { id: 31, name: "Centro Medico Dalí S Cl 97 23-37 Salud" },
-   { id: 32, name: "Challenger S Dg 25g  #94-55* Aseo" },
-   { id: 33, name: "Challenger S Dg 25g 94-55 - Ambiental Aseo" },
-   { id: 34, name: "Challenger S Dg 25g 94-55 Aseo" },
-   { id: 35, name: "Challenger S Dg 25g 94-55 Supernumerarios" },
-   { id: 36, name: "Challenger S Local Cr 30 Cl 63b  28a-62 Aseo" },
-   { id: 37, name: "Challenger S Venecia Supernumerarios" },
-   { id: 38, name: "Comité De Bogotá De La Sociedad Dante Alighieri Cr 21 127 23 Aseo" },
-   { id: 39, name: "Compensar Administrativa Aseo" },
-   { id: 40, name: "Compensar Administrativa Valores Agregados" },
-   { id: 41, name: "Compensar Alturas Trabajos Especiales Limpieza de vidrios" },
-   { id: 42, name: "Compensar Auto sur Aseo" },
-   { id: 43, name: "Compensar Auto sur Lavanderia" },
-   { id: 44, name: "Compensar Auto sur Recreacion" },
-   { id: 45, name: "Compensar Auto sur Salud" },
-   { id: 46, name: "Compensar AV1 DE MAYO Salud" },
-   { id: 47, name: "Compensar AV1 DE MAYO Valores Agregados" },
-   { id: 48, name: "Compensar Bodega Medicamentos Salud" },
-   { id: 49, name: "Compensar Cajica Piscinas" },
-   { id: 50, name: "Compensar Cajica Recreacion" },
-   { id: 51, name: "Compensar CEF Recreacion" },
-   { id: 52, name: "Compensar CEF Valores Agregados" },
-   { id: 53, name: "Compensar Cl 94 Lavanderia" },
-   { id: 54, name: "Compensar Cl 94 Licencias De Maternidad" },
-   { id: 55, name: "Compensar Cl 94 Piscinas" },
-   { id: 56, name: "Compensar Cl 94 Recreacion" },
-   { id: 57, name: "Compensar Cl 94 Salud" },
-   { id: 58, name: "Compensar Cl 94 Supernumerarios" },
-   { id: 59, name: "Compensar Clinica Palermo Salud" },
-   { id: 60, name: "Compensar Club 220 Limpieza de vidrios" },
-   { id: 61, name: "Compensar Club 220 Piscinas" },
-   { id: 62, name: "Compensar Club 220 Recreacion" },
-   { id: 63, name: "Compensar Com Fund Niño Jesus Recreacion" },
-   { id: 64, name: "Compensar Consorcio Aseo" },
-   { id: 65, name: "Compensar Consorcio Recreacion" },
-   { id: 66, name: "Compensar CUR I Aseo" },
-   { id: 67, name: "Compensar CUR I Piscinas" },
-   { id: 68, name: "Compensar CUR I Recreacion" },
-   { id: 69, name: "Compensar Facat Cr 2 4 82 Salud" },
-   { id: 70, name: "Compensar Fuentes Piscinas" },
-   { id: 71, name: "Compensar Girardot Lago Piscinas" },
-   { id: 72, name: "Compensar Jardin Alameda Centro Aseo" },
-   { id: 73, name: "Compensar Jardin Alameda Centro Recreacion" },
-   { id: 74, name: "Compensar Jardin Cda de Dios la Gloria Aseo" },
-   { id: 75, name: "Compensar Jardin Chiquitines Mosquera Aseo" },
-   { id: 76, name: "Compensar Jardin Cipres Uval Aseo" },
-   { id: 77, name: "Compensar Jardin Gualy Mosquera Aseo" },
-   { id: 78, name: "Compensar Jardin Mosqueteritos Mosquera Aseo" },
-   { id: 79, name: "Compensar Jardin Yuste Aseo" },
-   { id: 80, name: "Compensar Mantenimiento Administrativos Operación" },
-   { id: 81, name: "Compensar Mantenimiento Licencias De Maternidad" },
-   { id: 82, name: "Compensar Mofly Piscinas" },
-   { id: 83, name: "Compensar Pinar F Recreacion" },
-   { id: 84, name: "Compensar Pinar G Aseo" },
-   { id: 85, name: "Compensar Pinar G Recreacion" },
-   { id: 86, name: "Compensar S Centro Mayor Piscinas" },
-   { id: 87, name: "Compensar S Cr 69 47 34 TO A Salud" },
-   { id: 88, name: "Compensar S Cra 60 Piscinas" },
-   { id: 89, name: "Compensar S Eventos Ak 68 49A 47 Aseo" },
-   { id: 90, name: "Compensar S Eventos Ak 68 49A 47 Recreacion" },
-   { id: 91, name: "Compensar S Eventos Ak 68 49A 47 Supernumerarios" },
-   { id: 92, name: "Compensar Sala de ventas Proyecto Maui Cra. 60F #45ª -08 Sur Aseo" },
-   { id: 93, name: "Compensar Suba integral Lavanderia" },
-   { id: 94, name: "Compensar Suba integral Piscinas" },
-   { id: 95, name: "Compensar Suba integral Recreacion" },
-   { id: 96, name: "Compensar Suba integral Salud" },
-   { id: 97, name: "Compensar Suba integral Supernumerarios" },
-   { id: 98, name: "Concrearmado S Av 15 122-35 - Concrearmado Aseo" },
-   { id: 99, name: "Conj Res Parque Floresta II S Cr 68b 96-16 Aseo" },
-   { id: 100, name: "Conj Res Parque Floresta II S Cr 68b 96-16 Mantenimiento General" },
-   { id: 101, name: "Conj Res Parque Floresta III S Cr 68b 96-70 Aseo" },
-   { id: 102, name: "Conj Res Parque Floresta III S Cr 68b 96-70 Obra Civil Menor" },
-   { id: 103, name: "ConJ Res Portal De Techo III - PH S Cr 71 2a 66 Aseo" },
-   { id: 104, name: "ConJ Res Portal De Techo III - PH S Cr 71 2a 66 Mantenimiento General" },
-   { id: 105, name: "Conj Res Quintas S Cl 127BIS 88-07 Aseo" },
-   { id: 106, name: "Conj Res Quintas S Cl 127BIS 88-07 Mantenimiento General" },
-   { id: 107, name: "Conj Res Surala II S Cr 57 138-66 Aseo" },
-   { id: 108, name: "Conj Res Surala II S Cr 57 138-66 Mantenimiento General" },
-   { id: 230, name: "Conjunto Residencial Atardeceres De Madelena PH S CR 70 C 57 R 57 SUR Aseo" },
-   { id: 231, name: "Conjunto Residencial Atardeceres De Madelena PH S CR 70 C 57 R 57 SUR Mantenimiento general" },
-   { id: 233, name: "Conjunto Residencial Avatar PH S CR 68b 23 B 35 Aseo general y especializado" },
-   { id: 232, name: "Conjunto Residencial Avatar PH S CR 68b 23 B 35 Mantenimiento Locativo" },
-   { id: 234, name: "Conjunto Residencial Avatar PH    S CR 68b 23 B 35 Productos implementos de aseo" },
-   { id: 109, name: "Conjunto Residencial Austro P H S Cr 68 D 19 A 37 Aseo" },
-   { id: 110, name: "Conjunto Residencial Austro P H S Cr 68 D 19 A 37 Mantenimiento General" },
-   { id: 111, name: "Conjunto Residencial Torres de la 100 Propiedad Horizontal S Cr 65 100 15 Aseo" },
-   { id: 112, name: "Conjunto Residencial Torres de la 100 Propiedad Horizontal S Cr 65 100 15 Obra Civil Menor" },
-   { id: 113, name: "Consorcio Express SAS S 20 de Julio Cl 32 Sur 3c 08 Aseo" },
-   { id: 114, name: "Consorcio Express SAS S AV CL 57 R SUR 72F 50 Aseo" },
-   { id: 115, name: "Consorcio Express SAS S AV CL 57 R SUR 72F 50 Supernumerarios" },
-   { id: 116, name: "Consorcio Express SAS S Bosa Cr 95a 74 Sur 99 Aseo" },
-   { id: 117, name: "Consorcio Express SAS S Cl 191 Ak 45 191 11 Aseo" },
-   { id: 118, name: "Consorcio Express SAS S Conejera Cr 101a 161 30 Aseo" },
-   { id: 119, name: "Consorcio Express SAS S Cruces Cr 6 0 69 Sur Aseo" },
-   { id: 120, name: "Consorcio Express SAS S Engativá Tv 113 64c 48/66 19 Aseo" },
-   { id: 121, name: "Consorcio Express SAS S Gaviotas Cr 15 Este 47b 50 Sur Aseo" },
-   { id: 122, name: "Consorcio Express SAS S Juan Rey Cr 15 Este 72a Sur 43 Aseo" },
-   { id: 123, name: "Consorcio Express SAS S San Francisco Cr 19d 64b 36 Aseo" },
-   { id: 124, name: "Consorcio Express SAS S Suba Cl 132 144a 25 Aseo" },
-   { id: 125, name: "Consorcio Salud S Cl  73 10-83 Administrativos Operación" },
-   { id: 126, name: "Corporacion Club Los Lagartos S Cl 116 72 A 80 Recreacion" },
-   { id: 127, name: "Corporacion Tecnologica De Bogotá - CTB S CR 21  53 D 35 Aseo" },
-   { id: 128, name: "Corriente Alterna S Cr 71d  51-42 Aseo" },
-   { id: 129, name: "Cruz Roja Colombiana S Albergue Casa Volver Cl 63 Supernumerarios" },
-   { id: 130, name: "Cruz Roja Colombiana S ED. Admon Cr 23 73 19 Aseo" },
-   { id: 131, name: "Cruz Roja Colombiana S ED. Admon Cr 23 73 19 Aseo" },
-   { id: 132, name: "Cruz Roja Colombiana S ED. Admon Cr 23 73 19 Supernumerarios" },
-   { id: 214, name: "CRUZ ROJA COLOMBIANA S PET CRA 45 # 106B - 18 ASEO" },
-   { id: 133, name: "Cruz Roja Colombiana S Salvamento Av 68 68b 31 Piscinas" },
-   { id: 134, name: "Cruz Roja Colombiana S Salvamento Av 68 68b 31 Recreacion" },
-   { id: 135, name: "Edif Ahorramas S Cr 15a 121-12 Aseo" },
-   { id: 136, name: "Edif Banco Ganadero S Av 15 122-35 Aseo" },
-   { id: 137, name: "Edif Banco Ganadero S Av 15 122-35 Mantenimiento General" },
-   { id: 138, name: "Edif Buganvilla S Cr 11 BIS 124a-66 Aseo" },
-   { id: 139, name: "Edif Buganvilla S Cr 11 BIS 124a-66 Obra Civil Menor" },
-   { id: 140, name: "Edif Cipres S CL 71 3-51 Aseo" },
-   { id: 141, name: "Edif Davivienda S Cl 72 11-23 Aseo" },
-   { id: 142, name: "Edif Davivienda S Cl 72 11-23 Obra Civil Menor" },
-   { id: 143, name: "Edif El Coral S Cl 81 7-36 Aseo" },
-   { id: 144, name: "Edif Era S Cr 10 120-30 Aseo" },
-   { id: 145, name: "Edif Era S Cr 10 120-30 Obra Civil Menor" },
-   { id: 146, name: "Edif Fiduciaria la previsora S Cl 72 10-03 Aseo" },
-   { id: 147, name: "Edif Fiduciaria la previsora S Cl 72 10-03 Obra Civil Menor" },
-   { id: 148, name: "Edif Figueras II S Cr 19a 102-70 Aseo" },
-   { id: 149, name: "Edif Masters S AUT Norte  118-86 Mantenimiento General" },
-   { id: 150, name: "Edif Masters S AUT Norte  118-86 Salud" },
-   { id: 151, name: "Edif Monserrat 74 S Cr 11 73-44 Aseo" },
-   { id: 152, name: "Edif Monserrat 74 S Cr 11 73-44 Obra Civil Menor" },
-   { id: 153, name: "Edif Nueva Avenida S AV 19 114-65  Aseo" },
-   { id: 154, name: "Edif Nueva Avenida S AV 19 114-65  Mantenimiento General" },
-   { id: 211, name: "Edif Proyecto Neo S Av Cr 15 145a-31 Aseo" },
-   { id: 155, name: "Edif Torre Ejecutiva S Cl 67 6-60 Aseo" },
-   { id: 156, name: "Edificio Cortezza Calle 93 S Cr 14 93 68 Aseo" },
-   { id: 157, name: "Edificio Cortezza Calle 93 S Cr 14 93 68 Mantenimiento General" },
-   { id: 158, name: "Educa Edtech Colombia SAS S Cl 104 #18A 52 Santa Bibiana Aseo" },
-   { id: 159, name: "Empresa Colombiana De Cables Sas KM 5 5 VIA CAJICA ZIPAQUIRA Aseo" },
-   { id: 160, name: "Empresa Colombiana De Cables Sas KM 5 5 VIA CAJICA ZIPAQUIRA Mantenimiento General" },
-   { id: 161, name: "Exicarton S Cl 65 Bis 88 57 Aseo" },
-   { id: 162, name: "Exicarton S Dg 25g 94-55 Aseo" },
-   { id: 163, name: "Fund Niño Jesus S FD Apensar Aseo" },
-   { id: 164, name: "Fund Niño Jesus S FD Engativa Aseo" },
-   { id: 165, name: "Fund Niño Jesus S FD Principal Aseo" },
-   { id: 166, name: "Fund Univ Compensar S Av Cl #32 17-30* Aseo" },
-   { id: 167, name: "Fund Univ Compensar S Av Cl #32 17-30* M/miento de Fachadas" },
-   { id: 168, name: "Fund Univ Compensar S Av Cl #32 17-30* Obra Civil Menor" },
-   { id: 169, name: "Fund Univ Compensar S Campus Ak 68 No. 68 B - 45 Aseo" },
-   { id: 170, name: "Fund Univ Compensar S Campus Ak 68 No. 68 B - 45 Obra Civil Menor" },
-   { id: 171, name: "Fund Univ Compensar S Campus Ak 68 No. 68 B - 45 Recreacion" },
-   { id: 210, name: "FUNDACIÓN UNIVERSITARIA KONRAD LORENZ CRA 9 BIS 62-43 Aseo" },
-   { id: 235, name: "Gran Americas Mi Teleferico San Cristobal SAS Est. 20 de Julio - Cr 5 A 31 Sur Aseo general y especializado" },
-   { id: 236, name: "Gran Americas Mi Teleferico San Cristobal SAS Est. 20 de Julio - Cr 5 A 31 Sur Aseo Alturas" },
-   { id: 237, name: "Gran Americas Mi Teleferico San Cristobal SAS Est. La Victoria - Cl 40 Sur 3 C Este Aseo general y especializado" },
-   { id: 238, name: "Gran Americas Mi Teleferico San Cristobal SAS Est. La Victoria - Cl 40 Sur 3 C Este Aseo Alturas" },
-   { id: 239, name: "Gran Americas Mi Teleferico San Cristobal SAS Est. La Victoria - Cr 12 A Este 43 Sur Aseo general y especializado" },
-   { id: 240, name: "Gran Americas Mi Teleferico San Cristobal SAS Est. La Victoria - Cr 12 A Este 43 Sur Aseo Alturas" },
-   { id: 172, name: "Guala S Cl 17 42-75 Aseo" },
-   { id: 216, name: "Hacienda Los Lagos P. H. S Cr 54 d 200 54 Aseo" },
-   { id: 218, name: "Hacienda Los Lagos P. H. S Cr 54 d 200 54 Mantenimiento General" },
-   { id: 217, name: "Hacienda Los Lagos P. H. S Cr 54 d 200 54 Obra Civil Menor" },
-   { id: 173, name: "Infinity Brows Studio SAS S CL 24 B 75 18 Cafeteria" },
-   { id: 174, name: "Laboratorio Medico Echavarria SAS S Cr 44 20 a 05 Mantenimiento General" },
-   { id: 175, name: "Laboratorios Smart S A S S Cl 19 # 69 - 05 Recreacion" },
-   { id: 176, name: "Laboratorios Smart S A S S Cl 19 # 69 - 05 Salud" },
-   { id: 227, name: "Lagomar Parque Acuatico aseo" },
-   { id: 228, name: "Lagomar Parque Acuatico piscinas" },
-   { id: 226, name: "Lagosol Parque Acuatico aseo" },
-   { id: 229, name: "Lagosol Parque Acuatico piscinas" },
-   { id: 177, name: "Lemco Hotel Salvio Aseo" },
-   { id: 178, name: "Licencias Online S Cl 98 22-64 Aseo" },
-   { id: 179, name: "Loscobos Medical Center S.A.S AK 9 131 A 40 Limpieza de vidrios" },
-   { id: 180, name: "Madiautos SAS S Morato Av Cr 70 96  05 Aseo" },
-   { id: 181, name: "Madiautos SAS S Niza 1 Cl 127 70g 75 Aseo" },
-   { id: 182, name: "Madiautos SAS S Taller Hyundai Cr 69c  99 19 /12 Aseo" },
-   { id: 183, name: "Mantener Ingenieria S Cl 25 32-22 Mantener Dirección Comercial" },
-   { id: 184, name: "Mantener Ingenieria S Cl 25 32-22 Mantener Gerencia" },
-   { id: 185, name: "Mantener Ingenieria S Cl 25 32-22 Mantener M/miento - Infraestructura" },
-   { id: 223, name: "Mantener Ingenieria SAS S Cl 25 32-22 Mantener Operaciones" },
-   { id: 186, name: "Mariano Moreno S Av Cl 127 7a-47 Aseo" },
-   { id: 187, name: "Mariano Moreno S Cl 71 Aseo" },
-   { id: 188, name: "Mariano Moreno S Cl 71 Supernumerarios" },
-   { id: 189, name: "Mariano Moreno S Modelia Aseo" },
-   { id: 190, name: "Medicina Nuclear S Cr 20 62-09  Salud" },
-   { id: 224, name: "MEDIPORT SAS S Cr 45 100 34 P6 Jardinería" },
-   { id: 191, name: "MEDIPORT SAS S Cr 45 100 34 P6 Salud" },
-   { id: 225, name: "MULTIPET SAS S CR 45 # 106 B - 18 aseo" },
-   { id: 192, name: "Nabesade SAS S Cl 127a 7 19 CS 601* Salud" },
-   { id: 193, name: "Nacobena S Cl 93b 12-18 Aseo" },
-   { id: 194, name: "Parko Services S Av Cr 15 106-65 Aseo" },
-   { id: 195, name: "Parque Central Pontevedra Primera Etapa - PH S Cl 95 71 45* Aseo" },
-   { id: 196, name: "Parque Central Pontevedra Primera Etapa - PH S Cl 95 71 45* Mantenimiento General" },
-   { id: 197, name: "Parr. San Francisco S Cr 3 57-61 Supernumerarios" },
-   { id: 198, name: "Parr. Santos Ángeles S Cl 28 32a-07 Supernumerarios" },
-   { id: 199, name: "Parroquia Madre Laura S CR 2 A ESTE 89 SUR 01 P 1 Supernumerarios" },
-   { id: 200, name: "Parroquia Maria Madre De Dios S CR 41 BIS 1G 63 Supernumerarios" },
-   { id: 201, name: "Quasfar M&F SA S CL 46A 82 54 BG 10 Par Emp San Cayetano2 Salud" },
-   { id: 202, name: "Selika 94 SAS S CR 13 94 A 26 Salud" },
-   { id: 203, name: "Servicios Médicos Especializados Neurosalud SAS S Ak 45 # 100 - 48 Salud" },
-   { id: 204, name: "Servicios Medicos Integrales Medicol SAS S Edificio Aequi Movistar Salud" },
-   { id: 205, name: "Sky Industrial SAS S Cr 106 15-25 Aseo" },
-   { id: 206, name: "Sky Logistica Integral SAS S San Carlos II Etapa 4 via Bogota - Faca Aseo" },
-   { id: 207, name: "Teleférico Monserrate S Cr 2 Este 21-48 Aseo" },
-   { id: 208, name: "Textiles Asitex S.A.S S Cr 63 18 A 43 Aseo" },
-   { id: 209, name: "Thomas Gred Seguridad Integral LTDA S CALLE 77 28B 25 Aseo" },
-   { id: 219, name: "Urbanizacion Rafael Nuñez V Etapa M3 L2 P H S CL 44 D 45 45 Aseo" },
-   { id: 220, name: "Urbanizacion Rafael Nuñez V Etapa M3 L2 P H S CL 44 D 45 45 Mantenimiento General" },
-   { id: 215, name: "Universidad De Ciencias Aplicadas Y Ambientales UDCA S CL 222 55 37 Mantenimiento General" },
 ];
 
 const EPS = [
@@ -1957,6 +1713,34 @@ console.log('campos completos:', campos);
 };
 
   const [clienteQuery, setClienteQuery] = useState('');
+  const [clientesALP, setClientesALP] = useState([]);
+  const [estadoCatalogoClientes, setEstadoCatalogoClientes] = useState('cargando');
+  useEffect(() => {
+    if (!isOpen) return;
+    let vigente = true;
+    setClientesALP([]);
+    setEstadoCatalogoClientes('cargando');
+    listarCatalogoClientesSeleccion().then((datos) => {
+      const clientes = datos.map((c) => ({
+        id: Number(c.IdCliente),
+        name: String(c.Nombre ?? '').replace(/\s+/g, ' ').trim(),
+      }));
+      if (clientes.some(c => !Number.isSafeInteger(c.id) || c.id <= 0 || !c.name) ||
+          new Set(clientes.map(c => c.id)).size !== clientes.length) {
+        throw new Error('Catálogo de clientes inconsistente');
+      }
+      if (vigente) {
+        setClientesALP(clientes);
+        setEstadoCatalogoClientes('listo');
+      }
+    }).catch((error) => {
+      if (vigente) {
+        console.error('Error cargando catálogo de clientes:', error);
+        setEstadoCatalogoClientes('error');
+      }
+    });
+    return () => { vigente = false; };
+  }, [isOpen, aspirante?.id]);
   const clientesFiltrados = clientesALP.filter((c) =>
     c.name.toLowerCase().includes(clienteQuery.toLowerCase().trim())
   );
@@ -5215,7 +4999,7 @@ if (response && response.status === 201) {
                                     <Label>Cliente</Label>
 
                                     <Select
-                                       disabled={!puedeModificarAsignacionDesdeSeleccion}
+                                       disabled={!puedeModificarAsignacionDesdeSeleccion || estadoCatalogoClientes !== 'listo'}
                                        value={
                                           formData?.asignacionCargo?.IdCliente
                                              ? String(formData.asignacionCargo.IdCliente)
@@ -5251,7 +5035,10 @@ if (response && response.status === 201) {
                                              [&>span]:leading-5
                                           "
                                        >
-                                          <SelectValue placeholder="Seleccionar cliente" />
+                                          <SelectValue placeholder="Seleccionar cliente">
+                                             {clientesALP.find(c => c.id === Number(formData?.asignacionCargo?.IdCliente))?.name ||
+                                                (formData?.asignacionCargo?.IdCliente ? (formData.asignacionCargo.ClienteNombre || `Cliente ${formData.asignacionCargo.IdCliente}`) : undefined)}
+                                          </SelectValue>
                                        </SelectTrigger>
 
                                        <SelectContent className="max-h-72 overflow-y-auto">
@@ -5286,6 +5073,13 @@ if (response && response.status === 201) {
                                           )}
                                        </SelectContent>
                                     </Select>
+                                    {estadoCatalogoClientes !== 'listo' && (
+                                       <p className="text-xs text-muted-foreground">
+                                          {estadoCatalogoClientes === 'error'
+                                             ? 'No fue posible cargar clientes. Cierre y vuelva a abrir el detalle para reintentar.'
+                                             : 'Cargando clientes...'}
+                                       </p>
+                                    )}
                                  </div>
 
                                  {/* BOTÓN GUARDAR: solo disponible en estados manipulables por Selección */}
