@@ -20,6 +20,14 @@ import EntrevistaRetiroPage from "@/pages/EntrevistaRetiroPage";
 import OperacionesProcesosDisciplinariosView from "@/pages/OperacionesProcesosDisciplinariosView";
 import AgendaDisciplinariaOperacionesView from "@/pages/AgendaDisciplinariaOperacionesView";
 import OperacionesRetirosView from "@/pages/OperacionesRetirosView";
+import PermisosTrabajoAlturasView from "@/pages/PermisosTrabajoAlturasView";
+import CrearPermisoTrabajoAlturasView from "@/pages/CrearPermisoTrabajoAlturasView";
+import ConsultarPermisosTrabajoAlturasView from "@/pages/ConsultarPermisosTrabajoAlturasView";
+import DetallePermisoTrabajoAlturasView from "@/pages/DetallePermisoTrabajoAlturasView";
+import AnalisisTrabajoSeguroView from "@/pages/AnalisisTrabajoSeguroView";
+import CrearAnalisisTrabajoSeguroView from "@/pages/CrearAnalisisTrabajoSeguroView";
+import ConsultarAnalisisTrabajoSeguroView from "@/pages/ConsultarAnalisisTrabajoSeguroView";
+import DetalleAnalisisTrabajoSeguroView from "@/pages/DetalleAnalisisTrabajoSeguroView";
 import IniciarProcesoOperacionesView from "@/pages/IniciarProcesoOperacionesView";
 import RevisionProcesoOperacionesView from "@/pages/RevisionProcesoOperacionesView";
 
@@ -456,6 +464,78 @@ function App() {
                 permission="OPERACIONES_RETIROS"
               >
                 <OperacionesRetirosView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
+            path="operaciones/alturas/permisos-trabajo"
+            element={
+              <OperationsPermissionRoute>
+                <PermisosTrabajoAlturasView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
+            path="operaciones/alturas/permisos-trabajo/crear"
+            element={
+              <OperationsPermissionRoute>
+                <CrearPermisoTrabajoAlturasView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
+            path="operaciones/alturas/permisos-trabajo/consultar"
+            element={
+              <OperationsPermissionRoute>
+                <ConsultarPermisosTrabajoAlturasView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
+            path="operaciones/alturas/permisos-trabajo/:idPermiso"
+            element={
+              <OperationsPermissionRoute>
+                <DetallePermisoTrabajoAlturasView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
+            path="operaciones/alturas/analisis-trabajo-seguro"
+            element={
+              <OperationsPermissionRoute>
+                <AnalisisTrabajoSeguroView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
+            path="operaciones/alturas/analisis-trabajo-seguro/crear"
+            element={
+              <OperationsPermissionRoute>
+                <CrearAnalisisTrabajoSeguroView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
+            path="operaciones/alturas/analisis-trabajo-seguro/consultar"
+            element={
+              <OperationsPermissionRoute>
+                <ConsultarAnalisisTrabajoSeguroView />
+              </OperationsPermissionRoute>
+            }
+          />
+
+          <Route
+            path="operaciones/alturas/analisis-trabajo-seguro/:idAnalisis"
+            element={
+              <OperationsPermissionRoute>
+                <DetalleAnalisisTrabajoSeguroView />
               </OperationsPermissionRoute>
             }
           />

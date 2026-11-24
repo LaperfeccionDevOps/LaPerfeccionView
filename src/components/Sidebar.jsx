@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
+  HardHat,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -351,6 +352,45 @@ const Sidebar = ({
         },
       ],
     },
+    {
+      label: "Operaciones",
+      icon: HardHat,
+      roles: [
+        "Administrador",
+        "Super Administrador",
+        "Operaciones",
+      ],
+      children: [
+        {
+          label: "Alturas",
+          roles: [
+            "Administrador",
+            "Super Administrador",
+            "Operaciones",
+          ],
+          children: [
+            {
+              to: "/operaciones/alturas/permisos-trabajo",
+              label: "Permisos de Trabajo",
+              roles: [
+                "Administrador",
+                "Super Administrador",
+                "Operaciones",
+              ],
+            },
+            {
+              to: "/operaciones/alturas/analisis-trabajo-seguro",
+              label: "Análisis de Trabajo Seguro",
+              roles: [
+                "Administrador",
+                "Super Administrador",
+                "Operaciones",
+              ],
+            },
+          ],
+        },
+      ],
+    },
   ];
 
   const talentoHumanoNavItems = [
@@ -575,6 +615,19 @@ const Sidebar = ({
         {
           to: "/archivos",
           label: "Consulta de Colaboradores",
+        },
+        {
+          label: "Alturas",
+          children: [
+            {
+              to: "/operaciones/alturas/permisos-trabajo",
+              label: "Permisos de Trabajo",
+            },
+            {
+              to: "/operaciones/alturas/analisis-trabajo-seguro",
+              label: "Análisis de Trabajo Seguro",
+            },
+          ],
         },
       ],
     },
