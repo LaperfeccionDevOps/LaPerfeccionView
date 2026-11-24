@@ -6,7 +6,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Eye,
   FileSpreadsheet,
   Loader2,
   Lock,
@@ -94,9 +93,10 @@ const SelectFiltro = ({ id, label, valor, onChange, children }) => (
 const MODOS = {
   consultar: {
     descripcion:
-      "Consulta de los centros de costo por cliente, servicio y línea de negocio. Las fechas de apertura y cierre se ven en el detalle.",
-    boton: "Ver",
-    icono: Eye,
+      "Consulta de los centros de costo por cliente, servicio y línea de negocio. Haz clic en una fila para ver su detalle, con las fechas de apertura y cierre.",
+    // Sin botón: la fila completa abre el detalle.
+    boton: null,
+    icono: null,
     permitirCambioEstado: false,
     // Tablero de operarios asignados sobre la tabla.
     tablero: true,
@@ -486,13 +486,32 @@ const CentrosCostoView = ({ modo = "consultar" }) => {
                     <th className="px-3 py-3">Servicio asociado</th>
                     <th className="px-3 py-3">Estado</th>
                     <th className="px-3 py-3 text-right">Operarios</th>
-                    <th className="px-3 py-3" />
+                    <th className="px-3 py-3">
+                      <span className="sr-only">{configuracion.boton || "Detalle"}</span>
+                    </th>
                   </tr>
                 </thead>
 
                 <tbody className="divide-y divide-gray-100">
                   {resultado?.centros.map((c) => (
-                    <tr key={c.id_centro_costo_contable} className="align-top hover:bg-emerald-50/40">
+                    <tr
+                      key={c.id_centro_costo_contable}
+                      tabIndex={0}
+                      aria-label={`${configuracion.boton || "Ver detalle de"} ${c.codigo}`}
+                      onClick={() => {
+                        // Si se seleccionó texto (p. ej. para copiar el código), no se abre.
+                        if (!window.getSelection()?.toString()) {
+                          setIdDetalle(c.id_centro_costo_contable);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                          e.preventDefault();
+                          setIdDetalle(c.id_centro_costo_contable);
+                        }
+                      }}
+                      className="group cursor-pointer align-top outline-none hover:bg-emerald-50/60 focus-visible:bg-emerald-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-300"
+                    >
                       <td className="whitespace-nowrap px-3 py-3 font-mono text-xs text-gray-700">
                         <span className="flex items-center gap-1">
                           {c.codigo}
@@ -536,15 +555,26 @@ const CentrosCostoView = ({ modo = "consultar" }) => {
                         )}
                       </td>
                       <td className="px-3 py-3 text-right">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => setIdDetalle(c.id_centro_costo_contable)}
-                          className="h-8 gap-1 rounded-lg border-emerald-200 px-3 text-emerald-700 hover:bg-emerald-50"
-                        >
-                          <IconoBoton className="h-4 w-4" />
-                          {configuracion.boton}
-                        </Button>
+                        {configuracion.boton ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            tabIndex={-1}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setIdDetalle(c.id_centro_costo_contable);
+                            }}
+                            className="h-8 gap-1 rounded-lg border-emerald-200 px-3 text-emerald-700 hover:bg-emerald-50"
+                          >
+                            <IconoBoton className="h-4 w-4" />
+                            {configuracion.boton}
+                          </Button>
+                        ) : (
+                          <ChevronRight
+                            aria-hidden="true"
+                            className="ml-auto h-4 w-4 text-gray-300 transition-colors group-hover:text-emerald-600"
+                          />
+                        )}
                       </td>
                     </tr>
                   ))}
