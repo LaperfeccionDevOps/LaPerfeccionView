@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import {
   consultarCentrosCosto,
   crearCentroCosto,
+  listarClientesOperativos,
   guardarAsignacionCentro,
   obtenerDepartamentosGeograficos,
   obtenerFiltrosCentrosCosto,
@@ -157,6 +158,24 @@ const FormularioCrearCentroCosto = ({ origen, onCambiarOrigen, onReiniciar, dupl
   // Resultado de guardarla después de crear: { operarios } o { error }.
   const [resultadoAsignacion, setResultadoAsignacion] = useState(null);
   const [guardando, setGuardando] = useState(false);
+  const [modoVinculo, setModoVinculo] = useState("");
+  const [clientesOperativos, setClientesOperativos] = useState(null);
+  const [errorClientes, setErrorClientes] = useState("");
+  const [clienteOperativo, setClienteOperativo] = useState("");
+  const [nombreOperativo, setNombreOperativo] = useState("");
+  const [buscarOperativo, setBuscarOperativo] = useState("");
+  useEffect(() => {
+    if (modoVinculo !== "existente") return;
+    let vigente = true;
+    setClientesOperativos(null);
+    setErrorClientes("");
+    listarClientesOperativos().then((datos) => {
+      if (vigente) setClientesOperativos(datos);
+    }).catch((error) => {
+      if (vigente) setErrorClientes(error.message);
+    });
+    return () => { vigente = false; };
+  }, [modoVinculo]);
   // Centro creado (detalle que devuelve la API) y si se está viendo su detalle.
   const [creado, setCreado] = useState(null);
   const [verCreado, setVerCreado] = useState(false);
@@ -448,10 +467,15 @@ const FormularioCrearCentroCosto = ({ origen, onCambiarOrigen, onReiniciar, dupl
 
   const asignacionLista = !asignacionInicial.activa || asignacionInicial.valida;
 
+  const vinculoListo = modoVinculo === "ninguno" ||
+    (modoVinculo === "existente" && clientesOperativos?.some((c) => String(c.id) === clienteOperativo)) ||
+    (modoVinculo === "nuevo" && Boolean(nombreOperativo.trim()));
+
   const puedeCrear =
-    codificacionCompleta && validacion?.existe === false && fechasCompletas && asignacionLista && !guardando;
+    codificacionCompleta && validacion?.existe === false && fechasCompletas && asignacionLista && vinculoListo && !guardando;
 
   const crear = async () => {
+    if (!puedeCrear) return;
     setGuardando(true);
 
     try {
@@ -484,6 +508,8 @@ const FormularioCrearCentroCosto = ({ origen, onCambiarOrigen, onReiniciar, dupl
         fecha_inicio_proyecto: fechaInicio,
         fecha_fin_proyecto: fechaFin || null,
         observacion: observacion.trim() || null,
+        ...(modoVinculo === "existente" ? { vinculacion_cliente: { modo: "existente", id_cliente: Number(clienteOperativo) } }
+          : modoVinculo === "nuevo" ? { vinculacion_cliente: { modo: "nuevo", nombre: nombreOperativo.trim() } } : {}),
       });
 
       // Asignación opcional: si falla, el centro queda creado y se avisa.
@@ -1152,6 +1178,31 @@ const FormularioCrearCentroCosto = ({ origen, onCambiarOrigen, onReiniciar, dupl
             Queda en el historial del centro. {observacion.length}/500
           </p>
         </div>
+
+        {codificacionCompleta && (
+          <fieldset disabled={guardando} className="mt-4 space-y-3 rounded-2xl border border-gray-200 p-4">
+            <legend className="px-2 text-sm font-bold text-gray-800">Vinculación con Talento Humano</legend>
+            <select aria-label="Tipo de vinculación" value={modoVinculo} onChange={(e) => {
+              setModoVinculo(e.target.value); setClienteOperativo(""); setNombreOperativo(""); setBuscarOperativo("");
+            }} className="w-full rounded-xl border p-2 text-sm">
+              <option value="">Seleccione una opción</option>
+              <option value="ninguno">Solo Contabilidad (sin vincular)</option>
+              <option value="existente">Vincular cliente existente</option>
+              <option value="nuevo">Crear nuevo cliente operativo</option>
+            </select>
+            {modoVinculo === "existente" && <>
+              {errorClientes ? <p role="alert" className="text-sm text-red-600">{errorClientes}. Cambie de opción y vuelva a intentar.</p> : !clientesOperativos ? <p className="text-sm">Cargando clientes...</p> : <>
+                <input aria-label="Buscar cliente operativo" placeholder="Buscar cliente por nombre o ID" value={buscarOperativo} onChange={(e) => setBuscarOperativo(e.target.value)} className="w-full rounded-xl border p-2 text-sm" />
+                <select aria-label="Cliente operativo" value={clienteOperativo} onChange={(e) => setClienteOperativo(e.target.value)} className="w-full rounded-xl border p-2 text-sm">
+                  <option value="">Seleccione cliente</option>
+                  {clientesOperativos.filter((c) => String(c.id) === clienteOperativo || `${c.nombre} ${c.id}`.toLowerCase().includes(buscarOperativo.trim().toLowerCase())).map((c) => <option key={c.id} value={String(c.id)}>{c.nombre} (ID {c.id})</option>)}
+                </select>
+              </>}
+            </>}
+            {modoVinculo === "nuevo" && <input aria-label="Nombre del nuevo cliente operativo" maxLength={300} value={nombreOperativo} onChange={(e) => setNombreOperativo(e.target.value)} placeholder="Nombre del nuevo cliente operativo" className="w-full rounded-xl border p-2 text-sm" />}
+            {!vinculoListo && <p className="text-xs text-gray-500">Complete la vinculación o elija Solo Contabilidad.</p>}
+          </fieldset>
+        )}
 
         <AsignacionInicialCentroCosto
           habilitado={codificacionCompleta}

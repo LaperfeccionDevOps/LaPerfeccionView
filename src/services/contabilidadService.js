@@ -79,6 +79,16 @@ export const validarCodigoSede = async (codigo) => {
   return procesarRespuesta(response);
 };
 
+// Catálogo operativo independiente, autorizado para Contabilidad.
+export const listarClientesOperativos = async () => {
+  const response = await fetch(getApiUrl(`${RUTA}/clientes-operativos`), {
+    headers: construirHeaders(),
+  });
+  const data = await procesarRespuesta(response);
+  if (!Array.isArray(data)) throw new Error("Catálogo de clientes inválido.");
+  return data;
+};
+
 // Crea un centro de costo ABIERTO (fecha de apertura: hoy) y, en la misma
 // operación, lo que venga como nuevo (cliente/proyecto, CEN 2, sede, línea, servicio).
 export const crearCentroCosto = async (datos) => {
