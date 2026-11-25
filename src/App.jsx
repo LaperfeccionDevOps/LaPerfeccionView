@@ -51,6 +51,7 @@ import PQRFGeneralView from "@/components/PQRFGeneralView";
 import PQRFPublicaPage from "@/pages/PQRFPublicaPage";
 import AdministracionSNCView from "@/components/AdministracionSNCView";
 import AdministracionPQRFView from "@/components/AdministracionPQRFView";
+import { PermisosContabilidadProvider, usePermisosContabilidad } from "@/components/contabilidad/PermisosContabilidad";
 import CentrosCostoView from "@/pages/CentrosCostoView";
 import CrearCentroCostoView from "@/pages/CrearCentroCostoView";
 import ModificarCentroCostoView from "@/pages/ModificarCentroCostoView";
@@ -292,7 +293,7 @@ const GeneralPermissionRoute = ({ children, permission }) => {
 };
 
 // Contabilidad: protección visual por rol; la API también valida el acceso.
-const ContabilidadRoute = ({ children }) => {
+const ContabilidadRoute = ({ children, gestion = false }) => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
 
@@ -307,9 +308,22 @@ const ContabilidadRoute = ({ children }) => {
   if (!rolesPermitidos.includes(role)) {
     return <Navigate to="/" replace />;
   }
-  return children;
+  return (
+    <PermisosContabilidadProvider>
+      <AccesoContabilidad gestion={gestion}>{children}</AccesoContabilidad>
+    </PermisosContabilidadProvider>
+  );
 };
 
+
+const AccesoContabilidad = ({ children, gestion }) => {
+  const { cargando, error, puedeConsultar, puedeGestionar, actualizar } = usePermisosContabilidad();
+  if (cargando) return <p role="status">Consultando permisos de Contabilidad...</p>;
+  if (error) return <div role="alert">No se pudieron verificar los permisos de Contabilidad. <button type="button" onClick={actualizar}>Reintentar</button></div>;
+  if (!puedeConsultar) return <Navigate to="/" replace />;
+  if (gestion && !puedeGestionar) return <Navigate to="/contabilidad/centros-costo" replace />;
+  return children;
+};
 
 // Las acciones administrativas se restringen al rol Super Administrador.
 const SoloSuperAdminRoute = ({ children }) => {
@@ -602,7 +616,7 @@ function App() {
           <Route
             path="contabilidad/centros-costo/crear"
             element={
-              <ContabilidadRoute>
+              <ContabilidadRoute gestion>
                 <CrearCentroCostoView />
               </ContabilidadRoute>
             }
@@ -611,7 +625,7 @@ function App() {
           <Route
             path="contabilidad/centros-costo/modificar"
             element={
-              <ContabilidadRoute>
+              <ContabilidadRoute gestion>
                 <ModificarCentroCostoView />
               </ContabilidadRoute>
             }

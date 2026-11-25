@@ -31,6 +31,15 @@ const procesarRespuesta = async (response) => {
   return data;
 };
 
+// Permisos vigentes de Contabilidad, consultados directamente al backend.
+export const obtenerPermisosContabilidad = async () => {
+  const response = await fetch(getApiUrl(`${RUTA}/permisos`), {
+    headers: construirHeaders(),
+    cache: "no-store",
+  });
+  return procesarRespuesta(response);
+};
+
 // Listas para los filtros: proyectos (con cliente y NIT), departamentos,
 // líneas de negocio y servicios asociados.
 export const obtenerFiltrosCentrosCosto = async () => {

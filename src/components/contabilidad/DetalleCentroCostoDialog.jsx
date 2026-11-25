@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { AlertTriangle, CalendarClock, CalendarRange, History, Loader2, Lock, Unlock, Users } from "lucide-react";
 
+import { usePermisosContabilidad } from "./PermisosContabilidad";
 import BotonDuplicar from "@/components/contabilidad/BotonDuplicar";
 import EtapaCentroCosto, { descripcionEtapa, formatearFecha } from "@/components/contabilidad/EtapaCentroCosto";
 import TablaAsignacion, { textoOperarios } from "@/components/contabilidad/TablaAsignacion";
@@ -62,6 +63,8 @@ const DetalleCentroCostoDialog = ({
   onDuplicar,
   permitirCambioEstado = false,
 }) => {
+  const { puedeGestionar } = usePermisosContabilidad();
+  const permitirGestion = puedeGestionar && permitirCambioEstado;
   const [centro, setCentro] = useState(null);
   // Asignación de operarios del centro (vigente y parámetros de recargo).
   const [asignacion, setAsignacion] = useState(null);
@@ -119,6 +122,7 @@ const DetalleCentroCostoDialog = ({
   const fechaMinima = abierto ? centro?.fecha_apertura : centro?.fecha_cierre;
 
   const handleCambiar = async () => {
+    if (!permitirGestion) return;
     setIntento(true);
 
     if (!fecha || !motivo.trim()) {
@@ -165,6 +169,7 @@ const DetalleCentroCostoDialog = ({
     fechas.fin === (centro.fecha_fin_proyecto || "");
 
   const handleAjustarFechas = async () => {
+    if (!permitirGestion) return;
     setIntentoFechas(true);
 
     if (!fechas.inicio || !fechas.motivo.trim() || fechasInvalidas) {
@@ -212,7 +217,7 @@ const DetalleCentroCostoDialog = ({
       <DialogContent className="flex max-h-[90vh] w-[calc(100vw-2rem)] max-w-3xl flex-col gap-0 overflow-hidden rounded-3xl border-t-4 border-emerald-600 bg-white p-0 sm:rounded-3xl">
         <DialogHeader className="border-b border-gray-100 px-6 pb-3 pt-6 pr-12 text-left">
           <DialogTitle className="text-lg font-bold text-gray-800">
-            {permitirCambioEstado ? "Modificación de Centro de costos" : "Consulta de Centro de costos"}
+            {permitirGestion ? "Modificación de Centro de costos" : "Consulta de Centro de costos"}
           </DialogTitle>
           <DialogDescription asChild>
             <div className="space-y-0.5">
@@ -220,7 +225,7 @@ const DetalleCentroCostoDialog = ({
                 <p className="break-all font-mono text-sm font-bold text-emerald-800">
                   {centro?.codigo || "Cargando..."}
                 </p>
-                {centro && onDuplicar && (
+                {puedeGestionar && centro && onDuplicar && (
                   <BotonDuplicar onClick={() => onDuplicar(centro.codigo)} />
                 )}
               </div>
@@ -322,7 +327,7 @@ const DetalleCentroCostoDialog = ({
               )}
 
               {/* Ajustar las fechas del proyecto */}
-              {permitirCambioEstado && (
+              {permitirGestion && (
                 <div className="space-y-3 rounded-2xl border border-gray-100 p-4">
                   <h3 className="flex items-center gap-2 font-semibold text-gray-800">
                     <CalendarRange className="h-4 w-4" />
@@ -407,7 +412,7 @@ const DetalleCentroCostoDialog = ({
               )}
 
               {/* Cerrar o reabrir */}
-              {permitirCambioEstado && (
+              {permitirGestion && (
                 <div className="space-y-3 rounded-2xl border border-gray-100 p-4">
                   <h3 className="flex items-center gap-2 font-semibold text-gray-800">
                     {abierto ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}

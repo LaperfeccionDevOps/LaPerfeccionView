@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 
+import { usePermisosContabilidad } from "@/components/contabilidad/PermisosContabilidad";
 import AsignacionCentroCostoDialog from "@/components/contabilidad/AsignacionCentroCostoDialog";
 import DetalleCentroCostoDialog from "@/components/contabilidad/DetalleCentroCostoDialog";
 import { useDuplicarCentro } from "@/components/contabilidad/duplicarCentroCosto";
@@ -132,6 +133,7 @@ const MODOS = {
  * La usan las pestañas Consultar, Modificar y Asignar (`modo`).
  */
 const CentrosCostoView = ({ modo = "consultar" }) => {
+  const { puedeGestionar } = usePermisosContabilidad();
   const configuracion = MODOS[modo];
   const IconoBoton = configuracion.icono;
   const filtrosIniciales = { ...FILTROS_INICIALES, estado: configuracion.estadoInicial || "" };
@@ -291,7 +293,7 @@ const CentrosCostoView = ({ modo = "consultar" }) => {
   return (
     <div className="w-full min-w-0 max-w-full space-y-4 overflow-x-hidden"
     >
-      <EncabezadoCentrosCosto descripcion={configuracion.descripcion}>
+      <EncabezadoCentrosCosto descripcion={puedeGestionar ? configuracion.descripcion : "Consulta de los centros de costo por cliente, servicio y línea de negocio. Haz clic en una fila para ver su detalle."}>
 
         {/* Filtros en el orden de la codificación (CEN 1 a CEN 5), luego estado y revisión. */}
         <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-7">
@@ -647,11 +649,11 @@ const CentrosCostoView = ({ modo = "consultar" }) => {
             icono: IconoBoton || Eye,
             onClick: () => setIdDetalle(menu.centro.id_centro_costo_contable),
           },
-          {
+          ...(puedeGestionar ? [{
             etiqueta: "Duplicar",
             icono: Copy,
             onClick: () => duplicar(menu.centro.codigo),
-          },
+          }] : []),
         ]}
       />
 
@@ -659,15 +661,15 @@ const CentrosCostoView = ({ modo = "consultar" }) => {
         <AsignacionCentroCostoDialog
           idCentro={idDetalle}
           onClose={() => setIdDetalle(null)}
-          onDuplicar={duplicar}
+          onDuplicar={puedeGestionar ? duplicar : undefined}
         />
       ) : (
         <DetalleCentroCostoDialog
           idCentro={idDetalle}
           onClose={() => setIdDetalle(null)}
           onCambio={() => setRecarga((n) => n + 1)}
-          onDuplicar={duplicar}
-          permitirCambioEstado={configuracion.permitirCambioEstado}
+          onDuplicar={puedeGestionar ? duplicar : undefined}
+          permitirCambioEstado={puedeGestionar && configuracion.permitirCambioEstado}
         />
       )}
     </div>

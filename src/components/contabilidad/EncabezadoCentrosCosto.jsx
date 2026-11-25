@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import { Calculator, FilePlus2, PencilLine, Search, UserPlus } from "lucide-react";
 
+import { usePermisosContabilidad } from "./PermisosContabilidad";
 import { cn } from "@/lib/utils";
 
 export const RUTAS_CENTROS_COSTO = {
@@ -27,6 +28,7 @@ const PESTANAS = [
  * descripción va debajo y `compacto` la oculta (formularios largos).
  */
 const EncabezadoCentrosCosto = ({ descripcion, compacto = false, children }) => {
+  const { puedeGestionar } = usePermisosContabilidad();
   // Reserva siempre el espacio de la barra de desplazamiento de la ventana:
   // así las vistas cortas (sin barra) y las largas tienen el mismo ancho y los
   // botones no se corren. Solo mientras se está en este módulo.
@@ -56,7 +58,7 @@ const EncabezadoCentrosCosto = ({ descripcion, compacto = false, children }) => 
         {/* Botones de ancho fijo: su posición no depende del texto, de la fuente
             ni de cuál está activo. */}
         <nav className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:gap-3 lg:shrink-0 lg:justify-end" aria-label="Opciones de centros de costo">
-          {PESTANAS.map(({ to, label, icon: Icono, end }) => (
+          {PESTANAS.filter((p) => puedeGestionar || p.to === RUTAS_CENTROS_COSTO.consultar || p.to === RUTAS_CENTROS_COSTO.asignar).map(({ to, label, icon: Icono, end }) => (
             <NavLink
               key={to}
               to={to}
@@ -71,7 +73,7 @@ const EncabezadoCentrosCosto = ({ descripcion, compacto = false, children }) => 
               }
             >
               <Icono className="h-4 w-4" />
-              {label}
+              {!puedeGestionar && to === RUTAS_CENTROS_COSTO.asignar ? "Asignaciones" : label}
             </NavLink>
           ))}
         </nav>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, History, Loader2, PencilLine, StopCircle, Users } from "lucide-react";
 
+import { usePermisosContabilidad } from "./PermisosContabilidad";
 import BotonDuplicar from "@/components/contabilidad/BotonDuplicar";
 import FormularioAsignacion, { hoyISO } from "@/components/contabilidad/FormularioAsignacion";
 import { extrasDesdeApi } from "@/components/contabilidad/LineaAsignacion";
@@ -48,6 +49,7 @@ const aFormulario = (l) => ({
  */
 // `onDuplicar(codigo)` abre Crear con la codificación de este centro.
 const AsignacionCentroCostoDialog = ({ idCentro, onClose, onDuplicar }) => {
+  const { puedeGestionar } = usePermisosContabilidad();
   const [datos, setDatos] = useState(null);
   const [catalogos, setCatalogos] = useState(null);
   const [editando, setEditando] = useState(false);
@@ -67,25 +69,37 @@ const AsignacionCentroCostoDialog = ({ idCentro, onClose, onDuplicar }) => {
       return;
     }
 
+    let vigenteSolicitud = true;
     Promise.all([obtenerAsignacionCentro(idCentro), catalogos || obtenerCatalogosAsignacion()])
       .then(([asignacion, listas]) => {
+        if (!vigenteSolicitud) return;
         setCatalogos(listas);
         setDatos(asignacion);
         // Sin asignación vigente en un centro abierto: directo al formulario.
-        setEditando(!asignacion.vigente && asignacion.centro.estado === "ABIERTO");
+        setEditando(puedeGestionar && !asignacion.vigente && asignacion.centro.estado === "ABIERTO");
       })
       .catch((error) => {
+        if (!vigenteSolicitud) return;
         toast({ title: "No se pudo cargar la asignación", description: error.message, variant: "destructive" });
         onClose();
       });
-    // Los catálogos se cargan una vez; solo importa el centro.
+    return () => { vigenteSolicitud = false; };
+    // Los catálogos se reutilizan; se verifica el centro y el permiso.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idCentro]);
+  }, [idCentro, puedeGestionar]);
+
+  useEffect(() => {
+    if (!puedeGestionar) {
+      setEditando(false);
+      setFinalizando(false);
+    }
+  }, [puedeGestionar]);
 
   const vigente = datos?.vigente;
   const abierto = datos?.centro.estado === "ABIERTO";
 
   const finalizar = async () => {
+    if (!puedeGestionar || !abierto) return;
     setGuardando(true);
     try {
       setDatos(await finalizarAsignacionCentro(idCentro, fechaFin));
@@ -111,7 +125,7 @@ const AsignacionCentroCostoDialog = ({ idCentro, onClose, onDuplicar }) => {
                 <p className="break-all font-mono text-sm font-bold text-emerald-800">
                   {datos?.centro.codigo || "Cargando..."}
                 </p>
-                {datos && onDuplicar && (
+                {puedeGestionar && datos && onDuplicar && (
                   <BotonDuplicar onClick={() => onDuplicar(datos.centro.codigo)} />
                 )}
               </div>
@@ -139,7 +153,7 @@ const AsignacionCentroCostoDialog = ({ idCentro, onClose, onDuplicar }) => {
                 </p>
               )}
 
-              {editando ? (
+              {puedeGestionar && abierto && editando ? (
                 <div className="space-y-3">
                   <h3 className="flex items-center gap-2 font-semibold text-gray-800">
                     <Users className="h-4 w-4" />
@@ -181,7 +195,7 @@ const AsignacionCentroCostoDialog = ({ idCentro, onClose, onDuplicar }) => {
                         {vigente.observacion && ` · ${vigente.observacion}`}
                       </p>
                     </div>
-                    {abierto && (
+                    {puedeGestionar && abierto && (
                       <div className="grid grid-cols-1 gap-2 sm:flex">
                         <Button type="button" onClick={() => setEditando(true)} className="rounded-full bg-emerald-600 hover:bg-emerald-700">
                           <PencilLine className="mr-2 h-4 w-4" />
@@ -200,7 +214,7 @@ const AsignacionCentroCostoDialog = ({ idCentro, onClose, onDuplicar }) => {
                     )}
                   </div>
 
-                  {finalizando && (
+                  {puedeGestionar && abierto && finalizando && (
                     <div className="space-y-3 rounded-2xl border border-red-200 bg-red-50/50 p-4">
                       <p className="flex items-start gap-2 text-sm text-red-800">
                         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
