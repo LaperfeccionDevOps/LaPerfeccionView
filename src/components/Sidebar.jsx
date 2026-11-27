@@ -15,6 +15,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
+import { usePermisosContabilidad } from "@/components/contabilidad/PermisosContabilidad";
 import { cn } from "@/lib/utils";
 
 const Sidebar = ({
@@ -23,6 +24,7 @@ const Sidebar = ({
   closeMobileSidebar,
 }) => {
   const { logout, user } = useAuth();
+  const { puedeConsultar } = usePermisosContabilidad();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -331,28 +333,6 @@ const Sidebar = ({
         },
       ],
     },
-    {
-      label: "Contabilidad",
-      icon: Calculator,
-      roles: [
-        "Administrador",
-        "Super Administrador",
-        "Contabilidad",
-        "Desarrollador",
-      ],
-      children: [
-        {
-          to: "/contabilidad/centros-costo",
-          label: "Centros de Costo",
-          roles: [
-            "Administrador",
-            "Super Administrador",
-            "Contabilidad",
-            "Desarrollador",
-          ],
-        },
-      ],
-    },
   ];
 
   const talentoHumanoNavItems = [
@@ -580,17 +560,6 @@ const Sidebar = ({
         },
       ],
     },
-    {
-      label: "Contabilidad",
-      icon: Calculator,
-      roles: ["Super Administrador"],
-      children: [
-        {
-          to: "/contabilidad/centros-costo",
-          label: "Centros de Costo",
-        },
-      ],
-    },
   ];
 
   const filtrarItemPorRol = (item) => {
@@ -662,6 +631,11 @@ const Sidebar = ({
 
   const navItems = [
     ...baseNavItems,
+    ...(puedeConsultar ? [{
+      label: "Contabilidad",
+      icon: Calculator,
+      children: [{ to: "/contabilidad/centros-costo", label: "Centros de Costo" }],
+    }] : []),
     ...(puedeAccederSNC
       ? [
           {

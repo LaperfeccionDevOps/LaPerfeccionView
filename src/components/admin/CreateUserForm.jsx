@@ -16,7 +16,7 @@ import {
 
 import { toast } from '@/components/ui/use-toast';
 
-import { createUser, getAreasTrabajoSNC } from '@/utils/userManagement';
+import { createUser, getAreasTrabajoSNC, getAvailableRoles } from '@/utils/userManagement';
 
 import {
   UserPlus,
@@ -42,10 +42,14 @@ const INITIAL_FORM = {
 const CreateUserForm = () => {
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [saving, setSaving] = useState(false);
+  const [roles, setRoles] = useState([]);
+  const [rolesError, setRolesError] = useState('');
   const [areas, setAreas] = useState([]);
   const [areasError, setAreasError] = useState('');
   useEffect(() => {
     let active = true;
+    getAvailableRoles().then(items => { if (active) setRoles(items.filter(r => !['Contabilidad', 'Compras', 'Mantenimiento'].includes(r.nombre_rol)).map(r => r.nombre_rol)); })
+      .catch(error => { if (active) setRolesError(error.message); });
     getAreasTrabajoSNC().then((items) => { if (active) setAreas(items); })
       .catch((error) => { if (active) setAreasError(error.message || 'No se pudieron cargar las áreas.'); });
     return () => { active = false; };
@@ -69,7 +73,7 @@ const CreateUserForm = () => {
       !formData.username.trim() ||
       !formData.pass ||
       !formData.confirmPass ||
-      !formData.role ||
+      !roles.includes(formData.role) ||
       !formData.areaId
     ) {
       toast({
@@ -375,6 +379,7 @@ const CreateUserForm = () => {
 
             <Select
               value={formData.role}
+              disabled={saving || !!rolesError || roles.length === 0}
               onValueChange={(value) =>
                 handleChange('role', value)
               }
@@ -386,74 +391,17 @@ const CreateUserForm = () => {
               </SelectTrigger>
 
               <SelectContent>
-                <SelectItem value="Administrador">
-                  Administrador
-                </SelectItem>
-
-                <SelectItem value="Selección">
-                  Selección
-                </SelectItem>
-
-                <SelectItem value="Contratación">
-                  Contratación
-                </SelectItem>
-
-                <SelectItem value="Aspirante">
-                  Aspirante
-                </SelectItem>
-
-                <SelectItem value="Super Administrador">
-                  Super Administrador
-                </SelectItem>
-
-                <SelectItem value="Operaciones">
-                  Operaciones
-                </SelectItem>
-
-                <SelectItem value="HSE">
-                  HSE
-                </SelectItem>
-
-                <SelectItem value="Relaciones Laborales">
-                  Relaciones Laborales
-                </SelectItem>
-
-                <SelectItem value="Talento Humano">
-                  Talento Humano
-                </SelectItem>
-
-                <SelectItem value="Desarrollador">
-                  Desarrollador
-                </SelectItem>
-
-                <SelectItem value="Bienestar">
-                  Bienestar
-                </SelectItem>
-
-                <SelectItem value="Nómina">
-                  Nómina
-                </SelectItem>
-
-                <SelectItem value="Administrativo">
-                  Administrativo
-                </SelectItem>
-
-                <SelectItem value="Recepción">
-                  Recepción
-                </SelectItem>
-
-                <SelectItem value="Comercial">
-                  Comercial
-                </SelectItem>
+                {roles.map(role => <SelectItem key={role} value={role}>{role}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
         </div>
 
+        {rolesError && <p role="alert" className="text-sm text-red-600">{rolesError}</p>}
         <div className="pt-6">
           <Button
             type="submit"
-            disabled={saving || passwordsDoNotMatch || !!areasError || areas.length === 0}
+            disabled={saving || !!rolesError || roles.length === 0 || passwordsDoNotMatch || !!areasError || areas.length === 0}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 text-base disabled:opacity-60"
           >
             <Save className="w-5 h-5 mr-2" />

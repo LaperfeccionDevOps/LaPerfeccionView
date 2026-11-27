@@ -75,6 +75,13 @@ const AccesoAdministrativoSNC = ({ children }) => {
     ...(permisos.includes("PQRF_GENERAL_VER") ? ["/pqrf/general"] : []),
   ];
 
+  const { cargando, puedeConsultar } = usePermisosContabilidad();
+  const rutaContabilidad = location.pathname.startsWith("/contabilidad/");
+  if (soloSNC && rutaContabilidad && cargando) {
+    return <p role="status">Consultando permisos de Contabilidad...</p>;
+  }
+  if (soloSNC && rutaContabilidad && puedeConsultar) return children;
+
   if (soloSNC && !rutasPermitidas.includes(location.pathname)) {
     return <Navigate to="/salidas-no-conformes" replace />;
   }
@@ -292,27 +299,11 @@ const GeneralPermissionRoute = ({ children, permission }) => {
   return children;
 };
 
-// Contabilidad: protección visual por rol; la API también valida el acceso.
+// Contabilidad: la API determina los permisos efectivos de cada usuario.
 const ContabilidadRoute = ({ children, gestion = false }) => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-
-  const role = String(user.role || "").trim();
-  const rolesPermitidos = [
-    "Contabilidad",
-    "Administrador",
-    "Super Administrador",
-    "Desarrollador",
-  ];
-
-  if (!rolesPermitidos.includes(role)) {
-    return <Navigate to="/" replace />;
-  }
-  return (
-    <PermisosContabilidadProvider>
-      <AccesoContabilidad gestion={gestion}>{children}</AccesoContabilidad>
-    </PermisosContabilidadProvider>
-  );
+  return <AccesoContabilidad gestion={gestion}>{children}</AccesoContabilidad>;
 };
 
 
@@ -396,9 +387,11 @@ function App() {
           path="/"
           element={
             <ProtectedRoute>
-              <AccesoAdministrativoSNC>
-                <HomePage />
-              </AccesoAdministrativoSNC>
+              <PermisosContabilidadProvider>
+                <AccesoAdministrativoSNC>
+                  <HomePage />
+                </AccesoAdministrativoSNC>
+              </PermisosContabilidadProvider>
             </ProtectedRoute>
           }
         >

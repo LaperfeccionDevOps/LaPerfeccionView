@@ -13,26 +13,12 @@ const PERMISSIONS_URL =
 const AREAS_SNC_URL = `${API_BASE_URL}/auth/areas-trabajo-snc`;
 
 
-const ROLE_IDS = {
-  Administrador: 1,
-  Selección: 2,
-  Contratación: 3,
-  Aspirante: 4,
-  'Super Administrador': 5,
-  Operaciones: 6,
-  Contabilidad: 7,
-  Compras: 8,
-  Mantenimiento: 9,
-  HSE: 10,
-  'Relaciones Laborales': 12,
-  'Talento Humano': 13,
-  Desarrollador: 15,
-  Bienestar: 16,
-  Nómina: 17,
-  Administrativo: 18,
-  Recepción: 19,
-  Comercial: Number(import.meta.env.VITE_COMERCIAL_ROLE_ID || (import.meta.env.MODE === 'qa' ? 21 : 20)),
-};
+const ROLES_URL = `${API_BASE_URL}/auth/roles`;
+// Mantener el alcance anterior de los formularios, sin IDs fijos.
+const ROLE_NAMES = ['Administrador', 'Selección', 'Contratación', 'Aspirante',
+  'Super Administrador', 'Operaciones', 'Contabilidad', 'Compras', 'Mantenimiento',
+  'HSE', 'Relaciones Laborales', 'Talento Humano', 'Desarrollador', 'Bienestar',
+  'Nómina', 'Administrativo', 'Recepción', 'Comercial'];
 
 
 /*
@@ -107,7 +93,7 @@ const handleApiError = (
 export const createUser = async (userData) => {
   const token = getToken();
 
-  const idRol = ROLE_IDS[userData.role];
+  const idRol = await getRoleId(userData.role);
 
   if (!idRol) {
     throw new Error(
@@ -339,7 +325,7 @@ export const updateUser = async (
     );
   }
 
-  const idRol = ROLE_IDS[updates.role];
+  const idRol = await getRoleId(updates.role);
 
   if (!idRol) {
     throw new Error(
@@ -513,13 +499,24 @@ export const resetUserPassword = async (
 |--------------------------------------------------------------------------
 */
 
-export const getRoleId = (roleName) => {
-  return ROLE_IDS[roleName] || null;
+export const getAvailableRoles = async () => {
+  const response = await fetch(ROLES_URL, {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${getToken()}` },
+    cache: 'no-store',
+  });
+  const data = await parseResponse(response);
+  if (!response.ok) handleApiError(response, data, 'No fue posible consultar los roles.');
+  if (!Array.isArray(data)) throw new Error('Catálogo de roles inválido.');
+  return data.filter(r => ROLE_NAMES.includes(r.nombre_rol));
 };
 
-
-export const getAvailableRoles = () => {
-  return Object.keys(ROLE_IDS);
+export const getRoleId = async (roleName) => {
+  const roles = await getAvailableRoles();
+  const matches = roles.filter(r => r.nombre_rol === roleName);
+  if (matches.length !== 1 || !Number.isSafeInteger(matches[0].id_rol) || matches[0].id_rol <= 0) {
+    throw new Error('El rol seleccionado no existe o es ambiguo.');
+  }
+  return matches[0].id_rol;
 };
 
 

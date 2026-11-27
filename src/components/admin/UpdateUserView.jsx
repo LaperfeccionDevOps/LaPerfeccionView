@@ -98,10 +98,8 @@ const UpdateUserView = () => {
     useState(false);
 
 
-  const roles = useMemo(
-    () => getAvailableRoles(),
-    []
-  );
+  const [roles, setRoles] = useState([]);
+  const [rolesError, setRolesError] = useState('');
 
 
   const loadUsers = async () => {
@@ -158,6 +156,8 @@ const UpdateUserView = () => {
     loadUsers();
     loadPermissions();
     let active = true;
+    getAvailableRoles().then(items => { if (active) setRoles(items.map(r => r.nombre_rol)); })
+      .catch(error => { if (active) setRolesError(error.message); });
     getAreasTrabajoSNC().then((items) => { if (active) setAreas(items); })
       .catch((error) => { if (active) setAreasError(error.message || 'No fue posible cargar las áreas.'); });
     return () => { active = false; };
@@ -377,7 +377,7 @@ const UpdateUserView = () => {
       return;
     }
 
-    if (!role) {
+    if (!roles.includes(role)) {
       toast({
         title: 'Campo obligatorio',
         description:
@@ -957,6 +957,7 @@ const UpdateUserView = () => {
 
 
               <div className="grid gap-2">
+                {rolesError && <p role="alert" className="text-sm text-red-600">{rolesError}</p>}
 
                 <Label>
                   Rol
@@ -964,7 +965,7 @@ const UpdateUserView = () => {
 
                 <Select
                   value={selectedUser.role || ''}
-                  disabled={isSaving}
+                  disabled={isSaving || !!rolesError || roles.length === 0}
                   onValueChange={(value) =>
                     setSelectedUser({
                       ...selectedUser,
@@ -1169,7 +1170,7 @@ const UpdateUserView = () => {
 
             <Button
               type="button"
-              disabled={isSaving || !!areasError || areas.length === 0}
+              disabled={isSaving || !!rolesError || roles.length === 0 || !!areasError || areas.length === 0}
               onClick={handleEditSave}
               className="bg-purple-600 hover:bg-purple-700"
             >
